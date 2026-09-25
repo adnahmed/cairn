@@ -476,14 +476,19 @@ export const MIGRATIONS_101_150: Migration[] = [
     // identical rows seconds apart. logWeight now treats an identical value on the same
     // date within WEIGHT_RESUBMIT_WINDOW_MIN (10 minutes, repo/bodyweight.ts) as a no-op;
     // this folds the bursts already on disk under the same law. ONLY exact duplicates go:
-    // same date, same value, created within 600 seconds of an EARLIER identical row, and
-    // carrying no words that row lacks (its note is NULL/blank or equal to it). The
-    // earliest row of a burst survives, as the live no-op keeps the first write.
-    // Genuinely different same-day readings are untouched — the one-per-day rule for
-    // those is a READ rule (dailyManualWeighIns), never a delete. A row without
-    // created_at is never matched.
-    // Inline SQL with the constants spelled out, so it cannot drift with live code.
-    // Idempotent: a second pass finds no row with an earlier twin.
+    // same date, same value, created within 600 seconds of the row the live no-op would
+    // have answered with — the latest identical row that SURVIVES, never a duplicate that
+    // is itself being folded — and carrying no words that row lacks (its note is
+    // NULL/blank or equal to it). So identical rows at 07:00, 07:08, 07:16 and 07:24 keep
+    // 07:00 and 07:16, exactly as logWeight would have written them: the window is
+    // measured from a kept row, a burst never chains past it. The earliest row of a burst
+    // survives, as the live no-op keeps the first write. Genuinely different same-day
+    // readings are untouched — the one-per-day rule for those is a READ rule
+    // (dailyManualWeighIns), never a delete. A row without created_at is never matched.
+    // The walk is a greedy replay in id order (a "was the anchor itself kept" question
+    // SQL cannot answer without recursion), with the constants spelled out inline so it
+    // cannot drift with live code. Idempotent: a second pass finds every survivor more
+    // than 600 s from the kept identical row before it, or carrying its own words.
     up: (db) => {
       if (!hasTable(db, "bodyweight_log")) return;
       // A very old table without created_at has no window to judge a burst by.
@@ -491,23 +496,37 @@ export const MIGRATIONS_101_150: Migration[] = [
         (db.prepare(`PRAGMA table_info(bodyweight_log)`).all() as Array<{ name: string }>).map((c) => c.name)
       );
       if (!columns.has("created_at") || !columns.has("note")) return;
-      const removed = db
+      const rows = db
         .prepare(
-          `DELETE FROM bodyweight_log
-            WHERE id IN (
-              SELECT dup.id FROM bodyweight_log dup
-               WHERE dup.created_at IS NOT NULL
-                 AND EXISTS (
-                       SELECT 1 FROM bodyweight_log k
-                        WHERE k.id < dup.id AND k.date = dup.date
-                          AND ABS(k.weight_lb - dup.weight_lb) < 0.001
-                          AND k.created_at IS NOT NULL
-                          AND ABS(strftime('%s', dup.created_at) - strftime('%s', k.created_at)) <= 600
-                          AND (dup.note IS NULL OR TRIM(dup.note) = '' OR k.note = dup.note)))`
+          `SELECT id, date, weight_lb, note, CAST(strftime('%s', created_at) AS INTEGER) AS at
+             FROM bodyweight_log
+            WHERE created_at IS NOT NULL AND strftime('%s', created_at) IS NOT NULL
+            ORDER BY date, id`
         )
-        .run();
-      if (Number(removed.changes) > 0) {
-        log.info(`[migrate] v115: folded ${removed.changes} double-submitted weigh-in(s) into their first entry.`);
+        .all() as Array<{ id: number; date: string; weight_lb: number; note: string | null; at: number }>;
+      const kept = new Map<string, Array<{ weight_lb: number; note: string | null; at: number }>>();
+      const doomed: number[] = [];
+      for (const row of rows) {
+        const day = kept.get(row.date) ?? [];
+        kept.set(row.date, day);
+        let anchor: { note: string | null; at: number } | null = null;
+        for (let i = day.length - 1; i >= 0; i--) {
+          if (Math.abs(day[i].weight_lb - row.weight_lb) < 0.001) {
+            anchor = day[i];
+            break;
+          }
+        }
+        const blank = row.note == null || String(row.note).trim() === "";
+        if (anchor && Math.abs(Number(row.at) - anchor.at) <= 600 && (blank || anchor.note === row.note)) {
+          doomed.push(Number(row.id));
+          continue;
+        }
+        day.push({ weight_lb: Number(row.weight_lb), note: row.note ?? null, at: Number(row.at) });
+      }
+      const del = db.prepare(`DELETE FROM bodyweight_log WHERE id = ?`);
+      for (const id of doomed) del.run(id);
+      if (doomed.length > 0) {
+        log.info(`[migrate] v115: folded ${doomed.length} double-submitted weigh-in(s) into their first entry.`);
       }
     },
   },

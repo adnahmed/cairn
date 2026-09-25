@@ -9,6 +9,7 @@ import { LB_PER_KG, addDaysISO, daysBetweenISO, localDateISO } from "./shared.js
 import { bumpTrainingDataVersion } from "./training-cache.js";
 import { canonicalBodyweightSeries, recentIdenticalWeighIn, resolvedCurrentBodyweight } from "./bodyweight.js";
 import { classifyRecompositionStage } from "./recomposition-stage.js";
+import { dailySiteSeries } from "./measurement-series.js";
 import { serializeTrainingIntent } from "./training-intent.js";
 import { normalizeLocationText } from "./location-context.js";
 import { parseMovementConsiderations, serializeMovementConsiderations } from "./movement-considerations.js";
@@ -802,13 +803,17 @@ function heightInFor(p: any): number | null {
 function navyTapeBodyFat(p: any): BodyFatEstimate | null {
   const heightIn = heightInFor(p);
   if (heightIn == null) return null;
-  const row = db
-    .prepare(`SELECT date, waist_in, hip_in, neck_in FROM body_measurements ORDER BY date DESC, id DESC LIMIT 1`)
-    .get() as any;
-  if (!row) return null;
-  const waist = Number(row.waist_in);
-  const neck = Number(row.neck_in);
-  const hip = Number(row.hip_in);
+  // The latest tape DAY, one value per site (measurement-series.ts): a same-day
+  // re-entry that corrects only the waist keeps that day's earlier neck and hip.
+  const row = db.prepare(`SELECT MAX(date) AS date FROM body_measurements`).get() as any;
+  if (!row?.date) return null;
+  const onDay = (site: string) => {
+    const reading = dailySiteSeries(site, { since: row.date, through: row.date }).at(-1);
+    return reading ? reading.value : Number.NaN;
+  };
+  const waist = onDay("waist_in");
+  const neck = onDay("neck_in");
+  const hip = onDay("hip_in");
   const female = String(p?.sex || "male").toLowerCase() === "female";
   let value: number | null = null;
   if (!female && Number.isFinite(waist) && Number.isFinite(neck) && waist > neck && heightIn > 0) {

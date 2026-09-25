@@ -20,6 +20,11 @@ import { addActivity, listActivities, recentTraining } from "../dist/repo/activi
 import { weeklyKm } from "../dist/repo/program-state.js";
 import { RUN_SPORT_PATTERNS } from "../dist/repo/endurance-sports.js";
 import { localDateISO } from "../dist/repo/shared.js";
+import { journeyMilestones } from "../dist/repo/journey.js";
+import { currentBodyFatEstimate } from "../dist/repo/profile.js";
+import { getMarkerHistory } from "../dist/repo/health.js";
+import { bumpMarkerDataVersion } from "../dist/repo/marker-cache.js";
+import { runVarietyRead } from "../dist/repo/run-progression.js";
 
 function daysAgo(n) {
   const d = new Date();
@@ -32,7 +37,16 @@ function ageRow(table, id, minutes) {
 }
 
 beforeEach(() => {
-  resetTables("bodyweight_log", "body_measurements", "activities", "garmin_activities");
+  resetTables(
+    "bodyweight_log",
+    "body_measurements",
+    "activities",
+    "garmin_activities",
+    "profile",
+    "journey_phases",
+    "health_documents",
+    "blood_pressure_readings"
+  );
 });
 
 // ---------------------------------------------------------------- weight ----
@@ -184,6 +198,58 @@ test("activities: a watch run arriving after the hand log retires it (the revers
   assert.equal(weeklyKm(localDateISO(), 0, RUN_SPORT_PATTERNS), 7.1);
 });
 
+// --------------------------------------------------------------- readers ----
+
+test("weight readers: goal first-reached and the Body Weight marker read the day's latest entry", () => {
+  repo.setProfile({ sex: "male", age: 40, height_in: 70, weight_lb: 180, goal_weight_lb: 164, goal_mode: "lose" });
+  db.prepare(`UPDATE profile SET start_weight_lb = 180, start_date = ? WHERE id = 1`).run(daysAgo(20));
+  const ins = db.prepare(`INSERT INTO bodyweight_log (date, weight_lb) VALUES (?, ?)`);
+  ins.run(daysAgo(6), 175);
+  ins.run(daysAgo(4), 163.8); // typo…
+  ins.run(daysAgo(4), 168.2); // …corrected: the day weighed 168.2
+  ins.run(daysAgo(1), 163.9);
+
+  const reached = journeyMilestones().find((m) => m.id === "goal-weight-reached");
+  assert.ok(reached, "the goal is reached today");
+  assert.equal(reached.achieved_date, daysAgo(1), "a corrected same-day typo never marks the goal reached early");
+
+  bumpMarkerDataVersion();
+  const weight = getMarkerHistory().markers.find((m) => m.name === "Body Weight");
+  assert.deepEqual(
+    weight.points.map((pt) => [pt.date, pt.value]),
+    [
+      [daysAgo(6), 175],
+      [daysAgo(4), 168.2],
+      [daysAgo(1), 163.9],
+    ],
+    "one Body Weight point per day"
+  );
+});
+
+test("tape readers: the Navy estimate keeps a same-day neck when the re-tape corrects only the waist", () => {
+  const p = repo.setProfile({ sex: "male", age: 40, height_in: 70, weight_lb: 180 });
+  const d1 = daysAgo(1);
+  repo.addBodyMeasurement(d1, { waist_in: 34, neck_in: 15 });
+  repo.addBodyMeasurement(d1, { waist_in: 33.5 });
+  const bf = currentBodyFatEstimate(p);
+  const expected = Math.round((86.01 * Math.log10(33.5 - 15) - 70.041 * Math.log10(70) + 36.76) * 10) / 10;
+  assert.equal(bf?.source, "tape");
+  assert.equal(bf.body_fat_pct, expected, "corrected waist with that day's neck");
+  assert.equal(bf.date, d1);
+});
+
+test("run readers: run variety counts a hand log shadowing the watch's run once", () => {
+  repo.setProfile({ sex: "male", age: 40, height_in: 70, weight_lb: 180, endurance_sport: "running" });
+  const kms = [6, 8, 10, 12, 14, 16];
+  kms.forEach((km, i) => seedWatchRun(daysAgo(3 + i * 5), { duration_min: km * 6, distance_km: km }));
+  // Hand logs of three of those same runs, typed after the sync.
+  for (const i of [0, 2, 4]) {
+    addActivity({ date: daysAgo(3 + i * 5), type: "run", duration_min: kms[i] * 6, distance_km: kms[i] });
+  }
+  const read = runVarietyRead(localDateISO());
+  assert.match(String(read?.note), /^All 6 of your last runs/, "six runs, not nine rows");
+});
+
 // ------------------------------------------------------------- migration ----
 
 test("v115 folds only exact double-submit weigh-ins and is idempotent", () => {
@@ -220,5 +286,22 @@ test("v115 folds only exact double-submit weigh-ins and is idempotent", () => {
     .all()
     .map((r) => r.id);
   assert.deepEqual(ids, [1, 4, 5, 6, 8, 9, 10]);
+
+  // A chain of identical rows 8 minutes apart: the window runs from the KEPT row, as the
+  // live no-op would have written them — 07:00 and 07:16 stay, 07:08 and 07:24 fold.
+  d.exec(`DELETE FROM bodyweight_log;`);
+  ins.run("2026-01-13", 171.2, null, "2026-01-13 07:00:00"); // 11 kept
+  ins.run("2026-01-13", 171.2, null, "2026-01-13 07:08:00"); // 12 within 10 min of 11 -> folded
+  ins.run("2026-01-13", 171.2, null, "2026-01-13 07:16:00"); // 13 16 min after the kept row -> kept
+  ins.run("2026-01-13", 171.2, null, "2026-01-13 07:24:00"); // 14 within 10 min of 13 -> folded
+  v115.up(d);
+  v115.up(d);
+  assert.deepEqual(
+    d
+      .prepare(`SELECT created_at FROM bodyweight_log ORDER BY id`)
+      .all()
+      .map((r) => r.created_at.slice(11, 16)),
+    ["07:00", "07:16"]
+  );
   d.close();
 });

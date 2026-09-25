@@ -15,7 +15,6 @@ import {
   duplicateMetricError,
   isShadowActivity,
   normalizeGarminType,
-  positiveNumber,
   shadowedActivity,
   withoutShadowActivities,
   type ShadowCheckActivity,
