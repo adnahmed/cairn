@@ -33,16 +33,19 @@ const PENDING_KEYS = [MEAL_REFRESH_REQUEST_KEY, MEAL_REFRESH_INSTRUCTION_KEY, ME
 
 /**
  * Retire any parked automatic meal-refresh request (its instruction and retry
- * state with it). Writes only when something is actually parked, so the idle
- * scheduler minute stays read-only. Returns true when something was cleared.
+ * state with it). A parked REQUEST (or its orphaned instruction) is what gets
+ * retired: the attempt key alone is only the history a successful reshape leaves
+ * behind, never pending work, so it is cleared with a request and otherwise left
+ * alone. Writes only when something is actually parked, so the idle scheduler
+ * minute stays read-only. Returns true when a request was retired.
  */
 export function retirePendingMealRefresh(): boolean {
-  let cleared = false;
+  const parked = [MEAL_REFRESH_REQUEST_KEY, MEAL_REFRESH_INSTRUCTION_KEY].some((key) =>
+    String(getAppState(key) ?? "").trim()
+  );
+  if (!parked) return false;
   for (const key of PENDING_KEYS) {
-    if (String(getAppState(key) ?? "").trim()) {
-      setAppState(key, "");
-      cleared = true;
-    }
+    if (String(getAppState(key) ?? "").trim()) setAppState(key, "");
   }
-  return cleared;
+  return true;
 }

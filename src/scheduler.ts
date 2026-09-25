@@ -443,23 +443,37 @@ export interface ScheduledMealPlanWork {
   due: boolean;
 }
 
+/**
+ * A pure read: what meal-plan work this tick owes. Off, nothing is due (the parked
+ * request is retired separately by `retireMealRefreshWhileOff`). On, the weekly slot
+ * is miss-tolerant like every other weekly slot, so an athlete who opts in after this
+ * week's coach day/hour gets this week's plan on the next tick rather than a week later.
+ */
 export function scheduledMealPlanDue(
   now: Date,
   s: Pick<repo.Settings, "meal_plan_auto_draft" | "coach_day" | "coach_hour">
 ): ScheduledMealPlanWork {
-  if (!s.meal_plan_auto_draft) {
-    // A request parked before the switch existed (or while it was on) would never run;
-    // retire it so no retry backoff keeps spinning over work nobody will do.
-    if (retirePendingMealRefresh())
-      log.info(`[proactive] automatic meal plans are off; retired a parked meal refresh request.`);
-    return { enabled: false, request: null, refreshDue: false, due: false };
-  }
+  if (!s.meal_plan_auto_draft) return { enabled: false, request: null, refreshDue: false, due: false };
   const request = repo.getAppState(MEAL_REFRESH_REQUEST_KEY);
   const refreshDue = mealRefreshRetryDue(request, now, localToday(now));
   // An owned protective reshape has priority. While its retry backoff is active,
   // the ordinary weekly cadence must not bypass the owner or duplicate the work.
   const weeklyDue = !request && weeklySlotDue(now, s.coach_day, s.coach_hour, "meal_plan_refresh_last_slot");
   return { enabled: true, request: request || null, refreshDue, due: refreshDue || weeklyDue };
+}
+
+/**
+ * While automatic meal plans are off, retire a request parked before the switch
+ * existed (or while it was on): it would never run, and no retry backoff should keep
+ * spinning over work nobody will do. The tick calls this every minute ahead of the
+ * `proactive_enabled` gate, so an install with proactivity off is cleaned up too; it
+ * writes only when a request is actually parked. Returns true when one was retired.
+ */
+export function retireMealRefreshWhileOff(s: Pick<repo.Settings, "meal_plan_auto_draft">): boolean {
+  if (s.meal_plan_auto_draft) return false;
+  if (!retirePendingMealRefresh()) return false;
+  log.info(`[proactive] automatic meal plans are off; retired a parked meal refresh request.`);
+  return true;
 }
 
 /**
@@ -781,6 +795,7 @@ export function startScheduler() {
   const proactiveTick = async () => {
     if (proactiveBusy) return;
     const s = repo.getSettings();
+    retireMealRefreshWhileOff(s);
     if (!s.proactive_enabled) return;
     const now = new Date();
 

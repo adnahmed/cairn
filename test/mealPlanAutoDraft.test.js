@@ -4,11 +4,18 @@
 // weekly slot and the owned protective reshape channel that the fuel loop, a landed
 // nutrition target and a new nutrition directive write into. Explicit drafts (chat,
 // REST/MCP, the PWA button) never pass through it. Offline — no agent CLIs.
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import express from "express";
 import { db, repo, tsDaysAgo, localDaysAgo } from "./_seed.js";
 import { addDaysISO, localDateISO } from "../dist/repo/shared.js";
-import { scheduledMealPlanDue, runScheduledMealPlanDraft } from "../dist/scheduler.js";
+import {
+  retireMealRefreshWhileOff,
+  runScheduledMealPlanDraft,
+  scheduledMealPlanDue,
+  weeklySlotStamp,
+} from "../dist/scheduler.js";
+import { operatorRouter } from "../dist/routes/operator.js";
 import { draftMealPlan } from "../dist/coachOps.js";
 import { runUnderfuelingControlLoop } from "../dist/domain/brain/underfueling-service.js";
 import { applyDueAnnouncedDecisions, applyProposalWithAutonomy } from "../dist/domain/brain/autonomy-service.js";
@@ -39,6 +46,36 @@ function parkRequest(request = localDateISO()) {
 
 const pending = () => [REQUEST, INSTRUCTION, ATTEMPT].map((key) => repo.getAppState(key) ?? "");
 
+let server = null;
+after(() => server?.close());
+
+async function settingsApi(method, body) {
+  if (!server) {
+    const app = express();
+    app.use(express.json());
+    app.use("/api", operatorRouter);
+    server = await new Promise((resolve, reject) => {
+      const s = app.listen(0, "127.0.0.1", () => resolve(s));
+      s.on("error", reject);
+    });
+  }
+  const res = await fetch(`http://127.0.0.1:${server.address().port}/api/settings`, {
+    method,
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  assert.equal(res.status, 200);
+  return (await res.json()).settings;
+}
+
+test("the switch round-trips through PUT/GET /api/settings", async () => {
+  assert.equal((await settingsApi("GET")).meal_plan_auto_draft, false);
+  assert.equal((await settingsApi("PUT", { meal_plan_auto_draft: true })).meal_plan_auto_draft, true);
+  assert.equal((await settingsApi("GET")).meal_plan_auto_draft, true);
+  assert.equal((await settingsApi("PUT", { meal_plan_auto_draft: false })).meal_plan_auto_draft, false);
+  assert.equal((await settingsApi("GET")).meal_plan_auto_draft, false);
+});
+
 test("automatic meal plans are off by default and the switch persists", () => {
   assert.equal(repo.getSettings().meal_plan_auto_draft, false, "a fresh install drafts meal plans on request only");
   assert.equal(repo.setSettings({ meal_plan_auto_draft: true }).meal_plan_auto_draft, true);
@@ -49,15 +86,41 @@ test("automatic meal plans are off by default and the switch persists", () => {
 
 test("off: the scheduler finds nothing due and retires a parked request instead of retrying it", () => {
   const s = repo.getSettings();
-  parkRequest();
+  const now = new Date();
+  const request = parkRequest();
 
-  const work = scheduledMealPlanDue(new Date(), s);
-
+  const work = scheduledMealPlanDue(now, s);
   assert.deepEqual(work, { enabled: false, request: null, refreshDue: false, due: false });
+  assert.equal(repo.getAppState(REQUEST), request, "the due check is a pure read; it retires nothing");
+
+  assert.equal(retireMealRefreshWhileOff(s), true);
   assert.deepEqual(pending(), ["", "", ""], "request, instruction and retry state are cleared together");
-  assert.equal(repo.getSchedulerOperation(SLOT, "any"), null);
+  const slot = weeklySlotStamp(now, s.coach_day, s.coach_hour);
+  assert.equal(repo.getSchedulerOperation(SLOT, slot), null, "an off tick opens no operation for this week's slot");
+  assert.equal(repo.getAppState(SLOT) ?? "", "", "nor acknowledges it");
   // The next idle minute is a calm no-op, not a second clear.
-  assert.equal(scheduledMealPlanDue(new Date(), s).due, false);
+  assert.equal(retireMealRefreshWhileOff(s), false);
+  assert.equal(scheduledMealPlanDue(now, s).due, false);
+});
+
+test("off: a successful reshape's leftover retry history is not a parked request", () => {
+  const history = JSON.stringify({
+    request: "2026-01-01",
+    count: 1,
+    next_attempt_at: null,
+    in_flight_until: null,
+    last_error: null,
+  });
+  repo.setAppState(ATTEMPT, history);
+  assert.equal(retireMealRefreshWhileOff(repo.getSettings()), false, "nothing parked, nothing retired or logged");
+  assert.equal(repo.getAppState(ATTEMPT), history);
+});
+
+test("on: the retire step leaves a parked request for the owner", () => {
+  repo.setSettings({ meal_plan_auto_draft: true });
+  const request = parkRequest();
+  assert.equal(retireMealRefreshWhileOff(repo.getSettings()), false);
+  assert.equal(repo.getAppState(REQUEST), request);
 });
 
 test("off: the scheduler never calls the meal-plan draft", async () => {

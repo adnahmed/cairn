@@ -405,7 +405,7 @@ function settingsAutomationSliceHtml(options: SettingsAutomationSliceOptions): s
         <h1 class="lbl" style="margin:22px 0 8px">Meal plans</h1>
         <label class="toggle"><input type="checkbox" id="mealPlanAutoDraft" ${wm.meal_plan_auto_draft ? "checked" : ""}>
           <span>Draft a fresh meal plan each week on its own</span></label>
-        <div class="sess-line" style="color:var(--muted);margin-top:6px">Off by default — a meal plan is a set of ideas you ask for, from Food or chat. On, Cairn drafts one each week and reshapes it when your target or a health finding moves. Your target and findings shape every plan either way.</div>
+        <div class="sess-line" style="color:var(--muted);margin-top:6px">Off by default — a meal plan is a set of ideas you ask for, from Food or chat. On, Cairn drafts one each week, starting with this week's, and reshapes it when your target or a health finding moves. Your target and findings shape every plan either way.</div>
 
         <h1 class="lbl" style="margin:22px 0 8px">Artwork generation</h1>
         <label class="toggle"><input type="checkbox" id="artEnabled" ${wm.art_enabled ? "checked" : ""}>
