@@ -73,6 +73,7 @@ import { computeGoalCheck, getProfile, setProfile } from "../../repo/profile.js"
 import { applyProposal, getProposal, isProposalRefusal, listProposals, listReviewHeldProposals, proposalStatus, ProposalRefusedError, setProposalStatus, type NormalizedProposalApplyPayload, type OrphanSiblingCleanup } from "../../repo/proposals.js";
 import { RECOVERY_WEEK_INSTRUCTION_PREFIX, revertRecoveryWeekIfOwned } from "../../repo/recovery-week.js";
 import { MEAL_REFRESH_REQUEST_KEY } from "../../repo/meal-refresh-retry.js";
+import { mealPlanAutoDraftEnabled } from "../../repo/meal-plan-auto-draft.js";
 import { automaticOrphanIntent, chatOrphanIntent } from "../../repo/proposal-intent.js";
 import { buildProgressionProposal } from "../../repo/progression.js";
 import { changesReduceSets } from "../../repo/volume-guard.js";
@@ -3823,9 +3824,11 @@ export function applyDueAnnouncedDecisions(
           reversible: true,
         });
         if (!reversible) throw new Error("the decision could not be finalized as reversible");
-        if (shape.kind === "nutrition_target") {
+        if (shape.kind === "nutrition_target" && mealPlanAutoDraftEnabled()) {
           // This handoff is part of the nutrition-target commit: a target cannot
           // land while silently losing the required meal realignment request.
+          // With automatic meal drafts off there is no realignment to hand off —
+          // the next plan the athlete asks for reads the new target at draft time.
           setAppStateStrict(MEAL_REFRESH_REQUEST_KEY, asOf);
         }
       });

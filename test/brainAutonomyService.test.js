@@ -163,7 +163,7 @@ test("server-owned clinical provenance persists the clinician ceiling across lat
 });
 
 test("a quiet nutrition adjustment waits for the next day boundary", () => {
-  repo.setSettings({ lead_mode: "lead" });
+  repo.setSettings({ lead_mode: "lead", meal_plan_auto_draft: true });
   const proposal = repo.createProposal("stub", "weekly nutrition response", "", {
     kind: "nutrition_target",
     summary: "Small measured intake adjustment",

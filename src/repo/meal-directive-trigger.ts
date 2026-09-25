@@ -7,13 +7,14 @@
 //
 // Anti-pileup mirrors programEvolutionTrigger (repo/progression.ts): fires only on
 // a NEW directive-set signature, with a cooldown + single-slot dedup, so a standing
-// directive set acts once, not daily. Degrades to a calm no-op end to end (no agent,
-// no accepted plan, no directive postdating the plan, unchanged signature, or within
-// cooldown all skip). Self-contained direct reads — no coupling to nutrition/coach —
-// so it stays a safe leaf import for propagation.ts.
+// directive set acts once, not daily. Degrades to a calm no-op end to end (automatic
+// meal drafts off, no agent, no accepted plan, no directive postdating the plan,
+// unchanged signature, or within cooldown all skip). Self-contained direct reads —
+// no coupling to nutrition/coach — so it stays a safe leaf import for propagation.ts.
 import { db } from "../db.js";
 import { getAppState, setAppState } from "./app-state.js";
 import { MEAL_REFRESH_INSTRUCTION_KEY, MEAL_REFRESH_REQUEST_KEY } from "./meal-refresh-retry.js";
+import { mealPlanAutoDraftEnabled } from "./meal-plan-auto-draft.js";
 import { pickAgentOrder } from "./settings.js";
 import { addDaysISO, localDateISO } from "./shared.js";
 
@@ -112,6 +113,10 @@ export function maybeRequestMealRefreshForDirectives(
 ): boolean {
   const now = opts.now ?? new Date();
   const today = opts.today ?? localDateISO(now);
+
+  // Automatic meal drafts are off → the refresh would never run; the athlete's next
+  // requested plan reads the new directive at draft time anyway.
+  if (!mealPlanAutoDraftEnabled()) return false;
 
   // No agent could ever run the refresh → don't queue work that can't happen.
   if (!(opts.agentsAvailable ?? agentsAvailable())) return false;

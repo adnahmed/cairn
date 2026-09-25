@@ -961,7 +961,8 @@ CREATE TABLE IF NOT EXISTS settings (
   garmin_export_strength INTEGER DEFAULT 1,    -- 1 = send finished Cairn strength sessions back to Garmin (see src/garminExport.ts)
   garmin_last_export_attempt_at TEXT DEFAULT '', -- when the last strength write-back was ATTEMPTED (UTC ISO) — landed or not
   garmin_last_export_status TEXT DEFAULT '',   -- short result: "ok: 8 of 14 sets" | "failed: …"; a persistently failing PUT must be visible
-  run_units TEXT DEFAULT 'km'                  -- km | mi — athlete-facing run distance and pace (engine stays km)
+  run_units TEXT DEFAULT 'km',                 -- km | mi — athlete-facing run distance and pace (engine stays km)
+  meal_plan_auto_draft INTEGER DEFAULT 0       -- 1 = weekly + protective meal-plan drafts without being asked; 0 = drafted on request (see src/repo/meal-plan-auto-draft.ts)
 );
 
 -- Generated-artwork bookkeeping (see src/art.ts). art_assets records what each

@@ -245,6 +245,12 @@
         wm.research_enabled = settingsSourcesAutomationInput(event).checked;
       }
     );
+    settingsSourcesAutomationRequired<HTMLInputElement>(deps.root, "#mealPlanAutoDraft").addEventListener(
+      "change",
+      (event) => {
+        wm.meal_plan_auto_draft = settingsSourcesAutomationInput(event).checked;
+      }
+    );
     settingsSourcesAutomationRequired<HTMLSelectElement>(deps.root, "#leadMode").addEventListener("change", (event) => {
       const value = (event.currentTarget as HTMLSelectElement).value;
       wm.lead_mode = (

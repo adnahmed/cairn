@@ -831,6 +831,7 @@ declare global {
       | "enrich_enabled"
       | "art_enabled"
       | "research_enabled"
+      | "meal_plan_auto_draft"
       | "gemini_api_key"
       | "lead_mode"
       | "training_drive"
@@ -3448,7 +3449,12 @@ declare global {
       automationSliceHtml(options: {
         workingModel: Pick<
           SettingsScreenWorkingModel,
-          "enrich_enabled" | "art_enabled" | "research_enabled" | "lead_mode" | "training_drive"
+          | "enrich_enabled"
+          | "art_enabled"
+          | "research_enabled"
+          | "meal_plan_auto_draft"
+          | "lead_mode"
+          | "training_drive"
         >;
         settings: Record<string, unknown>;
         artSpendHtml: string;

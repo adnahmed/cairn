@@ -146,6 +146,7 @@ function renderSettingsBundle(bundle: SettingsScreenBundle): void {
       enrich_enabled: wm.enrich_enabled,
       art_enabled: wm.art_enabled,
       research_enabled: wm.research_enabled,
+      meal_plan_auto_draft: wm.meal_plan_auto_draft,
       garmin_username: wm.garmin_username.trim(),
       garmin_export_strength: wm.garmin_export_strength,
       coach_day: +wm.coach_day,

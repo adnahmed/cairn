@@ -220,7 +220,8 @@ test("Undo restores neither plan nor ledger when its decision transition fails",
 });
 
 test("a nutrition target cannot land when the linked proposal transition fails", () => {
-  repo.setSettings({ lead_mode: "lead" });
+  // Automatic meal drafts on, so the rolled-back handoff below is a real assertion.
+  repo.setSettings({ lead_mode: "lead", meal_plan_auto_draft: true });
   repo.setNutritionTarget({ target_kcal: 2_200, protein_g: 170, source: "manual" });
   const before = db.prepare(`SELECT COUNT(*) AS n FROM nutrition_targets`).get().n;
   const proposal = nutritionProposal();
@@ -529,7 +530,7 @@ test("re-announcing a canceled proposal creates a fresh lifecycle row", () => {
 });
 
 test("underfueling state-write failure leaves no cooldown and can be retried", () => {
-  repo.setSettings({ lead_mode: "lead", proactive_enabled: true });
+  repo.setSettings({ lead_mode: "lead", proactive_enabled: true, meal_plan_auto_draft: true });
   db.exec(`CREATE TRIGGER fail_underfuel_state BEFORE INSERT ON app_state
     WHEN NEW.key = 'meal_plan_refresh_instruction'
     BEGIN SELECT RAISE(ABORT, 'state unavailable'); END`);

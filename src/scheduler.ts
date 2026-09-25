@@ -45,6 +45,7 @@ import {
   mealRefreshRetryDue,
   runOwnedMealRefreshAttempt,
 } from "./repo/meal-refresh-retry.js";
+import { mealPlanAutoDraftEnabled, retirePendingMealRefresh } from "./repo/meal-plan-auto-draft.js";
 import { PLAN_PROPOSAL_SCHEMA, isPlanProposalResult } from "./agent-contracts.js";
 import { autoImportExerciseGuidesIfEmpty } from "./domain/training/exercise-guide-use-case.js";
 import { createHash } from "node:crypto";
@@ -426,6 +427,106 @@ export async function withDeadline<T>(work: Promise<T>, ms: number, label: strin
   }
 }
 
+// ---- Automatic meal plans (opt-in) ----
+// Meal plans are ideation, drafted when the athlete asks. `settings.meal_plan_auto_draft`
+// (default OFF) is the one switch over the scheduler's two automatic paths: the weekly
+// slot and the owned protective reshape (MEAL_REFRESH_REQUEST_KEY) that the fuel loop,
+// a landed nutrition target and a new nutrition directive write into. Explicit drafts
+// (chat, REST/MCP, the PWA button) never come through here.
+export interface ScheduledMealPlanWork {
+  enabled: boolean;
+  /** The owned protective request, when one is parked and automatic drafts are on. */
+  request: string | null;
+  /** The owned request's retry window is open. */
+  refreshDue: boolean;
+  /** A meal-plan draft (owned reshape or weekly slot) should run this tick. */
+  due: boolean;
+}
+
+export function scheduledMealPlanDue(
+  now: Date,
+  s: Pick<repo.Settings, "meal_plan_auto_draft" | "coach_day" | "coach_hour">
+): ScheduledMealPlanWork {
+  if (!s.meal_plan_auto_draft) {
+    // A request parked before the switch existed (or while it was on) would never run;
+    // retire it so no retry backoff keeps spinning over work nobody will do.
+    if (retirePendingMealRefresh())
+      log.info(`[proactive] automatic meal plans are off; retired a parked meal refresh request.`);
+    return { enabled: false, request: null, refreshDue: false, due: false };
+  }
+  const request = repo.getAppState(MEAL_REFRESH_REQUEST_KEY);
+  const refreshDue = mealRefreshRetryDue(request, now, localToday(now));
+  // An owned protective reshape has priority. While its retry backoff is active,
+  // the ordinary weekly cadence must not bypass the owner or duplicate the work.
+  const weeklyDue = !request && weeklySlotDue(now, s.coach_day, s.coach_hour, "meal_plan_refresh_last_slot");
+  return { enabled: true, request: request || null, refreshDue, due: refreshDue || weeklyDue };
+}
+
+/**
+ * Draft the scheduled meal plan the tick found due: the owned protective reshape when
+ * its retry window is open, otherwise this week's slot. Rebuilt from the whole-person
+ * context and activated at tomorrow's food-day boundary. The switch is re-read here —
+ * the nutrition check-in awaited before this can take minutes, and an athlete who
+ * turned automatic plans off in the meantime must not get one.
+ */
+export async function runScheduledMealPlanDraft(
+  now: Date,
+  s: Pick<repo.Settings, "coach_day" | "coach_hour">,
+  work: ScheduledMealPlanWork,
+  opts: { instruction: string; nutritionChanged: boolean; draft?: typeof draftMealPlan }
+): Promise<{ drafted: boolean; ok: boolean }> {
+  if (!work.enabled || !work.due) return { drafted: false, ok: false };
+  if (!mealPlanAutoDraftEnabled()) {
+    retirePendingMealRefresh();
+    return { drafted: false, ok: false };
+  }
+  const draft = opts.draft ?? draftMealPlan;
+  if (work.refreshDue && work.request) {
+    try {
+      const attempt = await runOwnedMealRefreshAttempt(
+        work.request,
+        () => draft("auto", opts.instruction, undefined, { coordinated_update: true }),
+        { today: localToday(now) }
+      );
+      const r: any = attempt.result ?? { ok: false, error: attempt.error };
+      if (attempt.ok) {
+        // The owned protective reshape fulfills this week's ordinary meal
+        // refresh too; acknowledging that slot prevents a second plan from
+        // being drafted on the next minute after ownership clears.
+        const weeklySlot = weeklySlotStamp(now, s.coach_day, s.coach_hour);
+        repo.supersedeSchedulerOperation("meal_plan_refresh_last_slot", weeklySlot);
+        repo.setAppState("meal_plan_refresh_last_slot", weeklySlot);
+      }
+      log.info(
+        r.ok && (r.autonomy?.announced || r.autonomy?.pending)
+          ? `[proactive] prepared the owned meal reshape; it lands at tomorrow's food-day boundary.`
+          : r.ok
+            ? `[proactive] prepared the owned meal reshape under the configured review posture.`
+            : `[proactive] owned meal reshape remains queued for retry.`
+      );
+      return { drafted: attempt.attempted, ok: attempt.ok };
+    } catch (e: any) {
+      recordSchedulerFailure("meal_plan_refresh_owned", e);
+      log.error(`[proactive] owned meal reshape failed`, { error: e });
+      return { drafted: true, ok: false };
+    }
+  }
+  const weeklySlot = weeklySlotStamp(now, s.coach_day, s.coach_hour);
+  let drafted = false;
+  const run = await runScheduled("meal_plan_refresh_last_slot", weeklySlot, "meal_plan_refresh_last_slot", async () => {
+    drafted = true;
+    const r: any = await draft("auto", opts.instruction, undefined, { coordinated_update: opts.nutritionChanged });
+    if (!r.ok) throw schedulerTaskError("meal_plan_refresh_last_slot", r, "meal-plan provider unavailable");
+    log.info(
+      r.autonomy?.announced || r.autonomy?.pending
+        ? `[proactive] prepared the next meal plan; it lands at tomorrow's food-day boundary.`
+        : `[proactive] prepared the next meal plan under the configured review posture.`
+    );
+    return { outcome: "succeeded", value: r };
+  });
+  return { drafted, ok: run?.status === "succeeded" };
+}
+
 export function startScheduler() {
   const heartbeatTick = () => repo.setAppState("scheduler_heartbeat", new Date().toISOString());
   // Synchronous first stamp makes readiness meaningful immediately after start.
@@ -696,17 +797,11 @@ export function startScheduler() {
     //     Drafts a nutrition_target proposal ONLY on meaningful drift; the calm,
     //     common answer is change:false (no draft).
     const nutritionDue = weeklySlotDue(now, s.coach_day, s.coach_hour, "nutrition_checkin_last_slot");
-    // (c2) Weekly meals — rebuilt from the same whole-person context and activated at
-    //      tomorrow's food-day boundary. If nutrition also moves, the pending target
-    //      is threaded into the instruction so the two specialists stay coordinated.
-    const mealRefreshRequest = repo.getAppState(MEAL_REFRESH_REQUEST_KEY);
-    const mealRefreshDue = mealRefreshRetryDue(mealRefreshRequest, now, localToday(now));
-    const weeklyMealPlanDue =
-      !mealRefreshRequest && weeklySlotDue(now, s.coach_day, s.coach_hour, "meal_plan_refresh_last_slot");
-    // An owned protective reshape has priority. While its retry backoff is
-    // active, the ordinary weekly cadence must not bypass the owner or duplicate
-    // the pending work.
-    const mealPlanDue = mealRefreshDue || (weeklyMealPlanDue && !mealRefreshRequest);
+    // (c2) Weekly meals — only when the athlete opted into automatic meal plans
+    //      (settings.meal_plan_auto_draft, default off). See scheduledMealPlanDue.
+    const mealWork = scheduledMealPlanDue(now, s);
+    const mealRefreshDue = mealWork.refreshDue;
+    const mealPlanDue = mealWork.due;
     // (d) Weekly plan EVOLUTION — the continuous-coach cadence (miss-tolerant). Drafts
     //     a plan-evolution proposal (progress what's working, deload/rotate what's
     //     stalled, ground targets in logged reality, rebalance toward weak points) and
@@ -930,48 +1025,10 @@ export function startScheduler() {
         }
       }
       if (mealPlanDue) {
-        if (mealRefreshDue && mealRefreshRequest) {
-          try {
-            const attempt = await runOwnedMealRefreshAttempt(
-              mealRefreshRequest,
-              () => draftMealPlan("auto", mealPlanInstruction, undefined, { coordinated_update: true }),
-              { today: localToday(now) }
-            );
-            const r: any = attempt.result ?? { ok: false, error: attempt.error };
-            if (attempt.ok) {
-              // The owned protective reshape fulfills this week's ordinary meal
-              // refresh too; acknowledging that slot prevents a second plan from
-              // being drafted on the next minute after ownership clears.
-              const weeklySlot = weeklySlotStamp(now, s.coach_day, s.coach_hour);
-              repo.supersedeSchedulerOperation("meal_plan_refresh_last_slot", weeklySlot);
-              repo.setAppState("meal_plan_refresh_last_slot", weeklySlot);
-            }
-            log.info(
-              r.ok && (r.autonomy?.announced || r.autonomy?.pending)
-                ? `[proactive] prepared the owned meal reshape; it lands at tomorrow's food-day boundary.`
-                : r.ok
-                  ? `[proactive] prepared the owned meal reshape under the configured review posture.`
-                  : `[proactive] owned meal reshape remains queued for retry.`
-            );
-          } catch (e: any) {
-            recordSchedulerFailure("meal_plan_refresh_owned", e);
-            log.error(`[proactive] owned meal reshape failed`, { error: e });
-          }
-        } else {
-          const weeklySlot = weeklySlotStamp(now, s.coach_day, s.coach_hour);
-          await runScheduled("meal_plan_refresh_last_slot", weeklySlot, "meal_plan_refresh_last_slot", async () => {
-            const r: any = await draftMealPlan("auto", mealPlanInstruction, undefined, {
-              coordinated_update: nutritionChanged,
-            });
-            if (!r.ok) throw schedulerTaskError("meal_plan_refresh_last_slot", r, "meal-plan provider unavailable");
-            log.info(
-              r.autonomy?.announced || r.autonomy?.pending
-                ? `[proactive] prepared the next meal plan; it lands at tomorrow's food-day boundary.`
-                : `[proactive] prepared the next meal plan under the configured review posture.`
-            );
-            return { outcome: "succeeded", value: r };
-          });
-        }
+        await runScheduledMealPlanDraft(now, s, mealWork, {
+          instruction: mealPlanInstruction,
+          nutritionChanged,
+        });
       }
       if (evolutionDue) {
         const weeklySlot = weeklySlotStamp(now, s.coach_day, s.coach_hour);

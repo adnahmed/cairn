@@ -9,6 +9,7 @@ import {
   transitionBrainDecision,
 } from "../../repo/brain-decisions.js";
 import { MEAL_REFRESH_INSTRUCTION_KEY, MEAL_REFRESH_REQUEST_KEY } from "../../repo/meal-refresh-retry.js";
+import { mealPlanAutoDraftEnabled } from "../../repo/meal-plan-auto-draft.js";
 import { getActiveNutritionTarget } from "../../repo/nutrition.js";
 import { getPlan } from "../../repo/plan.js";
 import { recompositionStageAt } from "../../repo/profile.js";
@@ -623,6 +624,11 @@ export function runUnderfuelingControlLoop(
   });
 
   if (read.state === "execution_gap") {
+    // The only lever here is an unasked-for meal redraft. With automatic meal drafts
+    // off it holds: nothing is queued and no cooldown is stamped, so the read simply
+    // stands until the athlete asks for a plan (which reads this state at draft time).
+    if (!mealPlanAutoDraftEnabled())
+      return none("Calories hold steady; an easier meal pattern is drafted whenever a meal plan is asked for.");
     if (recentlyHandled(EXECUTION_ACTION_KEY, today))
       return none("The easier meal pattern is already in flight; hold calories steady.");
     const boundary = addDaysISO(today, 1) ?? today;
@@ -660,7 +666,7 @@ export function runUnderfuelingControlLoop(
           supersedeStaleProtectiveFuelReviewDrafts(read.signature, Number(scheduled.proposal?.id));
         if (!resultOwnsDecision(scheduled)) return scheduled;
         stampHandled(PRESCRIPTION_ACTION_KEY, today, read.signature);
-        setAppStateStrict(MEAL_REFRESH_INSTRUCTION_KEY, mealReshapeInstruction(read));
+        if (mealPlanAutoDraftEnabled()) setAppStateStrict(MEAL_REFRESH_INSTRUCTION_KEY, mealReshapeInstruction(read));
         return scheduled;
       });
     } catch {
@@ -792,7 +798,7 @@ export function runUnderfuelingControlLoop(
         };
       }
       recovery = { ...recovery, package_link: link };
-      setAppStateStrict(MEAL_REFRESH_INSTRUCTION_KEY, mealReshapeInstruction(read));
+      if (mealPlanAutoDraftEnabled()) setAppStateStrict(MEAL_REFRESH_INSTRUCTION_KEY, mealReshapeInstruction(read));
       return {
         ok: true,
         read,

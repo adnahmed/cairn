@@ -139,7 +139,9 @@ function setMidCutProfile() {
 }
 
 beforeEach(() => {
-  repo.setSettings({ lead_mode: "lead", proactive_enabled: true });
+  // These cases exercise the meal-reshape handoff, which exists only with automatic
+  // meal drafts on (settings.meal_plan_auto_draft; the off case lives in mealPlanAutoDraft.test.js).
+  repo.setSettings({ lead_mode: "lead", proactive_enabled: true, meal_plan_auto_draft: true });
 });
 
 test("an execution gap queues a next-boundary meal reshape without changing calories or unrelated drafts", () => {

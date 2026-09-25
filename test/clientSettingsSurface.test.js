@@ -62,6 +62,7 @@ test("settings surface normalizes API data into the working model", () => {
   assert.equal(wm.routes.chat, "claude");
   assert.equal(wm.art_enabled, false);
   assert.equal(wm.update_check_enabled, true);
+  assert.equal(wm.meal_plan_auto_draft, false, "an absent meal_plan_auto_draft reads as off — plans on request");
   assert.equal(wm.lead_mode, "lead");
   assert.equal(wm.training_drive, "steady", "an absent training_drive reads as the steady rhythm");
   assert.equal(wm.garmin_username, "athlete@example.com");
@@ -186,6 +187,15 @@ test("settings surface renders source and automation slices without echoing secr
   assert.match(automation, /value="push" selected/);
   assert.doesNotMatch(automation, /value="steady" selected/);
   assert.doesNotMatch(automation, /id="artEnabled" checked/);
+  assert.match(automation, /id="mealPlanAutoDraft"/);
+  assert.doesNotMatch(automation, /id="mealPlanAutoDraft" checked/, "automatic meal plans render off unless opted in");
+  const optedIn = surface.automationSliceHtml({
+    workingModel: { ...wm, meal_plan_auto_draft: true },
+    settings: {},
+    artSpendHtml: "",
+    researchEligible: null,
+  });
+  assert.match(optedIn, /id="mealPlanAutoDraft" checked/);
   assert.match(automation, /placeholder="Configured via env &quot;key&quot;"/);
   assert.match(automation, /turn this on for live, cited research/);
 });
