@@ -120,6 +120,52 @@ export function markerGroup(name: string): { key: string; label: string } {
   return { key: g.key, label: g.label };
 }
 
+// A group key's place in the display order (MARKER_GROUPS array order). An unknown
+// key sorts with "other", last.
+export function markerGroupRank(key: string): number {
+  const i = MARKER_GROUPS.findIndex((g) => g.key === key);
+  return i < 0 ? MARKER_GROUPS.length - 1 : i;
+}
+
+// The ONE lab panel a free-text follow-up names ("Retest lipid panel", "Repeat thyroid
+// panel"), or null when it names none or several. Unlike markerGroup — a substring
+// match over a marker NAME — this runs over prose, so keys match on word boundaries
+// only ("alt" never fires inside "health", "ast" never inside "fasting"). The non-lab
+// reads (vitals, fitness, body composition) are left out: their keys are everyday words
+// ("weight", "pulse") that would pull an unrelated follow-up into a panel. Longest match
+// wins here too: "hemoglobin a1c" claims its span, so the "hemoglobin" inside it never
+// votes for iron.
+const GROUP_TEXT_EXCLUDED = new Set(["vitals", "fitness", "body", "other"]);
+const GROUP_TEXT_ALIASES: Record<string, string[]> = { lipids: ["lipid", "lipids"] };
+export function markerGroupInText(text: string): { key: string; label: string } | null {
+  const hay = String(text ?? "").toLowerCase();
+  if (!hay.trim()) return null;
+  const hits: Array<{ group: string; start: number; end: number }> = [];
+  for (const g of MARKER_GROUPS) {
+    if (GROUP_TEXT_EXCLUDED.has(g.key)) continue;
+    for (const k of [...g.keys, ...(GROUP_TEXT_ALIASES[g.key] ?? [])]) {
+      if (!k) continue;
+      const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      for (const m of hay.matchAll(new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, "g"))) {
+        hits.push({ group: g.key, start: m.index ?? 0, end: (m.index ?? 0) + k.length });
+      }
+    }
+  }
+  const found = new Set(
+    hits
+      .filter(
+        (h) =>
+          !hits.some(
+            (o) => o !== h && o.end - o.start > h.end - h.start && o.start <= h.start && o.end >= h.end
+          )
+      )
+      .map((h) => h.group)
+  );
+  if (found.size !== 1) return null;
+  const g = MARKER_GROUPS.find((x) => found.has(x.key));
+  return g ? { key: g.key, label: g.label } : null;
+}
+
 // Canonical-ordered list of {key,label} for the groups actually present in a
 // set of enriched markers (each carrying a .group key). Shared by
 // getMarkerHistory and prioritizeMarkers so both surface the same taxonomy.

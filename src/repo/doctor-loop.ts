@@ -1,10 +1,11 @@
 import { todayISO } from "../db.js";
 import {
   applyAttentionObservation,
+  deleteAttentionSchedule,
   getAttentionSchedule,
+  listAttentionByKeyPrefix,
   listAttentionBySource,
   listAttentionSchedule,
-  listDueAttention,
   type AttentionScheduleEntry,
   type AttentionSignalStatus,
   type AttentionTier,
@@ -15,6 +16,9 @@ import { getLatestHealthReview, getMarkerHistory } from "./health.js";
 import { listDirectives } from "./directives.js";
 import { directiveIntentOf } from "./directives-read.js";
 import { matchOptimalZone, optimalDistance } from "./propagation-data.js";
+import { collapseDoctorLoop, isDoctorLoopSignal, type DoctorLoopItem } from "./doctor-loop-items.js";
+
+export type { DoctorLoopItem } from "./doctor-loop-items.js";
 
 type WorkupKind = "lab" | "dexa";
 
@@ -26,9 +30,13 @@ export interface MissingWorkupItem {
   cadence_note: string;
 }
 
+// `attention` is every open follow-up ONCE (a panel's cadence, directive and review rows
+// folded into one item — see doctor-loop-items.ts); `due` is the subset whose window is
+// open. Each item still carries its representative row's attention fields plus
+// `sources` for provenance.
 export interface DoctorLoopRead {
-  attention: AttentionScheduleEntry[];
-  due: AttentionScheduleEntry[];
+  attention: DoctorLoopItem[];
+  due: DoctorLoopItem[];
   missing_workup: MissingWorkupItem[];
   frame: string;
 }
@@ -477,6 +485,38 @@ export function scheduleDirectiveRecheck(
   });
 }
 
+// The mirror of scheduleDirectiveRecheck: a DISMISS on a recheck directive means "not
+// relevant", so a follow-up an earlier Done filed for that marker stops coming back.
+// No-op for a non-recheck directive (dismissing a lever never cancels a retest).
+export function cancelDirectiveRecheck(directive: any): boolean {
+  if (!directive) return false;
+  const signalKey = directiveRecheckSignalKey(directive.marker);
+  if (!signalKey || !isRecheckDirective(directive)) return false;
+  if (!getAttentionSchedule(signalKey)) return false;
+  deleteAttentionSchedule(signalKey);
+  return true;
+}
+
+// Heal the same rule on the refresh pass: a directive-recheck row whose marker's most
+// recent recheck verdict is a Dismiss is dropped. The verdict is the newest row with a
+// user stamp (status_at) — a Done, an acknowledged Done kept in effect, or a Dismiss.
+function pruneDismissedDirectiveRechecks(): void {
+  const entries = listAttentionBySource(DIRECTIVE_RECHECK_SOURCE, { includeReleased: true });
+  if (!entries.length) return;
+  const verdict = new Map<string, any>();
+  for (const d of listDirectives({ all: true }) as any[]) {
+    if (!d?.status_at || !isRecheckDirective(d)) continue;
+    const key = directiveRecheckSignalKey(d.marker);
+    if (!key) continue;
+    const cur = verdict.get(key);
+    const rank = (x: any) => `${String(x.status_at)}|${String(x.id).padStart(12, "0")}`;
+    if (!cur || rank(d) > rank(cur)) verdict.set(key, d);
+  }
+  for (const entry of entries) {
+    if (verdict.get(entry.signal_key)?.status === "dismissed") deleteAttentionSchedule(entry.signal_key);
+  }
+}
+
 // Close the loop: when a NEW reading lands for a marker with a scheduled directive
 // recheck, record the measurement so the entry advances (clean → toward released, still
 // off → another window) instead of staying stuck at its original due date. Called from
@@ -621,25 +661,48 @@ function parseWhenDays(text: unknown): number | null {
   return null;
 }
 
+// Whole-word only: a bare substring read "fasting lipids" as an AST recheck ("ast"
+// inside "fasting") and "environment" as an iron one.
 function labelsInText(text: string): string[] {
   const out: string[] = [];
+  const hay = lc(text).replace(/[()]/g, "");
   for (const spec of POLICY_SPECS) {
     for (const label of spec.labels) {
-      const needle = lc(label).replace(/[()]/g, "");
-      const hay = lc(text).replace(/[()]/g, "");
-      if (hay.includes(needle)) out.push(label);
+      const needle = lc(label).replace(/[()]/g, "").replace(/[.*+?^${}|[\]\\]/g, "\\$&");
+      if (new RegExp(`(?<![a-z0-9])${needle}(?![a-z0-9])`).test(hay)) out.push(label);
     }
   }
   if (/\bdexa|body comp|body composition\b/i.test(text)) out.push("Body fat");
   return [...new Set(out)];
 }
 
-function applyReviewFollowups(): AttentionScheduleEntry[] {
+// Newest reading date per marker slug (the same slug the cadence and review rows use).
+function newestReadingBySlug(markers: MarkerLike[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const m of markers) {
+    const key = markerSignalKey(m);
+    if (!key) continue;
+    const slug = key.slice("marker:".length);
+    const date = String(m.latest?.date ?? m.points?.at(-1)?.date ?? "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    if (!out.has(slug) || date > String(out.get(slug))) out.set(slug, date);
+  }
+  return out;
+}
+
+// File the LATEST review's follow-ups, and retire every other review-followup row.
+// A follow-up is an episode, not a standing cadence: once a newer review has spoken, or
+// a reading newer than the review has answered it, the row is over. Left in place it
+// never advanced again (nothing re-observes it), so each review's wording piled up as
+// one more overdue "recheck vitamin D" beside the marker's own cadence.
+function applyReviewFollowups(markers: MarkerLike[]): AttentionScheduleEntry[] {
   const review = getLatestHealthReview() as any;
   const parsed = review?.parsed;
   const followups = Array.isArray(parsed?.followups) ? parsed.followups : [];
   const created = String(review?.created_at ?? "").slice(0, 10);
   const checkedAt = /^\d{4}-\d{2}-\d{2}$/.test(created) ? created : todayISO();
+  const answered = newestReadingBySlug(markers);
+  const kept = new Set<string>();
   const out: AttentionScheduleEntry[] = [];
   for (const f of followups) {
     const what = String(f?.what ?? "").replace(/\s+/g, " ").trim();
@@ -647,6 +710,11 @@ function applyReviewFollowups(): AttentionScheduleEntry[] {
     const labels = labelsInText(`${what} ${f?.when ?? ""}`);
     const days = parseWhenDays(f?.when) ?? parseWhenDays(what);
     for (const label of labels.length ? labels : ["lab follow-up"]) {
+      const signalKey = `review-followup:${signalSlug(label)}:${signalSlug(what)}`;
+      // The retest already happened: a reading newer than the review answers it, and the
+      // marker's own cadence carries on from that reading.
+      const reading = labels.length ? answered.get(signalSlug(label)) : undefined;
+      if (reading && reading > checkedAt) continue;
       const spec = policyForLabel(label) ?? {
         signalClass: "review-followup",
         labels: [label],
@@ -658,8 +726,9 @@ function applyReviewFollowups(): AttentionScheduleEntry[] {
         release: "The review follow-up has been completed or superseded by newer data.",
       };
       const policy = cadencePolicy({ ...spec, activeDays: days ?? spec.activeDays }, `Health review follow-up: ${what}${f?.when ? ` (${f.when})` : ""}.`);
+      kept.add(signalKey);
       out.push(applyAttentionObservation({
-        signal_key: `review-followup:${signalSlug(label)}:${signalSlug(what)}`,
+        signal_key: signalKey,
         policy,
         observation: {
           checked_at: checkedAt,
@@ -669,6 +738,9 @@ function applyReviewFollowups(): AttentionScheduleEntry[] {
         },
       }));
     }
+  }
+  for (const entry of listAttentionByKeyPrefix("review-followup:", { includeReleased: true })) {
+    if (!kept.has(entry.signal_key)) deleteAttentionSchedule(entry.signal_key);
   }
   return out;
 }
@@ -734,13 +806,15 @@ export function refreshDoctorLoopAttention(): AttentionScheduleEntry[] {
   }
   const dexa = applyDexaAttention(markers);
   if (dexa && !seen.has(dexa.signal_key)) out.push(dexa);
-  for (const entry of applyReviewFollowups()) {
+  for (const entry of applyReviewFollowups(markers)) {
     if (seen.has(entry.signal_key)) continue;
     seen.add(entry.signal_key);
     out.push(entry);
   }
   // Close the doctor loop on directive-sourced rechecks: a fresh reading for a marker
   // the athlete scheduled a recheck for advances that entry (toward released when clean).
+  // A recheck the athlete has since dismissed is dropped first, so it never comes back.
+  pruneDismissedDirectiveRechecks();
   for (const entry of refreshDirectiveRecheckAttention(markers)) {
     if (seen.has(entry.signal_key)) continue;
     seen.add(entry.signal_key);
@@ -749,17 +823,41 @@ export function refreshDoctorLoopAttention(): AttentionScheduleEntry[] {
   return out;
 }
 
+// Display name for a marker slug: the recheck policy's own label when the slug is one
+// of ours, else the marker on file that files under that slug, else null.
+function slugLabelResolver(markers: MarkerLike[]): (slug: string) => string | null {
+  const bySlug = new Map<string, string>();
+  for (const spec of POLICY_SPECS) {
+    for (const label of spec.labels) if (!bySlug.has(signalSlug(label))) bySlug.set(signalSlug(label), label);
+  }
+  for (const m of markers) {
+    const name = String(m.name ?? m.key ?? "").trim();
+    if (!name) continue;
+    const label = markerLabel(m);
+    const slug = signalSlug(label);
+    if (!bySlug.has(slug)) bySlug.set(slug, label);
+  }
+  return (slug: string) => bySlug.get(slug) ?? null;
+}
+
+// Every open doctor-loop follow-up ONCE, soonest first. Read-only over the persisted
+// schedule (the refresh pass owns the writes); see doctor-loop-items.ts for the fold.
+export function doctorLoopItems(opts: { asOf?: string; markers?: MarkerLike[] } = {}): DoctorLoopItem[] {
+  const asOf = toDate(opts.asOf);
+  const markers = opts.markers ?? (getMarkerHistory() as { markers: MarkerLike[] }).markers;
+  const rows = [
+    ...listAttentionSchedule({ domain: "health", limit: 500 }),
+    ...listAttentionSchedule({ domain: "body", limit: 100 }),
+  ].filter((entry) => isDoctorLoopSignal(entry.signal_key));
+  return collapseDoctorLoop(rows, { asOf, labelForSlug: slugLabelResolver(markers ?? []) });
+}
+
 export function doctorLoopRead(opts: { refresh?: boolean; asOf?: string } = {}): DoctorLoopRead {
   if (opts.refresh) refreshDoctorLoopAttention();
+  const attention = doctorLoopItems({ asOf: opts.asOf });
   return {
-    attention: [
-      ...listAttentionSchedule({ domain: "health", limit: 80 }),
-      ...listAttentionSchedule({ domain: "body", limit: 20 }),
-    ],
-    due: [
-      ...listDueAttention(opts.asOf ?? todayISO(), { domain: "health", limit: 50 }),
-      ...listDueAttention(opts.asOf ?? todayISO(), { domain: "body", limit: 20 }),
-    ],
+    attention,
+    due: attention.filter((item) => item.due),
     missing_workup: recommendedPanel(),
     frame: "Informational, not medical advice. Retests are batched into calm clinician-style checkpoints; fully normal, stable signals are allowed to go quiet until new data, symptoms, a goal change, or a question brings them back.",
   };

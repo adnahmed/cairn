@@ -130,9 +130,10 @@ function discussionPoints(args: {
   if (args.focus.lead?.group) {
     out.push(`${args.focus.lead.group}: ${args.focus.lead.why}`);
   }
+  // One line per real follow-up (the loop is already collapsed), in its readable label.
   const due = args.loop.due
     .slice(0, 3)
-    .map((d) => d.signal_key.replace(/^[^:]+:/, "").replace(/-/g, " "))
+    .map((d) => d.label)
     .filter(Boolean);
   if (due.length) {
     out.push(`Retest/checkpoint due: ${due.join(", ")}.`);
