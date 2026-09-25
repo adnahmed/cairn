@@ -244,16 +244,18 @@ test("the read folds rows already on file, ignoring released and non-doctor rows
 
 test("an acknowledged Done whose reading still stands keeps its follow-up visible exactly once", () => {
   seedHealthDoc("2026-01-10", [marker("Vitamin D", 22, { unit: "ng/mL", flag: "low" })]);
-  const d = repo.addDirective({
-    source: "markers",
-    marker: "Vitamin D",
-    domain: "watch",
-    directive: "Retest vitamin D in ~12 weeks.",
-    intent_key: "recheck",
-  });
-  repo.updateDirective(d.id, { status: "resolved", status_at: "2026-01-20" });
-  // The engine keeps a Done on a standing reading in effect as acknowledged.
-  db.prepare("UPDATE health_directives SET status = 'active', status_at = '2026-01-20' WHERE id = ?").run(d.id);
+  repo.deriveDirectives();
+  const recheck = repo
+    .listDirectives({ all: true })
+    .find((d) => d.marker === "Vitamin D" && d.intent_key === "recheck");
+  assert.ok(recheck, "the engine files a vitamin D recheck directive");
+
+  // The real path a person's Done takes: the flip, then the synchronous re-derive that
+  // keeps a Done on a still-standing reading in effect as acknowledged.
+  const after = repo.setDirectiveStatusByUser(recheck.id, "resolved");
+  assert.equal(after.status, "active", "the reading still stands, so the Done is kept in effect");
+  assert.ok(after.status_at, "stamped by the athlete's tap");
+  assert.ok(repo.getAttentionSchedule("directive-recheck:vitamin-d"), "Done files the recheck");
   repo.refreshDoctorLoopAttention();
   repo.refreshDoctorLoopAttention();
 
@@ -263,6 +265,95 @@ test("an acknowledged Done whose reading still stands keeps its follow-up visibl
     "directive-recheck:vitamin-d",
     "marker:vitamin-d",
   ]);
+
+  // A Dismiss through the same user edge cancels the recheck, and the re-derive that
+  // follows cancelDirectiveRecheck never files it back.
+  repo.setDirectiveStatusByUser(recheck.id, "dismissed");
+  assert.equal(repo.getAttentionSchedule("directive-recheck:vitamin-d"), null, "Dismiss cancels it");
+  repo.refreshDoctorLoopAttention();
+  assert.equal(repo.getAttentionSchedule("directive-recheck:vitamin-d"), null, "and refresh does not revive it");
+  const afterDismiss = repo
+    .doctorLoopRead({ asOf: "2026-02-01" })
+    .attention.filter((i) => i.key === "panel:vitamins");
+  assert.equal(afterDismiss.length, 1, "the marker's own cadence still stands, once");
+  assert.deepEqual(
+    afterDismiss[0].sources.map((s) => s.signal_key),
+    ["marker:vitamin-d"]
+  );
+});
+
+test("a recheck filed on the panel's own name joins that panel", () => {
+  // An agent-written directive names its marker in free text ("Lipid panel"); its Done
+  // files directive-recheck:lipid-panel, which must fold into the lipid cadence.
+  row("marker:ldl-c", { next_due: "2026-04-01" });
+  row("directive-recheck:lipid-panel", {
+    next_due: "2026-04-20",
+    last_checked: "2026-02-01",
+    source: "directive-recheck",
+  });
+  const lipids = repo.doctorLoopRead({ asOf: "2026-05-01" }).attention;
+  assert.equal(lipids.length, 1, "one lipid follow-up");
+  assert.equal(lipids[0].key, "panel:lipids");
+  assert.equal(lipids[0].label, "LDL-C", "the panel name is not listed as one more marker");
+  assert.equal(lipids[0].source_count, 2);
+
+  // Alone, the panel-named row still reads as the panel.
+  resetTables("attention_schedule");
+  row("directive-recheck:lipid-panel", { source: "directive-recheck" });
+  const [only] = repo.doctorLoopRead({ asOf: "2026-05-01" }).attention;
+  assert.equal(only.key, "panel:lipids");
+  assert.equal(only.label, "Lipids & Cardiovascular");
+});
+
+test("an item's label names only what is open; the whole panel stays on markers", () => {
+  row("marker:vitamin-d", { next_due: "2026-04-01" });
+  row("marker:vitamin-b12", { next_due: "2026-09-01" });
+  row("marker:magnesium", { tier: "surveillance", next_due: "2027-03-01" });
+  const [item] = repo.doctorLoopRead({ asOf: "2026-05-01" }).attention;
+  assert.equal(item.key, "panel:vitamins");
+  assert.equal(item.due, true);
+  assert.equal(item.label, "Vitamin D", "B12 and magnesium are not due yet, so they are not named");
+  assert.deepEqual(item.markers, ["Vitamin D", "Vitamin B12", "Magnesium"]);
+
+  // Before the window opens, the label names what falls due with the soonest row.
+  const [early] = repo.doctorLoopRead({ asOf: "2026-03-01" }).attention;
+  assert.equal(early.due, false);
+  assert.equal(early.label, "Vitamin D");
+
+  // Once B12 is due as well, both are named.
+  const [later] = repo.doctorLoopRead({ asOf: "2026-09-10" }).attention;
+  assert.equal(later.label, "Vitamin D and Vitamin B12");
+});
+
+test("a review-only panel names each distinct open wording", () => {
+  row("review-followup:ferritin:retest-ferritin", {
+    next_due: "2026-04-01",
+    source: "health_review",
+    reason: "Health review follow-up: Retest ferritin (in 6 weeks).",
+  });
+  row("review-followup:hemoglobin:recheck-hemoglobin-after-the-trip", {
+    next_due: "2026-04-10",
+    source: "health_review",
+    reason: "Health review follow-up: Recheck hemoglobin after the trip.",
+  });
+  const items = repo.doctorLoopRead({ asOf: "2026-05-01" }).attention;
+  assert.equal(items.length, 1);
+  assert.equal(items[0].key, "panel:iron");
+  assert.equal(items[0].kind, "review");
+  assert.equal(items[0].label, "Retest ferritin; Recheck hemoglobin after the trip.");
+});
+
+test("a review follow-up naming vitamin D3 files under vitamin D", () => {
+  seedReview("2026-02-01 09:00:00", [{ what: "Retest vitamin D3 levels", when: "in 8 weeks" }]);
+  repo.refreshDoctorLoopAttention();
+  assert.ok(repo.getAttentionSchedule("review-followup:vitamin-d:retest-vitamin-d3-levels"));
+  assert.equal(repo.getAttentionSchedule("review-followup:lab-follow-up:retest-vitamin-d3-levels"), null);
+  const items = repo.doctorLoopRead({ asOf: "2026-05-01" }).attention;
+  assert.deepEqual(
+    items.map((i) => i.key),
+    ["panel:vitamins"]
+  );
+  assert.equal(markerGroupInText("Retest vitamin D3 levels").key, "vitamins");
 });
 
 test("a dismissed recheck directive never brings its follow-up back", () => {
@@ -319,4 +410,5 @@ test("markerGroupInText names one panel from prose, on word boundaries", () => {
   assert.equal(markerGroupInText("Recheck overall health at your visit"), null, "'alt' never fires inside 'health'");
   assert.equal(markerGroupInText("Repeat lipid panel and hs-CRP"), null, "two panels is no single panel");
   assert.equal(markerGroupInText("Repeat sleep study"), null);
+  assert.equal(markerGroupInText("Recheck TSH and free T4").key, "thyroid");
 });

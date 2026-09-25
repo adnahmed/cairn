@@ -662,14 +662,18 @@ function parseWhenDays(text: unknown): number | null {
 }
 
 // Whole-word only: a bare substring read "fasting lipids" as an AST recheck ("ast"
-// inside "fasting") and "environment" as an iron one.
+// inside "fasting") and "environment" as an iron one. A label ending in a letter may
+// still be followed by a digit ("vitamin D3" is a vitamin D recheck); one ending in a
+// digit may not ("B1" never fires inside "B12").
 function labelsInText(text: string): string[] {
   const out: string[] = [];
   const hay = lc(text).replace(/[()]/g, "");
   for (const spec of POLICY_SPECS) {
     for (const label of spec.labels) {
-      const needle = lc(label).replace(/[()]/g, "").replace(/[.*+?^${}|[\]\\]/g, "\\$&");
-      if (new RegExp(`(?<![a-z0-9])${needle}(?![a-z0-9])`).test(hay)) out.push(label);
+      const plain = lc(label).replace(/[()]/g, "");
+      const needle = plain.replace(/[.*+?^${}|[\]\\]/g, "\\$&");
+      const tail = /[a-z]$/.test(plain) ? "(?![a-z])" : "(?![a-z0-9])";
+      if (new RegExp(`(?<![a-z0-9])${needle}${tail}`).test(hay)) out.push(label);
     }
   }
   if (/\bdexa|body comp|body composition\b/i.test(text)) out.push("Body fat");

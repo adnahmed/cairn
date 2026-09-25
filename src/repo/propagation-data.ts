@@ -146,7 +146,9 @@ export function markerGroupInText(text: string): { key: string; label: string } 
     for (const k of [...g.keys, ...(GROUP_TEXT_ALIASES[g.key] ?? [])]) {
       if (!k) continue;
       const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      for (const m of hay.matchAll(new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, "g"))) {
+      // A key ending in a letter may take a digit ("vitamin d3"); one ending in a digit may not.
+      const tail = /[a-z]$/.test(k) ? "(?![a-z])" : "(?![a-z0-9])";
+      for (const m of hay.matchAll(new RegExp(`(?<![a-z0-9])${escaped}${tail}`, "g"))) {
         hits.push({ group: g.key, start: m.index ?? 0, end: (m.index ?? 0) + k.length });
       }
     }

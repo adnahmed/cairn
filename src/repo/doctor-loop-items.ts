@@ -88,6 +88,12 @@ function identityOf(entry: AttentionScheduleEntry, labelForSlug: (slug: string) 
     // A review's own follow-up reads as its action until a cadence row joins the panel.
     const kind: DoctorLoopItemKind = signalKey.startsWith("review-followup:") ? "review" : "lab";
     if (group.key !== "other") return { key: `panel:${group.key}`, group, marker: label, kind };
+    // markerGroup is a substring match over marker NAMES, so a directive or review filed
+    // on the panel itself ("Lipid panel") reads as no group. The prose matcher knows the
+    // panel words, so the row joins the panel its cadence rows fold into — as the panel,
+    // not as one more marker name in the label.
+    const panel = markerGroupInText(label);
+    if (panel) return { key: `panel:${panel.key}`, group: panel, marker: null, kind };
     return { key: `marker:${slug}`, group: null, marker: label, kind };
   }
   if (signalKey.startsWith("review-followup:")) {
@@ -107,6 +113,17 @@ function joinMarkers(markers: string[]): string {
   if (markers.length <= 1) return markers[0] ?? "";
   if (markers.length <= 3) return `${markers.slice(0, -1).join(", ")} and ${markers[markers.length - 1]}`;
   return `${markers.slice(0, 3).join(", ")} and ${markers.length - 3} more`;
+}
+
+// Distinct review wordings: "Retest ferritin" · "Retest ferritin; Check B12 after
+// metformin" · "Retest ferritin; Check B12 after metformin and 1 more".
+function joinWordings(wordings: string[]): string {
+  if (wordings.length <= 2) return wordings.join("; ");
+  return `${wordings.slice(0, 2).join("; ")} and ${wordings.length - 2} more`;
+}
+
+function pushDistinct(list: string[], value: string | null | undefined): void {
+  if (value && !list.some((x) => x.toLowerCase() === value.toLowerCase())) list.push(value);
 }
 
 // Earliest open due first; an undated row after every dated one.
@@ -158,10 +175,21 @@ export function collapseDoctorLoop(
   for (const [key, { identity, rows }] of groups) {
     rows.sort(bySoonest);
     const rep = rows[0];
+    // The label names only what is actually open at the item's date: everything due by
+    // the read when the window is open, else what falls due with the soonest row. The
+    // full list stays on `markers` / `sources`, so a surveillance row a year out never
+    // reads as "due" just because a sibling in its panel is.
+    const dueBy = rep.next_due && rep.next_due > opts.asOf ? rep.next_due : opts.asOf;
+    const openNow = (row: AttentionScheduleEntry) => !rep.next_due || (!!row.next_due && row.next_due <= dueBy);
     const markers: string[] = [];
+    const labelMarkers: string[] = [];
+    const wordings: string[] = [];
     for (const row of rows) {
       const m = identityOf(row, labelForSlug).marker;
-      if (m && !markers.some((x) => x.toLowerCase() === m.toLowerCase())) markers.push(m);
+      pushDistinct(markers, m);
+      if (!openNow(row)) continue;
+      pushDistinct(labelMarkers, m);
+      if (row.signal_key.startsWith("review-followup:")) pushDistinct(wordings, followupLabel(row.reason));
     }
     const newest = rows.reduce((best, row) =>
       String(row.last_checked ?? "") > String(best.last_checked ?? "") ? row : best
@@ -171,8 +199,8 @@ export function collapseDoctorLoop(
       kind === "dexa"
         ? DEXA_LABEL
         : kind === "review"
-          ? (followupLabel(rep.reason) ?? "Lab follow-up from your last review")
-          : joinMarkers(markers) || identity.group?.label || titleFromSlug(key);
+          ? joinWordings(wordings) || (followupLabel(rep.reason) ?? "Lab follow-up from your last review")
+          : joinMarkers(labelMarkers.length ? labelMarkers : markers) || identity.group?.label || titleFromSlug(key);
     items.push({
       ...rep,
       key,

@@ -17,12 +17,10 @@ import { activeJourneyPhase } from "./journey.js";
 import { recompositionRead, type RecompositionRead } from "./recomposition.js";
 import { EXPECTATION_FOLLOWUP_SOURCE, listAttentionSchedule, type AttentionScheduleEntry } from "./attention.js";
 import { getMarkerHistory } from "./health.js";
-import { matchOptimalZone } from "./propagation-data.js";
-import { canonicalMarker } from "./marker-canon.js";
 import { normalizedExerciseKey } from "./exercise-canon.js";
 import { currentLiftCapacities } from "./performance.js";
 import { strengthBenchmarkMilestones, type StrengthMilestoneInput } from "./training-milestones.js";
-import { followupLabel, markerSlugFromSignalKey } from "./attention-labels.js";
+import { doctorLoopItems, type DoctorLoopItem } from "./doctor-loop.js";
 import { dexaRescanWindow, latestDexaDate } from "./dexa-window.js";
 import { addDaysISO, clipText, daysBetweenISO, localDateISO } from "./shared.js";
 import { blockPriority, objectiveMilestones, type BlockPriority, type ObjectiveFit, type PriorityTrack } from "./road-ahead.js";
@@ -86,19 +84,8 @@ function clip(text: unknown, max = 200): string {
   return clipText(text, max, { collapseWhitespace: true, ellipsis: "..." });
 }
 
-// Mirror of doctor-loop's health signal slug so a `marker:<slug>` key resolves
-// back to its display label, and training-milestones' lift slug so a
-// `training:strength:<slug>` key resolves back to the exercise.
-function healthSlug(value: unknown): string {
-  return (
-    String(value ?? "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 80) || "signal"
-  );
-}
-
+// Mirror of training-milestones' lift slug so a `training:strength:<slug>` key
+// resolves back to the exercise.
 function liftSlug(text: string): string {
   return (
     normalizedExerciseKey(text || "benchmark")
@@ -132,26 +119,6 @@ function prettifySlug(slug: string): string {
     .filter(Boolean)
     .map((part) => (acronyms[part] ? acronyms[part] : part.charAt(0).toUpperCase() + part.slice(1)))
     .join(" ");
-}
-
-// Reproduce doctor-loop's markerLabel from the marker rows on file so a health
-// attention entry keyed by `marker:<slug>` gets its real, cased display name.
-function healthLabelMap(): Map<string, string> {
-  const map = new Map<string, string>();
-  let markers: any[] = [];
-  try {
-    markers = (getMarkerHistory().markers as any[]) ?? [];
-  } catch {
-    markers = [];
-  }
-  for (const marker of markers) {
-    const raw = String(marker?.name ?? marker?.key ?? "");
-    if (!raw) continue;
-    const label = matchOptimalZone(raw)?.label ?? canonicalMarker(raw).name ?? raw;
-    const key = `marker:${healthSlug(label)}`;
-    if (!map.has(key)) map.set(key, label);
-  }
-  return map;
 }
 
 function liftLabelMap(programState: ProgramState): Map<string, string> {
@@ -348,34 +315,28 @@ export function forwardTimeline(today = localDateISO(), opts: ForwardTimelineOpt
     /* no active block */
   }
 
-  // ---- scheduled lab re-checks (attention_schedule, health domain) -----------
-  const labels = healthLabelMap();
-  const healthEntries = listAttentionSchedule({ domain: "health", limit: 60 })
-    .filter((entry) => inHorizon(entry.next_due, today))
-    .sort((a, b) => String(a.next_due).localeCompare(String(b.next_due)));
-  const seenRecheck = new Set<string>();
-  for (const entry of healthEntries) {
-    if (dated.filter((e) => e.kind === "recheck").length >= MAX_RECHECKS) break;
-    const isFollowup = entry.signal_key.startsWith("review-followup:");
-    const label = isFollowup
-      ? (followupLabel(entry.reason) ?? "Lab follow-up from your last review")
-      : `${labels.get(entry.signal_key) ?? prettifySlug(entry.signal_key.replace(/^marker:/, ""))} re-check`;
-    // Dedupe at the MARKER level, not the display label: a marker's periodic cadence
-    // recheck (`marker:hs-crp`) and a review follow-up on that same marker
-    // (`review-followup:hs-crp:…`) carry different labels but are one story. Entries
-    // are ascending by next_due, so the first seen (soonest) wins. A signal with no
-    // real marker slug (a dexa signal, or a sentinel non-marker follow-up) falls back to
-    // its FULL signal_key so distinct follow-ups are never collapsed into one.
-    const dedupeKey = markerSlugFromSignalKey(entry.signal_key) ?? entry.signal_key;
-    if (seenRecheck.has(dedupeKey)) continue;
-    seenRecheck.add(dedupeKey);
+  // ---- scheduled lab re-checks (the doctor loop, one line per follow-up) -------
+  // The same collapsed list Stand's next-checkup read speaks from (doctorLoopItems): a
+  // panel's cadence, directive and review rows are already one item carrying the
+  // earliest open due date, so a lipid panel is one re-check here too, never one row per
+  // lipid marker. The DEXA follow-up is left to the re-scan window above.
+  let loopItems: DoctorLoopItem[] = [];
+  try {
+    loopItems = doctorLoopItems({ asOf: today, markers });
+  } catch {
+    loopItems = [];
+  }
+  const recheckItems = loopItems
+    .filter((item) => item.kind !== "dexa" && inHorizon(item.next_due, today))
+    .slice(0, MAX_RECHECKS);
+  for (const item of recheckItems) {
     dated.push({
-      id: `recheck:${entry.signal_key}`,
+      id: `recheck:${item.signal_key}`,
       kind: "recheck",
-      when: { date: iso(entry.next_due) },
-      label,
-      detail: attentionDetail(entry),
-      basis: attentionBasis(entry, today),
+      when: { date: iso(item.next_due) },
+      label: item.kind === "review" ? item.label : `${item.label} re-check`,
+      detail: attentionDetail(item),
+      basis: attentionBasis(item, today),
     });
   }
 

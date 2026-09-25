@@ -4450,8 +4450,12 @@ follow-up whose words name exactly one panel, "retest lipid panel", joins that p
 still-open `next_due` speaks for it), plus `label`, `markers`, `latest_evidence` and every `sources`
 row. Released rows never count, and rows from other loops filed in the health/body domains
 (expectation follow-ups, measurement nudges) are not doctor follow-ups. `doctorLoopRead` (REST
-`/api/health/doctor-loop`, MCP `get_doctor_loop`), the doctor packet and the Stand next-checkup read
-all consume the collapsed list.
+`/api/health/doctor-loop`, MCP `get_doctor_loop`), the doctor packet, the Stand next-checkup read and
+Train's road-ahead re-check rows (`forwardTimeline`, which leaves DEXA to its own re-scan window) all
+consume the collapsed list. A directive or review filed on the panel's own name ("Lipid panel") joins
+that panel too. The item's `label` names only what is open at its date — every marker whose own row is
+due by the read, or due with the soonest row — while `markers`/`sources` keep the whole panel; a
+review-only item joins its distinct open wordings.
 
 The refresh pass keeps the rows themselves honest: review follow-ups are EPISODES, so only the latest
 review's stay filed and one a newer reading already answered is retired; a Dismiss on a recheck
