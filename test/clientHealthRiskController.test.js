@@ -1,62 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import vm from "node:vm";
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-class FakeElement {
-  constructor(id = "", tag = "div") {
-    this.id = id;
-    this.tag = tag;
-    this.listeners = new Map();
-    this.selectors = new Map();
-    this.html = "";
-  }
-
-  set innerHTML(value) {
-    this.html = value;
-  }
-
-  get innerHTML() {
-    return this.html;
-  }
-
-  addEventListener(type, fn) {
-    this.listeners.set(type, fn);
-  }
-
-  click() {
-    this.listeners.get("click")?.({ target: this, currentTarget: this });
-  }
-
-  querySelector(selector) {
-    return this.selectors.get(selector) || null;
-  }
-}
+import { createHost, loadClientModule } from "./_dom.mjs";
 
 function loadController(overrides = {}) {
   const renderCalls = [];
-  const context = {
-    console,
-    Object,
-    Promise,
-    String,
-    CairnHealthRisk: {
-      renderCardiovascularRiskHtml: (data) => {
-        renderCalls.push(data);
-        // installs a fake sharpen affordance so the controller's click wiring is exercised
-        return `<section class="hrisk">rendered:${data ? "ok" : "null"}<button data-risk-sharpen>sharpen</button></section>`;
+  const win = loadClientModule("health-risk-controller", {
+    globals: {
+      CairnHealthRisk: {
+        renderCardiovascularRiskHtml: (data) => {
+          renderCalls.push(data);
+          // installs a fake sharpen affordance so the controller's click wiring is exercised
+          return `<section class="hrisk">rendered:${data ? "ok" : "null"}<button data-risk-sharpen>sharpen</button></section>`;
+        },
       },
+      ...overrides,
     },
-    ...overrides,
-  };
-  context.globalThis = context;
-  context.window = context;
-  vm.runInNewContext(readFileSync(join(root, "public/js/health-risk-controller.js"), "utf8"), context);
-  return { controller: context.CairnHealthRiskController, renderCalls };
+  });
+  return { controller: win.CairnHealthRiskController, renderCalls, document: win.document };
+}
+
+// The Stand screen's root with its #hRisk slot, attached to the document.
+function mountRoot(document) {
+  const rootEl = createHost(document, { id: "root", html: `<div id="hRisk"></div>` });
+  return { rootEl, riskSlot: rootEl.querySelector("#hRisk") };
 }
 
 function depsFor(root, options = {}) {
@@ -81,10 +47,8 @@ function depsFor(root, options = {}) {
 }
 
 test("health risk controller fetches /health/risk and paints the card into #hRisk", async () => {
-  const rootEl = new FakeElement("root");
-  const riskSlot = new FakeElement("hRisk");
-  rootEl.selectors.set("#hRisk", riskSlot);
-  const { controller, renderCalls } = loadController();
+  const { controller, renderCalls, document } = loadController();
+  const { rootEl, riskSlot } = mountRoot(document);
   const { deps, apiCalls } = depsFor(rootEl, { response: { model_status: { prevent: "computed" } } });
 
   controller.load(deps, 1);
@@ -97,10 +61,8 @@ test("health risk controller fetches /health/risk and paints the card into #hRis
 });
 
 test("health risk controller drops a stale response when pollToken has advanced", async () => {
-  const rootEl = new FakeElement("root");
-  const riskSlot = new FakeElement("hRisk");
-  rootEl.selectors.set("#hRisk", riskSlot);
-  const { controller, renderCalls } = loadController();
+  const { controller, renderCalls, document } = loadController();
+  const { rootEl, riskSlot } = mountRoot(document);
   const { deps } = depsFor(rootEl, { pollToken: 2 }); // load() is called with the stale token 1
 
   controller.load(deps, 1);
@@ -112,10 +74,8 @@ test("health risk controller drops a stale response when pollToken has advanced"
 });
 
 test("health risk controller degrades to the calm empty state on fetch failure", async () => {
-  const rootEl = new FakeElement("root");
-  const riskSlot = new FakeElement("hRisk");
-  rootEl.selectors.set("#hRisk", riskSlot);
-  const { controller, renderCalls } = loadController();
+  const { controller, renderCalls, document } = loadController();
+  const { rootEl, riskSlot } = mountRoot(document);
   const { deps } = depsFor(rootEl, { api: () => Promise.reject(new Error("network down")) });
 
   controller.load(deps, 1);
@@ -128,33 +88,25 @@ test("health risk controller degrades to the calm empty state on fetch failure",
 });
 
 test("health risk controller wires the provisional-read Profile nudge", () => {
-  const rootEl = new FakeElement("root");
-  const riskSlot = new FakeElement("hRisk");
-  const sharpen = new FakeElement("", "button");
-  riskSlot.selectors.set("[data-risk-sharpen]", sharpen);
-  rootEl.selectors.set("#hRisk", riskSlot);
-  const { controller } = loadController();
+  const { controller, document } = loadController();
+  const { rootEl, riskSlot } = mountRoot(document);
   const { deps, activated, state } = depsFor(rootEl);
 
   controller.render({ model_status: { prevent: "computed_provisional" } }, deps);
-  sharpen.click();
+  riskSlot.querySelector("[data-risk-sharpen]").click();
 
   assert.equal(state.meSeg, "profile");
   assert.deepEqual(activated, ["me"]);
 });
 
 test("health risk controller prefers an in-place onSharpen handler over the Profile jump", () => {
-  const rootEl = new FakeElement("root");
-  const riskSlot = new FakeElement("hRisk");
-  const sharpen = new FakeElement("", "button");
-  riskSlot.selectors.set("[data-risk-sharpen]", sharpen);
-  rootEl.selectors.set("#hRisk", riskSlot);
-  const { controller } = loadController();
+  const { controller, document } = loadController();
+  const { rootEl, riskSlot } = mountRoot(document);
   let sharpened = 0;
   const { deps, activated, state } = depsFor(rootEl, { onSharpen: () => { sharpened += 1; } });
 
   controller.render({ model_status: { prevent: "computed_provisional" } }, deps);
-  sharpen.click();
+  riskSlot.querySelector("[data-risk-sharpen]").click();
 
   assert.equal(sharpened, 1);
   assert.equal(state.meSeg, undefined); // did NOT fall back to the tab jump

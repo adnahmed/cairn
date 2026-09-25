@@ -1,42 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import vm from "node:vm";
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-class FakeElement {
-  constructor() {
-    this.innerHTML = "";
-    this.textContent = "";
-  }
-
-  querySelector() {
-    return null;
-  }
-}
-
-class FakeView extends FakeElement {
-  set innerHTML(value) {
-    this.html = value;
-    this.endBody = value.includes('id="endBody"') ? new FakeElement() : null;
-  }
-
-  get innerHTML() {
-    return this.html || "";
-  }
-
-  querySelector(selector) {
-    return selector === "#endBody" ? this.endBody : null;
-  }
-}
+import { createDocument, createHost, loadClientModule } from "./_dom.mjs";
 
 function loadProgressEnduranceController() {
-  const context = {
-    Object,
-    window: {},
+  const globals = {
     enduranceGoalCard: () => "",
     runComplianceLine: () => "",
     weeklyRunPlanCard: () => "",
@@ -60,15 +27,13 @@ function loadProgressEnduranceController() {
     hybridLoadCardHtml: () => "",
     localISO: () => "2026-06-30",
   };
-  context.window = context;
-  vm.runInNewContext(readFileSync(join(root, "public/js/progress-endurance-controller.js"), "utf8"), context);
-  return context.CairnProgressEnduranceController;
+  return loadClientModule("progress-endurance-controller", { globals }).CairnProgressEnduranceController;
 }
 
 function controllerDeps(overrides = {}) {
   const apiCalls = [];
   let token = 0;
-  const view = new FakeView();
+  const view = createHost(createDocument());
   const deps = {
     view,
     headerTitle: { textContent: "" },

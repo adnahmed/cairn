@@ -9,7 +9,7 @@ This document is the **frozen contract** between `public/styles.css` (design sys
 the single `app.js`). Class names and APIs
 listed here are load-bearing — change them in all three places or not at all.
 The view modules are generated from `src/client/**`. How those modules are structured (component
-contract, state, data loading, tokens, motion, states, accessibility, inventory) is covered in
+contract, state, data loading, tokens, motion, states, accessibility, testing, inventory) is covered in
 **Component architecture** at the end of this file.
 
 ## Palette (CSS variables in `:root`)
@@ -879,6 +879,41 @@ them.
   There are six hand-rolled overlays today (see the inventory).
 - `prefers-reduced-motion` (§30) and `prefers-contrast: more` (§39) are honored. A number always
   carries its unit, and dates read the way a person says them (**Hard rules**).
+
+### Testing
+
+Client tests run the **built** module (`public/js/<name>.js`) against the shared DOM harness in
+`test/_dom.mjs`. They don't read the TypeScript source with regexes (about 29 test files still do),
+and they don't hand-roll a `FakeElement` (43 files still do; move them onto the harness when their
+module is touched).
+
+- **What the harness gives you.** `loadClientModule(names, {globals, document})` runs one or more
+  built modules, in the order given, in a fresh `vm` sandbox and returns its global object (the
+  fake `window`). The sandbox holds the host builtins, a fake `document`, in-memory
+  `localStorage`/`sessionStorage`, the DOM constructors (`HTMLElement`, `HTMLButtonElement`, …, so
+  `instanceof` checks work) and window-level events. Anything else the module reaches for, such as
+  another module's `Cairn<Name>` namespace or `setTimeout`, goes in `globals`. The fake DOM parses
+  `innerHTML`, so `querySelector` finds what the renderer actually emitted. It supports a practical
+  selector subset, attributes, `dataset`, `classList`, `style`, form values, focus, and events that
+  capture and bubble through the document to the window. An unsupported selector throws instead of
+  returning `null`. `el.click()` and `fire(el, type, init)` return a promise that settles when every
+  handler they ran has settled, so `await button.click()` waits for an async handler.
+- **Renderer test.** Load `html-utils` plus the module, call `thingHtml(model)`, and put the result
+  through `renderHtml(html)`. Then assert on structure: `host.querySelector(".thing-row")`,
+  `.textContent`, `.dataset`, `aria-*`. A regex over the markup is fine for a phrase, but not for
+  structure. Pin the escaping by rendering hostile input (`<b>`) and asserting that it comes back as
+  text rather than as an element.
+- **Controller test.** Give the controller a `createHost(document, {html})` host. The host is
+  attached to `document.body`, so `isConnected` is true the way it is on a real screen. Build `deps`
+  from plain recording functions (`api` pushes the path and returns a fixture), then mount, and
+  drive it with `click()`/`fire()` on the elements the render produced. Assert on the host's DOM and
+  on what the deps recorded. To simulate the person leaving, call `host.remove()` rather than
+  setting a flag. For timing, use `flush()` (`await` it to drain chained promises) and
+  `createFakeTimers()`, which run only when the test calls `tick()` or `runPending()`.
+- **The harness is honest, so be honest back.** A disabled button doesn't fire, a `<select>` only
+  takes a value that one of its options has, and a removed node is disconnected. If a test only
+  passes against a hand-rolled fake, the fake is hiding a real difference, so fix the fixture or the
+  code rather than the harness. `test/domHarness.test.js` pins the harness's own behavior.
 
 ### Component inventory
 
