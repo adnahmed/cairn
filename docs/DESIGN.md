@@ -681,8 +681,9 @@ numbers below were measured at v1.9.1 — re-measure before you quote them.
 
 ### What the code does today
 
-- **One global scope, no framework.** About 230 TypeScript modules (~60k lines) compile file by file
-  into `public/js/`, then get concatenated in a fixed order into seven bundles (`BUNDLES`,
+- **One global scope, no framework.** 244 TypeScript modules (~60k lines; `.ts` files under
+  `src/client`) compile file by file into `public/js/`, then get concatenated in a fixed order into
+  seven bundles (`BUNDLES`,
   `scripts/build-client.mjs`). A module is an IIFE or block that publishes a `Cairn<Name>` namespace
   with `Object.assign(globalThis, …)`. There are about 206 of these namespaces, plus about 435 bare
   global functions kept for older callers.
@@ -729,11 +730,18 @@ Rules:
    (CLAUDE.md), and an eager bundle never touches a lazy bundle's namespace at load time.
 4. **Actions are data attributes, handled by delegation.** Name an action
    `data-<prefix>-<action>`; `data-pweek-day`, `data-cfocus-go` and `data-decision-undo` already
-   work this way. Put one listener per event type on `host` and dispatch with `closest()`. This makes
-   `mount` idempotent: mounting again replaces the markup and never double-wires, so `dataset.wired`
-   guards aren't needed. Use ids only for slots a screen owns.
+   work this way. Put one listener per event type on `host` and dispatch with `closest()`.
+   Delegation alone does **not** make `mount` idempotent: a host is a persistent slot, so a second
+   `mountThing(host, deps)` replaces the markup but adds a second listener to the same host, and one
+   tap then fires twice (two revert POSTs, two logged sets). Idempotency comes from the mount helper
+   (`delegate`, F5 in `docs/V2-PLAN.md`): every listener a mount adds is registered with the
+   `signal` of an `AbortController` owned by that mount, the helper keeps a `WeakMap` from host to
+   the current mount's teardown, and a new mount on the same host runs the previous teardown
+   (aborting its listeners) before it wires. The returned teardown aborts the same controller. Only
+   code that wires through that helper may drop `dataset.wired` guards. Use ids only for slots a
+   screen owns.
 5. **Async paints check that they are still current.** Each continuation after an `await` checks the
-   render generation (`pollToken`, `ui-shell.ts:218`) or the controller's own token, plus
+   render generation (`pollToken`, `ui-shell.ts:217`) or the controller's own token, plus
    `host.isConnected`, before it writes.
 6. **The server owns the truth; renderers print it.** Today's lift line, reading-grammar words,
    outcome phrases and Undo labels all arrive finished from the server. A renderer frames them and
@@ -843,7 +851,7 @@ The tokens and vocabulary are in **Motion tokens** above. Rules for anything new
 | Button kicked off an operation | `btnBusy(btn, label)` | A working label, footprint pinned |
 | Surface being regenerated | `.is-thinking` / `.is-thinking--determinate` | Nothing more |
 | Background refresh | `.swr-refreshing` hairline | Nothing. Never a spinner over real content. |
-| Empty | `CairnUi.emptyStateHtml` (`ui-components.ts:139`) | What would fill it and where that comes from ("Mention pain in your session notes or chat"). Never "0" or "no data", and never blame. |
+| Empty | `CairnUi.emptyStateHtml` (`ui-components.ts:133`) | What would fill it and where that comes from ("Mention pain in your session notes or chat"). Never "0" or "no data", and never blame. |
 | Optional async slot with nothing to show | Collapse it (`:empty{display:none}`, `.card-stack` drops empty items) | Nothing |
 | No recent signal in a domain | Plain words | "Quiet". A silence is normal and never reads as a problem or "low". |
 | Refusal (`{ok:false}` at 200) | One sentence in place | Why, with the surface left unchanged |
