@@ -15,49 +15,21 @@ import {
   duplicateMetricError,
   isShadowActivity,
   normalizeGarminType,
-  positiveNumber,
   withoutShadowActivities,
   type ShadowCheckActivity,
 } from "./activity-shadow.js";
+import { parseActivity } from "./activity-capture.js";
 
 // Re-exported for existing callers (e.g. underfueling.ts) that import the shadow
 // helpers from here; the pure implementation lives in ./activity-shadow.js so a
 // leaf module like training-read.ts can use it without cycling back through
 // activities.ts -> training-read.ts (deriveSessionTitle).
 export { isShadowActivity, withoutShadowActivities, type ShadowCheckActivity };
+// The free-text parser is pure and lives beside the chat capture classifier that
+// reads it (./activity-capture.js); re-exported so existing callers keep one import.
+export { parseActivity };
 
 // ---------- activities ----------
-export function parseActivity(text: string) {
-  const t = text.toLowerCase();
-  let type = "other";
-  if (/\b(mtb|mountain ?bike|ride|rode|riding|cycl|bike|biked|biking|gravel)\b/.test(t)) type = "ride";
-  else if (/\b(run|ran|running|jog|jogged|jogging|tempo|intervals?|park ?run|5k|10k)\b/.test(t)) type = "run";
-  else if (/\bswim|swam|swimming\b/.test(t)) type = "swim";
-  else if (/\b(hike|hiked|hiking|walk|walked|fell ?run|fells)\b/.test(t)) type = "hike";
-  // a /km pace strongly implies a run if nothing else matched
-  if (type === "other" && /\d+:\d{2}\s*(?:\/|per)\s*km/.test(t)) type = "run";
-
-  let duration_min: number | null = null;
-  const h = t.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)/);
-  const m = t.match(/(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes)\b/);
-  if (h) duration_min = parseFloat(h[1]) * 60;
-  if (m) duration_min = (duration_min || 0) + parseFloat(m[1]);
-  const hm = t.match(/\b(\d+):(\d{2})\b(?!\s*\/)/); // 1:30 as h:mm when no /km after
-  if (!duration_min && hm) duration_min = parseInt(hm[1], 10) * 60 + parseInt(hm[2], 10);
-
-  let distance_km: number | null = null;
-  const km = t.match(/(\d+(?:\.\d+)?)\s*(?:km|k\b)/);
-  const mi = t.match(/(\d+(?:\.\d+)?)\s*(?:mi|mile|miles)\b/); // \b so "min" isn't read as miles
-  if (km) distance_km = parseFloat(km[1]);
-  else if (mi) distance_km = +(parseFloat(mi[1]) * 1.60934).toFixed(2);
-
-  let pace: string | null = null;
-  const pc = t.match(/(\d+:\d{2})\s*(?:\/|per)\s*km/);
-  if (pc) pace = `${pc[1]}/km`;
-
-  return { type, duration_min, distance_km, pace };
-}
-
 interface ManualActivityDuplicateScore {
   id: number;
   error: number;
@@ -581,6 +553,41 @@ export function deleteActivity(id: number) {
   invalidateDayRead(String(row.date));
   reconcileDailySessionsForDateSafe(String(row.date));
   return true;
+}
+
+export type RemoveActivityResult =
+  | { ok: true; id: number; date: string }
+  | { ok: false; code: "invalid_id" | "not_found" | "watch_imported"; error: string };
+
+/**
+ * Delete one hand-logged activity (a mis-entry, a duplicate, a chat capture that
+ * should never have been an activity). A watch-imported row is REFUSED: the next
+ * sync re-creates it from the provider (addActivity keys it by source +
+ * external_id), so a delete here would only hide it until then — it is removed at
+ * the source instead.
+ *
+ * Dependents: the only foreign key onto activities is garmin_activities.activity_id
+ * (ON DELETE SET NULL), and a row it links is refused here anyway. An enrichment job
+ * still queued for the row reads it back and finds nothing to update; the day's
+ * reads and composed sessions are refreshed by deleteActivity.
+ */
+export function removeActivity(id: number): RemoveActivityResult {
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, code: "invalid_id", error: "activity id must be a positive integer" };
+  }
+  const row = getActivity(id) as { date?: unknown; source?: unknown; external_id?: unknown } | null;
+  if (!row) return { ok: false, code: "not_found", error: `activity ${id} not found` };
+  const linkedToWatch = db.prepare(`SELECT 1 FROM garmin_activities WHERE activity_id = ? LIMIT 1`).get(id) != null;
+  if (row.external_id != null || String(row.source ?? "") === "garmin" || linkedToWatch) {
+    return {
+      ok: false,
+      code: "watch_imported",
+      error:
+        "this activity was imported from a connected watch; the next sync would bring it back, so remove it at the source instead",
+    };
+  }
+  deleteActivity(id);
+  return { ok: true, id, date: String(row.date) };
 }
 
 export function setActivityEnrichStatus(id: number, status: string) {

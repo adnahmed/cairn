@@ -2152,6 +2152,24 @@ when the athlete's own words independently carry symptom intent — the same gua
 `report_training_symptom` uses — never automatically the way the PWA's own note field always does
 (`source_kind` distinguishes the two paths).
 
+**A weigh-in or a cuff reading typed in chat lands in its own store, never as an activity.** Chat
+has a `log_blood_pressure` action (`src/chatActions.ts`) written through
+`recordBloodPressureReading()` (`src/domain/health/blood-pressure.ts`) — the same writer the
+`POST /api/blood-pressure` route and the `log_blood_pressure` MCP tool use, so a reading re-derives
+directives identically from every surface. The `log_activity` chokepoint is guarded server-side:
+`rerouteMisfiledCaptures()` runs every chat action list through `classifyActivityCapture()`
+(`src/repo/activity-capture.ts`, pure, beside the one `parseActivity` text parser) before
+`applyChatActions` writes anything. A text the parser reads as a session (a type, a duration or a
+distance) is ALWAYS an activity; a text that is wholly a weigh-in ("176.5 lbs weight today", or a
+unitless bare number near the stored bodyweight) or a cuff reading ("log blood pressure 125/75") is
+rerouted to `log_weight` / `log_blood_pressure` unless the same turn already carries that exact
+reading; an activity naming no activity at all — an unstarted intention ("let's start a push
+session"), a question that does not ask to log one ("should I do yoga?"), a truncated or
+unintelligible text — is dropped instead of stored as an `other` row, and a reply that still claims
+it was logged gets a truthful line under it (`reconcileMisfiledActivityReply`,
+`src/chat-reconcile.ts`). A hand-logged activity can be deleted (`DELETE /api/activities/:id`,
+`delete_activity`); a watch-imported one is refused, since the next sync would re-create it.
+
 **Measured RMR is scaled to current bodyweight before it anchors the BMR blend.** A test taken at a
 different bodyweight than today's otherwise silently misrepresented energy need at the *current*
 weight. `measuredRmrWeightAdjustment()` (`src/repo/expenditure.ts`, now exported) scales the measured

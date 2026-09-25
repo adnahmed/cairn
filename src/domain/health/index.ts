@@ -18,3 +18,4 @@ export * from "../../repo/risk.js";
 export { getSettings } from "../../repo/settings.js";
 export * from "../../repo/standing.js";
 export * from "../../repo/symptom-links.js";
+export * from "./blood-pressure.js";

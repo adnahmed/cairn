@@ -1,9 +1,8 @@
 import { Router } from "express";
 import {
-  addBloodPressureReading,
   deleteBloodPressureReading,
-  deriveDirectives,
   listBloodPressureReadings,
+  recordBloodPressureReading,
 } from "../domain/health/index.js";
 import {
   addCheckin,
@@ -119,7 +118,7 @@ personRouter.get("/blood-pressure", (req, res) =>
 personRouter.post("/blood-pressure", (req, res) => {
   const b = req.body ?? {};
   try {
-    const row = addBloodPressureReading({
+    const row = recordBloodPressureReading({
       measured_at: b.measured_at ?? b.measuredAt ?? null,
       systolic: b.systolic,
       diastolic: b.diastolic,
@@ -128,11 +127,6 @@ personRouter.post("/blood-pressure", (req, res) => {
       position: b.position ?? null,
       note: b.note ?? null,
     });
-    try {
-      deriveDirectives();
-    } catch {
-      /* never fail the vital log */
-    }
     res.json(row);
   } catch (e: any) {
     res.status(400).json({ error: e?.message || "could not log blood pressure" });

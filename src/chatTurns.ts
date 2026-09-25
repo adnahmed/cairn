@@ -45,12 +45,15 @@ import type { MemoryKind } from "./repo/memory.js";
 import {
   chatCheckinDate,
   normalizeChatActions,
+  rerouteMisfiledCaptures,
   type ChatAction,
+  type MisfiledCaptureNote,
   type ChatActionType,
   type LogFoodAction,
   type SetRunAction,
 } from "./chatActions.js";
 import { normalizeFoodCaptureParsed } from "./foodCapture.js";
+import { recordBloodPressureReading } from "./domain/health/blood-pressure.js";
 import { pickDayVariant } from "./repo/brain/day-read-rules.js";
 import { applyProposalWithAutonomy, revertDecision } from "./domain/brain/autonomy-service.js";
 // The re-ask lookup that used to live here moved beside the hand-off it guards, in
@@ -81,6 +84,7 @@ import {
   reconcileChatRevertReply,
   reconcileChatRunReply,
   reconcileGoalIdentityReply,
+  reconcileMisfiledActivityReply,
   reconcileStrengthObjectiveReply,
   reconcileTrainingStructureReply,
 } from "./chat-reconcile.js";
@@ -117,6 +121,7 @@ export {
   shouldCreatePhotoFoodPlaceholder,
 } from "./chat-intent.js";
 export {
+  ACTIVITY_NOT_LOGGED_VARIANTS,
   DECISION_REVERT_FAILED_VARIANTS,
   DECISION_REVERT_NOT_AUTHORIZED_VARIANTS,
   describeRun,
@@ -134,6 +139,7 @@ export {
   reconcileChatRevertReply,
   reconcileChatRunReply,
   reconcileGoalIdentityReply,
+  reconcileMisfiledActivityReply,
   reconcileStrengthObjectiveReply,
   reconcileTrainingStructureReply,
   RESTRUCTURE_DRAFT_VARIANTS,
@@ -338,18 +344,26 @@ async function processChatTurnInner(id: number, turn: any): Promise<void> {
     // and skip the normal log_food application so the photo never double-logs.
     const photoFood = turn.image_path ? logPhotoFood(actions, turn) : null;
 
-    const { applied, drafts, labConfirms, refusedReverts, droppedGoalFields, appliedGoalPatch, explicitPlanEdit } =
-      applyChatActions(
-        { actions },
-        {
-          agent,
-          imagePath: turn.image_path,
-          message: turn.message,
-          skipLogFood: !!photoFood,
-          turnId: id,
-          userMessageId: beforeId,
-        }
-      );
+    const {
+      applied,
+      drafts,
+      labConfirms,
+      refusedReverts,
+      droppedGoalFields,
+      appliedGoalPatch,
+      explicitPlanEdit,
+      misfiledCaptures,
+    } = applyChatActions(
+      { actions },
+      {
+        agent,
+        imagePath: turn.image_path,
+        message: turn.message,
+        skipLogFood: !!photoFood,
+        turnId: id,
+        userMessageId: beforeId,
+      }
+    );
     if (photoFood) applied.unshift({ type: "log_food", result: photoFood });
     // The SAME reading the apply path used. Reconciling on a second, per-message-only
     // reading is how a go-ahead that really did authorize a change still read as a
@@ -359,7 +373,8 @@ async function processChatTurnInner(id: number, turn: any): Promise<void> {
     const objectiveReply = reconcileStrengthObjectiveReply(runReply, turn.message, applied);
     const goalReply = reconcileGoalIdentityReply(objectiveReply, droppedGoalFields, appliedGoalPatch);
     const structureReply = reconcileTrainingStructureReply(goalReply, applied);
-    const reply = reconcileChatRevertReply(structureReply, applied, refusedReverts, proposedReply);
+    const activityReply = reconcileMisfiledActivityReply(structureReply, misfiledCaptures, applied);
+    const reply = reconcileChatRevertReply(activityReply, applied, refusedReverts, proposedReply);
     const failedAttempts = attempts.filter((a) => !a.ok);
     const meta: {
       applied: typeof applied;
@@ -2187,6 +2202,17 @@ function persistPendingLabDraft(
   }
 }
 
+// The athlete's stored bodyweight, so a unitless bare number filed as an activity
+// is only read as a weigh-in when it sits near it. Absent or unreadable is null.
+function storedBodyweightLb(): number | null {
+  try {
+    const weight = Number(repo.getProfile()?.weight_lb);
+    return Number.isFinite(weight) && weight > 0 ? weight : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------- action application ----------
 // Lifted verbatim from the old inline POST /api/chat handler so the worker is the
 // single place chat actions are applied. Safe actions apply immediately; plan
@@ -2224,6 +2250,8 @@ export function applyChatActions(
   appliedGoalPatch: Record<string, unknown> | null;
   /** Did the athlete's own words (or their go-ahead to a drafted session) ask for this? */
   explicitPlanEdit: boolean;
+  /** What the log_activity guard rerouted or dropped (reconcileMisfiledActivityReply reads it). */
+  misfiledCaptures: MisfiledCaptureNote[];
 } {
   const applied: Array<{ type: ChatActionType; result?: unknown; error?: string }> = [];
   const drafts: unknown[] = [];
@@ -2262,7 +2290,15 @@ export function applyChatActions(
     userMessageId: ctx.userMessageId,
     message,
   });
-  const actions = normalizeChatActions(Array.isArray(parsed) ? parsed : parsed?.actions);
+  // The log_activity chokepoint: a weigh-in or cuff reading the agent filed as an
+  // activity lands in its own store, and an activity naming no activity is dropped.
+  const { actions, notes: misfiled } = rerouteMisfiledCaptures(
+    normalizeChatActions(Array.isArray(parsed) ? parsed : parsed?.actions),
+    { referenceWeightLb: storedBodyweightLb() }
+  );
+  for (const note of misfiled) {
+    log.info(`[chat] log_activity ${note.outcome === "dropped" ? "dropped" : `rerouted to ${note.outcome}`} (${note.reason})`);
+  }
   for (const a of actions) {
     try {
       switch (a.type) {
@@ -2449,6 +2485,20 @@ export function applyChatActions(
           applied.push({
             type: a.type,
             result: repo.logWeight(a.weight_lb, stringOrUndefined(a.date), stringOrUndefined(a.note)),
+          });
+          break;
+        case "log_blood_pressure":
+          applied.push({
+            type: a.type,
+            result: recordBloodPressureReading({
+              measured_at: a.measured_at ?? null,
+              systolic: a.systolic,
+              diastolic: a.diastolic,
+              pulse: a.pulse,
+              source: "manual",
+              position: stringOrUndefined(a.position) ?? null,
+              note: stringOrUndefined(a.note) ?? null,
+            }),
           });
           break;
         case "log_health": {
@@ -2691,5 +2741,14 @@ export function applyChatActions(
       applied.push({ type: a.type, error: e instanceof Error ? e.message : String(e) });
     }
   }
-  return { applied, drafts, labConfirms, refusedReverts, droppedGoalFields, appliedGoalPatch, explicitPlanEdit };
+  return {
+    applied,
+    drafts,
+    labConfirms,
+    refusedReverts,
+    droppedGoalFields,
+    appliedGoalPatch,
+    explicitPlanEdit,
+    misfiledCaptures: misfiled,
+  };
 }
