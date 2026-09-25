@@ -50,6 +50,14 @@ function startBlockHtml(): string {
   </div>`;
 }
 
+type ProgramBlockMountDeps = {
+  api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+  toast(message: string): void;
+  armDelete(btn: Element, onConfirm: () => unknown): void;
+  /** Repaint the block card after a write landed. */
+  refresh(): void;
+};
+
 async function loadProgramBlock(): Promise<void> {
   const slot = view.querySelector("#progBlockSlot");
   if (!slot) return;
@@ -61,68 +69,70 @@ async function loadProgramBlock(): Promise<void> {
   }
   if (state.tab !== "progress" || !slot.isConnected) return;
   slot.innerHTML = block ? activeBlockHtml(block) : startBlockHtml();
-  wireProgramBlock(slot);
+  mountProgramBlock(slot, {
+    api,
+    toast,
+    armDelete,
+    refresh: () => {
+      swrInvalidate("plan:coach");
+      loadProgramBlock();
+    },
+  });
 }
 
-function wireProgramBlock(slot: Element): void {
-  const refresh = () => {
-    swrInvalidate("plan:coach");
-    loadProgramBlock();
-  };
+// Wires the block card painted into `slot` through one delegated click listener.
+// Re-mounting on the same slot (every repaint does) replaces the previous listener.
+function mountProgramBlock(slot: Element, deps: ProgramBlockMountDeps): () => void {
   const post = async (path: string, okMsg: string): Promise<void> => {
     try {
-      const result = (await api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })) as {
+      const result = (await deps.api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })) as {
         error?: unknown;
       } | null;
       if (result?.error) {
-        toast("Couldn't update the block");
+        deps.toast("Couldn't update the block");
         return;
       }
-      if (okMsg) toast(okMsg);
-      refresh();
+      if (okMsg) deps.toast(okMsg);
+      deps.refresh();
     } catch {
-      toast("Couldn't update the block");
+      deps.toast("Couldn't update the block");
     }
   };
-  slot.querySelector("[data-blockstart]")?.addEventListener("click", () => {
-    const composer = slot.querySelector(".pblock-composer") as HTMLElement | null;
-    if (composer) {
-      composer.hidden = false;
-      (slot.querySelector(".pblock-goal-in") as HTMLInputElement | null)?.focus();
-    }
-  });
-  slot.querySelector("[data-blockcreate]")?.addEventListener("click", async () => {
+  const create = async (): Promise<void> => {
     const goal = ((slot.querySelector(".pblock-goal-in") as HTMLInputElement | null)?.value || "").trim();
     const focus = (slot.querySelector(".pblock-focus-in") as HTMLSelectElement | null)?.value || "strength";
     const total_weeks = Number((slot.querySelector(".pblock-weeks-in") as HTMLInputElement | null)?.value) || 5;
     try {
-      const result = (await api("/program/blocks", {
+      const result = (await deps.api("/program/blocks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: goal || "Training block", focus, total_weeks }),
       })) as ClientProgramBlock | null;
       if (result?.id) {
-        toast("Block started — the coach will periodize toward it");
-        refresh();
+        deps.toast("Block started — the coach will periodize toward it");
+        deps.refresh();
       } else {
-        toast("Couldn't start the block");
+        deps.toast("Couldn't start the block");
       }
     } catch {
-      toast("Couldn't start the block");
+      deps.toast("Couldn't start the block");
     }
+  };
+  return CairnUiActions.mount(slot, "pblock", ({ delegate }) => {
+    delegate("click", {
+      blockstart: () => {
+        const composer = slot.querySelector(".pblock-composer") as HTMLElement | null;
+        if (composer) {
+          composer.hidden = false;
+          (slot.querySelector(".pblock-goal-in") as HTMLInputElement | null)?.focus();
+        }
+      },
+      blockcreate: () => create(),
+      blockadvance: (button) => post(`/program/blocks/${button.dataset.blockadvance}/advance`, "Moved to the next week"),
+      blockcomplete: (button) =>
+        deps.armDelete(button, () => post(`/program/blocks/${button.dataset.blockcomplete}/complete`, "Block completed")),
+    });
   });
-  const advanceButton = slot.querySelector("[data-blockadvance]") as HTMLElement | null;
-  if (advanceButton) {
-    advanceButton.addEventListener("click", () =>
-      post(`/program/blocks/${advanceButton.dataset.blockadvance}/advance`, "Moved to the next week"),
-    );
-  }
-  const completeButton = slot.querySelector("[data-blockcomplete]") as HTMLElement | null;
-  if (completeButton) {
-    completeButton.addEventListener("click", () =>
-      armDelete(completeButton, () => post(`/program/blocks/${completeButton.dataset.blockcomplete}/complete`, "Block completed")),
-    );
-  }
 }
 
 const CAIRN_PROGRESS_PROGRAM_BLOCK = {
@@ -130,7 +140,7 @@ const CAIRN_PROGRESS_PROGRAM_BLOCK = {
   activeBlockHtml,
   startBlockHtml,
   loadProgramBlock,
-  wireProgramBlock,
+  mountProgramBlock,
 };
 
 Object.assign(globalThis, {
@@ -139,7 +149,6 @@ Object.assign(globalThis, {
   activeBlockHtml,
   startBlockHtml,
   loadProgramBlock,
-  wireProgramBlock,
 });
 
 if (typeof window !== "undefined") {
@@ -149,6 +158,5 @@ if (typeof window !== "undefined") {
     activeBlockHtml,
     startBlockHtml,
     loadProgramBlock,
-    wireProgramBlock,
   });
 }

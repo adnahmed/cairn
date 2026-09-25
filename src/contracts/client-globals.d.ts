@@ -1654,7 +1654,6 @@ declare global {
   declare function activeBlockHtml(block: ClientProgramBlock | null | undefined): string;
   declare function startBlockHtml(): string;
   declare function loadProgramBlock(): Promise<void>;
-  declare function wireProgramBlock(slot: Element): void;
   declare function cfocusDomainTag(domain: unknown): string;
   declare function coachingFocusCardHtml(
     focus: ClientCoachingFocus | null | undefined,
@@ -2513,6 +2512,21 @@ declare global {
     CairnUiActions: {
       toast(message: unknown, options?: { action?: string; onAction?: () => void }): void;
       armDelete(btn: Element | null | undefined, onConfirm: () => unknown, options?: { label?: string }): void;
+      delegate(
+        host: Element,
+        type: string,
+        actions: Record<string, (el: HTMLElement, event: Event) => unknown>,
+        options?: { signal?: AbortSignal },
+      ): () => void;
+      mount(
+        host: Element,
+        name: string,
+        wire: (ctx: {
+          host: Element;
+          signal: AbortSignal;
+          delegate(type: string, actions: Record<string, (el: HTMLElement, event: Event) => unknown>): void;
+        }) => unknown,
+      ): () => void;
     };
 
     CairnUiHeader: {
@@ -3770,7 +3784,15 @@ declare global {
       activeBlockHtml(block: ClientProgramBlock | null | undefined): string;
       startBlockHtml(): string;
       loadProgramBlock(): Promise<void>;
-      wireProgramBlock(slot: Element): void;
+      mountProgramBlock(
+        slot: Element,
+        deps: {
+          api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+          toast(message: string): void;
+          armDelete(btn: Element, onConfirm: () => unknown): void;
+          refresh(): void;
+        },
+      ): () => void;
     };
 
     CairnProgressProgramController: {
@@ -4389,6 +4411,7 @@ declare global {
         api?: (path: string) => Promise<unknown>;
         guard?: () => boolean;
       }): Promise<void>;
+      mountToggle(slot: Element): () => void;
     };
 
     CairnTodaySessionSkip: {
