@@ -93,6 +93,12 @@ export function registerOperatorTools(server: McpToolRegistrar) {
         .describe(
           "quiet proactivity on/off: nightly insight + weekly read + weekly nutrition check-in precompute (pull-never-push — only stores a waiting read, never notifies)"
         ),
+      meal_plan_auto_draft: z
+        .boolean()
+        .optional()
+        .describe(
+          "automatic meal plans on/off (default OFF). Off: meal plans are drafted only when asked (chat, draft_meal_plan, the app). On: a weekly meal plan plus protective reshapes after a nutrition-target change or a new nutrition directive."
+        ),
       art_enabled: z.boolean().optional().describe("generated artwork on/off (needs a Gemini key to do anything)"),
       meal_prefs: z
         .string()

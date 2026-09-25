@@ -268,6 +268,8 @@ export interface ClientSettings {
   enrich_enabled?: boolean;
   art_enabled?: boolean;
   proactive_enabled?: boolean;
+  /** Weekly + protective meal-plan drafts without being asked (default off). */
+  meal_plan_auto_draft?: boolean;
   research_enabled?: boolean;
   bg_ops_enabled?: boolean;
   update_check_enabled?: boolean;

@@ -3660,6 +3660,19 @@ ladder also stops hammering: on its default schedule a provider-unavailable fail
 `PROVIDER_UNAVAILABLE_MIN_BACKOFF_MS` (4 h), or until the `resets_at`/`hold_until` a provider itself
 published, instead of coming back in fifteen minutes. A caller's explicit `backoffMs` always wins.
 
+**Meal plans are drafted on request unless the athlete opts in.** `settings.meal_plan_auto_draft`
+(default OFF, migration 114) is the one switch over every automatic meal-plan draft: the weekly
+`meal_plan_refresh_last_slot` and the owned protective reshape (`MEAL_REFRESH_REQUEST_KEY`, written by
+the fuel loop's execution gap, a landed nutrition target, and a new nutrition directive). Off, those
+writers leave the channel empty and the proactive tick retires anything already parked (request,
+instruction and retry state together, via `retireMealRefreshWhileOff()` ahead of the
+`proactive_enabled` gate), so no backoff spins over work nobody will run; `scheduledMealPlanDue()`
+itself stays a pure read, and the switch is re-read before the draft itself. The weekly slot is
+miss-tolerant like every weekly slot: opting in after this week's coach day/hour drafts this week's
+plan on the next tick, not a week later. Explicit drafts (chat, `POST /api/coach/mealplan`, `draft_meal_plan`)
+never consult it, and directives and the accepted target still reach them live at draft time
+(`src/repo/meal-plan-auto-draft.ts`).
+
 The proactive tick (gated on `proactive_enabled`) also creates a **continuous plan-evolution**
 proposal on two cadences: the WEEKLY slot (calendar), and a **data-triggered** EARLY proposal when
 the athlete's logged training has materially shifted (`repo.programEvolutionTrigger()` — a lift

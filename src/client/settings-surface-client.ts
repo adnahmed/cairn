@@ -53,7 +53,7 @@ type AppleHealthUiState = {
 type SettingsAutomationSliceOptions = {
   workingModel: Pick<
     SettingsScreenWorkingModel,
-    "enrich_enabled" | "art_enabled" | "research_enabled" | "lead_mode" | "training_drive"
+    "enrich_enabled" | "art_enabled" | "research_enabled" | "meal_plan_auto_draft" | "lead_mode" | "training_drive"
   >;
   settings: Record<string, unknown>;
   artSpendHtml: string;
@@ -133,6 +133,8 @@ function settingsWorkingModel(data: SettingsScreenData): SettingsScreenWorkingMo
     enrich_enabled: settingsSurfaceBool(s.enrich_enabled),
     art_enabled: settingsSurfaceBool(s.art_enabled, true),
     research_enabled: settingsSurfaceBool(s.research_enabled),
+    // Defaults OFF: meal plans are ideas drafted when asked, not on a weekly clock.
+    meal_plan_auto_draft: settingsSurfaceBool(s.meal_plan_auto_draft),
     gemini_api_key: "",
     garmin_username: settingsSurfaceString(s.garmin_username),
     garmin_password: "",
@@ -399,6 +401,11 @@ function settingsAutomationSliceHtml(options: SettingsAutomationSliceOptions): s
         <label class="toggle"><input type="checkbox" id="enrichEnabled" ${wm.enrich_enabled ? "checked" : ""}>
           <span>Refine free-text logs &amp; capture coaching notes via an agent</span></label>
         <div class="sess-line" style="color:var(--muted);margin-top:6px">Logs stay instant; an agent upgrades them in the background. Falls back to offline parsing when off.</div>
+
+        <h1 class="lbl" style="margin:22px 0 8px">Meal plans</h1>
+        <label class="toggle"><input type="checkbox" id="mealPlanAutoDraft" ${wm.meal_plan_auto_draft ? "checked" : ""}>
+          <span>Draft a fresh meal plan each week on its own</span></label>
+        <div class="sess-line" style="color:var(--muted);margin-top:6px">Off by default — a meal plan is a set of ideas you ask for, from Food or chat. On, Cairn drafts one each week, starting with this week's, and reshapes it when your target or a health finding moves. Your target and findings shape every plan either way.</div>
 
         <h1 class="lbl" style="margin:22px 0 8px">Artwork generation</h1>
         <label class="toggle"><input type="checkbox" id="artEnabled" ${wm.art_enabled ? "checked" : ""}>

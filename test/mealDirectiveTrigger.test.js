@@ -17,6 +17,9 @@ const REQUEST_KEY = "meal_plan_refresh_requested";
 const INSTRUCTION_KEY = "meal_plan_refresh_instruction";
 
 beforeEach(() => {
+  // The trigger only writes with automatic meal drafts on; the off case is covered
+  // in mealPlanAutoDraft.test.js.
+  repo.setSettings({ meal_plan_auto_draft: true });
   repo.resetTables?.("meal_plans", "health_directives");
   // Clear the durable request/dedup app_state this suite drives.
   for (const k of [REQUEST_KEY, INSTRUCTION_KEY, "meal_directive_refresh_sig", "meal_directive_refresh_date"]) {

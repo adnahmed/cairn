@@ -48,6 +48,7 @@ class FakeElement {
       "enrichEnabled",
       "artEnabled",
       "researchEnabled",
+      "mealPlanAutoDraft",
       "geminiApiKey",
       "leadMode",
       "trainingDrive",
@@ -329,6 +330,7 @@ test("settings automation controller owns enrichment and research toggles", () =
     enrich_enabled: true,
     art_enabled: false,
     research_enabled: false,
+    meal_plan_auto_draft: false,
     gemini_api_key: "",
     lead_mode: "lead",
     training_drive: "steady",
@@ -345,6 +347,8 @@ test("settings automation controller owns enrichment and research toggles", () =
   rootEl.querySelector("#enrichEnabled").change(false);
   rootEl.querySelector("#artEnabled").change(true);
   rootEl.querySelector("#researchEnabled").change(true);
+  assert.equal(rootEl.querySelector("#mealPlanAutoDraft").checked, false, "automatic meal plans render off");
+  rootEl.querySelector("#mealPlanAutoDraft").change(true);
   rootEl.querySelector("#leadMode").change("announce_first");
   rootEl.querySelector("#trainingDrive").change("push");
   rootEl.querySelector("#geminiApiKey").input("gemini-key");
@@ -352,6 +356,7 @@ test("settings automation controller owns enrichment and research toggles", () =
   assert.equal(wm.enrich_enabled, false);
   assert.equal(wm.art_enabled, true);
   assert.equal(wm.research_enabled, true);
+  assert.equal(wm.meal_plan_auto_draft, true);
   assert.equal(wm.lead_mode, "announce_first");
   assert.equal(wm.training_drive, "push");
   // An unrecognized value from a stale cached bundle falls back to the calm posture

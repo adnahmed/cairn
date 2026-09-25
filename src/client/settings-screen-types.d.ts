@@ -29,6 +29,7 @@ type SettingsScreenWorkingModel = {
   enrich_enabled: boolean;
   art_enabled: boolean;
   research_enabled: boolean;
+  meal_plan_auto_draft: boolean;
   gemini_api_key: string;
   garmin_username: string;
   garmin_password: string;
@@ -48,6 +49,7 @@ type SettingsScreenPersistBody = {
   enrich_enabled: boolean;
   art_enabled: boolean;
   research_enabled: boolean;
+  meal_plan_auto_draft: boolean;
   garmin_username: string;
   garmin_export_strength: boolean;
   coach_day: number;

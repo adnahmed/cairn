@@ -33,6 +33,7 @@ export interface Settings {
   onboarded: boolean;
   enrich_enabled: boolean;
   proactive_enabled: boolean; // nightly quiet insight + weekly read/nutrition-checkin precompute (pull-never-push)
+  meal_plan_auto_draft: boolean; // weekly + protective meal-plan drafts without being asked (default OFF; meal plans are drafted on request)
   art_enabled: boolean;
   art_enabled_at: string | null;
   meal_prefs: string;
@@ -301,6 +302,7 @@ const SETTINGS_COLUMN_REPAIRS: [string, string][] = [
   ["onboarded", "INTEGER DEFAULT 0"],
   ["enrich_enabled", "INTEGER DEFAULT 1"],
   ["proactive_enabled", "INTEGER DEFAULT 1"],
+  ["meal_plan_auto_draft", "INTEGER DEFAULT 0"],
   ["art_enabled", "INTEGER DEFAULT 1"],
   ["art_enabled_at", "TEXT DEFAULT ''"],
   ["meal_prefs", "TEXT DEFAULT ''"],
@@ -466,6 +468,7 @@ function defaultSettings(): Settings {
     onboarded: false,
     enrich_enabled: true, // background enrichment on by default
     proactive_enabled: true, // calm precompute (quiet insight / weekly read / nutrition check-in) on by default
+    meal_plan_auto_draft: false, // meal plans are ideas drafted on request; automatic drafts are an opt-in
     art_enabled: true, // generated artwork on by default (no-op without GEMINI_API_KEY)
     art_enabled_at: null, // unset → spend telemetry shows all-time
     meal_prefs: "", // free-text meal/schedule preferences embedded in meal prompts
@@ -552,6 +555,8 @@ function rowToSettings(row: any): Settings {
     // NULL on old rows (column added by migration) defaults to enabled.
     enrich_enabled: row.enrich_enabled == null ? true : !!row.enrich_enabled,
     proactive_enabled: row.proactive_enabled == null ? true : !!row.proactive_enabled,
+    // NULL on old rows (column added by migration v114) reads as OFF — the same default as a fresh install.
+    meal_plan_auto_draft: row.meal_plan_auto_draft == null ? false : !!row.meal_plan_auto_draft,
     art_enabled: row.art_enabled == null ? true : !!row.art_enabled,
     art_enabled_at: String(row.art_enabled_at ?? "").trim() || null,
     meal_prefs: row.meal_prefs == null ? "" : String(row.meal_prefs),
@@ -653,6 +658,8 @@ export function setSettings(patch: any): Settings {
     onboarded: patch.onboarded !== undefined ? !!patch.onboarded : cur.onboarded,
     enrich_enabled: patch.enrich_enabled !== undefined ? !!patch.enrich_enabled : cur.enrich_enabled,
     proactive_enabled: patch.proactive_enabled !== undefined ? !!patch.proactive_enabled : cur.proactive_enabled,
+    meal_plan_auto_draft:
+      patch.meal_plan_auto_draft !== undefined ? !!patch.meal_plan_auto_draft : cur.meal_plan_auto_draft,
     art_enabled: patch.art_enabled !== undefined ? !!patch.art_enabled : cur.art_enabled,
     // Stamp the moment art flips off→on; spend telemetry reports from here.
     // Stored as UTC "YYYY-MM-DD HH:MM:SS" so it compares with datetime('now').
@@ -728,7 +735,7 @@ export function setSettings(patch: any): Settings {
     `UPDATE settings SET agent_strategy=?, agent_order=?, disabled_agents=?, rr_cursor=?,
        coach_enabled=?, coach_day=?, coach_hour=?, onboarded=?, enrich_enabled=?, proactive_enabled=?, art_enabled=?, art_enabled_at=?, meal_prefs=?,
        garmin_username=?, garmin_password=?, garmin_password_encrypted=?, gemini_api_key=?, gemini_api_key_encrypted=?,
-       research_enabled=?, bg_ops_enabled=?, agent_routes=?, chat_routing_mode=?, chat_profile_bindings=?, agent_profile_bindings=?, update_check_enabled=?, lead_mode=?, training_drive=?, garmin_export_strength=?, run_units=?, updated_at=datetime('now') WHERE id = 1`
+       research_enabled=?, bg_ops_enabled=?, agent_routes=?, chat_routing_mode=?, chat_profile_bindings=?, agent_profile_bindings=?, update_check_enabled=?, lead_mode=?, training_drive=?, garmin_export_strength=?, run_units=?, meal_plan_auto_draft=?, updated_at=datetime('now') WHERE id = 1`
   ).run(
     merged.agent_strategy,
     JSON.stringify(merged.agent_order),
@@ -758,7 +765,8 @@ export function setSettings(patch: any): Settings {
     merged.lead_mode,
     merged.training_drive,
     merged.garmin_export_strength ? 1 : 0,
-    merged.run_units
+    merged.run_units,
+    merged.meal_plan_auto_draft ? 1 : 0
   );
   return getSettings();
 }

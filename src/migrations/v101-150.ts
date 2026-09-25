@@ -467,4 +467,14 @@ export const MIGRATIONS_101_150: Migration[] = [
       }
     },
   },
+  {
+    version: 114,
+    name: "settings-meal-plan-auto-draft",
+    // Meal plans are ideation: drafted when the athlete asks, not twice a week on
+    // their own. `meal_plan_auto_draft` is the one switch over every automatic
+    // draft (the weekly slot and the owned protective reshape channel). DEFAULT 0
+    // so an existing install lands on the same default as a fresh one; the
+    // scheduler retires any request parked before the switch existed.
+    up: (db) => addColumn(db, "settings", "meal_plan_auto_draft INTEGER DEFAULT 0"),
+  },
 ];
