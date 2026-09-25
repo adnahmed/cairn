@@ -10,6 +10,7 @@ import { localDateISO } from "./repo/shared.js";
 import { normalizeEnduranceSchedule, normalizeStrengthSchedule } from "./repo/profile.js";
 import { parseMovementConsiderations, type MovementConsideration } from "./repo/movement-considerations.js";
 import { MAX_REDRAW_REQUEST_CHARS } from "./domain/brain/structure-request.js";
+import { classifyActivityCapture } from "./repo/activity-capture.js";
 
 type ChatActionRecord = Record<string, unknown>;
 
@@ -40,6 +41,7 @@ export const CHAT_ACTION_TYPES = [
   "log_food",
   "update_food_note",
   "log_weight",
+  "log_blood_pressure",
   "plan_update",
   "plan_restructure",
   "set_run",
@@ -198,6 +200,17 @@ export interface LogWeightAction extends ChatActionBase {
   type: "log_weight";
   weight_lb: number;
   date?: unknown;
+  note?: unknown;
+}
+
+export interface LogBloodPressureAction extends ChatActionBase {
+  type: "log_blood_pressure";
+  systolic: number;
+  diastolic: number;
+  pulse: number | null;
+  /** YYYY-MM-DD or YYYY-MM-DDTHH:mm the athlete stated; undefined means "now". */
+  measured_at?: string;
+  position?: unknown;
   note?: unknown;
 }
 
@@ -362,6 +375,7 @@ export type ChatAction =
   | LogFoodAction
   | UpdateFoodNoteAction
   | LogWeightAction
+  | LogBloodPressureAction
   | PlanUpdateAction
   | PlanRestructureAction
   | SetRunAction
@@ -403,6 +417,9 @@ export const CHAT_ACTION_PROMPT_SPECS = {
     type: "log_activity",
     applyMode: "immediate",
     shape: `{ "type": "log_activity", "text": "ran 50 min @ 5:30/km" }`,
+    guidance: [
+      `log_activity is ONLY a completed cardio, sport or movement session — its text names what they did and, when they said it, how long or how far. A bodyweight reading ("173", "176.5 lbs this morning") is log_weight and a blood-pressure reading ("125/75") is log_blood_pressure — never log_activity. A lift is log_set. Never emit log_activity for a plan or an intention ("let's start a push session"), or for a message you could not make sense of: the server refuses an activity that names no activity, and reroutes a weigh-in or cuff reading filed as one.`,
+    ],
   },
   log_set: {
     type: "log_set",
@@ -563,7 +580,15 @@ export const CHAT_ACTION_PROMPT_SPECS = {
     applyMode: "immediate",
     shape: `{ "type": "log_weight", "weight_lb": <number in pounds>, "date": "YYYY-MM-DD|null", "note": "<optional brief note|null>" }`,
     guidance: [
-      `log_weight records one stated weigh-in. Convert kg to pounds before emitting it. Do not emit it for a historical correction: chat currently has no safe weight-edit action.`,
+      `log_weight records one stated weigh-in — including a bare number the athlete sends as their weight ("173", "176.5 lbs weight today"). Convert kg to pounds before emitting it. Do not emit it for a historical correction: chat currently has no safe weight-edit action.`,
+    ],
+  },
+  log_blood_pressure: {
+    type: "log_blood_pressure",
+    applyMode: "immediate",
+    shape: `{ "type": "log_blood_pressure", "systolic": <mmHg, the first/higher number>, "diastolic": <mmHg, the second/lower number>, "pulse": <bpm|null>, "measured_at": "YYYY-MM-DD|YYYY-MM-DDTHH:mm (24h, local)|omit", "position": "<seated|standing|lying|null>", "note": "<optional brief note|null>" }`,
+    guidance: [
+      `log_blood_pressure records one stated cuff reading ("log blood pressure 125/75", "bp 118 over 76, pulse 60") into the blood-pressure history — the same store the Records screen and the connected brain read. Never file it as log_activity or log_health. Include pulse only when they gave one. Set measured_at only when they said WHEN it was taken ("this morning at 7:10" → today's date with 07:10); omit it for a reading taken now, and never invent a future time. Log only what they read off the cuff: do not interpret the number clinically in the capture, and log two readings as two actions.`,
     ],
   },
   plan_update: {
@@ -808,6 +833,22 @@ export function chatCheckinDate(value: unknown, today: string = localDateISO()):
   return raw;
 }
 
+// A stated BP time: a real date on or before today, optionally with a real 24h
+// HH:mm. Anything else (a relative word, a future day, an impossible clock) is
+// dropped so the reading lands "now" rather than on a date nobody said.
+export function chatBloodPressureMeasuredAt(value: unknown, today: string = localDateISO()): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}):(\d{2}))?$/);
+  if (!match) return undefined;
+  const date = chatCheckinDate(match[1], today);
+  if (!date) return undefined;
+  if (match[2] == null) return date;
+  const hour = Number(match[2]);
+  const minute = Number(match[3]);
+  if (hour > 23 || minute > 59) return undefined;
+  return `${date}T${match[2]}:${match[3]}`;
+}
+
 function finiteId(value: unknown): value is number | string {
   if (typeof value === "number") return Number.isFinite(value) && value > 0;
   if (typeof value !== "string" || value.trim() === "") return false;
@@ -902,6 +943,25 @@ export function normalizeChatAction(value: unknown): ChatAction | null {
       return Number.isFinite(weightLb) && weightLb >= 50 && weightLb <= 700
         ? { ...value, type: "log_weight", weight_lb: weightLb }
         : null;
+    }
+    case "log_blood_pressure": {
+      const systolic = Math.round(Number(value.systolic));
+      const diastolic = Math.round(Number(value.diastolic));
+      // The repo clamps a device's out-of-range value into bounds; a chat reading
+      // outside them was misread, so drop it rather than store a clamped number.
+      if (!Number.isFinite(systolic) || systolic < 60 || systolic > 260) return null;
+      if (!Number.isFinite(diastolic) || diastolic < 35 || diastolic > 160) return null;
+      if (diastolic >= systolic) return null;
+      const rawPulse = value.pulse == null || value.pulse === "" ? null : Math.round(Number(value.pulse));
+      const pulse = rawPulse != null && Number.isFinite(rawPulse) && rawPulse >= 25 && rawPulse <= 240 ? rawPulse : null;
+      return {
+        ...value,
+        type: "log_blood_pressure",
+        systolic,
+        diastolic,
+        pulse,
+        measured_at: chatBloodPressureMeasuredAt(value.measured_at),
+      };
     }
     case "plan_update": {
       const changes = arrayOrEmpty(value.changes);
@@ -998,6 +1058,73 @@ export function normalizeChatActions(actions: unknown): ChatAction[] {
   return Array.isArray(actions)
     ? actions.map(normalizeChatAction).filter((action): action is ChatAction => !!action)
     : [];
+}
+
+export interface MisfiledCaptureNote {
+  text: string;
+  outcome: "log_weight" | "log_blood_pressure" | "dropped";
+  reason: "weight_reading" | "blood_pressure_reading" | "duplicate" | "intent_not_done" | "unintelligible";
+}
+
+/**
+ * The log_activity chokepoint's guard. A chat agent that files a weigh-in or a cuff
+ * reading as an activity gets it rerouted to log_weight / log_blood_pressure (unless
+ * the same turn already carries that exact reading), and an activity naming no
+ * activity at all — an intention, a truncated message, a stray number — is dropped
+ * rather than stored as an "other" row. Pure: the caller passes the stored
+ * bodyweight so a unitless bare number is only a weigh-in near it.
+ */
+export function rerouteMisfiledCaptures(
+  actions: readonly ChatAction[],
+  options: { referenceWeightLb?: number | null; today?: string } = {}
+): { actions: ChatAction[]; notes: MisfiledCaptureNote[] } {
+  const out: ChatAction[] = [];
+  const notes: MisfiledCaptureNote[] = [];
+  const hasWeight = (lb: number) =>
+    out.concat(actions).some((a) => a.type === "log_weight" && Math.abs(a.weight_lb - lb) < 0.05);
+  const hasBp = (sys: number, dia: number) =>
+    out.concat(actions).some((a) => a.type === "log_blood_pressure" && a.systolic === sys && a.diastolic === dia);
+  for (const action of actions) {
+    if (action.type !== "log_activity") {
+      out.push(action);
+      continue;
+    }
+    const read = classifyActivityCapture(action.text, { referenceWeightLb: options.referenceWeightLb });
+    const text = action.text;
+    const date = chatCheckinDate(action.date, options.today);
+    if (read.kind === "activity") {
+      out.push(action);
+    } else if (read.kind === "weight") {
+      if (hasWeight(read.weight_lb)) {
+        notes.push({ text, outcome: "dropped", reason: "duplicate" });
+        continue;
+      }
+      const rerouted = normalizeChatAction({ type: "log_weight", weight_lb: read.weight_lb, date: date ?? null });
+      if (rerouted) {
+        out.push(rerouted);
+        notes.push({ text, outcome: "log_weight", reason: "weight_reading" });
+      } else notes.push({ text, outcome: "dropped", reason: "unintelligible" });
+    } else if (read.kind === "blood_pressure") {
+      if (hasBp(read.systolic, read.diastolic)) {
+        notes.push({ text, outcome: "dropped", reason: "duplicate" });
+        continue;
+      }
+      const rerouted = normalizeChatAction({
+        type: "log_blood_pressure",
+        systolic: read.systolic,
+        diastolic: read.diastolic,
+        pulse: read.pulse,
+        measured_at: date,
+      });
+      if (rerouted) {
+        out.push(rerouted);
+        notes.push({ text, outcome: "log_blood_pressure", reason: "blood_pressure_reading" });
+      } else notes.push({ text, outcome: "dropped", reason: "unintelligible" });
+    } else {
+      notes.push({ text, outcome: "dropped", reason: read.reason });
+    }
+  }
+  return { actions: out, notes };
 }
 
 export function chatActionTypeList(): ChatActionType[] {

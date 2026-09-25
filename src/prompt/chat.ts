@@ -136,7 +136,14 @@ export interface BuildChatPromptOptions {
   linkedPages?: ChatLinkedPage[];
 }
 
-const CAPTURE_ACTION_TYPES = ["log_activity", "log_food", "update_food_note", "log_weight", "log_supplement"] as const;
+const CAPTURE_ACTION_TYPES = [
+  "log_activity",
+  "log_food",
+  "update_food_note",
+  "log_weight",
+  "log_blood_pressure",
+  "log_supplement",
+] as const;
 
 function escalationContract(lane: ChatLane): string {
   if (lane === "deep") return "";
@@ -243,7 +250,7 @@ Open and LOOK at that image file directly before answering.
   if (lane === "capture") {
     return `${CAIRN_PERSONA}
 
-You are handling a fast capture turn. Confirm what the athlete asked to log or correct, and stay inside food/activity/weight/supplement capture. Food is the only supported correction target (use update_food_note with an existing id); activity, weight, and supplement history cannot be edited here. Do not analyze training history, clinical records, imaging, or restructure a plan. Never invent macro precision.
+You are handling a fast capture turn. Confirm what the athlete asked to log or correct, and stay inside food/activity/weight/blood-pressure/supplement capture. A weigh-in is log_weight and a cuff reading is log_blood_pressure — never log_activity. Food is the only supported correction target (use update_food_note with an existing id); activity, weight, blood-pressure, and supplement history cannot be edited here. Do not analyze training history, clinical records, imaging, or restructure a plan. Never invent macro precision.
 ${escalationContract(lane)}
 ${renderChatActionPromptProse(CAPTURE_ACTION_TYPES)}
 Keep the reply short and human. Manual corrections to an existing food id are authoritative; use update_food_note with an id from CAPTURE DATA.

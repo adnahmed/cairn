@@ -19,45 +19,18 @@ import {
   withoutShadowActivities,
   type ShadowCheckActivity,
 } from "./activity-shadow.js";
+import { parseActivity } from "./activity-capture.js";
 
 // Re-exported for existing callers (e.g. underfueling.ts) that import the shadow
 // helpers from here; the pure implementation lives in ./activity-shadow.js so a
 // leaf module like training-read.ts can use it without cycling back through
 // activities.ts -> training-read.ts (deriveSessionTitle).
 export { isShadowActivity, withoutShadowActivities, type ShadowCheckActivity };
+// The free-text parser is pure and lives beside the chat capture classifier that
+// reads it (./activity-capture.js); re-exported so existing callers keep one import.
+export { parseActivity };
 
 // ---------- activities ----------
-export function parseActivity(text: string) {
-  const t = text.toLowerCase();
-  let type = "other";
-  if (/\b(mtb|mountain ?bike|ride|rode|riding|cycl|bike|biked|biking|gravel)\b/.test(t)) type = "ride";
-  else if (/\b(run|ran|running|jog|jogged|jogging|tempo|intervals?|park ?run|5k|10k)\b/.test(t)) type = "run";
-  else if (/\bswim|swam|swimming\b/.test(t)) type = "swim";
-  else if (/\b(hike|hiked|hiking|walk|walked|fell ?run|fells)\b/.test(t)) type = "hike";
-  // a /km pace strongly implies a run if nothing else matched
-  if (type === "other" && /\d+:\d{2}\s*(?:\/|per)\s*km/.test(t)) type = "run";
-
-  let duration_min: number | null = null;
-  const h = t.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)/);
-  const m = t.match(/(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes)\b/);
-  if (h) duration_min = parseFloat(h[1]) * 60;
-  if (m) duration_min = (duration_min || 0) + parseFloat(m[1]);
-  const hm = t.match(/\b(\d+):(\d{2})\b(?!\s*\/)/); // 1:30 as h:mm when no /km after
-  if (!duration_min && hm) duration_min = parseInt(hm[1], 10) * 60 + parseInt(hm[2], 10);
-
-  let distance_km: number | null = null;
-  const km = t.match(/(\d+(?:\.\d+)?)\s*(?:km|k\b)/);
-  const mi = t.match(/(\d+(?:\.\d+)?)\s*(?:mi|mile|miles)\b/); // \b so "min" isn't read as miles
-  if (km) distance_km = parseFloat(km[1]);
-  else if (mi) distance_km = +(parseFloat(mi[1]) * 1.60934).toFixed(2);
-
-  let pace: string | null = null;
-  const pc = t.match(/(\d+:\d{2})\s*(?:\/|per)\s*km/);
-  if (pc) pace = `${pc[1]}/km`;
-
-  return { type, duration_min, distance_km, pace };
-}
-
 interface ManualActivityDuplicateScore {
   id: number;
   error: number;

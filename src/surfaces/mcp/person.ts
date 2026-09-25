@@ -1,10 +1,9 @@
 import { z } from "zod";
 import {
-  addBloodPressureReading,
-  deriveDirectives,
   deriveWearableDirectives,
   getDailyMetrics,
   listBloodPressureReadings,
+  recordBloodPressureReading,
   recordDailyMetrics,
 } from "../../domain/health/index.js";
 import {
@@ -280,23 +279,18 @@ export function registerPersonTools(server: McpToolRegistrar) {
       position: z.string().optional().describe("body position during the reading, e.g. 'sitting', 'standing'; free text"),
       note: z.string().optional().describe("free-text note stored with this reading, up to 240 chars"),
     },
-    async (a) => {
-      const row = addBloodPressureReading({
-        measured_at: a.measured_at ?? null,
-        systolic: a.systolic,
-        diastolic: a.diastolic,
-        pulse: a.pulse ?? null,
-        source: a.source ?? "manual",
-        position: a.position ?? null,
-        note: a.note ?? null,
-      });
-      try {
-        deriveDirectives();
-      } catch {
-        /* never fail the vital log */
-      }
-      return asText(row);
-    }
+    async (a) =>
+      asText(
+        recordBloodPressureReading({
+          measured_at: a.measured_at ?? null,
+          systolic: a.systolic,
+          diastolic: a.diastolic,
+          pulse: a.pulse ?? null,
+          source: a.source ?? "manual",
+          position: a.position ?? null,
+          note: a.note ?? null,
+        })
+      )
   );
 
   server.tool(

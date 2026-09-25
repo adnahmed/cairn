@@ -45,12 +45,14 @@ import type { MemoryKind } from "./repo/memory.js";
 import {
   chatCheckinDate,
   normalizeChatActions,
+  rerouteMisfiledCaptures,
   type ChatAction,
   type ChatActionType,
   type LogFoodAction,
   type SetRunAction,
 } from "./chatActions.js";
 import { normalizeFoodCaptureParsed } from "./foodCapture.js";
+import { recordBloodPressureReading } from "./domain/health/blood-pressure.js";
 import { pickDayVariant } from "./repo/brain/day-read-rules.js";
 import { applyProposalWithAutonomy, revertDecision } from "./domain/brain/autonomy-service.js";
 // The re-ask lookup that used to live here moved beside the hand-off it guards, in
@@ -2187,6 +2189,17 @@ function persistPendingLabDraft(
   }
 }
 
+// The athlete's stored bodyweight, so a unitless bare number filed as an activity
+// is only read as a weigh-in when it sits near it. Absent or unreadable is null.
+function storedBodyweightLb(): number | null {
+  try {
+    const weight = Number(repo.getProfile()?.weight_lb);
+    return Number.isFinite(weight) && weight > 0 ? weight : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------- action application ----------
 // Lifted verbatim from the old inline POST /api/chat handler so the worker is the
 // single place chat actions are applied. Safe actions apply immediately; plan
@@ -2262,7 +2275,15 @@ export function applyChatActions(
     userMessageId: ctx.userMessageId,
     message,
   });
-  const actions = normalizeChatActions(Array.isArray(parsed) ? parsed : parsed?.actions);
+  // The log_activity chokepoint: a weigh-in or cuff reading the agent filed as an
+  // activity lands in its own store, and an activity naming no activity is dropped.
+  const { actions, notes: misfiled } = rerouteMisfiledCaptures(
+    normalizeChatActions(Array.isArray(parsed) ? parsed : parsed?.actions),
+    { referenceWeightLb: storedBodyweightLb() }
+  );
+  for (const note of misfiled) {
+    log.info(`[chat] log_activity ${note.outcome === "dropped" ? "dropped" : `rerouted to ${note.outcome}`} (${note.reason})`);
+  }
   for (const a of actions) {
     try {
       switch (a.type) {
@@ -2449,6 +2470,20 @@ export function applyChatActions(
           applied.push({
             type: a.type,
             result: repo.logWeight(a.weight_lb, stringOrUndefined(a.date), stringOrUndefined(a.note)),
+          });
+          break;
+        case "log_blood_pressure":
+          applied.push({
+            type: a.type,
+            result: recordBloodPressureReading({
+              measured_at: a.measured_at ?? null,
+              systolic: a.systolic,
+              diastolic: a.diastolic,
+              pulse: a.pulse,
+              source: "manual",
+              position: stringOrUndefined(a.position) ?? null,
+              note: stringOrUndefined(a.note) ?? null,
+            }),
           });
           break;
         case "log_health": {
