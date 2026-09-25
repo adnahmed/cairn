@@ -10,7 +10,7 @@
 // live repo module — see the header of `v051-100.ts`.
 
 import { log } from "../log.js";
-import { addColumn, type Migration } from "./helpers.js";
+import { addColumn, hasTable, type Migration } from "./helpers.js";
 import { repairExerciseIdentity } from "./frozen/v103-exercise-identity-repair.js";
 import { repairStrengthObjectiveIdentity } from "./frozen/v108-strength-objective-identity.js";
 import { repairCairnShellEnergy } from "./frozen/v113-cairn-shell-energy.js";
@@ -464,6 +464,50 @@ export const MIGRATIONS_101_150: Migration[] = [
         }
       } catch {
         /* a DB predating garmin_daily_metrics has nothing to repair */
+      }
+    },
+  },
+  {
+    version: 115,
+    name: "bodyweight-exact-double-submits",
+    // Pure data repair — no schema change, so no db.ts counterpart.
+    //
+    // A weigh-in submitted twice (a second tap, a retried request) landed as two
+    // identical rows seconds apart. logWeight now treats an identical value on the same
+    // date within WEIGHT_RESUBMIT_WINDOW_MIN (10 minutes, repo/bodyweight.ts) as a no-op;
+    // this folds the bursts already on disk under the same law. ONLY exact duplicates go:
+    // same date, same value, created within 600 seconds of an EARLIER identical row, and
+    // carrying no words that row lacks (its note is NULL/blank or equal to it). The
+    // earliest row of a burst survives, as the live no-op keeps the first write.
+    // Genuinely different same-day readings are untouched — the one-per-day rule for
+    // those is a READ rule (dailyManualWeighIns), never a delete. A row without
+    // created_at is never matched.
+    // Inline SQL with the constants spelled out, so it cannot drift with live code.
+    // Idempotent: a second pass finds no row with an earlier twin.
+    up: (db) => {
+      if (!hasTable(db, "bodyweight_log")) return;
+      // A very old table without created_at has no window to judge a burst by.
+      const columns = new Set(
+        (db.prepare(`PRAGMA table_info(bodyweight_log)`).all() as Array<{ name: string }>).map((c) => c.name)
+      );
+      if (!columns.has("created_at") || !columns.has("note")) return;
+      const removed = db
+        .prepare(
+          `DELETE FROM bodyweight_log
+            WHERE id IN (
+              SELECT dup.id FROM bodyweight_log dup
+               WHERE dup.created_at IS NOT NULL
+                 AND EXISTS (
+                       SELECT 1 FROM bodyweight_log k
+                        WHERE k.id < dup.id AND k.date = dup.date
+                          AND ABS(k.weight_lb - dup.weight_lb) < 0.001
+                          AND k.created_at IS NOT NULL
+                          AND ABS(strftime('%s', dup.created_at) - strftime('%s', k.created_at)) <= 600
+                          AND (dup.note IS NULL OR TRIM(dup.note) = '' OR k.note = dup.note)))`
+        )
+        .run();
+      if (Number(removed.changes) > 0) {
+        log.info(`[migrate] v115: folded ${removed.changes} double-submitted weigh-in(s) into their first entry.`);
       }
     },
   },

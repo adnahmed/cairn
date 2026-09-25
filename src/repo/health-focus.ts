@@ -12,6 +12,7 @@ import {
   prioritizeMarkers,
 } from "./propagation.js";
 import { listWeight } from "./profile.js";
+import { dailyManualWeighIns } from "./bodyweight.js";
 import { localDateISO } from "./shared.js";
 
 // ============================================================================
@@ -417,9 +418,8 @@ function newerMaterialNutritionTargetThan(synthesis: any): boolean {
 // signature has no coupling to that module's shape.
 function weightTrendBucket(today: string): "up" | "down" | "flat" | "none" {
   const since = new Date(Date.now() - 21 * 864e5).toISOString().slice(0, 10);
-  const pts = db
-    .prepare(`SELECT date, weight_lb FROM bodyweight_log WHERE date >= ? AND date <= ? ORDER BY date, id`)
-    .all(since, today) as any[];
+  // One weigh-in per day (dailyManualWeighIns), so a double-logged day never tilts the slope.
+  const pts = dailyManualWeighIns({ since, through: today }) as any[];
   if (pts.length < 2) return "none";
   const xs = pts.map((p) => Date.parse(String(p.date) + "T00:00:00Z") / 864e5);
   const ys = pts.map((p) => Number(p.weight_lb));

@@ -94,6 +94,7 @@ import { heavyLowerWeekdaySlots } from "./plan-selection.js";
 import { getTrainingIntent, type ResolvedTrainingIntent } from "./training-intent.js";
 import type { CoachPersonalModifier } from "../brain/coach-context-contract.js";
 import { round1 } from "../lib/numbers.js";
+import { withoutShadowActivities } from "./activity-shadow.js";
 import { isoDaysAgo, mondayOf } from "../lib/dates.js";
 
 function shiftDaysISO(dateISO: string, n: number): string {
@@ -115,17 +116,22 @@ function recentRunDose(dateISO: string): { average_km: number | null; longest_km
   const since = isoDaysAgo(dateISO, 27);
   const sport = activitySportWhere("a", RUN_SPORT_PATTERNS);
   try {
-    const row = db
-      .prepare(
-        `SELECT AVG(a.distance_km) AS average_km, MAX(a.distance_km) AS longest_km
-           FROM activities a
-          WHERE a.date >= ? AND a.date <= ?
-            AND a.distance_km > 0
-            AND (${sport.sql})`
-      )
-      .get(since, dateISO, ...sport.params) as any;
-    const average = Number(row?.average_km);
-    const longest = Number(row?.longest_km);
+    // Averaged in JS so a hand log shadowing the watch's row of the same run is one
+    // run, not two (withoutShadowActivities).
+    const kms = withoutShadowActivities(
+      db
+        .prepare(
+          `SELECT a.date, a.type, a.source, a.external_id, a.duration_min, a.distance_km
+             FROM activities a
+            WHERE a.date >= ? AND a.date <= ?
+              AND (${sport.sql})`
+        )
+        .all(since, dateISO, ...sport.params) as any[]
+    )
+      .map((r) => Number(r.distance_km))
+      .filter((km) => Number.isFinite(km) && km > 0);
+    const average = kms.length ? kms.reduce((sum, km) => sum + km, 0) / kms.length : Number.NaN;
+    const longest = kms.length ? Math.max(...kms) : Number.NaN;
     return {
       average_km: Number.isFinite(average) && average > 0 ? average : null,
       longest_km: Number.isFinite(longest) && longest > 0 ? longest : null,
@@ -163,13 +169,19 @@ function longestRunTakenWell(anchorISO: string): boolean {
 function demonstratedMidweekRunKm(anchorISO: string): number | null {
   try {
     const sport = activitySportWhere("activities", RUN_SPORT_PATTERNS);
-    const rows = db
-      .prepare(
-        `SELECT date, distance_km AS km FROM activities
-          WHERE date >= ? AND date <= ? AND distance_km > 0 AND (${sport.sql})
-          ORDER BY distance_km DESC`
-      )
-      .all(isoDaysAgo(anchorISO, 27), anchorISO, ...sport.params) as { date: string; km: number }[];
+    // A shadow of the week's long run would otherwise read as a second, "mid-week"
+    // run of the same length (withoutShadowActivities).
+    const rows = withoutShadowActivities(
+      db
+        .prepare(
+          `SELECT date, type, source, external_id, duration_min, distance_km FROM activities
+            WHERE date >= ? AND date <= ? AND (${sport.sql})`
+        )
+        .all(isoDaysAgo(anchorISO, 27), anchorISO, ...sport.params) as any[]
+    )
+      .map((r) => ({ date: String(r.date), km: Number(r.distance_km) }))
+      .filter((r) => Number.isFinite(r.km) && r.km > 0)
+      .sort((a, b) => b.km - a.km);
     const longOfWeek = new Set<string>();
     let best = 0;
     for (const r of rows) {
@@ -2682,13 +2694,17 @@ export function runVarietyRead(date?: string): RunVarietyRead | null {
   try {
     rows = db
       .prepare(
-        `SELECT a.date AS date, a.distance_km AS km,
+        `SELECT a.date AS date, a.type AS type, a.source AS source, a.external_id AS external_id,
+              a.duration_min AS duration_min, a.distance_km AS distance_km, a.distance_km AS km,
               g.te_label AS te_label, g.anaerobic_te AS anaerobic_te, g.hr_zones_json AS hr_zones_json
          FROM activities a LEFT JOIN garmin_activities g ON g.activity_id = a.id
         WHERE a.date >= ? AND a.date <= ? AND (${aSport.sql})
         ORDER BY a.date`
       )
       .all(since, d, ...aSport.params) as any[];
+    // One run, one row: a hand log shadowing the watch's row would double the count
+    // and fake a "same distance on repeat" read.
+    rows = withoutShadowActivities(rows);
   } catch {
     return null;
   }

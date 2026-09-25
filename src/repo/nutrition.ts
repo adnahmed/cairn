@@ -39,6 +39,7 @@ import { bumpFoodDataVersion } from "./training-cache.js";
 import { nutritionRelevantDirectives } from "./nutrition-progress.js";
 import { log } from "../log.js";
 import { round1 } from "../lib/numbers.js";
+import { dailySiteSeries } from "./measurement-series.js";
 
 // ---------- accepted nutrition targets (adaptive-nutrition loop OUTPUT) ----------
 // Persist an accepted target so the fuel card / goal math / next check-in read the
@@ -182,13 +183,9 @@ const CUT_TREND_FLOOR_LB_WK = -0.15;
 function flowingWaistTape(effectiveDate: string): { value: number; date: string } | null {
   try {
     const since = addDaysISO(effectiveDate, -WAIST_FLOW_WINDOW_DAYS) ?? effectiveDate;
-    const rows = db
-      .prepare(
-        `SELECT date, waist_in AS value FROM body_measurements
-          WHERE date BETWEEN ? AND ? AND waist_in IS NOT NULL
-          ORDER BY date DESC, id DESC LIMIT 20`
-      )
-      .all(since, effectiveDate) as Array<{ date: string; value: number }>;
+    // One waist reading per day (dailySiteSeries), newest first: a same-day re-tape
+    // is one reading toward the flow bar, and its corrected value is the one read.
+    const rows = dailySiteSeries("waist_in", { since, through: effectiveDate }).reverse().slice(0, 20);
     if (rows.length < WAIST_FLOW_MIN_READINGS) return null;
     const value = Number(rows[0]?.value);
     if (!Number.isFinite(value) || value <= 0) return null;

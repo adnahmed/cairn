@@ -4202,6 +4202,33 @@ manufactured majority. `checkinSignal()` (the `checkin_signal` felt-signal patte
 and averages; extend any new "most check-ins"/persistence read over `checkins` the same way rather
 than counting rows.
 
+## Repeated entries: one weigh-in and one tape per day, one run per effort
+
+The same fact typed twice must never read as two facts. One rule per kind:
+
+- **Weight** (`src/repo/bodyweight.ts`). An IDENTICAL value re-submitted for the same date within
+  `WEIGHT_RESUBMIT_WINDOW_MIN` (10 minutes) is a double submit: `logWeight` returns the existing row
+  and writes nothing (a note on the repeat only fills a row that had none). A different value, or the
+  same value later, is a real reading and is kept. Every trend, slope, count or halves read walks
+  `dailyManualWeighIns()` — ONE point per date, the latest manual entry — which is the same
+  latest-wins rule `canonicalBodyweightSeries()` applies when it merges Garmin. `listWeight` (the
+  history list) stays row-by-row. Migration v115 folded the exact double-submit bursts already on disk
+  (same date, value and 600 s window, no extra words); nothing fuzzy is ever deleted.
+- **Tape measurements** (`src/repo/measurement-series.ts`). A same-day re-entry of a site SUPERSEDES
+  the earlier value: `dailySiteSeries(site)` gives one value per date per site (the latest row that
+  carries it; a site the later row left blank does not supersede). The body trend lines, the
+  waist-flow gate, underfueling's body channel and the waist evaluator all read through it; history
+  rows are never deleted.
+- **Activities** (`src/repo/activity-shadow.ts`, `src/repo/activities.ts`). Manual rows carry no start
+  time, so matching is date + modality + every measurement within the soft-dedup tolerances. A watch
+  run arriving AFTER a hand log retires the hand log at insert (`bestManualDuplicateId`, both metrics
+  must agree, ambiguity keeps it). A hand log arriving AFTER the watch row is a SHADOW: kept, flagged
+  (`listActivities` → `shadow_of: <synced id>`), folded out of the Lately feed, and skipped by every
+  read that counts or measures efforts via `withoutShadowActivities` — including weekly km
+  (`weeklyKm`, the volume-spike read), per-sport weekly evidence, the pace trend, the 28-day run dose,
+  the mid-week longest run, run variety and the race-build prediction. A new counting read over
+  `activities` filters the same way rather than aggregating in SQL.
+
 ## The goal-anchored run ramp (`src/repo/run-ramp.ts`)
 
 Pure, database-free arithmetic behind `weeklyRunPlan`. `raceRamp()` computes TWO trajectories: the

@@ -3,6 +3,8 @@ import { emitBrainEvent } from "../brainEvents.js";
 import { lsqSlopePerDay } from "./health.js";
 import { getProfile, listWeight, setProfile } from "./profile.js";
 import { localDateISO } from "./shared.js";
+import { dailyManualWeighIns } from "./bodyweight.js";
+import { dailySiteSeries } from "./measurement-series.js";
 
 // ---------------------------------------------------------------------------
 // Body measurements + derived indicators.
@@ -627,11 +629,9 @@ function weeksPhrase(days: number): string {
   return `${mo} month${mo === 1 ? "" : "s"}`;
 }
 
+// One value per date per site — a same-day re-entry supersedes (measurement-series.ts).
 function siteSeries(key: string): { date: string; value: number }[] {
-  const rows = db
-    .prepare(`SELECT date, ${key} AS value FROM body_measurements WHERE ${key} IS NOT NULL ORDER BY date ASC, id ASC`)
-    .all() as unknown as { date: string; value: number }[];
-  return rows.map((r) => ({ date: r.date, value: Number(r.value) })).filter((r) => Number.isFinite(r.value));
+  return dailySiteSeries(key).map((r) => ({ date: r.date, value: r.value }));
 }
 
 function buildTrend(key: string, label: string, unit: string, series: { date: string; value: number }[]): SiteTrend {
@@ -671,9 +671,8 @@ export function getBodyMetricTrends(days?: number, unit: MeasureUnit = "in"): { 
     const series = within(siteSeries(site)).map((s) => ({ date: s.date, value: inToUnit(s.value, unit) as number }));
     if (series.length) sites.push(buildTrend(site, SITE_LABELS[site], unit, series));
   }
-  const weighins = (listWeight(500) as any[])
-    .map((w) => ({ date: String(w.date), value: Number(w.weight_lb) }))
-    .filter((w) => Number.isFinite(w.value));
+  // One weigh-in per day (dailyManualWeighIns): a double-logged day is one point.
+  const weighins = dailyManualWeighIns({ limit: 500 }).map((w) => ({ date: w.date, value: w.weight_lb }));
   const weight = buildTrend("weight_lb", "Weight", "lb", within(weighins));
   return { window_days: days && Number.isFinite(days) ? Number(days) : null, sites, weight };
 }

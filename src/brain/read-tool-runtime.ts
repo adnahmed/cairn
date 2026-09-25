@@ -8,6 +8,7 @@ import { directivesForCoach } from "../repo/propagation.js";
 import { supplementsForCoach } from "../repo/supplements.js";
 import { resolveExerciseName } from "../repo/exercise-canon.js";
 import { canonicalMarker } from "../repo/marker-canon.js";
+import { dailyManualWeighIns } from "../repo/bodyweight.js";
 import {
   COACH_READ_TOOL_CATALOG,
   normalizeCoachReadToolRequest,
@@ -471,9 +472,11 @@ function readNutritionWindow(
       fiber_g: Math.round(day.fiber_g),
       coverage: day.entries ? Math.round((day.usable_entries / day.entries) * 100) / 100 : 0,
     }));
-  const weights = db
-    .prepare(`SELECT date, weight_lb FROM bodyweight_log WHERE date BETWEEN ? AND ? ORDER BY date, id LIMIT 200`)
-    .all(start, end) as MutableRow[];
+  // One weigh-in per day (dailyManualWeighIns): a day weighed twice is still one point.
+  const weights = dailyManualWeighIns({ since: start, through: end, limit: 200 }).map((row) => ({
+    date: row.date,
+    weight_lb: row.weight_lb,
+  })) as MutableRow[];
   const trend = leastSquaresWeightTrend(weights);
   const intakeDays = days.filter((day) => day.usable_entries > 0);
   const intakeAverage = intakeDays.length

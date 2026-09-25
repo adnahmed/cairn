@@ -7,7 +7,7 @@ import { getLatestNutritionTarget } from "./nutrition.js";
 import { latestMeasuredRmr, measuredRmrAssessment } from "./metabolism.js";
 import { LB_PER_KG, addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
 import { bumpTrainingDataVersion } from "./training-cache.js";
-import { canonicalBodyweightSeries, resolvedCurrentBodyweight } from "./bodyweight.js";
+import { canonicalBodyweightSeries, recentIdenticalWeighIn, resolvedCurrentBodyweight } from "./bodyweight.js";
 import { classifyRecompositionStage } from "./recomposition-stage.js";
 import { serializeTrainingIntent } from "./training-intent.js";
 import { normalizeLocationText } from "./location-context.js";
@@ -728,6 +728,18 @@ export function logWeight(weight_lb: number, date?: string, note?: string) {
     throw new RangeError(`weight_lb must be between ${MIN_LOGGED_WEIGHT_LB} and ${MAX_LOGGED_WEIGHT_LB}`);
   }
   const d = canonicalWeightLogDate(date);
+  // A double submit of the SAME reading is idempotent (WEIGHT_RESUBMIT_WINDOW_MIN,
+  // ./bodyweight.ts): hand back the row already written, with no second row, no cache
+  // bump and no brain event. The one thing a repeat may add is words — a note typed on
+  // the second tap attaches to a row that had none, never replacing one it had.
+  const repeat = recentIdenticalWeighIn(d, weight);
+  if (repeat) {
+    const words = note != null && String(note).trim() !== "" ? String(note) : null;
+    if (words && (repeat.note == null || String(repeat.note).trim() === "")) {
+      db.prepare(`UPDATE bodyweight_log SET note = ? WHERE id = ?`).run(words, repeat.id);
+    }
+    return db.prepare(`SELECT * FROM bodyweight_log WHERE id = ?`).get(repeat.id);
+  }
   const info = db
     .prepare(`INSERT INTO bodyweight_log (date, weight_lb, note) VALUES (?, ?, ?)`)
     .run(d, weight, note ?? null);
