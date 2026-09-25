@@ -1,39 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import vm from "node:vm";
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+import { loadClientModule, renderHtml } from "./_dom.mjs";
 
 function loadSettingsData() {
-  const context = { Array, Date, Math, Object, String, Uint8Array };
-  context.window = context;
-  vm.runInNewContext(readFileSync(join(root, "public/js/settings-data-client.js"), "utf8"), context);
-  return context.CairnSettingsData;
-}
-
-class FakeElement {
-  constructor() {
-    this.textContent = "";
-    this.title = "";
-    this.innerHTML = "";
-    this.listeners = new Map();
-  }
-
-  addEventListener(type, handler) {
-    this.listeners.set(type, handler);
-  }
-
-  async click() {
-    const handler = this.listeners.get("click");
-    if (handler) await handler();
-  }
+  const win = loadClientModule("settings-data-client");
+  return { settingsData: win.CairnSettingsData, document: win.document };
 }
 
 test("settings data phone access card stays hidden in installed PWA mode", () => {
-  const settingsData = loadSettingsData();
+  const { settingsData } = loadSettingsData();
 
   assert.equal(settingsData.phoneAccessCardHtml({ inStandaloneApp: true }), "");
   const html = settingsData.phoneAccessCardHtml({ inStandaloneApp: false });
@@ -45,17 +20,13 @@ test("settings data phone access card stays hidden in installed PWA mode", () =>
 });
 
 test("settings data phone access wiring generates token and suppresses generator when auth is set", async () => {
-  const settingsData = loadSettingsData();
-  const button = new FakeElement();
-  const output = new FakeElement();
-  const row = new FakeElement();
+  const { settingsData, document } = loadSettingsData();
+  renderHtml(settingsData.phoneAccessCardHtml({ inStandaloneApp: false }), { document });
+  const button = document.querySelector("#phoneGenToken");
+  const output = document.querySelector("#phoneTokenOut");
+  const row = document.querySelector("#phoneTokenRow");
   const copied = [];
   const toasts = [];
-  const document = {
-    querySelector(selector) {
-      return { "#phoneGenToken": button, "#phoneTokenOut": output, "#phoneTokenRow": row }[selector] || null;
-    },
-  };
   const crypto = {
     getRandomValues(bytes) {
       bytes.forEach((_, i) => { bytes[i] = i; });

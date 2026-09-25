@@ -1,88 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import vm from "node:vm";
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-class FakeElement {
-  constructor(id = "") {
-    this.id = id;
-    this.innerHTML = "";
-    this.textContent = "";
-    this.disabled = false;
-    this.checked = false;
-    this.isConnected = true;
-    this.style = {};
-    this.listeners = new Map();
-  }
-
-  addEventListener(type, handler) {
-    this.listeners.set(type, handler);
-  }
-
-  async click() {
-    const handler = this.listeners.get("click");
-    if (handler) await handler({ currentTarget: this });
-  }
-
-  change(checked) {
-    this.checked = checked;
-    const handler = this.listeners.get("change");
-    if (handler) handler({ currentTarget: this });
-  }
-}
-
-class FakeRoot extends FakeElement {
-  constructor() {
-    super("root");
-    this.children = new Map();
-  }
-
-  set innerHTML(value) {
-    this.html = value;
-    this.children = new Map();
-    for (const id of ["updateCard", "updateCheckEnabled", "updateCheckNow", "dlJson", "dlDb", "rerunSetup"]) {
-      const el = new FakeElement(id);
-      if (id === "updateCheckEnabled") el.checked = /id="updateCheckEnabled" checked/.test(value);
-      if (id === "updateCard") el.innerHTML = (value.match(/<div id="updateCard" class="sess">([\s\S]*?)<\/div>/) || [])[1] || "";
-      if (id === "updateCheckNow" && /id="updateCheckNow"[\s\S]*display:none/.test(value)) el.style.display = "none";
-      this.children.set(`#${id}`, el);
-    }
-  }
-
-  get innerHTML() {
-    return this.html || "";
-  }
-
-  querySelector(selector) {
-    return this.children.get(selector) || null;
-  }
-}
+import { createHost, loadClientModule } from "./_dom.mjs";
 
 function loadSettingsDataController() {
   const calls = [];
-  const context = {
-    Object,
-    window: {},
-    CairnSettingsData: {
-      phoneAccessCardHtml: ({ inStandaloneApp } = {}) => (inStandaloneApp ? "" : "<details id=\"phone\"></details>"),
-      wirePhoneAccessCard: (options = {}) => calls.push(["wirePhoneAccessCard", typeof options.api, typeof options.toast]),
-      wireExerciseGuideCard: (options = {}) =>
-        calls.push(["wireExerciseGuideCard", typeof options.api, typeof options.toast]),
+  const win = loadClientModule("settings-data-controller", {
+    globals: {
+      CairnSettingsData: {
+        phoneAccessCardHtml: ({ inStandaloneApp } = {}) => (inStandaloneApp ? "" : "<details id=\"phone\"></details>"),
+        wirePhoneAccessCard: (options = {}) => calls.push(["wirePhoneAccessCard", typeof options.api, typeof options.toast]),
+        wireExerciseGuideCard: (options = {}) =>
+          calls.push(["wireExerciseGuideCard", typeof options.api, typeof options.toast]),
+      },
     },
-  };
-  context.window = context;
-  vm.runInNewContext(readFileSync(join(root, "public/js/settings-data-controller.js"), "utf8"), context);
-  return { controller: context.CairnSettingsDataController, calls };
+  });
+  return { controller: win.CairnSettingsDataController, calls, document: win.document };
 }
 
 test("settings data controller owns update, export, and setup wiring", async () => {
-  const { controller, calls } = loadSettingsDataController();
+  const { controller, calls, document } = loadSettingsDataController();
   const wm = { update_check_enabled: true };
-  const rootEl = new FakeRoot();
+  const rootEl = createHost(document, { id: "root" });
   const apiCalls = [];
   const downloads = [];
   let dirty = 0;
@@ -119,7 +57,7 @@ test("settings data controller owns update, export, and setup wiring", async () 
   assert.equal(rootEl.querySelector("#updateCard").innerHTML, "card:0.8.0:true");
   assert.deepEqual(apiCalls[0], ["/update-status", "GET", ""]);
 
-  rootEl.querySelector("#updateCheckEnabled").change(false);
+  await rootEl.querySelector("#updateCheckEnabled").click(); // checked -> unchecked, fires change
   assert.equal(wm.update_check_enabled, false);
   assert.equal(dirty, 1);
   assert.equal(rootEl.querySelector("#updateCheckNow").style.display, "none");

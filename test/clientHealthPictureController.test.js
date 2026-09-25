@@ -1,103 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import vm from "node:vm";
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+import { createDocument, createHost, loadClientModule } from "./_dom.mjs";
 
 function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-class FakeElement {
-  constructor(tag = "div", attrs = {}) {
-    this.tag = tag;
-    this.id = attrs.id || "";
-    this.className = attrs.className || "";
-    this.children = [];
-    this.parentElement = null;
-    this.listeners = new Map();
-    this._innerHTML = "";
-  }
-
-  get isConnected() {
-    return !this.parentElement || this.parentElement.children.includes(this);
-  }
-
-  set innerHTML(value) {
-    this._innerHTML = String(value || "");
-    this.children = [];
-    if (this._innerHTML.includes('id="hHeroShare"')) {
-      this.appendChild(new FakeElement("button", { id: "hHeroShare" }));
-    }
-    if (this._innerHTML.includes('id="hRevBtn"')) {
-      this.appendChild(new FakeElement("button", { id: "hRevBtn" }));
-    }
-  }
-
-  get innerHTML() {
-    return this._innerHTML;
-  }
-
-  appendChild(child) {
-    child.parentElement = this;
-    this.children.push(child);
-    return child;
-  }
-
-  addEventListener(type, handler) {
-    if (!this.listeners.has(type)) this.listeners.set(type, []);
-    this.listeners.get(type).push(handler);
-  }
-
-  click() {
-    for (const handler of this.listeners.get("click") || []) handler({ target: this, currentTarget: this });
-  }
-
-  matches(selector) {
-    return selector.startsWith("#") && this.id === selector.slice(1);
-  }
-
-  querySelector(selector) {
-    if (this.matches(selector)) return this;
-    for (const child of this.children) {
-      const found = child.querySelector(selector);
-      if (found) return found;
-    }
-    return null;
-  }
-}
-
 function loadController() {
-  const context = {
-    Date,
-    Number,
-    Object,
-    Promise,
-    String,
-    globalThis: null,
-    window: null,
-    HTMLElement: FakeElement,
-    localStorage: null,
-    CairnHealthPicture: {
-      parsedReview: (review) => (review && !review.error && review.parsed ? review.parsed : null),
-      reviewBusyHtml: () => `<div class="hpic-busy">busy</div>`,
-      healthHeroHtml: (err) => `<div class="hpic-hero">${err || ""}<button id="hHeroShare">share</button></div>`,
-      buildPictureHtml: (err, count) => `<div class="hpic-build">${err || ""}<span>${count}</span><button id="hRevBtn">build</button></div>`,
-      reviewHtml: (review, stale, err) => `<div class="hpic-review">${err || ""}<span>${review.parsed?.headline || ""}</span><span>${stale ? "stale" : "fresh"}</span><button id="hRevBtn">refresh</button></div>`,
+  const win = loadClientModule("health-picture-controller", {
+    globals: {
+      localStorage: null,
+      CairnHealthPicture: {
+        parsedReview: (review) => (review && !review.error && review.parsed ? review.parsed : null),
+        reviewBusyHtml: () => `<div class="hpic-busy">busy</div>`,
+        healthHeroHtml: (err) => `<div class="hpic-hero">${err || ""}<button id="hHeroShare">share</button></div>`,
+        buildPictureHtml: (err, count) => `<div class="hpic-build">${err || ""}<span>${count}</span><button id="hRevBtn">build</button></div>`,
+        reviewHtml: (review, stale, err) => `<div class="hpic-review">${err || ""}<span>${review.parsed?.headline || ""}</span><span>${stale ? "stale" : "fresh"}</span><button id="hRevBtn">refresh</button></div>`,
+      },
     },
-  };
-  context.globalThis = context;
-  context.window = context;
-  vm.runInNewContext(readFileSync(join(root, "public/js/health-picture-controller.js"), "utf8"), context);
-  return context.CairnHealthPictureController;
+  });
+  return win.CairnHealthPictureController;
 }
 
 function makeDeps({ api, runOp, token = 1, storage, onHealthReadView } = {}) {
-  const rootEl = new FakeElement("section");
-  const slot = rootEl.appendChild(new FakeElement("div", { id: "hPicture" }));
+  const rootEl = createHost(createDocument(), { tag: "section", html: `<div id="hPicture"></div>` });
+  const slot = rootEl.querySelector("#hPicture");
   const calls = [];
   const state = {};
   const deps = {
