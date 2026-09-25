@@ -7,6 +7,7 @@ const initialJobs = [
   { name: "launch safety", steps: [["npm", "run", "launch:check"]] },
   { name: "schema two-step", steps: [["npm", "run", "schema:check"]] },
   { name: "lint", steps: [["npm", "run", "lint"]] },
+  { name: "client style ratchet", steps: [["node", "scripts/check-client-style.mjs"]] },
 ];
 
 const clientJobs = [
