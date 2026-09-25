@@ -953,7 +953,8 @@ export function normalizeChatAction(value: unknown): ChatAction | null {
       if (!Number.isFinite(diastolic) || diastolic < 35 || diastolic > 160) return null;
       if (diastolic >= systolic) return null;
       const rawPulse = value.pulse == null || value.pulse === "" ? null : Math.round(Number(value.pulse));
-      const pulse = rawPulse != null && Number.isFinite(rawPulse) && rawPulse >= 25 && rawPulse <= 240 ? rawPulse : null;
+      const pulse =
+        rawPulse != null && Number.isFinite(rawPulse) && rawPulse >= 25 && rawPulse <= 240 ? rawPulse : null;
       return {
         ...value,
         type: "log_blood_pressure",
@@ -1078,6 +1079,7 @@ export function rerouteMisfiledCaptures(
   actions: readonly ChatAction[],
   options: { referenceWeightLb?: number | null; today?: string } = {}
 ): { actions: ChatAction[]; notes: MisfiledCaptureNote[] } {
+  const today = options.today ?? localDateISO();
   const out: ChatAction[] = [];
   const notes: MisfiledCaptureNote[] = [];
   const hasWeight = (lb: number) =>
@@ -1091,7 +1093,7 @@ export function rerouteMisfiledCaptures(
     }
     const read = classifyActivityCapture(action.text, { referenceWeightLb: options.referenceWeightLb });
     const text = action.text;
-    const date = chatCheckinDate(action.date, options.today);
+    const date = chatCheckinDate(action.date, today);
     if (read.kind === "activity") {
       out.push(action);
     } else if (read.kind === "weight") {
@@ -1109,12 +1111,15 @@ export function rerouteMisfiledCaptures(
         notes.push({ text, outcome: "dropped", reason: "duplicate" });
         continue;
       }
+      // A date-only measured_at is stored at noon, so stamping today's date on an
+      // evening reading would misorder the history. Only a PAST day carries through;
+      // today's reading is left for the writer to stamp "now".
       const rerouted = normalizeChatAction({
         type: "log_blood_pressure",
         systolic: read.systolic,
         diastolic: read.diastolic,
         pulse: read.pulse,
-        measured_at: date,
+        measured_at: date && date < today ? date : undefined,
       });
       if (rerouted) {
         out.push(rerouted);

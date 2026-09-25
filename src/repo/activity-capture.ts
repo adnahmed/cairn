@@ -28,7 +28,9 @@ export function parseActivity(text: string): ParsedActivityText {
   if (type === "other" && /\d+:\d{2}\s*(?:\/|per)\s*km/.test(t)) type = "run";
 
   let duration_min: number | null = null;
-  const h = t.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)/);
+  // (?![a-z]) so a word that merely starts with "h" ("2 hills", "176 home scale")
+  // is never read as hours, while "1h30" and "1h 30m" still are.
+  const h = t.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)(?![a-z])/);
   const m = t.match(/(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes)\b/);
   if (h) duration_min = parseFloat(h[1]) * 60;
   if (m) duration_min = (duration_min || 0) + parseFloat(m[1]);
@@ -85,6 +87,10 @@ const PULSE_LABELLED =
   /\b(?:pulse|hr|heart\s*rate|resting\s*hr)\s*(?:of|was|is|at|:|=)?\s*(\d{2,3})\b|\b(\d{2,3})\s*bpm\b/i;
 
 const CLOCK_TIME = /\bat\s+\d{1,2}:\d{2}(?:\s*(?:am|pm))?\b|\b\d{1,2}:\d{2}\s*(?:am|pm)\b/gi;
+// Once a reading is named outright (a BP word or a weight word), ANY bare H:MM is
+// the time it was taken ("bp 125/75 this morning 7:15"), never a session length —
+// except a /km pace, which still marks a run.
+const ANY_CLOCK_TIME = /\b\d{1,2}:\d{2}\b(?!\s*(?:\/|per)\s*km)(?:\s*(?:am|pm)\b)?/gi;
 
 const WEIGHT_WORDS = /\b(?:weigh-?in|weight|weigh(?:ed|s|ing)?|bodyweight|body\s+weight|scale)\b/i;
 const WEIGHT_WORDS_ALL = new RegExp(WEIGHT_WORDS.source, "gi");
@@ -175,11 +181,15 @@ const READING_FILLER = new Set([
 // Vocabulary that marks a real movement session even when the parser found no
 // type, duration or distance ("yoga class", "played tennis", "push day done").
 const ACTIVITY_WORDS =
-  /\b(?:yoga|pilates|barre|climb(?:ed|ing)?|boulder(?:ed|ing)?|tennis|squash|padel|pickleball|badminton|golf(?:ed)?|soccer|football|basketball|volleyball|hockey|rugby|baseball|softball|row(?:ed|ing)?|erg|ski(?:ed|ing)?|snowboard(?:ed|ing)?|skat(?:e|ed|ing)|surf(?:ed|ing)?|paddl(?:e|ed|ing)|sup|kayak(?:ed|ing)?|canoe(?:d|ing)?|danc(?:e|ed|ing)|stretch(?:ed|ing)?|mobility|elliptical|stair(?:s|master)?|stepper|spin(?:ning)?|peloton|crossfit|hiit|circuit|workout|work(?:ed)?\s+out|train(?:ed|ing)|session|class|lift(?:ed|ing)?|gym|cardio|sport|game|match|practice|ruck(?:ed|ing)?|sprints?|jump\s+rope|skipping|box(?:ed|ing)|kickbox(?:ing)?|martial|bjj|jiu|judo|karate|muay|wrestl(?:e|ed|ing)|sauna|plunge|trek(?:ked|king)?|trail|commute|mow(?:ed|ing)?|yard\s*work|garden(?:ed|ing)?|shovel(?:ed|ing)?|chores|played|swam|walked|hiked|ran|rode)\b|\b(?:push|pull|legs?|upper|lower|full[- ]body|arms?|chest|back|shoulders?)\s+day\b/i;
+  /\b(?:yoga|pilates|barre|climb(?:ed|ing)?|boulder(?:ed|ing)?|tennis|squash|padel|pickleball|badminton|golf(?:ed)?|soccer|football|basketball|volleyball|hockey|rugby|baseball|softball|row(?:ed|ing)?|erg|ski(?:ed|ing)?|snowboard(?:ed|ing)?|skat(?:e|ed|ing)|surf(?:ed|ing)?|paddl(?:e|ed|ing)|sup|kayak(?:ed|ing)?|canoe(?:d|ing)?|danc(?:e|ed|ing)|stretch(?:ed|ing)?|mobility|elliptical|stair(?:s|master)?|stepper|spin(?:ning)?|peloton|crossfit|hiit|circuit|workout|work(?:ed)?\s+out|train(?:ed|ing)|session|class|lift(?:ed|ing)?|gym|cardio|sport|game|match|practice|ruck(?:ed|ing)?|sprints?|jump\s+rope|skipping|box(?:ed|ing)|kickbox(?:ing)?|martial|bjj|jiu|judo|karate|muay|wrestl(?:e|ed|ing)|sauna|plunge|trek(?:ked|king)?|trail|commute|mow(?:ed|ing)?|yard\s*work|garden(?:ed|ing)?|shovel(?:ed|ing)?|chores|played|swam|walked|hiked|ran|rode|treadmill|zumba|tai\s*chi|qi\s*gong|frisbee|strength|core|(?:upper|lower|full)[- ]?body)\b|\b(?:push|pull|legs?|upper|lower|full[- ]body|arms?|chest|back|shoulders?)\s+day\b/i;
 
-// The athlete (or a truncated message) talking about a session that has not happened.
+// The athlete (or a truncated message) talking about a session that has not
+// happened yet: future intent, or one only now beginning. Always dropped.
 const INTENT_NOT_DONE =
-  /^\s*(?:let'?s|lets|let\s+us|i'?m\s+(?:going|gonna|about)\s+to|i\s+am\s+(?:going|about)\s+to|going\s+to|gonna|about\s+to|i\s+(?:want|plan|need|would\s+like|will|should)\s+to|i'?ll|want\s+to|wanna|plan(?:ning)?\s+to|should\s+i|can\s+(?:we|i|you)|could\s+(?:we|you|i)|start(?:ing)?|begin(?:ning)?|ready\s+to|time\s+to)\b/i;
+  /^\s*(?:let'?s|lets|let\s+us|i'?m\s+(?:going|gonna|about)\s+to|i\s+am\s+(?:going|about)\s+to|going\s+to|gonna|about\s+to|i\s+(?:want|plan|need|would\s+like|will|should)\s+to|i'?ll|want\s+to|wanna|plan(?:ning)?\s+to|start(?:ing)?|begin(?:ning)?|ready\s+to|time\s+to)\b/i;
+// A question or request. Not by itself a session — unless it asks to log one.
+const REQUEST_PHRASING = /^\s*(?:should\s+i|can\s+(?:we|i|you)|could\s+(?:we|you|i)|would\s+you|will\s+you)\b/i;
+const LOG_VERB = /\b(?:log|logged|record|recorded|add|save|track|note)\b/i;
 
 function hasActivityMetrics(parsed: ParsedActivityText): boolean {
   return parsed.type !== "other" || parsed.duration_min != null || parsed.distance_km != null;
@@ -275,7 +285,8 @@ export function classifyActivityCapture(
   // rest so "bp 125/75 hr 60" cannot read "75 hr" as a 75-hour activity.
   // A clock time of day ("at 7:15", "7:15am") is when, not how long — the parser
   // would read it as a 7h15 duration and shield a weigh-in as an "activity".
-  const withoutClock = raw.replace(CLOCK_TIME, " ");
+  const namedWeight = WEIGHT_WORDS.test(raw);
+  const withoutClock = raw.replace(hasBpWords || namedWeight ? ANY_CLOCK_TIME : CLOCK_TIME, " ");
   const parsed = parseActivity(hasBpWords ? withoutClock.replace(BP_PAIR, " ") : withoutClock);
   if (hasActivityMetrics(parsed)) return { kind: "activity" };
 
@@ -283,12 +294,18 @@ export function classifyActivityCapture(
   if (bp) return bp;
 
   const referenceWeightLb = options.referenceWeightLb == null ? null : Number(options.referenceWeightLb);
-  const weight = hasBpWords ? null : readWeight(raw, WEIGHT_WORDS.test(raw), referenceWeightLb);
+  const weight = hasBpWords ? null : readWeight(raw, namedWeight, referenceWeightLb);
   if (weight) return weight;
 
   if (INTENT_NOT_DONE.test(raw)) return { kind: "drop", reason: "intent_not_done" };
   // A lift filed as an activity is the wrong action, but it is still the athlete's
   // training: keep it rather than lose it.
-  if (!ACTIVITY_WORDS.test(raw) && !LIFTING_WORDS.test(raw)) return { kind: "drop", reason: "unintelligible" };
+  const namesMovement = ACTIVITY_WORDS.test(raw) || LIFTING_WORDS.test(raw);
+  // A question or request is a session only when it asks to LOG one that happened
+  // ("can we log my yoga class from this morning"); "should I do yoga?" is not.
+  if (REQUEST_PHRASING.test(raw) && !(namesMovement && LOG_VERB.test(raw))) {
+    return { kind: "drop", reason: "intent_not_done" };
+  }
+  if (!namesMovement) return { kind: "drop", reason: "unintelligible" };
   return { kind: "activity" };
 }

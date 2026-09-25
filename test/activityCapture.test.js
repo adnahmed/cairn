@@ -12,7 +12,7 @@ import {
   renderChatActionSchema,
   rerouteMisfiledCaptures,
 } from "../dist/chatActions.js";
-import { applyChatActions } from "../dist/chatTurns.js";
+import { ACTIVITY_NOT_LOGGED_VARIANTS, applyChatActions, reconcileMisfiledActivityReply } from "../dist/chatTurns.js";
 import { buildChatPrompt } from "../dist/prompt.js";
 import { localDateISO } from "../dist/repo/shared.js";
 
@@ -118,6 +118,47 @@ test("an activity that names no activity is dropped", () => {
   assert.deepEqual(classifyActivityCapture("12"), { kind: "drop", reason: "unintelligible" });
 });
 
+test("a bare clock time next to a named reading is when it was taken, not how long", () => {
+  assert.deepEqual(classifyActivityCapture("bp 125/75 this morning 7:15"), {
+    kind: "blood_pressure",
+    systolic: 125,
+    diastolic: 75,
+    pulse: null,
+  });
+  assert.deepEqual(classifyActivityCapture("weight 176 at 6:40"), { kind: "weight", weight_lb: 176 });
+  assert.deepEqual(classifyActivityCapture("weighed 176 home scale"), { kind: "weight", weight_lb: 176 });
+  // A named reading beside a real session still stays an activity.
+  assert.deepEqual(classifyActivityCapture("weighed 176 then ran 5:30/km"), { kind: "activity" });
+});
+
+test("a word starting with h after a number is never read as hours", () => {
+  assert.equal(parseActivity("ran 5k with 2 hills in 25 min").duration_min, 25);
+  assert.equal(parseActivity("176 home scale").duration_min, null);
+  assert.equal(parseActivity("rode 1h30m").duration_min, 90);
+  assert.equal(parseActivity("rode 1h 30 min").duration_min, 90);
+  assert.equal(parseActivity("hiked 2 hours").duration_min, 120);
+  assert.equal(parseActivity("rode 1.5hrs").duration_min, 90);
+});
+
+test("a request to log a real session is kept; a question or plan is not", () => {
+  for (const text of [
+    "Can we log my yoga class from this morning",
+    "could you record the tennis match I played",
+    "Zumba",
+    "tai chi in the park",
+    "treadmill",
+    "Frisbee with friends",
+    "Garmin strength",
+    "Upper body",
+    "Strength 60",
+  ]) {
+    assert.deepEqual(classifyActivityCapture(text), { kind: "activity" }, text);
+  }
+  assert.deepEqual(classifyActivityCapture("Should I do yoga today?"), { kind: "drop", reason: "intent_not_done" });
+  assert.deepEqual(classifyActivityCapture("can you plan a push session"), { kind: "drop", reason: "intent_not_done" });
+  assert.deepEqual(classifyActivityCapture("I'll do pilates tonight"), { kind: "drop", reason: "intent_not_done" });
+});
+
 test("parseActivity keeps its behavior after moving into the pure module", () => {
   assert.deepEqual(parseActivity("ran 5k easy 28 min"), { type: "run", duration_min: 28, distance_km: 5, pace: null });
   assert.deepEqual(parseActivity("ran 50 min @ 5:30/km"), {
@@ -200,6 +241,45 @@ test("rerouteMisfiledCaptures reroutes, dedupes against the turn's own readings,
   );
 });
 
+test("a rerouted BP keeps a past date but leaves today's reading to be stamped now", () => {
+  const today = "2026-06-10";
+  const rerouted = (date) =>
+    rerouteMisfiledCaptures([normalizeChatAction({ type: "log_activity", text: "bp 125/75", date })], { today })
+      .actions[0];
+  assert.equal(rerouted(today).measured_at, undefined, "a date-only today would be stored at noon");
+  assert.equal(rerouted("2026-06-09").measured_at, "2026-06-09");
+  assert.equal(rerouted(undefined).measured_at, undefined);
+});
+
+test("a reply claiming a dropped activity was logged gets an honest line under it", () => {
+  const dropped = [{ text: "Let's start a push session", outcome: "dropped", reason: "intent_not_done" }];
+  const claim = "Logged your push session — nice work.";
+  const out = reconcileMisfiledActivityReply(claim, dropped, []);
+  assert.ok(out.startsWith(claim));
+  assert.ok(
+    ACTIVITY_NOT_LOGGED_VARIANTS.some((line) => out.endsWith(line)),
+    out
+  );
+  assert.match(out, /no activity was logged/i);
+  // Untouched when the prose claims nothing, when nothing was dropped, when the drop was
+  // only a duplicate, or when a real activity landed this turn.
+  assert.equal(
+    reconcileMisfiledActivityReply("Here's today's push session.", dropped, []),
+    "Here's today's push session."
+  );
+  assert.equal(reconcileMisfiledActivityReply(claim, [], []), claim);
+  assert.equal(
+    reconcileMisfiledActivityReply(claim, [{ text: "176", outcome: "dropped", reason: "duplicate" }], []),
+    claim
+  );
+  assert.equal(reconcileMisfiledActivityReply(claim, dropped, [{ type: "log_activity", result: { id: 1 } }]), claim);
+  // A reroute is not a drop: the reading landed, and its pill says where.
+  assert.equal(
+    reconcileMisfiledActivityReply(claim, [{ text: "173", outcome: "log_weight", reason: "weight_reading" }], []),
+    claim
+  );
+});
+
 test("the prompt's action rules route weight and BP explicitly, in every lane", () => {
   const prose = renderChatActionPromptProse();
   assert.match(renderChatActionSchema(), /"type": "log_blood_pressure"/);
@@ -239,7 +319,7 @@ test("applyChatActions stores chat BP in the blood-pressure history, not activit
 
 test("applyChatActions reroutes misfiled log_activity readings and drops junk", () => {
   repo.setProfile({ weight_lb: 176 });
-  const { applied } = applyChatActions(
+  const { applied, misfiledCaptures } = applyChatActions(
     {
       actions: [
         { type: "log_activity", text: "176.5 lbs weight today" },
@@ -264,5 +344,9 @@ test("applyChatActions reroutes misfiled log_activity readings and drops junk", 
   assert.deepEqual(
     activities.map((a) => [a.raw_text, a.type]),
     [["ran 5k easy 28 min", "run"]]
+  );
+  assert.deepEqual(
+    misfiledCaptures.map((n) => n.outcome),
+    ["log_weight", "log_blood_pressure", "dropped"]
   );
 });

@@ -6,7 +6,7 @@
 //
 // chatTurns.ts re-exports every public name below, so existing importers are unchanged.
 import * as repo from "./repo.js";
-import type { ChatActionType } from "./chatActions.js";
+import type { ChatActionType, MisfiledCaptureNote } from "./chatActions.js";
 import {
   hasExplicitPlanEditIntent,
   hasExplicitRunEditIntent,
@@ -202,6 +202,13 @@ export const TRAINING_STRUCTURE_NOT_FLAGGED_VARIANTS = [
   "To be straight with you: no request reached the coach lane, and your training structure is unchanged.",
   "I didn't get that hand-off recorded, so nothing is waiting on the coach lane and your plan is unchanged.",
   "No structure request was saved from this — your plan and split stay exactly as they are.",
+] as const;
+
+export const ACTIVITY_NOT_LOGGED_VARIANTS = [
+  "For the record, no activity was logged from that — it didn't read as a finished session. Tell me what you did and for how long, and I'll add it.",
+  "To be clear, no activity was logged here; nothing in it read as a session you'd finished.",
+  "Nothing from that was saved as a session, so no activity was logged. If you did train, say what and how long and it will land.",
+  "No activity was logged from this — it read as a plan or a note rather than a finished session.",
 ] as const;
 
 export const TRAINING_STRUCTURE_UNVERIFIED_VARIANTS: ReadonlyArray<(reason: string) => string> = [
@@ -668,6 +675,33 @@ export function reconcileTrainingStructureReply(
     return pickDayVariant(TRAINING_STRUCTURE_UNVERIFIED_VARIANTS, today, "chat-structure-unverified")(reason);
   }
   return appendReceipt(reply, structureHandOffReceipt(results.at(-1) ?? {}));
+}
+
+// Prose claiming a session was logged. Only consulted when the log_activity guard
+// dropped something and nothing else landed as an activity, so a negated sentence
+// that also matches ("I haven't logged that session") earns a line that is true anyway.
+const ACTIVITY_CLAIM_NOUN = "(?:activity|session|workout|run|ride|walk|hike|swim|class|yoga|training|cardio)";
+const ACTIVITY_CLAIM = new RegExp(
+  `\\b(?:logged|recorded|saved|added)\\b[^.!?\\n]{0,60}?\\b${ACTIVITY_CLAIM_NOUN}\\b|\\b${ACTIVITY_CLAIM_NOUN}\\s+(?:is\\s+|was\\s+|has\\s+been\\s+)?(?:now\\s+)?(?:logged|recorded|saved)\\b`,
+  "i"
+);
+
+// The log_activity guard's counterpart. The guard drops an activity that names no
+// finished session (an intention, a truncated message) — the pills stay honest, but
+// the model's prose may still say "Logged your session". When the guard dropped
+// something, no activity landed this turn, and the prose claims one did, a truthful
+// line goes under it. A reroute (weight / BP) is not a drop: that reading landed,
+// and its own pill says where.
+export function reconcileMisfiledActivityReply(
+  reply: string,
+  misfiled: readonly MisfiledCaptureNote[],
+  applied: Array<{ type: ChatActionType; result?: unknown; error?: string }>
+): string {
+  const dropped = misfiled.some((note) => note.outcome === "dropped" && note.reason !== "duplicate");
+  if (!dropped) return reply;
+  if (applied.some((entry) => entry.type === "log_activity" && !entry.error)) return reply;
+  if (!ACTIVITY_CLAIM.test(reply)) return reply;
+  return appendReceipt(reply, pickDayVariant(ACTIVITY_NOT_LOGGED_VARIANTS, localDateISO(), "chat-activity-not-logged"));
 }
 
 // Prose claiming the Undo already happened. Subject-anchored on purpose, exactly as

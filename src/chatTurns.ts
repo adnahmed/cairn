@@ -47,6 +47,7 @@ import {
   normalizeChatActions,
   rerouteMisfiledCaptures,
   type ChatAction,
+  type MisfiledCaptureNote,
   type ChatActionType,
   type LogFoodAction,
   type SetRunAction,
@@ -83,6 +84,7 @@ import {
   reconcileChatRevertReply,
   reconcileChatRunReply,
   reconcileGoalIdentityReply,
+  reconcileMisfiledActivityReply,
   reconcileStrengthObjectiveReply,
   reconcileTrainingStructureReply,
 } from "./chat-reconcile.js";
@@ -119,6 +121,7 @@ export {
   shouldCreatePhotoFoodPlaceholder,
 } from "./chat-intent.js";
 export {
+  ACTIVITY_NOT_LOGGED_VARIANTS,
   DECISION_REVERT_FAILED_VARIANTS,
   DECISION_REVERT_NOT_AUTHORIZED_VARIANTS,
   describeRun,
@@ -136,6 +139,7 @@ export {
   reconcileChatRevertReply,
   reconcileChatRunReply,
   reconcileGoalIdentityReply,
+  reconcileMisfiledActivityReply,
   reconcileStrengthObjectiveReply,
   reconcileTrainingStructureReply,
   RESTRUCTURE_DRAFT_VARIANTS,
@@ -340,18 +344,26 @@ async function processChatTurnInner(id: number, turn: any): Promise<void> {
     // and skip the normal log_food application so the photo never double-logs.
     const photoFood = turn.image_path ? logPhotoFood(actions, turn) : null;
 
-    const { applied, drafts, labConfirms, refusedReverts, droppedGoalFields, appliedGoalPatch, explicitPlanEdit } =
-      applyChatActions(
-        { actions },
-        {
-          agent,
-          imagePath: turn.image_path,
-          message: turn.message,
-          skipLogFood: !!photoFood,
-          turnId: id,
-          userMessageId: beforeId,
-        }
-      );
+    const {
+      applied,
+      drafts,
+      labConfirms,
+      refusedReverts,
+      droppedGoalFields,
+      appliedGoalPatch,
+      explicitPlanEdit,
+      misfiledCaptures,
+    } = applyChatActions(
+      { actions },
+      {
+        agent,
+        imagePath: turn.image_path,
+        message: turn.message,
+        skipLogFood: !!photoFood,
+        turnId: id,
+        userMessageId: beforeId,
+      }
+    );
     if (photoFood) applied.unshift({ type: "log_food", result: photoFood });
     // The SAME reading the apply path used. Reconciling on a second, per-message-only
     // reading is how a go-ahead that really did authorize a change still read as a
@@ -361,7 +373,8 @@ async function processChatTurnInner(id: number, turn: any): Promise<void> {
     const objectiveReply = reconcileStrengthObjectiveReply(runReply, turn.message, applied);
     const goalReply = reconcileGoalIdentityReply(objectiveReply, droppedGoalFields, appliedGoalPatch);
     const structureReply = reconcileTrainingStructureReply(goalReply, applied);
-    const reply = reconcileChatRevertReply(structureReply, applied, refusedReverts, proposedReply);
+    const activityReply = reconcileMisfiledActivityReply(structureReply, misfiledCaptures, applied);
+    const reply = reconcileChatRevertReply(activityReply, applied, refusedReverts, proposedReply);
     const failedAttempts = attempts.filter((a) => !a.ok);
     const meta: {
       applied: typeof applied;
@@ -2237,6 +2250,8 @@ export function applyChatActions(
   appliedGoalPatch: Record<string, unknown> | null;
   /** Did the athlete's own words (or their go-ahead to a drafted session) ask for this? */
   explicitPlanEdit: boolean;
+  /** What the log_activity guard rerouted or dropped (reconcileMisfiledActivityReply reads it). */
+  misfiledCaptures: MisfiledCaptureNote[];
 } {
   const applied: Array<{ type: ChatActionType; result?: unknown; error?: string }> = [];
   const drafts: unknown[] = [];
@@ -2726,5 +2741,14 @@ export function applyChatActions(
       applied.push({ type: a.type, error: e instanceof Error ? e.message : String(e) });
     }
   }
-  return { applied, drafts, labConfirms, refusedReverts, droppedGoalFields, appliedGoalPatch, explicitPlanEdit };
+  return {
+    applied,
+    drafts,
+    labConfirms,
+    refusedReverts,
+    droppedGoalFields,
+    appliedGoalPatch,
+    explicitPlanEdit,
+    misfiledCaptures: misfiled,
+  };
 }

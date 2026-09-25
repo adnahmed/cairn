@@ -6,7 +6,7 @@ Cairn serves an MCP server at **`/mcp`** (Streamable HTTP). These tools are thin
 wrappers over the same `src/repo.ts` layer the REST API uses. When `CAIRN_AUTH_TOKEN`
 is set, `/mcp` requires the token (`Authorization: Bearer …`).
 
-**283 tools.**
+**284 tools.**
 
 | Tool | Description |
 |---|---|
@@ -35,6 +35,7 @@ is set, `/mcp` requires the token (`Authorization: Bearer …`).
 | `create_imaging_study` | Create an empty imaging-study draft. Upload JPEG/PNG/PDF attachments through REST, or supply a structured analysis with update_imaging_study. |
 | `create_journey_phase` | Create a proposed journey phase (cut, maintenance, diet break, reverse, or gain). Does not activate automatically; review then call activate_journey_phase. |
 | `dedupe_health_records` | Fold duplicate health records — the same lab draw filed more than once (same date, agreeing readings) — into one record per draw date. Without apply:true this only reports the plan; apply:true performs the fold (twin records are deleted). |
+| `delete_activity` | Delete one hand-logged activity by id (a mis-entry or duplicate). Refuses a watch-imported activity with ok:false, since the next sync would bring it back; that one is removed at the source. |
 | `delete_context_event` | Delete a life-timeline event by id. Deletion removes the event from the timeline and from exports; it is not recoverable. |
 | `delete_exercise` | Delete an exercise by name. Refuses (ok:false) if it still has logged sets or is referenced in a plan — remove those first. |
 | `delete_family` | Delete a family member by id. |

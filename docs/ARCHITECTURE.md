@@ -2164,7 +2164,11 @@ distance) is ALWAYS an activity; a text that is wholly a weigh-in ("176.5 lbs we
 unitless bare number near the stored bodyweight) or a cuff reading ("log blood pressure 125/75") is
 rerouted to `log_weight` / `log_blood_pressure` unless the same turn already carries that exact
 reading; an activity naming no activity at all — an unstarted intention ("let's start a push
-session"), a truncated or unintelligible text — is dropped instead of stored as an `other` row.
+session"), a question that does not ask to log one ("should I do yoga?"), a truncated or
+unintelligible text — is dropped instead of stored as an `other` row, and a reply that still claims
+it was logged gets a truthful line under it (`reconcileMisfiledActivityReply`,
+`src/chat-reconcile.ts`). A hand-logged activity can be deleted (`DELETE /api/activities/:id`,
+`delete_activity`); a watch-imported one is refused, since the next sync would re-create it.
 
 **Measured RMR is scaled to current bodyweight before it anchors the BMR blend.** A test taken at a
 different bodyweight than today's otherwise silently misrepresented energy need at the *current*

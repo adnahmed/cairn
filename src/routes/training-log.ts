@@ -22,6 +22,7 @@ import {
   getWeeklyStats,
   listActivities,
   logSetByName,
+  removeActivity,
   recentTraining,
   recordExerciseSymptomObservation,
   recordMovementTolerance,
@@ -425,6 +426,15 @@ trainingLogRouter.get("/activities/:id", (req, res) => {
   const a = getActivity(Number(req.params.id));
   if (!a) return res.status(404).json({ error: "not found" });
   res.json(a);
+});
+
+// Delete one hand-logged activity. A watch-imported row is refused (409), since
+// the next sync would re-create it.
+trainingLogRouter.delete("/activities/:id", (req, res) => {
+  const result = removeActivity(Number(req.params.id));
+  if (result.ok) return res.json(result);
+  const status = result.code === "invalid_id" ? 400 : result.code === "not_found" ? 404 : 409;
+  res.status(status).json(result);
 });
 
 // Live enrichment status for one activity (Server-Sent Events) — the SSE-first

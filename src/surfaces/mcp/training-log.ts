@@ -16,6 +16,7 @@ import {
   getVolumeByMuscle,
   listActivities,
   logSetByName,
+  removeActivity,
   recentTraining,
   recordExerciseSymptomObservation,
   recordMovementTolerance,
@@ -159,6 +160,13 @@ export function registerTrainingLogTools(server: McpToolRegistrar) {
     "Delete one logged set by id (e.g. a mis-entry).",
     { id: z.number().int() },
     async ({ id }) => asText(deleteSet(id))
+  );
+
+  server.tool(
+    "delete_activity",
+    "Delete one hand-logged activity by id (a mis-entry or duplicate). Refuses a watch-imported activity with ok:false, since the next sync would bring it back; that one is removed at the source.",
+    { id: z.number().int().describe("the activity's id, from list_activities or get_recent_training") },
+    async ({ id }) => asText(removeActivity(id))
   );
 
   server.tool(

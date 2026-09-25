@@ -15,7 +15,6 @@ import {
   duplicateMetricError,
   isShadowActivity,
   normalizeGarminType,
-  positiveNumber,
   withoutShadowActivities,
   type ShadowCheckActivity,
 } from "./activity-shadow.js";
@@ -554,6 +553,41 @@ export function deleteActivity(id: number) {
   invalidateDayRead(String(row.date));
   reconcileDailySessionsForDateSafe(String(row.date));
   return true;
+}
+
+export type RemoveActivityResult =
+  | { ok: true; id: number; date: string }
+  | { ok: false; code: "invalid_id" | "not_found" | "watch_imported"; error: string };
+
+/**
+ * Delete one hand-logged activity (a mis-entry, a duplicate, a chat capture that
+ * should never have been an activity). A watch-imported row is REFUSED: the next
+ * sync re-creates it from the provider (addActivity keys it by source +
+ * external_id), so a delete here would only hide it until then — it is removed at
+ * the source instead.
+ *
+ * Dependents: the only foreign key onto activities is garmin_activities.activity_id
+ * (ON DELETE SET NULL), and a row it links is refused here anyway. An enrichment job
+ * still queued for the row reads it back and finds nothing to update; the day's
+ * reads and composed sessions are refreshed by deleteActivity.
+ */
+export function removeActivity(id: number): RemoveActivityResult {
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, code: "invalid_id", error: "activity id must be a positive integer" };
+  }
+  const row = getActivity(id) as { date?: unknown; source?: unknown; external_id?: unknown } | null;
+  if (!row) return { ok: false, code: "not_found", error: `activity ${id} not found` };
+  const linkedToWatch = db.prepare(`SELECT 1 FROM garmin_activities WHERE activity_id = ? LIMIT 1`).get(id) != null;
+  if (row.external_id != null || String(row.source ?? "") === "garmin" || linkedToWatch) {
+    return {
+      ok: false,
+      code: "watch_imported",
+      error:
+        "this activity was imported from a connected watch; the next sync would bring it back, so remove it at the source instead",
+    };
+  }
+  deleteActivity(id);
+  return { ok: true, id, date: String(row.date) };
 }
 
 export function setActivityEnrichStatus(id: number, status: string) {
