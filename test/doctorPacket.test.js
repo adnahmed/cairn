@@ -63,7 +63,13 @@ test("doctorPacketRead composes focus, directives, doctor-loop plan, PREVENT ris
   assert.match(packet.health_focus.headline, /priority|track|clean/i);
   assert.ok(packet.priority_markers.some((m) => /apob|apolipoprotein b/i.test(m.name) && m.value === 92));
   assert.ok(packet.active_directives.some((d) => d.id === directive.id && d.marker === "ApoB"));
-  assert.ok(packet.doctor_loop.due.some((d) => d.signal_key === "marker:apob"));
+  // The lipid panel is ONE follow-up: ApoB's cadence row folds into it with the rest of
+  // the panel, carrying every source row for provenance.
+  const lipids = packet.doctor_loop.due.filter((d) => d.key === "panel:lipids");
+  assert.equal(lipids.length, 1, "the lipid recheck appears once");
+  assert.ok(lipids[0].sources.some((s) => s.signal_key === "marker:apob"));
+  assert.ok(lipids[0].markers.includes("ApoB"));
+  assert.ok(packet.discussion_points.some((p) => p.includes(lipids[0].label)), "discussion names the follow-up by its label");
   assert.ok(packet.doctor_loop.missing_workup.some((w) => w.label === "Fasting insulin"));
   assert.equal(packet.cardiovascular_risk.model_status.prevent, "computed");
   assert.ok(typeof packet.cardiovascular_risk.prevent.estimates.total_cvd.ten_year === "number");

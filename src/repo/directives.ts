@@ -7,9 +7,9 @@ import { getAppState, setAppState } from "./app-state.js";
 import { directiveStatusStamp, statusFlipIsFeedback } from "./directive-feedback.js";
 import { dedupeActiveDirectives, directiveIdentityKey, hydrateDirective } from "./directives-read.js";
 // Function-level cycle (doctor-loop imports listDirectives back from here);
-// scheduleDirectiveRecheck is only called at runtime inside updateDirective, so
-// the hoisted binding is always resolved by call time.
-import { scheduleDirectiveRecheck } from "./doctor-loop.js";
+// scheduleDirectiveRecheck / cancelDirectiveRecheck are only called at runtime inside
+// updateDirective, so the hoisted bindings are always resolved by call time.
+import { cancelDirectiveRecheck, scheduleDirectiveRecheck } from "./doctor-loop.js";
 import { discardDayRead } from "./intelligence.js";
 import { markerSide, matchOptimalZone, prioritizeMarkers } from "./propagation.js";
 import { classifyDirectiveIntent } from "./propagation-data.js";
@@ -329,6 +329,15 @@ export function updateDirective(id: number, fields: DirectiveInput) {
         scheduleDirectiveRecheck(updated);
       } catch {
         /* scheduling is additive; never block the status flip */
+      }
+    }
+    // A Dismiss on a recheck directive cancels the follow-up an earlier Done filed for
+    // that marker — "not relevant" must not keep coming back on the doctor loop.
+    if (nextStatus === "dismissed") {
+      try {
+        cancelDirectiveRecheck(updated);
+      } catch {
+        /* best-effort, like scheduling; never block the status flip */
       }
     }
   }

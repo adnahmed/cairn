@@ -397,6 +397,27 @@ export function listAttentionBySource(
   return rows.map((row) => hydrate(row)).filter((entry): entry is AttentionScheduleEntry => entry != null);
 }
 
+// Every schedule row whose signal_key starts with `prefix` (e.g. "review-followup:"), so
+// the owner of a key family can reconcile its own rows. A plain substr compare, never
+// LIKE, so an underscore or percent in a key is never read as a wildcard.
+export function listAttentionByKeyPrefix(
+  prefix: string,
+  opts: { includeReleased?: boolean; limit?: number } = {}
+): AttentionScheduleEntry[] {
+  const p = String(prefix ?? "");
+  if (!p) return [];
+  const where = ["substr(signal_key, 1, ?) = ?"];
+  const params: Array<string | number> = [p.length, p];
+  if (!opts.includeReleased) where.push("tier != 'released'");
+  const limit = Math.min(500, Math.max(1, Math.round(Number(opts.limit) || 500)));
+  const rows = db
+    .prepare(
+      `SELECT * FROM attention_schedule WHERE ${where.join(" AND ")} ORDER BY (next_due IS NULL), next_due ASC, signal_key ASC LIMIT ?`
+    )
+    .all(...params, limit) as unknown as AttentionRow[];
+  return rows.map((row) => hydrate(row)).filter((entry): entry is AttentionScheduleEntry => entry != null);
+}
+
 export function listDueAttention(
   asOf: string = todayISO(),
   opts: { domain?: AttentionDomain; limit?: number } = {}

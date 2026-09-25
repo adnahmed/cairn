@@ -13,17 +13,18 @@
 // deterministic state; null-safe and calm on an empty DB.
 
 import { db, todayISO } from "../db.js";
+import { listAttentionSchedule, type AttentionScheduleEntry } from "./attention.js";
 import {
-  listAttentionSchedule,
-  listDueAttention,
-  type AttentionScheduleEntry,
-} from "./attention.js";
-import { markerSignalKey, recommendedPanel, refreshDoctorLoopAttention } from "./doctor-loop.js";
+  doctorLoopItems,
+  markerSignalKey,
+  recommendedPanel,
+  refreshDoctorLoopAttention,
+  type DoctorLoopItem,
+} from "./doctor-loop.js";
 import { getLatestHealthReview, getMarkerHistory } from "./health.js";
 import { listDirectives } from "./directives.js";
 import { listSupplements } from "./supplements.js";
 import { canonicalMarker } from "./marker-canon.js";
-import { followupLabel, markerSlugFromSignalKey } from "./attention-labels.js";
 import { dexaRescanWhenText, dexaRescanWindow, latestDexaDate } from "./dexa-window.js";
 import { matchOptimalZone, optimalDistance } from "./propagation-data.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
@@ -210,61 +211,21 @@ function dueWhenText(nextDue: string | null, asOf: string): string | null {
   return `opens in ${humanHorizon(days)}`;
 }
 
-function titleFromSlug(slug: string): string {
-  return String(slug || "")
-    .replace(/[-:]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-// Resolve an attention signal_key to a human label + kind. Marker rechecks join
-// back to the real marker (so we show its clean display name); DEXA and review
-// follow-ups get calm generic labels.
-function describeSignal(
-  entry: AttentionScheduleEntry,
-  markerBySignal: Map<string, MarkerLike>
-): { label: string; kind: CheckupItemKind } {
-  const key = entry.signal_key;
-  if (key.startsWith("marker:")) {
-    const m = markerBySignal.get(key);
-    return { label: m?.name ? String(m.name) : titleFromSlug(key.slice(7)), kind: "lab" };
-  }
-  // A directive-sourced recheck joins back to its marker (same slug as the periodic
-  // cadence). Falls to a clean title from the slug for markers with no cadence policy
-  // (e.g. "Testosterone"), which reads well on its own.
-  if (key.startsWith("directive-recheck:")) {
-    const slug = key.slice("directive-recheck:".length);
-    const m = markerBySignal.get(`marker:${slug}`);
-    return { label: m?.name ? String(m.name) : titleFromSlug(slug), kind: "lab" };
-  }
-  if (key.startsWith("dexa:")) return { label: "Body composition (DEXA)", kind: "dexa" };
-  // Speak each review follow-up as its own action ("Recheck hs-CRP") instead of one
-  // generic "Lab follow-up" line that renders identically for every different follow-up.
-  if (key.startsWith("review-followup:"))
-    return { label: followupLabel(entry.reason) ?? "Lab follow-up from your last review", kind: "review" };
-  return { label: titleFromSlug(key), kind: "lab" };
-}
-
-function toCheckupItem(
-  entry: AttentionScheduleEntry,
-  asOf: string,
-  markerBySignal: Map<string, MarkerLike>,
-  dexaWhenText: string | null
-): CheckupItem {
-  const { label, kind } = describeSignal(entry, markerBySignal);
+// One collapsed doctor-loop follow-up → a checkup line. The item already carries its
+// readable label, kind and earliest open due date (doctor-loop-items.ts).
+function toCheckupItem(item: DoctorLoopItem, asOf: string, dexaWhenText: string | null): CheckupItem {
   // The DEXA re-scan reads as a soft window ("worth considering around …"), matching
   // Train's forward timeline — never a bare due date, though attention's next_due stays
   // the scheduling key. Falls back to the calm horizon phrasing if no window is known.
   const when_text =
-    kind === "dexa" && dexaWhenText ? dexaWhenText : dueWhenText(entry.next_due, asOf);
+    item.kind === "dexa" && dexaWhenText ? dexaWhenText : dueWhenText(item.next_due, asOf);
   return {
-    signal_key: entry.signal_key,
-    label,
-    kind,
-    next_due: entry.next_due,
+    signal_key: item.signal_key,
+    label: item.label,
+    kind: item.kind,
+    next_due: item.next_due,
     when_text,
-    why: entry.reason,
+    why: item.reason,
   };
 }
 
@@ -555,12 +516,9 @@ export function nextCheckupRead(opts: { refresh?: boolean; asOf?: string } = {})
 
   const { markers } = getMarkerHistory() as { markers: MarkerLike[] };
   const markerByKey = new Map<string, MarkerLike>();
-  const markerBySignal = new Map<string, MarkerLike>();
   for (const m of markers) {
     const key = String(m.key ?? m.name ?? "").toLowerCase();
     if (key && !markerByKey.has(key)) markerByKey.set(key, m);
-    const sig = markerSignalKey(m as any);
-    if (sig && !markerBySignal.has(sig)) markerBySignal.set(sig, m);
   }
   // The DEXA re-scan window is derived once from the baseline scan and shared with
   // Train's timeline, so both surfaces frame the re-scan as the same suggestion window.
@@ -575,6 +533,7 @@ export function nextCheckupRead(opts: { refresh?: boolean; asOf?: string } = {})
         ? "window is open — worth scheduling"
         : dexaRescanWhenText(dexaWindow);
 
+  // Per-marker cadence rows, for the follow-through recheck state.
   const schedule = [
     ...listAttentionSchedule({ domain: "health", limit: 80 }),
     ...listAttentionSchedule({ domain: "body", limit: 20 }),
@@ -582,36 +541,19 @@ export function nextCheckupRead(opts: { refresh?: boolean; asOf?: string } = {})
   const attentionBySignal = new Map<string, AttentionScheduleEntry>();
   for (const e of schedule) if (!attentionBySignal.has(e.signal_key)) attentionBySignal.set(e.signal_key, e);
 
-  const due = [
-    ...listDueAttention(asOf, { domain: "health", limit: 50 }),
-    ...listDueAttention(asOf, { domain: "body", limit: 20 }),
-  ];
-  // Dedupe at the MARKER level, not the raw signal_key: a marker's periodic cadence
-  // recheck (`marker:hs-crp`) and a review follow-up on that same marker
-  // (`review-followup:hs-crp:…`) are one story — surface the sooner one only. Non-marker
-  // signals (dexa, add-ons) keep keying on their own signal_key.
-  const dedupeKey = (signalKey: string): string => markerSlugFromSignalKey(signalKey) ?? signalKey;
-  const dueSeen = new Set<string>();
-  const dueNow: CheckupItem[] = [];
-  for (const e of due.sort((a, b) => String(a.next_due).localeCompare(String(b.next_due)))) {
-    const k = dedupeKey(e.signal_key);
-    if (dueSeen.has(k)) continue;
-    dueSeen.add(k);
-    dueNow.push(toCheckupItem(e, asOf, markerBySignal, dexaWhenText));
-  }
+  // The doctor loop, one item per real follow-up: a panel's cadence, directive and
+  // review rows are already folded into one item carrying the earliest open due date.
+  const loop = doctorLoopItems({ asOf, markers: markers as any[] });
+  const dueNow: CheckupItem[] = loop.filter((item) => item.due).map((item) => toCheckupItem(item, asOf, dexaWhenText));
 
-  // Upcoming = dated entries not yet due, within the horizon.
-  const upcomingDated: CheckupItem[] = [];
-  const upSeen = new Set<string>();
-  for (const e of schedule) {
-    const k = dedupeKey(e.signal_key);
-    if (!e.next_due || dueSeen.has(k) || upSeen.has(k)) continue;
-    const days = daysBetweenISO(e.next_due, asOf);
-    if (days == null || days <= 0 || days > UPCOMING_HORIZON_DAYS) continue;
-    upSeen.add(k);
-    upcomingDated.push(toCheckupItem(e, asOf, markerBySignal, dexaWhenText));
-  }
-  upcomingDated.sort((a, b) => String(a.next_due).localeCompare(String(b.next_due)));
+  // Upcoming = dated items not yet due, within the horizon.
+  const upcomingDated: CheckupItem[] = loop
+    .filter((item) => {
+      if (!item.next_due || item.due) return false;
+      const days = daysBetweenISO(item.next_due, asOf);
+      return days != null && days > 0 && days <= UPCOMING_HORIZON_DAYS;
+    })
+    .map((item) => toCheckupItem(item, asOf, dexaWhenText));
 
   // Missing high-value workups → calm "worth adding" suggestions (no date). A workup a
   // currently-flagged marker actually warrants is listed FIRST and says why — and it is

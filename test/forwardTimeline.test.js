@@ -177,6 +177,27 @@ test("a marker's cadence recheck and a review follow-up on the SAME marker dedup
   assert.equal(hs[0].when.date, ahead(20), "the sooner of the two survives");
 });
 
+test("a lipid panel's per-marker cadence rows are one re-check on the road ahead, as on Stand", () => {
+  resetTables("attention_schedule");
+  for (const [slug, days] of [["apob", 20], ["ldl-c", 22], ["hdl-c", 25], ["triglycerides", 28]]) {
+    repo.upsertAttentionSchedule({
+      signal_key: `marker:${slug}`,
+      domain: "health",
+      tier: "active",
+      next_due: ahead(days),
+      last_checked: today,
+      reason: "Lipid periodic recheck cadence.",
+      release_condition: "clean and stable",
+      source: "doctor-loop",
+      state: {},
+    });
+  }
+  const rechecks = repo.forwardTimeline().filter((e) => e.kind === "recheck");
+  assert.equal(rechecks.length, 1, "one lipid re-check, not one per lipid marker");
+  assert.equal(rechecks[0].when.date, ahead(20), "the panel's earliest open date");
+  assert.match(rechecks[0].label, /^ApoB.* re-check$/);
+});
+
 test("two different non-marker review follow-ups both survive on the timeline (no sentinel collision)", () => {
   // Both file under the "lab-follow-up" sentinel slug; that sentinel must not be a dedupe
   // key, so distinct follow-ups fall back to their full signal_key and both survive.

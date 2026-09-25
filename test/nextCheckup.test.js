@@ -319,3 +319,39 @@ test("nextCheckupRead is calm and empty on a fresh DB, never throwing", () => {
   assert.ok(read.lede.length > 0);
   assert.ok(read.frame.includes("Informational"));
 });
+
+// The Stand checkup reads the collapsed doctor loop: however many rows a follow-up has
+// piled up (cadence, directive recheck, one per review wording), it is one line, dated
+// by its earliest still-open window; the DEXA scan and the body-fat cadence are one scan.
+test("the checkup lists each follow-up once, at its earliest open window", () => {
+  const asOf = "2026-07-10";
+  const put = (signal_key, next_due, extra = {}) =>
+    repo.upsertAttentionSchedule({
+      signal_key,
+      domain: "health",
+      tier: "active",
+      next_due,
+      last_checked: "2026-04-01",
+      reason: "Health review follow-up: Retest vitamin D.",
+      release_condition: "x",
+      source: "health_review",
+      state: {},
+      ...extra,
+    });
+  put("marker:vitamin-d", "2026-06-20", { source: "doctor-loop", reason: "Vitamin D is off optimal." });
+  put("directive-recheck:vitamin-d", "2026-06-25", { source: "directive-recheck" });
+  for (const [i, due] of ["2026-06-10", "2026-06-30", "2026-07-05", "2026-07-08"].entries()) {
+    put(`review-followup:vitamin-d:wording-${i}`, due);
+  }
+  put("dexa:body-composition", "2026-06-01", { domain: "body", source: "dexa" });
+  put("marker:body-fat", "2026-06-15", { domain: "body", source: "dexa" });
+
+  const read = repo.nextCheckupRead({ refresh: false, asOf });
+  const vit = read.due_now.filter((i) => /vitamin d/i.test(i.label));
+  assert.equal(vit.length, 1, "one vitamin D line");
+  assert.equal(vit[0].next_due, "2026-06-10");
+  assert.equal(read.upcoming.filter((i) => /vitamin d/i.test(i.label) && i.kind !== "add").length, 0);
+  const scans = [...read.due_now, ...read.upcoming].filter((i) => i.kind === "dexa");
+  assert.equal(scans.length, 1, "one DEXA line");
+  assert.match(read.lede, /plus 1 more/, "the lede counts follow-ups, not rows");
+});
