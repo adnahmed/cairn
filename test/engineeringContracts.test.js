@@ -2040,7 +2040,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   );
   assert.match(clientGlobals, /declare function startBlockHtml\(\): string/);
   assert.match(clientGlobals, /declare function loadProgramBlock\(\): Promise<void>/);
-  assert.match(clientGlobals, /declare function wireProgramBlock\(slot: Element\): void/);
+  assert.match(clientGlobals, /mountProgramBlock\(\s*slot: Element,/);
   assert.match(clientGlobals, /CairnProgressProgramBlock/);
   assert.match(clientGlobals, /type ClientProgressProgramControllerDeps = \{/);
   assert.match(clientGlobals, /CairnProgressProgramController/);
@@ -4847,7 +4847,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     /function activeBlockHtml\(block: ClientProgramBlock \| null \| undefined\): string/
   );
   assert.match(progressProgramBlockSource, /async function loadProgramBlock\(\): Promise<void>/);
-  assert.match(progressProgramBlockSource, /function wireProgramBlock\(slot: Element\): void/);
+  assert.match(progressProgramBlockSource, /function mountProgramBlock\(slot: Element, deps: ProgramBlockMountDeps\): \(\) => void/);
   assert.match(progressProgramBlockSource, /Object\.assign\(globalThis, \{/);
   assert.match(progressProgramBlockSource, /CairnProgressProgramBlock/);
   assert.match(
@@ -6266,7 +6266,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   );
   assert.doesNotMatch(
     progress,
-    /function\s+blockFocusWord|function\s+activeBlockHtml|function\s+startBlockHtml|function\s+loadProgramBlock|function\s+wireProgramBlock/
+    /function\s+blockFocusWord|function\s+activeBlockHtml|function\s+startBlockHtml|function\s+loadProgramBlock|function\s+mountProgramBlock/
   );
   assert.match(planEnduranceClient, /Object\.assign\(globalThis, \{ CairnPlanEndurance: CAIRN_PLAN_ENDURANCE \}\)/);
   assert.match(

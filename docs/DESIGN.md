@@ -730,16 +730,27 @@ Rules:
    (CLAUDE.md), and an eager bundle never touches a lazy bundle's namespace at load time.
 4. **Actions are data attributes, handled by delegation.** Name an action
    `data-<prefix>-<action>`; `data-pweek-day`, `data-cfocus-go` and `data-decision-undo` already
-   work this way. Put one listener per event type on `host` and dispatch with `closest()`.
+   work this way. Put one listener per event type on `host` and dispatch from the event target
+   upward: `CairnUiActions.delegate(host, type, {"<prefix>-<action>": (el, event) => …})` takes
+   each key as the data attribute without its `data-` prefix and runs at most one handler per
+   event, the one on the innermost element (between the target and `host`) carrying an action,
+   so an action button inside a navigable row acts and never also navigates.
    Delegation alone does **not** make `mount` idempotent: a host is a persistent slot, so a second
    `mountThing(host, deps)` replaces the markup but adds a second listener to the same host, and one
-   tap then fires twice (two revert POSTs, two logged sets). Idempotency comes from the mount helper
-   (`delegate`, F5 in `docs/V2-PLAN.md`): every listener a mount adds is registered with the
-   `signal` of an `AbortController` owned by that mount, the helper keeps a `WeakMap` from host to
-   the current mount's teardown, and a new mount on the same host runs the previous teardown
-   (aborting its listeners) before it wires. The returned teardown aborts the same controller. Only
-   code that wires through that helper may drop `dataset.wired` guards. Use ids only for slots a
-   screen owns.
+   tap then fires twice (two revert POSTs, two logged sets). Idempotency comes from the mount helper,
+   `CairnUiActions.mount(host, name, wire)` (`ui-actions-client.ts`). It keeps a `WeakMap` from
+   host to a map of mount name → that mount's teardown; a new mount of the same name on the same
+   host runs the previous teardown first. `wire` gets `{host, signal, delegate}`: `signal` belongs
+   to an `AbortController` owned by this mount, and `delegate(type, actions)` registers its
+   listener with that signal. The teardown `mount` returns aborts the controller (every listener
+   goes with it), runs the cleanup `wire` returned if it returned one, and forgets the mount;
+   calling it twice, or calling an older mount's teardown, changes nothing. The name is part of
+   the key so two components on one shared legacy host (a whole view) never tear each other down.
+   A `mountThing(host, deps)` therefore ends in
+   `return CairnUiActions.mount(host, "<prefix>", ({delegate}) => delegate("click", {…}))`, as
+   `mountProgramBlock` (`progress-program-block-client.ts`) and the session primer toggle do.
+   Only code that wires through that helper may drop `dataset.wired` guards. Use ids only for
+   slots a screen owns.
 5. **Async paints check that they are still current.** Each continuation after an `await` checks the
    render generation (`pollToken`, `ui-shell.ts:217`) or the controller's own token, plus
    `host.isConnected`, before it writes.

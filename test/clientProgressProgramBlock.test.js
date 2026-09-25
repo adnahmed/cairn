@@ -9,6 +9,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 function loadProgramBlockClient() {
   const context = {
+    AbortController,
     JSON,
     Number,
     Object,
@@ -24,6 +25,7 @@ function loadProgramBlockClient() {
   };
   context.window = context;
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/ui-actions-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-program-block-client.js"), "utf8"), context);
   return context;
 }
@@ -71,6 +73,7 @@ test("progress program block loader hydrates active and start states", async () 
     querySelector() {
       return null;
     },
+    addEventListener() {},
   };
   context.state = { tab: "progress" };
   context.view = {

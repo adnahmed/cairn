@@ -31,6 +31,7 @@ type SessionPrimerData = {
 type PrimerRuntimeGlobals = typeof globalThis & {
   escHtml?: (value: unknown) => string;
   escAttr?: (value: unknown) => string;
+  CairnUiActions?: Window["CairnUiActions"];
 };
 
 type PrimerHydrateOpts = {
@@ -153,15 +154,21 @@ type PrimerHydrateOpts = {
     return `<button type="button" class="sess-fresh-chip" data-fresh-why="${e.attr(reason)}"${titleAttr}>${e.html(text)}</button>`;
   }
 
-  // Toggle the collapsed strip ⇄ full card. Idempotent (guards on a wired flag).
-  function wirePrimerToggle(slot: Element): void {
-    const card = slot.querySelector("[data-primer]");
-    const head = slot.querySelector("[data-primer-toggle]");
-    if (!card || !head || (head as HTMLElement).dataset.wired) return;
-    (head as HTMLElement).dataset.wired = "1";
-    head.addEventListener("click", () => {
-      const nowCollapsed = card.classList.toggle("collapsed");
-      head.setAttribute("aria-expanded", nowCollapsed ? "false" : "true");
+  // Toggle the collapsed strip ⇄ full card through one delegated listener on the
+  // slot. Idempotent: re-mounting on the same slot replaces the previous listener.
+  // Inert (a no-op teardown) when the mount helper is missing, like the renderers.
+  function mountPrimerToggle(slot: Element): () => void {
+    const actions = (globalThis as PrimerRuntimeGlobals).CairnUiActions;
+    if (!actions || typeof actions.mount !== "function") return () => {};
+    return actions.mount(slot, "sess-primer", ({ delegate }) => {
+      delegate("click", {
+        "primer-toggle": (head) => {
+          const card = head.closest("[data-primer]");
+          if (!card) return;
+          const nowCollapsed = card.classList.toggle("collapsed");
+          head.setAttribute("aria-expanded", nowCollapsed ? "false" : "true");
+        },
+      });
     });
   }
 
@@ -237,7 +244,7 @@ type PrimerHydrateOpts = {
     const html = sessionPrimerCardHtml(primer, { collapsed: true });
     slot.innerHTML = html;
     if (!html) return;
-    wirePrimerToggle(slot);
+    mountPrimerToggle(slot);
     applyFreshChips(root, Array.isArray(primer.fresh) ? primer.fresh : []);
   }
 
@@ -245,6 +252,7 @@ type PrimerHydrateOpts = {
     cardHtml: sessionPrimerCardHtml,
     freshChipHtml: sessionFreshChipHtml,
     hydrate: hydrateSessionPrimer,
+    mountToggle: mountPrimerToggle,
   };
 
   Object.assign(globalThis, { CairnSessionPrimer: CAIRN_SESSION_PRIMER });
