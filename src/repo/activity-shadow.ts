@@ -61,11 +61,16 @@ function isSourcedActivity(row: ShadowCheckActivity): boolean {
   return row.source != null && String(row.source).trim() !== "";
 }
 
-export function isShadowActivity(row: ShadowCheckActivity, sameDay: ShadowCheckActivity[]): boolean {
-  if (isSourcedActivity(row) || (row.external_id != null && String(row.external_id).trim() !== "")) return false;
+/**
+ * The synced row `row` shadows, or null when `row` is its own effort. Same rule as
+ * isShadowActivity (which is this, non-null); exposed so a history list can FLAG a
+ * shadow (`shadow_of`) instead of hiding the athlete's own entry.
+ */
+export function shadowedActivity<T extends ShadowCheckActivity>(row: ShadowCheckActivity, sameDay: T[]): T | null {
+  if (isSourcedActivity(row) || (row.external_id != null && String(row.external_id).trim() !== "")) return null;
   const modality = normalizeGarminType(row.type);
-  if (!["run", "ride", "swim", "hike"].includes(modality)) return false;
-  return sameDay.some((other) => {
+  if (!["run", "ride", "swim", "hike"].includes(modality)) return null;
+  const match = sameDay.find((other) => {
     if (other === row || !isSourcedActivity(other)) return false;
     if (String(other.date).slice(0, 10) !== String(row.date).slice(0, 10)) return false;
     if (normalizeGarminType(other.type) !== modality) return false;
@@ -76,6 +81,11 @@ export function isShadowActivity(row: ShadowCheckActivity, sameDay: ShadowCheckA
     if (positiveNumber(row.distance_km) != null && distanceError == null) return false;
     return [durationError, distanceError].every((error) => error == null || Number.isFinite(error));
   });
+  return match ?? null;
+}
+
+export function isShadowActivity(row: ShadowCheckActivity, sameDay: ShadowCheckActivity[]): boolean {
+  return shadowedActivity(row, sameDay) != null;
 }
 
 /** `rows` with every shadow hand log (see isShadowActivity) dropped. Order kept. */

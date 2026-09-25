@@ -13,6 +13,7 @@ import { painAreaLoadsExercise } from "./pain-relevance.js";
 import { matchOptimalZone, optimalDistance } from "./propagation-data.js";
 import { recoverySessionDose } from "./training-read.js";
 import { withoutShadowActivities } from "./activities.js";
+import { dailyManualWeighIns } from "./bodyweight.js";
 import { exerciseIdentityKey } from "./exercise-canon.js";
 import { loadAtOrAbove } from "./outcome-comparability.js";
 // Called at read time only, so the program-state -> coach -> this-module cycle
@@ -315,13 +316,12 @@ function fuelingConfounders(start: string, end: string): ConfounderEntry[] {
     ? `the calorie target rose ${Math.round(raise.delta_kcal)} kcal to ${Math.round(raise.to_kcal)}, effective ${raise.effective_date}`
     : null;
   try {
-    const weights = db
-      .prepare(
-        `SELECT date, weight_lb FROM bodyweight_log
-          WHERE date BETWEEN ? AND ? AND weight_lb IS NOT NULL
-          ORDER BY date, id LIMIT 500`
-      )
-      .all(start, end) as Array<{ date: string; weight_lb: number }>;
+    // One weigh-in per day: the minimum-weigh-ins bar counts DAYS weighed, not taps.
+    const weights: Array<{ date: string; weight_lb: number }> = dailyManualWeighIns({
+      since: start,
+      through: end,
+      limit: 500,
+    });
     const points = weights
       .map((row) => ({ date: isoDay(row.date), value: Number(row.weight_lb) }))
       .filter((point) => Number.isFinite(point.value) && point.value > 0);
@@ -869,11 +869,10 @@ function enduranceRead(start: string, end: string, parked: boolean): WholePerson
 function bodyRead(start: string, end: string, parked: boolean): WholePersonDomainRead {
   const profile = getProfile();
   const mode = effectiveGoalMode(profile);
-  const weights = db
-    .prepare(
-      `SELECT date, weight_lb AS value FROM bodyweight_log WHERE date BETWEEN ? AND ? ORDER BY date, id LIMIT 500`
-    )
-    .all(start, end) as any[];
+  const weights = dailyManualWeighIns({ since: start, through: end, limit: 500 }).map((row) => ({
+    date: row.date,
+    value: row.weight_lb,
+  }));
   const split = halves(weights.map((row) => ({ date: String(row.date), value: Number(row.value) })));
   let verdict: WholePersonVerdict = "unknown";
   if (split.first != null && split.last != null) {

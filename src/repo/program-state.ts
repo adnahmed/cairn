@@ -1293,13 +1293,19 @@ export function weeklyKm(date: string, weekBack: number, patterns: string[]): nu
   const end = isoDaysAgo(date, weekBack * 7);
   const start = isoDaysAgo(date, weekBack * 7 + 6);
   const sport = activitySportWhere("activities", patterns);
-  const row = db
+  // Summed in JS, not SQL, so a hand log shadowing the watch's row of the same run
+  // (withoutShadowActivities) never counts its kilometres twice.
+  const rows = db
     .prepare(
-      `SELECT COALESCE(SUM(distance_km), 0) AS km FROM activities
+      `SELECT date, type, source, external_id, duration_min, distance_km FROM activities
       WHERE date >= ? AND date <= ? AND (${sport.sql})`
     )
-    .get(start, end, ...sport.params) as any;
-  return Math.round(Number(row?.km ?? 0) * 10) / 10;
+    .all(start, end, ...sport.params) as any[];
+  const km = withoutShadowActivities(rows).reduce((sum, row) => {
+    const value = Number(row.distance_km);
+    return Number.isFinite(value) && value > 0 ? sum + value : sum;
+  }, 0);
+  return Math.round(km * 10) / 10;
 }
 
 // ---- the running-volume spike (the Brief's `endurance_volume_spike`) ----
@@ -1323,9 +1329,13 @@ export function runVolumeSpikeRead(date: string): { last_week_km: number; chroni
 
 function weeklySportEvidence(date: string): Record<string, EnduranceSportVolumeEvidence> {
   const start = isoDaysAgo(date, 6);
-  const rows = db
-    .prepare(`SELECT date, type, duration_min, distance_km, source FROM activities WHERE date >= ? AND date <= ?`)
-    .all(start, date) as any[];
+  const rows = withoutShadowActivities(
+    db
+      .prepare(
+        `SELECT date, type, duration_min, distance_km, source, external_id FROM activities WHERE date >= ? AND date <= ?`
+      )
+      .all(start, date) as any[]
+  );
   const grouped = new Map<string, EnduranceSportVolumeEvidence & { sourceSet: Set<string> }>();
   for (const activity of rows) {
     const sport = canonicalEnduranceSport(activity.type);
@@ -1408,13 +1418,19 @@ function enduranceState(date: string): EnduranceState {
   const hasQuality = Number(quality?.n ?? 0) > 0;
 
   // Easy-pace efficiency: avg pace (min/km) of the chosen endurance sport, recent half vs older half.
-  const paceRows = db
-    .prepare(
-      `SELECT a.date AS date, a.duration_min AS dur, a.distance_km AS km FROM activities a
-     WHERE a.date >= ? AND a.date <= ? AND a.distance_km > 1 AND a.duration_min > 0
-       AND (${aSport.sql}) ORDER BY a.date`
-    )
-    .all(isoDaysAgo(date, 41), date, ...aSport.params) as any[];
+  // Shadows are dropped against the day's FULL sport set (a shadow's watch row may
+  // itself lack a pace), then the pace filter applies.
+  const paceRows = withoutShadowActivities(
+    db
+      .prepare(
+        `SELECT a.date AS date, a.type AS type, a.source AS source, a.external_id AS external_id,
+              a.duration_min AS duration_min, a.distance_km AS distance_km FROM activities a
+       WHERE a.date >= ? AND a.date <= ? AND (${aSport.sql}) ORDER BY a.date, a.id`
+      )
+      .all(isoDaysAgo(date, 41), date, ...aSport.params) as any[]
+  )
+    .filter((r) => Number(r.distance_km) > 1 && Number(r.duration_min) > 0)
+    .map((r) => ({ date: r.date, dur: r.duration_min, km: r.distance_km }));
   let paceTrend: EnduranceState["pace_trend"] = null;
   if (paceRows.length >= 4) {
     const paces = paceRows.map((r) => ({ date: r.date, pace: Number(r.dur) / Number(r.km) }));

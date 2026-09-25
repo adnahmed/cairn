@@ -15,6 +15,7 @@ import {
   duplicateMetricError,
   isShadowActivity,
   normalizeGarminType,
+  shadowedActivity,
   withoutShadowActivities,
   type ShadowCheckActivity,
 } from "./activity-shadow.js";
@@ -217,12 +218,38 @@ export function addActivity(input: any, defer?: GarminSyncDeferral | null) {
 }
 
 export function listActivities(limit = 20) {
-  return (
-    (db.prepare(`SELECT * FROM activities ORDER BY date DESC, id DESC LIMIT ?`).all(limit) as any[])
+  const rows = db.prepare(`SELECT * FROM activities ORDER BY date DESC, id DESC LIMIT ?`).all(limit) as any[];
+  // The history list keeps every row — a hand log is the athlete's own words — but
+  // FLAGS a shadow (a hand log duplicating the watch's row of the same effort,
+  // isShadowActivity) with `shadow_of: <synced row id>`, so a reader of this list
+  // (the coach, an MCP client) never counts one run as two. The same-day peers are
+  // read whole, so a partner just past the limit still resolves.
+  const dates = [...new Set(rows.map((r) => String(r.date).slice(0, 10)))];
+  const peersByDate = new Map<string, any[]>();
+  if (dates.length) {
+    const peers = db
+      .prepare(
+        `SELECT id, date, type, source, external_id, duration_min, distance_km FROM activities
+          WHERE date IN (${dates.map(() => "?").join(",")})`
+      )
+      .all(...dates) as any[];
+    for (const peer of peers) {
+      const key = String(peer.date).slice(0, 10);
+      const list = peersByDate.get(key);
+      if (list) list.push(peer);
+      else peersByDate.set(key, [peer]);
+    }
+  }
+  return rows.map((r) => {
+    const partner = shadowedActivity(r, peersByDate.get(String(r.date).slice(0, 10)) ?? []);
+    return {
+      ...r,
       // logged_at: a local "1:15 PM" / "yesterday 9:40 PM" so the coach can reference
       // WHEN it happened, not just that it did. created_at stays the UTC instant.
-      .map((r) => ({ ...r, logged_at: chatHistoryTimeLabel(r.created_at) }))
-  );
+      logged_at: chatHistoryTimeLabel(r.created_at),
+      shadow_of: partner ? Number(partner.id) : null,
+    };
+  });
 }
 
 // ---------- Today: the unified "Lately" feed ----------
@@ -393,6 +420,7 @@ export function recentTraining(limit = 6): FeedRow[] {
   const actRows = db
     .prepare(
       `SELECT a.id, a.date, a.type, a.raw_text, a.notes, a.duration_min, a.distance_km, a.pace, a.rpe, a.source,
+            a.external_id,
             g.start_time AS g_start, g.moving_min AS g_moving, g.avg_hr AS g_avg_hr, g.max_hr AS g_max_hr,
             g.calories AS g_cal, g.training_effect AS g_te, g.aerobic_te AS g_aer, g.anaerobic_te AS g_anaer,
             g.te_label AS g_telabel, g.vo2max AS g_vo2, g.avg_temp AS g_temp, g.avg_cadence AS g_cad,
@@ -403,7 +431,10 @@ export function recentTraining(limit = 6): FeedRow[] {
     )
     .all(pull) as any[];
 
-  const activities: FeedRow[] = actRows.map((a) => {
+  // One effort, one row: a hand log shadowing the watch's row of the same run
+  // (isShadowActivity) is folded into it here exactly as every counting read folds it.
+  // The hand log itself is kept — listActivities still returns it.
+  const activities: FeedRow[] = withoutShadowActivities(actRows).map((a) => {
     let hr_zones: any = null;
     try {
       hr_zones = a.g_zones ? JSON.parse(a.g_zones) : null;

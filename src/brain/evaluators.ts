@@ -26,6 +26,7 @@ import { completedIntakeRange } from "../repo/intake-window.js";
 import { mealPlanAdherence } from "../repo/nutrition.js";
 import { canonicalEnduranceSport } from "../repo/endurance-sports.js";
 import { withoutShadowActivities } from "../repo/activity-shadow.js";
+import { dailySiteSeries } from "../repo/measurement-series.js";
 import { lsqSlopePerDay } from "../repo/health.js";
 import { addDaysISO } from "../repo/shared.js";
 import { robustWeightEvidence } from "../repo/weight-evidence.js";
@@ -929,13 +930,8 @@ function bodyMeasurementObservation(context: EvaluatorContext): MetricObservatio
       issues: ["A supported body-measurement site is required."],
     };
   }
-  const rows = db
-    .prepare(
-      `SELECT id, date, ${site} AS value FROM body_measurements
-      WHERE date BETWEEN ? AND ? AND ${site} IS NOT NULL
-      ORDER BY date, id LIMIT 500`
-    )
-    .all(expectation.window_start, windowEnd(context)) as Array<{ id: number; date: string; value: number }>;
+  // One reading per day (dailySiteSeries): a same-day re-tape supersedes the earlier value.
+  const rows = dailySiteSeries(site, { since: expectation.window_start, through: windowEnd(context) }).slice(0, 500);
   const first = rows[0];
   const last = rows.at(-1);
   const storedBaseline = numberFrom(expectation.baseline, ["value", "baseline_value", "latest_value"]);

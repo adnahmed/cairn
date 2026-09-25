@@ -10,7 +10,7 @@
 // live repo module — see the header of `v051-100.ts`.
 
 import { log } from "../log.js";
-import { addColumn, type Migration } from "./helpers.js";
+import { addColumn, hasTable, type Migration } from "./helpers.js";
 import { repairExerciseIdentity } from "./frozen/v103-exercise-identity-repair.js";
 import { repairStrengthObjectiveIdentity } from "./frozen/v108-strength-objective-identity.js";
 import { repairCairnShellEnergy } from "./frozen/v113-cairn-shell-energy.js";
@@ -476,5 +476,68 @@ export const MIGRATIONS_101_150: Migration[] = [
     // so an existing install lands on the same default as a fresh one; the
     // scheduler retires any request parked before the switch existed.
     up: (db) => addColumn(db, "settings", "meal_plan_auto_draft INTEGER DEFAULT 0"),
+  },
+  {
+    version: 115,
+    name: "bodyweight-exact-double-submits",
+    // Pure data repair — no schema change, so no db.ts counterpart.
+    //
+    // A weigh-in submitted twice (a second tap, a retried request) landed as two
+    // identical rows seconds apart. logWeight now treats an identical value on the same
+    // date within WEIGHT_RESUBMIT_WINDOW_MIN (10 minutes, repo/bodyweight.ts) as a no-op;
+    // this folds the bursts already on disk under the same law. ONLY exact duplicates go:
+    // same date, same value, created within 600 seconds of the row the live no-op would
+    // have answered with — the latest identical row that SURVIVES, never a duplicate that
+    // is itself being folded — and carrying no words that row lacks (its note is
+    // NULL/blank or equal to it). So identical rows at 07:00, 07:08, 07:16 and 07:24 keep
+    // 07:00 and 07:16, exactly as logWeight would have written them: the window is
+    // measured from a kept row, a burst never chains past it. The earliest row of a burst
+    // survives, as the live no-op keeps the first write. Genuinely different same-day
+    // readings are untouched — the one-per-day rule for those is a READ rule
+    // (dailyManualWeighIns), never a delete. A row without created_at is never matched.
+    // The walk is a greedy replay in id order (a "was the anchor itself kept" question
+    // SQL cannot answer without recursion), with the constants spelled out inline so it
+    // cannot drift with live code. Idempotent: a second pass finds every survivor more
+    // than 600 s from the kept identical row before it, or carrying its own words.
+    up: (db) => {
+      if (!hasTable(db, "bodyweight_log")) return;
+      // A very old table without created_at has no window to judge a burst by.
+      const columns = new Set(
+        (db.prepare(`PRAGMA table_info(bodyweight_log)`).all() as Array<{ name: string }>).map((c) => c.name)
+      );
+      if (!columns.has("created_at") || !columns.has("note")) return;
+      const rows = db
+        .prepare(
+          `SELECT id, date, weight_lb, note, CAST(strftime('%s', created_at) AS INTEGER) AS at
+             FROM bodyweight_log
+            WHERE created_at IS NOT NULL AND strftime('%s', created_at) IS NOT NULL
+            ORDER BY date, id`
+        )
+        .all() as Array<{ id: number; date: string; weight_lb: number; note: string | null; at: number }>;
+      const kept = new Map<string, Array<{ weight_lb: number; note: string | null; at: number }>>();
+      const doomed: number[] = [];
+      for (const row of rows) {
+        const day = kept.get(row.date) ?? [];
+        kept.set(row.date, day);
+        let anchor: { note: string | null; at: number } | null = null;
+        for (let i = day.length - 1; i >= 0; i--) {
+          if (Math.abs(day[i].weight_lb - row.weight_lb) < 0.001) {
+            anchor = day[i];
+            break;
+          }
+        }
+        const blank = row.note == null || String(row.note).trim() === "";
+        if (anchor && Math.abs(Number(row.at) - anchor.at) <= 600 && (blank || anchor.note === row.note)) {
+          doomed.push(Number(row.id));
+          continue;
+        }
+        day.push({ weight_lb: Number(row.weight_lb), note: row.note ?? null, at: Number(row.at) });
+      }
+      const del = db.prepare(`DELETE FROM bodyweight_log WHERE id = ?`);
+      for (const id of doomed) del.run(id);
+      if (doomed.length > 0) {
+        log.info(`[migrate] v115: folded ${doomed.length} double-submitted weigh-in(s) into their first entry.`);
+      }
+    },
   },
 ];

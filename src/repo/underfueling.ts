@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { db } from "../db.js";
 import { canonicalEnduranceSport } from "./endurance-sports.js";
 import { withoutShadowActivities } from "./activities.js";
+import { dailySiteSeries } from "./measurement-series.js";
 import { HARD_EFFORT } from "./heavy-load.js";
 import { liftTrainedRecently } from "./program-state.js";
 import { strengthDeclineIsMeaningful } from "./whole-person-trajectory.js";
@@ -416,17 +417,11 @@ function theilSen(rows: Array<{ date: string; value: number }>): number | null {
 
 function bodyChannel(today: string): UnderfuelingChannel {
   const since = addDaysISO(today, -35) ?? today;
-  const rows = (
-    db
-      .prepare(
-        `SELECT date, waist_in AS value FROM body_measurements
-        WHERE date BETWEEN ? AND ? AND waist_in IS NOT NULL
-        ORDER BY date, id`
-      )
-      .all(since, today) as any[]
-  )
-    .map((row) => ({ date: String(row.date), value: Number(row.value) }))
-    .filter((row) => Number.isFinite(row.value));
+  // One waist reading per day (dailySiteSeries): a same-day re-tape is one sample.
+  const rows = dailySiteSeries("waist_in", { since, through: today }).map((row) => ({
+    date: row.date,
+    value: row.value,
+  }));
   const span = rows.length >= 2 ? daysBetweenISO(rows.at(-1)!.date, rows[0].date) : null;
   const slope = span != null && span >= 14 ? theilSen(rows) : null;
   if (slope == null) {

@@ -17,7 +17,8 @@ import { syncMeasuredRmrFromHealthDocs } from "./metabolism.js";
 import { bumpTrainingDataVersion } from "./training-cache.js";
 import { capStr } from "./nutrition.js";
 import { getPlan } from "./plan.js";
-import { getProfile, listWeight } from "./profile.js";
+import { getProfile } from "./profile.js";
+import { dailyManualWeighIns } from "./bodyweight.js";
 import { matchClinicalReferenceRange } from "./reference-ranges.js";
 import { getSettings, pickHealthAgentOrder } from "./settings.js";
 import {
@@ -1593,7 +1594,9 @@ function computeMarkerHistory() {
 
   try {
     const weightKey = canonicalMarker("Body Weight").key;
-    for (const row of listWeight(1000) as any[]) {
+    // One point per day: the day's latest manual entry (dailyManualWeighIns), so a
+    // corrected same-day typo never plots as a second Body Weight reading.
+    for (const row of dailyManualWeighIns({ limit: 1000 })) {
       const numeric = Number(row?.weight_lb);
       const date = String(row?.date || "").slice(0, 10);
       if (!Number.isFinite(numeric) || !date) continue;

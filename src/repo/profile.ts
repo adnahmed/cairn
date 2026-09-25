@@ -7,8 +7,9 @@ import { getLatestNutritionTarget } from "./nutrition.js";
 import { latestMeasuredRmr, measuredRmrAssessment } from "./metabolism.js";
 import { LB_PER_KG, addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
 import { bumpTrainingDataVersion } from "./training-cache.js";
-import { canonicalBodyweightSeries, resolvedCurrentBodyweight } from "./bodyweight.js";
+import { canonicalBodyweightSeries, recentIdenticalWeighIn, resolvedCurrentBodyweight } from "./bodyweight.js";
 import { classifyRecompositionStage } from "./recomposition-stage.js";
+import { dailySiteSeries } from "./measurement-series.js";
 import { serializeTrainingIntent } from "./training-intent.js";
 import { normalizeLocationText } from "./location-context.js";
 import { parseMovementConsiderations, serializeMovementConsiderations } from "./movement-considerations.js";
@@ -728,6 +729,18 @@ export function logWeight(weight_lb: number, date?: string, note?: string) {
     throw new RangeError(`weight_lb must be between ${MIN_LOGGED_WEIGHT_LB} and ${MAX_LOGGED_WEIGHT_LB}`);
   }
   const d = canonicalWeightLogDate(date);
+  // A double submit of the SAME reading is idempotent (WEIGHT_RESUBMIT_WINDOW_MIN,
+  // ./bodyweight.ts): hand back the row already written, with no second row, no cache
+  // bump and no brain event. The one thing a repeat may add is words — a note typed on
+  // the second tap attaches to a row that had none, never replacing one it had.
+  const repeat = recentIdenticalWeighIn(d, weight);
+  if (repeat) {
+    const words = note != null && String(note).trim() !== "" ? String(note) : null;
+    if (words && (repeat.note == null || String(repeat.note).trim() === "")) {
+      db.prepare(`UPDATE bodyweight_log SET note = ? WHERE id = ?`).run(words, repeat.id);
+    }
+    return db.prepare(`SELECT * FROM bodyweight_log WHERE id = ?`).get(repeat.id);
+  }
   const info = db
     .prepare(`INSERT INTO bodyweight_log (date, weight_lb, note) VALUES (?, ?, ?)`)
     .run(d, weight, note ?? null);
@@ -790,13 +803,17 @@ function heightInFor(p: any): number | null {
 function navyTapeBodyFat(p: any): BodyFatEstimate | null {
   const heightIn = heightInFor(p);
   if (heightIn == null) return null;
-  const row = db
-    .prepare(`SELECT date, waist_in, hip_in, neck_in FROM body_measurements ORDER BY date DESC, id DESC LIMIT 1`)
-    .get() as any;
-  if (!row) return null;
-  const waist = Number(row.waist_in);
-  const neck = Number(row.neck_in);
-  const hip = Number(row.hip_in);
+  // The latest tape DAY, one value per site (measurement-series.ts): a same-day
+  // re-entry that corrects only the waist keeps that day's earlier neck and hip.
+  const row = db.prepare(`SELECT MAX(date) AS date FROM body_measurements`).get() as any;
+  if (!row?.date) return null;
+  const onDay = (site: string) => {
+    const reading = dailySiteSeries(site, { since: row.date, through: row.date }).at(-1);
+    return reading ? reading.value : Number.NaN;
+  };
+  const waist = onDay("waist_in");
+  const neck = onDay("neck_in");
+  const hip = onDay("hip_in");
   const female = String(p?.sex || "male").toLowerCase() === "female";
   let value: number | null = null;
   if (!female && Number.isFinite(waist) && Number.isFinite(neck) && waist > neck && heightIn > 0) {

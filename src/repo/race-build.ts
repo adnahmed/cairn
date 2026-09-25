@@ -33,6 +33,7 @@
 import { db } from "../db.js";
 import { addDaysISO, daysBetweenISO, isoDaysAgo, mondayOf } from "../lib/dates.js";
 import { round1 } from "../lib/numbers.js";
+import { withoutShadowActivities } from "./activity-shadow.js";
 import { weekLayoutRead, type WeekLayoutRead } from "../domain/training/week-layout.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
 import { harmEvidenceOnDay } from "./brain/read-adherence.js";
@@ -550,10 +551,13 @@ function recentRuns(asOf: string, days: number): RunRow[] {
   try {
     rows = db
       .prepare(
-        `SELECT date, type, raw_text, notes, distance_km, duration_min FROM activities
+        `SELECT date, type, source, external_id, raw_text, notes, distance_km, duration_min FROM activities
           WHERE date <= ? AND date >= ? ORDER BY date DESC`
       )
       .all(asOf, isoDaysAgo(asOf, days)) as any[];
+    // A hand-typed shadow of a synced run carries a rounded duration — never let it
+    // stand in for the watch's own numbers in the prediction.
+    rows = withoutShadowActivities(rows);
   } catch {
     return [];
   }

@@ -1,6 +1,7 @@
 import { db } from "../db.js";
 import { computeGoalCheck, currentBodyFatEstimate, effectiveGoalMode, getProfile, leanGainRate, leannessAwareLossRates, projectGoalPace } from "./profile.js";
 import { localDateISO } from "./shared.js";
+import { dailyManualWeighIns } from "./bodyweight.js";
 import { mayProposeEaseFromCut } from "./cut-target.js";
 import { recompositionRead } from "./recomposition.js";
 import type { ExpenditureEstimate } from "./expenditure.js";
@@ -194,27 +195,10 @@ function daysAfterISO(date: string, days: number): string | null {
 
 function firstWeightAtOrBelow(targetWeight: number, startDate?: string | null): any {
   if (!Number.isFinite(targetWeight)) return null;
-  const since = iso(startDate);
-  if (since) {
-    return (
-      db
-        .prepare(
-          `SELECT date, weight_lb, created_at FROM bodyweight_log
-            WHERE date >= ? AND weight_lb <= ?
-            ORDER BY date ASC, id ASC LIMIT 1`
-        )
-        .get(since, targetWeight) || null
-    );
-  }
-  return (
-    db
-      .prepare(
-        `SELECT date, weight_lb, created_at FROM bodyweight_log
-          WHERE weight_lb <= ?
-          ORDER BY date ASC, id ASC LIMIT 1`
-      )
-      .get(targetWeight) || null
-  );
+  // One weigh-in per day (dailyManualWeighIns): a same-day typo corrected upward never
+  // marks the goal reached on a day whose weight — the latest entry — was above it.
+  const hit = dailyManualWeighIns({ since: iso(startDate) }).find((w) => w.weight_lb <= targetWeight);
+  return hit ? { date: hit.date, weight_lb: hit.weight_lb, created_at: hit.created_at } : null;
 }
 
 function latestWeightPoint(): any {
