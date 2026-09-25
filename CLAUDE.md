@@ -516,7 +516,8 @@ one-off `docker compose exec` commands that must persist a CLI login need `-u ap
 | `docs/VISION.md` | The constitution. Read before shaping product behavior. |
 | `docs/ARCHITECTURE.md` | Subsystem depth: repo layer, prompts, chat/streaming, art, scheduler, enrichment, PWA surfaces. |
 | `docs/API.md` · `docs/MCP-TOOLS.md` | Generated, authoritative endpoint and tool inventories. |
-| `docs/DESIGN.md` | The "Atelier" visual contract — palette, class names, motion. Read before touching `styles.css` or view markup. |
+| `docs/DESIGN.md` | The "Atelier" visual contract — palette, class names, motion, and the client component architecture. Read before touching `styles.css` or view markup. |
+| `docs/V2-PLAN.md` | The in-flight v2 roadmap (waves, streams, acceptance). Deleted when v2.0.0 ships. |
 | `docs/OPERATIONS.md` | Deploy, migrate, backup, restore, tooling notes. |
 | `docs/ELITE-BRAIN-IMPLEMENTATION.md` | The decision ledger, evaluators, autonomy tiers. |
 | `docs/ARCHITECTURE-HISTORY.md` | Append-only per-round schema/feature changelog. |

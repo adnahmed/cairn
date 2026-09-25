@@ -8,6 +8,9 @@ This document is the **frozen contract** between `public/styles.css` (design sys
 `public/art.js` (illustration library), and the view modules in `public/js/` (formerly
 the single `app.js`). Class names and APIs
 listed here are load-bearing — change them in all three places or not at all.
+The view modules are generated from `src/client/**`. How those modules are structured (component
+contract, state, data loading, tokens, motion, states, accessibility, inventory) is covered in
+**Component architecture** at the end of this file.
 
 ## Palette (CSS variables in `:root`)
 
@@ -669,3 +672,249 @@ A crafted chat surface, not a form. Layout + behavior contract:
   convo must reset `text-align:left` (else bubbles render centered) and must NOT inherit `.chatlog`'s
   `overflow/overscroll` (as a no-room scroll container those swallow the touch gesture and nothing
   scrolls). Both are pinned on `.chat-hist-convo` in `styles.css`.
+
+## Component architecture
+
+How `src/client/**` is put together: what the code does today, and the rules that v2 UI work
+follows. `docs/V2-PLAN.md` sequences the refactors; this section is the contract they aim at. The
+numbers below were measured at v1.9.1 — re-measure before you quote them.
+
+### What the code does today
+
+- **One global scope, no framework.** 244 TypeScript modules (~60k lines; `.ts` files under
+  `src/client`) compile file by file into `public/js/`, then get concatenated in a fixed order into
+  seven bundles (`BUNDLES`,
+  `scripts/build-client.mjs`). A module is an IIFE or block that publishes a `Cairn<Name>` namespace
+  with `Object.assign(globalThis, …)`. There are about 206 of these namespaces, plus about 435 bare
+  global functions kept for older callers.
+- **HTML is built from strings.** About 357 `…Html()` renderers return markup, `innerHTML =` appears
+  about 330 times, and `escHtml` is called about 1,000 times. There is no virtual DOM.
+- **File roles follow the suffix, mostly.** `*-client.ts` means view (139 files; 73 of them do no
+  fetching and add no listeners). `*-controller.ts` means load + state + wiring (39). `*-model.ts`
+  means pure data shaping (6), and `*-screen.ts` means a tab or destination (8). The closest thing
+  to a clean split today is `today-brief-client.ts` (pure renderers) with
+  `today-brief-controller.ts` (fetching, caching, wiring).
+- **Events are wired after paint.** There are about 535 `addEventListener` calls across 114 files.
+  Delegation through `closest()` is rare (about 46 uses), and 8 files guard against double-wiring
+  with `dataset.wired`.
+- **31 modules still mix fetching, listeners and renderers.** They are the refactor list, largest
+  first: `api-client.ts`, `body-metrics-client.ts`, `today-screen.ts`, `stand-screen.ts`,
+  `plan-editor-controller.ts`, `progress-program-controller.ts`.
+
+### The component contract
+
+A **component** is one piece of UI with a stable prefix, for example `pweek`, `hmk` or `meal-card`.
+It lives in one to three files that share a stem:
+
+| File | Holds | Must not |
+|---|---|---|
+| `<stem>-model.ts` (optional) | Pure functions from a server DTO to a view model | Touch the DOM, fetch, read `state` |
+| `<stem>-client.ts` (view) | `thingHtml(model, opts): string`. Deterministic; every caller string goes through `escHtml`/`escAttr` or a `CairnUi` primitive | Fetch, add listeners, read `state`, write storage |
+| `<stem>-controller.ts` | `mountThing(host, deps): () => void`. Loads through `deps`, paints into `host`, wires with delegated listeners on `host`, and returns a teardown | Query outside `host`, render another component's markup inline |
+
+Rules:
+
+1. **Screens compose and components stay unaware of screens.** A `*-screen.ts` owns the layout, the
+   route/segment, the slot ids (`#fooSlot`) and the `deps` it builds. It paints its shell or skeleton
+   synchronously, then mounts components into `.card-stack-item` slots. A component never reaches
+   into another component's nodes or calls another screen's `render…`.
+2. **Dependencies come in through `deps`, not globals.** A controller receives what it needs
+   (`api`, `toast`, SWR helpers, `navigate`, …) as an object. The existing `…Deps()` factories
+   (`todayRailDeps`, `exerciseDetailDeps`, `me-health-dependencies.ts`) are the pattern. New code
+   adds no compatibility bridges and no one-line forwarding shims (there are about 51 today, such as
+   `sparkDateLabel` in `health-markers-client.ts:61`).
+3. **Each module has one export and one name.** Publish one `Cairn<Stem>` namespace, once, through
+   `Object.assign(globalThis, …)`. In the browser `globalThis` is `window`, so the extra
+   `window.X = …` block that about 200 files repeat is redundant. Don't copy it. Don't add new bare
+   globals. A top-level reference into another module still needs a lazy `() => fn()` thunk
+   (CLAUDE.md), and an eager bundle never touches a lazy bundle's namespace at load time.
+4. **Actions are data attributes, handled by delegation.** Name an action
+   `data-<prefix>-<action>`; `data-pweek-day`, `data-cfocus-go` and `data-decision-undo` already
+   work this way. Put one listener per event type on `host` and dispatch with `closest()`.
+   Delegation alone does **not** make `mount` idempotent: a host is a persistent slot, so a second
+   `mountThing(host, deps)` replaces the markup but adds a second listener to the same host, and one
+   tap then fires twice (two revert POSTs, two logged sets). Idempotency comes from the mount helper
+   (`delegate`, F5 in `docs/V2-PLAN.md`): every listener a mount adds is registered with the
+   `signal` of an `AbortController` owned by that mount, the helper keeps a `WeakMap` from host to
+   the current mount's teardown, and a new mount on the same host runs the previous teardown
+   (aborting its listeners) before it wires. The returned teardown aborts the same controller. Only
+   code that wires through that helper may drop `dataset.wired` guards. Use ids only for slots a
+   screen owns.
+5. **Async paints check that they are still current.** Each continuation after an `await` checks the
+   render generation (`pollToken`, `ui-shell.ts:217`) or the controller's own token, plus
+   `host.isConnected`, before it writes.
+6. **The server owns the truth; renderers print it.** Today's lift line, reading-grammar words,
+   outcome phrases and Undo labels all arrive finished from the server. A renderer frames them and
+   never works them out again (CLAUDE.md, "Today's lift has ONE server line").
+
+### State ownership
+
+| State | Owner |
+|---|---|
+| Durable truth | The server. Never mirrored by hand. |
+| Last-known server JSON | The SWR cache (`swr-cache.ts`), JSON only |
+| Route, navigation, cross-screen hand-offs | `state` (`ClientAppState`, `src/contracts/client-state.ts`): `tab`, `logDate`, `*Seg`, `pending*`, `chatPrefill` |
+| Component UI state (open fold, selected day, unsaved edits) | The controller's closure, or the DOM itself (`aria-pressed`, `<details open>`) |
+| Per-viewer preferences (units, a dismissed card) | `localStorage` `cairn.*` keys, every access wrapped in try/catch |
+| Writes made while offline | The outbox (`outboxEnqueue` / `runSessionMutation`, `api-client.ts`) |
+
+Don't add new underscore caches to `state`. The existing ones (`_dayFuel`, `_goal`, `_briefInflight`,
+`_briefMorph`, `_lifeById`, `_famById`, `_notesById`) move to an SWR key or a controller closure when
+their owner is touched. **Never cache HTML.** `today-screen.ts:162` stores rendered markup in
+`sessionStorage`; it is scheduled to go.
+
+### Data loading
+
+- **Reads:** a surface uses `paintSWR({key, path, peek, render, token})`, a slot uses `cachedApi`,
+  and a synchronous warm paint uses `peekCached` (`swr-cache.ts`). Show a skeleton only on a true
+  cold start, and upgrade in place only when the JSON actually changed. **One cache per fact.** New
+  surfaces don't add their own `sessionStorage` snapshot (`stand-screen.ts:1243` and
+  `today-screen.ts:162` both do today); SWR already provides that snapshot.
+- **Writes:** call `api(path, {method})`, then `swrInvalidate(key | prefix)`, then repaint only the
+  component that changed. A write that has to survive going offline goes through the outbox.
+- **Prefetch:** start reads before you await them. On Today, `CairnTodayPrefetch`
+  (`today-data-loader.ts`) and `prefetchRail` (`today-rail-controller.ts:134`) hand the in-flight
+  promise to the slot instead of fetching twice. `api()` already merges identical concurrent GETs
+  (`createApiCoalescer`, `api-client.ts:361`).
+- **Agent work:** use `runOp` (`agent-job-client.ts:262`) with a `data-job-anchor` and
+  `registerJobReconnector`. A paint never waits on an agent.
+- **Server signals:** `{ok:false, error}` with HTTP 200 is a calm refusal, so leave the surface as it
+  was and say why in one sentence. `200 + null` means the thing is absent.
+
+### Naming
+
+- **Files:** `<surface>-<component>-{model,client,controller}.ts`, screens `<surface>-screen.ts`,
+  shared primitives `ui-<name>.ts`. Each new file gets a `CLIENT_OUTPUTS` entry and a place in
+  `BUNDLES` (and `CORE_ASSETS` if it becomes a new served asset).
+- **Functions:** renderers `thingHtml`, SVG builders `thingSvg`, controllers
+  `mountThing`/`wireThing`, loaders `loadThing`, pure shaping `thingModel`.
+- **CSS:** each component gets one short prefix (`.hmk-*`, `.pweek-*`), listed in the inventory
+  below. Use `.is-*` for state and `-ok` / `-watch` / `-quiet` for tone, the same words the reading
+  layer uses. Don't coin a new tone vocabulary.
+
+### Size limits
+
+A module stays under **400 lines**, and **600 is the hard ceiling**; 30 files are over 400 today and
+14 are over 600. A render function stays under about 80 lines; past that, split it into
+sub-renderers. A screen file does composition only and stays under 400. The existing oversize files
+are allowed to shrink but never to grow, and each is split when a wave touches it.
+
+### Tokens
+
+- Every color, shadow, radius, font, duration, easing and press depth is defined in `styles.css`
+  §01 `:root`. **TypeScript never writes a hex color or a duration literal.** SVG built in TS styles
+  itself through classes or `var(--token)`. The only exceptions are the authored illustration
+  libraries (`art.js`, `cairn-body-figure.ts`). Hex literals today: `body-metrics-client.ts` 118,
+  `agent-login-modal-client.ts` 29, `progress-overview-client.ts` 20, `progress-screen.ts` 13,
+  `api-client.ts` 13.
+- **Inline `style=""` carries data only:** custom properties (`--i`, `--frac`, `--segi`, `--segn`)
+  and data geometry (`left`/`width` percentages). About 527 inline styles in 80 files do more than
+  that today (98 of them in `body-metrics-client.ts`).
+- **Scales that are still missing:** spacing (only `--space-card` exists), type (about 70 distinct
+  `rem` sizes), z-index (about 15 raw values between 1 and 90), and a pill radius (`999px` appears
+  127 times). The v2 foundation adds `--space-*`, a short `--text-*` scale, named `--z-*` layers and
+  `--radius-pill`, and new CSS uses only those.
+- **New component CSS** goes in its own numbered `styles.css` section under the component's prefix.
+  The section numbers are out of order today (04c/04d come before 04b, 29b comes after 35, and §31
+  appears twice); renumber them when the file is next reorganized.
+
+### Motion system
+
+The tokens and vocabulary are in **Motion tokens** above. Rules for anything new:
+
+- **Duration by role:** `--dur-1` (200ms) for presses, hovers and state flips. `--dur-2` (320ms) for
+  sheets, overlays, segment thumbs, view transitions and detail swaps. `--dur-3` (450ms) for
+  entrances, bars growing and photo fades. Count-ups (~750ms) are the one longer exception, and
+  loading loops are separate from all of these. There are 55 `.15s` transitions and 10 copies of the
+  `--ease` curve written out as literals today; move them to tokens when you touch their section.
+- **Easing:** `var(--ease)` only. Use `linear` only for spinners and progress fills.
+- **Press:** use the `--press*` token that matches the target size. Press is kept under reduced
+  motion because it confirms the tap rather than decorating it.
+- **One entrance per element:** either `.reveal` with a `--i` stagger (capped at 12) or `settle-in`,
+  never a fade and a rise together. `viewHydrate()` owns the skeleton-to-content swap.
+- **View changes** go through `withViewTransition`/`tabSwap`. The shared-element names are reserved
+  (`detail-art`, `seg-thumb`, `tabbar`); register any new one here before using it.
+- **Height changes** use `collapseEl`/`expandEl` (`ui-motion-client.ts`) or the `grid-template-rows`
+  0fr→1fr pattern (`.hmk-panel`). Never hand-animate `height:auto`.
+- **Reduced motion:** JS checks one predicate, `reducedMotion()` (`ui-feedback-client.ts:12`).
+  `motionReduced` (`ui-motion-client.ts:12`) is a duplicate and gets folded into it. Every new
+  keyframe is either silenced by §30 or deliberately restored there as functional.
+- **Budget:** only one thing moves for attention at a time. Reading surfaces get no looping
+  decoration, and the only celebration is the gold PR moment.
+
+### Empty, loading and error states
+
+| Situation | Primitive | What it says |
+|---|---|---|
+| Cold load | Skeleton shaped like the final layout (`todaySkeleton`, `segSkeleton`, `skelLines`, `ui-feedback-client.ts:145–163`) | Nothing. It is the layout. |
+| Region fetching or an agent thinking | `loadingState` / `CairnUi.loadingStateHtml` + `thinkingCaption` | A calm, op-specific line |
+| Button kicked off an operation | `btnBusy(btn, label)` | A working label, footprint pinned |
+| Surface being regenerated | `.is-thinking` / `.is-thinking--determinate` | Nothing more |
+| Background refresh | `.swr-refreshing` hairline | Nothing. Never a spinner over real content. |
+| Empty | `CairnUi.emptyStateHtml` (`ui-components.ts:133`) | What would fill it and where that comes from ("Mention pain in your session notes or chat"). Never "0" or "no data", and never blame. |
+| Optional async slot with nothing to show | Collapse it (`:empty{display:none}`, `.card-stack` drops empty items) | Nothing |
+| No recent signal in a domain | Plain words | "Quiet". A silence is normal and never reads as a problem or "low". |
+| Refusal (`{ok:false}` at 200) | One sentence in place | Why, with the surface left unchanged |
+| Network failure | `tabErrorState` (`ui-feedback-client.ts:136`) for a tab; `toast` for an action, keeping what was typed; while offline, the outbox and "Saved — will sync" | Plain, recoverable |
+
+About 21 files still build their own `*-empty` markup; move them to `emptyStateHtml` when you touch
+them.
+
+### Accessibility minimums
+
+- Actions are `<button type="button">` and navigation is a link. `role="button"` on a `div` exists
+  only in legacy code (5 files).
+- Toggles set `aria-pressed`, and disclosures use `aria-expanded` or a native `<details>`. A
+  segmented control is `role="group"` with an `aria-label`.
+- Tap targets are at least 44px (§38). The focus ring shows for keyboard users and stays quiet for
+  pointer users (**Motion tokens**, "Programmatic focus is quiet").
+- Small text uses the AA text tokens (`--muted`, `--sage-text`, `--gold-deep`), never `--sage` or
+  `--gold`.
+- Color is never the only signal. A dot or pip carries its meaning in `aria-label`/`title` and in a
+  visible phrase.
+- Async status uses `role="status"` with `aria-live="polite"` (`loadingStateHtml`,
+  `jobCaptionHtml`). Never assertive.
+- **Overlays share one primitive:** `role="dialog"`, `aria-modal="true"`, a label, focus moved in and
+  returned to the opener on close, Escape and backdrop both close, and the background is inert.
+  There are six hand-rolled overlays today (see the inventory).
+- `prefers-reduced-motion` (§30) and `prefers-contrast: more` (§39) are honored. A number always
+  carries its unit, and dates read the way a person says them (**Hard rules**).
+
+### Component inventory
+
+**Shared primitives to reuse and extend.** A new surface composes these instead of re-rolling them.
+
+| Primitive | Module | Notes |
+|---|---|---|
+| `escHtml` / `escAttr` | `html-utils.ts` | The only escapers |
+| `CairnUi` (attrs, action button, text chip, loading state, segmented nav, job caption, sheet chip, empty state) | `ui-components.ts` | Pure renderers; the model for new primitives |
+| `CairnUiReads` (baseline band, contributor rows, level chip, trend lead, strength line) | `ui-reads.ts` | The reading grammar |
+| Feedback: `btnBusy`, `countUp`/`runCountUps`, `loadingState`, `thinkingCaption`, `tabErrorState`, skeletons | `ui-feedback-client.ts` | |
+| `showToast` (with an action) + `armDestructiveAction` | `ui-actions-client.ts` | `toast`/`armDelete` in `ui-shell.ts:33/37` are thin wrappers |
+| View transitions: `withViewTransition`, `tabSwap`, `viewHydrate` | `ui-view-transitions-client.ts` (re-exported in `ui-shell.ts`) | |
+| `collapseEl` / `expandEl` | `ui-motion-client.ts` | |
+| Segments: `segBar` / `wireSeg` / `fitSeg` | `ui-segments-client.ts` | |
+| Detail overlay: `openDetailFrom` / `closeDetail` | `detail-overlay-client.ts` | |
+| Save bar | `save-bar.ts` | |
+| SWR, jobs, API + outbox | `swr-cache.ts`, `agent-job-client.ts`, `api-client.ts` | |
+| Art: `artImg`, `CairnArt`, `CairnBodyFigure` | `art-controller.ts`, `public/art.js`, `cairn-body-figure.ts` | |
+| `sparklineSvg` | `ui-shell.ts:192` | Moves into a chart module |
+| Markdown, dates, formats | `markdown-client.ts`, `date-utils.ts`, `format-utils.ts` | |
+
+**Duplicates to consolidate** (v2 foundation):
+
+| Pattern | Copies today | Target |
+|---|---|---|
+| Segmented control | `CairnUi.segmentedNavHtml` (`ui-components.ts:95`), `ui-segments-client.ts:125/139`, hand-built in `me-health-tabs-controller.ts:25`, plain `.seg` groups in `me-profile-form-client.ts:329–395` and `stand-screen.ts:761` | One `segmentedHtml({items, active, label, variant: 'sliding'\|'plain'\|'leaf'})` + `wireSeg` |
+| Overlay / sheet / modal | `.detail` (`detail-overlay-client.ts`), meal sheet (`meal-recipe-controller.ts`), `.bpsheet` (`health-standing-controller.ts`), onboarding `.modal-card`, token sheet with its own injected `<style>` plus the outbox review (`api-client.ts`), agent-login modal | One `ui-sheet` (bottom sheet on mobile, dialog on desktop) meeting the overlay rules above; `.detail` stays for full-screen items |
+| Charts | `sparklineSvg` (`ui-shell.ts:192`), `markerChartSvg`/`markerBandSvg` (`health-markers-client.ts:242/298`), `zoneBarSvg` (`body-metrics-client.ts:1199`), `tovLoadBandHtml` (`progress-overview-client.ts:422`), `progress-chart-*` (4 files), `baselineBandHtml` (`ui-reads.ts:73`) | One `ui-chart` module (spark/line, band, zone bar) sharing scales and date labels; no hex |
+| Decision Undo | Four revert call sites: `today-screen.ts:191`, `today-rail-controller.ts:235/261`, `coach-meals-screen.ts:164` | One `decision-undo` component (button + toast action + busy state + error) |
+| Empty state | `emptyStateHtml` alongside about 21 hand-rolled `*-empty` blocks | `emptyStateHtml` |
+| Reduced-motion check | `reducedMotion` and `motionReduced` | `reducedMotion` |
+| HTML escaping | `escapeOutboxHtml` (`api-client.ts:1436`) | `escHtml` |
+| Screen snapshots | `today-screen.ts:162` (HTML), `stand-screen.ts:1243` (JSON) | SWR |
+
+**Components v2 adds** (sequenced in `docs/V2-PLAN.md`): `changes-line`, `changes-feed`,
+`decision-undo`, `meal-card` (editable rows), `food-composer` (shared by Fuel and chat),
+`fuel-today`, `idea-card`, `records-search`, `packet-builder`, `visit-questions`, `race-ladder`,
+`pebble-strip`, `cairn-stack`.
