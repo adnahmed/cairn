@@ -5,14 +5,19 @@ import { getUpdateStatus, checkForUpdate } from "../updateCheck.js";
 import { getVersion } from "../version.js";
 import { db } from "../db.js";
 import { getBuildInfo } from "../build-info.js";
+import { currentShellVersion } from "../swVersion.js";
 
 export const systemRouter = Router();
 
-// Liveness only: process identity plus exact build provenance. It deliberately
-// does not probe optional coaching CLIs or other external providers.
-systemRouter.get("/health", (_req, res) =>
-  res.json({ ok: true, auth_required: authEnabled, version: getVersion(), build: getBuildInfo() })
-);
+// `shell` is the derived service-worker cache name this server hands out; Settings
+// shows the one the device's worker holds, so a deploy can be checked on the phone.
+export function healthBody() {
+  return { ok: true, auth_required: authEnabled, version: getVersion(), build: getBuildInfo(), shell: currentShellVersion() };
+}
+
+// Liveness only: process identity, exact build provenance and the app shell it serves.
+// It deliberately does not probe optional coaching CLIs or other external providers.
+systemRouter.get("/health", (_req, res) => res.json(healthBody()));
 
 function ageSeconds(value: unknown, nowMs = Date.now()): number | null {
   if (typeof value !== "string" || !value) return null;

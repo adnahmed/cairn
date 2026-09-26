@@ -120,8 +120,25 @@ function wirePhoneCoach(el: Element): void {
   }
 }
 
+// An installed app gets no install coach; on iOS it may instead get the one-time
+// note about re-adding for a new icon and name (app-identity-controller.ts decides).
+function renderReaddNote(container: Element): void {
+  try {
+    if (typeof CairnAppIdentityController === "undefined") return;
+    CairnAppIdentityController.mountReaddNote(container, {
+      storage: localStorage,
+      env: CairnAppIdentityController.env(),
+      outboxCount: () => (typeof CairnOutbox !== "undefined" ? CairnOutbox.count() : 1),
+    });
+  } catch {}
+}
+
 function renderPhoneCoachBanner(container: Element | null | undefined): void {
-  if (!container || isStandalonePWA()) return;
+  if (!container) return;
+  if (isStandalonePWA()) {
+    renderReaddNote(container);
+    return;
+  }
   if (localStorage.getItem("cairn_phone_coach_dismissed") === "1") return;
   if (container.querySelector(".phone-coach")) return;
   const guidance = getInstallGuidance();

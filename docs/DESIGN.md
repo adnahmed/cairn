@@ -971,4 +971,6 @@ in each row.
 **Components v2 adds** (sequenced in `docs/V2-PLAN.md`): `changes-line`, `changes-feed`,
 `decision-undo`, `meal-card` (editable rows), `food-composer` (shared by Fuel and chat),
 `fuel-today`, `idea-card`, `records-search`, `packet-builder`, `visit-questions`, `race-ladder`,
-`pebble-strip`, `cairn-stack`.
+`pebble-strip`, `cairn-stack`, `app-readd` (the one-time iOS re-add note) and `app-id` (Settings →
+Data's "This app" block: server build, this app's shell, Copy token), both from
+`app-identity-{model,client,controller}.ts`.

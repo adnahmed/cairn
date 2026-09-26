@@ -16,6 +16,8 @@ type SettingsDataControllerDeps = {
   downloadFile(path: string): void;
   reload(): void;
   inStandaloneApp?: boolean;
+  /** Injected in tests; the browser build reads its own storage, clipboard and worker. */
+  appIdentity?: AppIdentityCardDeps;
 };
 
 let updateStatusCache: Record<string, unknown> | null = null;
@@ -35,6 +37,23 @@ function refreshSettingsDataUpdateCard(deps: SettingsDataControllerDeps): void {
   if (el) el.innerHTML = deps.updateCardHtml(updateStatusCache);
 }
 
+// The browser's own storage, clipboard and service worker for the "This app" block.
+function settingsDataAppIdentityDeps(deps: SettingsDataControllerDeps): AppIdentityCardDeps {
+  let storage: Storage | null = null;
+  try {
+    storage = localStorage;
+  } catch {}
+  const nav = typeof navigator !== "undefined" ? navigator : null;
+  return {
+    api: (path) => deps.api(path),
+    storage,
+    toast: deps.toast,
+    clipboard: nav && nav.clipboard ? nav.clipboard : null,
+    workerShell: () => (nav ? CairnAppIdentityController.workerShell(nav) : Promise.resolve("")),
+    execCopy: () => (typeof document !== "undefined" ? document.execCommand("copy") : false),
+  };
+}
+
 function renderSettingsData(deps: SettingsDataControllerDeps): void {
   const wm = deps.workingModel;
   const root = deps.root as HTMLElement;
@@ -49,6 +68,7 @@ function renderSettingsData(deps: SettingsDataControllerDeps): void {
           <span>Check for new Cairn releases</span></label>
         <div class="sess-line" style="color:var(--muted);margin-top:6px">A quiet daily check against the public GitHub Releases page — pull, never a notification. It sends nothing but an anonymous request; no data leaves your instance. Off keeps Cairn fully offline.</div>
         <button id="updateCheckNow" class="ghostbtn" style="width:100%;text-align:center;padding:11px;margin-top:10px;${wm.update_check_enabled ? "" : "display:none"}">Check now</button>
+        <div id="appIdentityCard" class="sess app-id-card"></div>
 
         <h1 class="lbl" style="margin:22px 0 8px">Data &amp; backup</h1>
         <button id="dlJson" class="ghostbtn" style="width:100%;text-align:center;padding:11px">Download JSON backup</button>
@@ -63,6 +83,10 @@ function renderSettingsData(deps: SettingsDataControllerDeps): void {
         <button id="rerunSetup" class="ghostbtn" style="width:100%;text-align:center;padding:11px">Re-run first-time setup</button>
       </section>`;
 
+  const appIdentityHost = deps.root.querySelector<HTMLElement>("#appIdentityCard");
+  if (appIdentityHost && typeof CairnAppIdentityController !== "undefined") {
+    CairnAppIdentityController.mountAppCard(appIdentityHost, deps.appIdentity || settingsDataAppIdentityDeps(deps));
+  }
   CairnSettingsData.wirePhoneAccessCard({ api: deps.api, toast: deps.toast });
   CairnSettingsData.wireExerciseGuideCard({ root: deps.root, api: deps.api, toast: deps.toast });
 

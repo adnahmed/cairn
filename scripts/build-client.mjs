@@ -307,6 +307,9 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/idea-card-client.ts", output: "public/js/idea-card-client.js" },
   { source: "src/client/idea-card-controller.ts", output: "public/js/idea-card-controller.js" },
   { source: "src/client/fuel-deps.ts", output: "public/js/fuel-deps.js" },
+  { source: "src/client/app-identity-model.ts", output: "public/js/app-identity-model.js" },
+  { source: "src/client/app-identity-client.ts", output: "public/js/app-identity-client.js" },
+  { source: "src/client/app-identity-controller.ts", output: "public/js/app-identity-controller.js" },
 ];
 
 // Ordered concatenation manifest. index.html loads a handful of bundles instead
@@ -366,6 +369,9 @@ export const BUNDLES = [
       "public/js/ui-header-client.js",
       "public/js/ui-segments-client.js",
       "public/js/02-ui.js",
+      "public/js/app-identity-model.js",
+      "public/js/app-identity-client.js",
+      "public/js/app-identity-controller.js",
     ],
   },
   {
