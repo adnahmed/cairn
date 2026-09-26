@@ -349,4 +349,5 @@ Object.assign(globalThis, {
   markRefreshing,
   swrInvalidate,
   swrSweep,
+  settledWithin,
 });

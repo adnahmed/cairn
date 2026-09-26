@@ -1567,6 +1567,7 @@ declare global {
   declare function markRefreshing(on: unknown): void;
   declare function swrInvalidate(keyOrPrefix: string): void;
   declare function swrSweep(): void;
+  declare function settledWithin(reads: Promise<unknown>[], ms: number): Promise<void>;
   declare function routeApi(): ClientRoutesApi | null;
   declare function routeKey(
     key: unknown,

@@ -278,3 +278,26 @@ test("a write invalidation beats freshness — the next read refetches", async (
 
   assert.deepEqual(loaded.calls, ["/stats", "/stats"], "an invalidated key never peeks fresh");
 });
+
+test("settledWithin is published for other bundles and resolves on the first of all-settled or the bound", async () => {
+  // The bundles give each module its own scope, so a helper other bundles call must
+  // be published on globalThis, not merely declared at the top of the file.
+  const scoped = { Object, Promise, Map, JSON, Math, Error, Date, setTimeout, clearTimeout, localStorage: storageFrom() };
+  scoped.globalThis = scoped;
+  vm.runInNewContext(`(function () {\n${readFileSync(join(root, "public/js/swr-cache.js"), "utf8")}\n})();`, scoped);
+  assert.equal(typeof scoped.settledWithin, "function");
+
+  const settled = [];
+  let ok;
+  const answered = scoped.settledWithin([new Promise((resolve) => (ok = resolve)), Promise.reject(new Error("x"))], 10_000);
+  answered.then(() => settled.push("answered"));
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.deepEqual(settled, [], "waits while a read is still out");
+  ok(1);
+  await answered;
+  assert.deepEqual(settled, ["answered"], "a failed read counts as answered");
+
+  const started = Date.now();
+  await scoped.settledWithin([new Promise(() => {})], 30);
+  assert.ok(Date.now() - started >= 25, "a read that never answers is waited on only up to the bound");
+});

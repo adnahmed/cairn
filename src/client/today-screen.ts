@@ -1505,14 +1505,6 @@ async function renderSession(opts: any = {}): Promise<void> {
     }
   }
 
-  // The primer sits ABOVE the lift list, so it is asked now, beside the data load,
-  // and the first paint waits (briefly) for it: filled in afterwards it pushed the
-  // whole list down. The pre-asked read is used only if the plan day it was asked
-  // for is still the one the surface opens on.
-  const primerDayAtStart = todayState.day == null ? null : Number(todayState.day);
-  const primerPath = sessionPrimerPath(todayState.logDate, primerDayAtStart);
-  const primerPending = todayApi(primerPath);
-  primerPending.catch(() => {});
 
   // Today's lift, in the server's one line — requested beside the data load so the
   // header names the plan day (never a rest suggestion as its title) on first paint.
@@ -1528,6 +1520,15 @@ async function renderSession(opts: any = {}): Promise<void> {
   const prep: any = await todayPlanSessionPreparation.preparePlanSession(
     todayDeps().planSession(session, isToday, todayData)
   );
+
+  // The primer sits ABOVE the lift list, so it is asked as soon as the plan day is
+  // settled (the preparation above picks it), beside the strength line, and the first
+  // paint waits (briefly) for it: filled in afterwards it pushed the whole list down.
+  // The pre-asked read is handed to the primer only if it names the same day.
+  const primerDayAtStart = todayState.day == null ? null : Number(todayState.day);
+  const primerPath = sessionPrimerPath(todayState.logDate, primerDayAtStart);
+  const primerPending = todayApi(primerPath);
+  primerPending.catch(() => {});
 
   const profile: any = todayData.profile;
   const exercises: any[] = (todayData.exercises as any[]) || [];
