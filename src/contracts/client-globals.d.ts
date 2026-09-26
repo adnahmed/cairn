@@ -1511,6 +1511,7 @@ declare global {
     resolveSwr(
       option: ClientApiCallOptions["swr"],
     ): { maxStaleMs: number; freshMs: number; onStale?: (refresh: Promise<unknown>) => void } | null;
+    untilAborted<T>(promise: Promise<T>, signal: AbortSignal | null | undefined): Promise<T>;
   };
   declare const CairnApiCache: ClientApiCacheApi;
   // Every api() failure: `kind` says whether Cairn answered (http, invalid_json)

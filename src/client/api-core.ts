@@ -42,6 +42,7 @@ type ApiFetchOutcome = {
     shouldBypassApiCache,
     shouldArmGetTimeout,
     resolveSwr: resolveApiSwr,
+    untilAborted,
     GET_TIMEOUT_MS: API_GET_TIMEOUT_MS,
   } = CairnApiCache;
 
@@ -213,10 +214,8 @@ type ApiFetchOutcome = {
       // Today's paint-critical reads may already be on the wire: index.html starts
       // them before the bundles parse, and CairnTodayPrefetch hands each one over
       // exactly once. A missing or failed early response is a normal fetch.
-      // index.html started that request with no signal, so neither the early
-      // Response nor its body read can be aborted: both race this attempt's own GET
-      // timeout instead, and a stalled early request reads as a normal timeout
-      // (never an open-ended wait that a primed reader is parked behind).
+      // index.html starts it with no signal: the Response and its body race this
+      // attempt's GET timeout instead, so a stalled one reads as a normal timeout.
       const early = isGet && !bypass ? takeEarlyResponse(p) : undefined;
       const response = early
         ? untilAborted(early, init.signal).then((r) => r || fetch("/api" + p, init))
@@ -349,36 +348,6 @@ type ApiFetchOutcome = {
           throw err;
         });
     }
-  }
-
-  // Settles like `promise`, or rejects with an AbortError the moment `signal`
-  // aborts — for a promise the signal was never wired into (index.html's early
-  // fetch). No signal (no AbortController here) leaves the promise as it is.
-  function untilAborted<T>(promise: Promise<T>, signal: AbortSignal | null | undefined): Promise<T> {
-    if (!signal || typeof signal.addEventListener !== "function") return promise;
-    const abortError = (): Error => {
-      const err = new Error("The operation was aborted");
-      err.name = "AbortError";
-      return err;
-    };
-    if (signal.aborted) {
-      promise.catch(() => {});
-      return Promise.reject(abortError());
-    }
-    return new Promise<T>((resolve, reject) => {
-      const onAbort = () => reject(abortError());
-      signal.addEventListener("abort", onAbort, { once: true });
-      promise.then(
-        (value) => {
-          signal.removeEventListener("abort", onAbort);
-          resolve(value);
-        },
-        (cause) => {
-          signal.removeEventListener("abort", onAbort);
-          reject(cause);
-        },
-      );
-    });
   }
 
   function takeEarlyResponse(p: string): Promise<Response | null> | undefined {

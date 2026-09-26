@@ -103,7 +103,7 @@ test("the launch card gate keeps a null preview's calm door open and only a posi
   assert.match(today, /const dayHasItems = !!\(day\?\.items \|\| \[\]\)\.length;/);
   assert.match(
     today,
-    /const nothingToStart =\s*\n\s*todayState\.plan\.length > 0 &&\s*\n\s*!hasLoggedSets &&\s*\n\s*exDone === 0 &&\s*\n\s*!isRunDay &&\s*\n\s*!dayHasItems &&\s*\n\s*previewHasItems !== true;/,
+    /const nothingToStart =\s*\n\s*!!day\.pick \|\|\s*\n\s*\(todayState\.plan\.length > 0 && !hasLoggedSets && exDone === 0 && !isRunDay && !dayHasItems && previewHasItems !== true\);/,
   );
   assert.match(
     today,
@@ -122,7 +122,7 @@ test("the launch card gate keeps a null preview's calm door open and only a posi
   function planRegionFor({ previewItemCount, hasPlan, hasLoggedSets, dayHasItems, kind = "rest", pick = false }) {
     const previewHasItems = previewItemCount == null ? null : previewItemCount > 0;
     const nothingToStart =
-      hasPlan && !hasLoggedSets && !dayHasItems && previewHasItems !== true;
+      pick || (hasPlan && !hasLoggedSets && !dayHasItems && previewHasItems !== true);
     const showPlan = true;
     const showDone = false;
     const briefCarriesStart = showPlan && !showDone && !nothingToStart && previewHasItems !== false && kind === "train";
@@ -168,6 +168,13 @@ test("the launch card gate keeps a null preview's calm door open and only a posi
     planRegionFor({ previewItemCount: null, hasPlan: true, hasLoggedSets: false, dayHasItems: false, pick: true }),
     "plan-surface",
     "an unread pick asks the athlete to choose a day",
+  );
+  // A remembered/offline preview can still report items in the pick state: the Brief
+  // must not then carry a Start beside the surface that asks which day it is.
+  assert.equal(
+    planRegionFor({ previewItemCount: 5, hasPlan: true, hasLoggedSets: false, dayHasItems: false, kind: "train", pick: true }),
+    "plan-surface",
+    "the pick state offers no Brief start, whatever the preview says",
   );
 });
 

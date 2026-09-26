@@ -352,6 +352,23 @@ type ApiCoalescer = {
     return method.toUpperCase() === "GET" && opts.signal == null;
   }
 
+  // Settles like `promise`, or rejects with an AbortError once `signal` aborts — for
+  // a promise the signal was never wired into (index.html's early fetch). No signal
+  // (no AbortController here) leaves the promise as it is.
+  function untilAborted<T>(promise: Promise<T>, signal: AbortSignal | null | undefined): Promise<T> {
+    if (!signal || typeof signal.addEventListener !== "function") return promise;
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => reject(Object.assign(new Error("The operation was aborted"), { name: "AbortError" }));
+      if (signal.aborted) return onAbort();
+      signal.addEventListener("abort", onAbort, { once: true });
+      const done = () => signal.removeEventListener("abort", onAbort);
+      promise.then(
+        (value) => (done(), resolve(value)),
+        (cause) => (done(), reject(cause)),
+      );
+    });
+  }
+
   // api-core reads the core through this namespace, and tests exercise it directly.
   const CAIRN_API_CACHE = {
     createApiCoalescer,
@@ -366,6 +383,7 @@ type ApiCoalescer = {
     normalizeRoute: normalizeApiRoute,
     diagnosticRoute: diagnosticApiRoute,
     resolveSwr: resolveApiSwr,
+    untilAborted,
   };
 
   Object.assign(globalThis, { CairnApiCache: CAIRN_API_CACHE, CairnApiError });
