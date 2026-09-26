@@ -419,12 +419,7 @@ async function renderProgressProgram(deps: ClientProgressProgramControllerDeps):
       // card's "Current block · week N of M"; stating the week twice is noise.
       const card =
         typeof coachingFocusCardHtml === "function"
-          ? coachingFocusCardHtml(focus as ClientCoachingFocus | null | undefined, {
-              blockLine: false,
-              actions: true,
-              // Train's overview says the headline; this card is the plan under it.
-              headline: false,
-            })
+          ? coachingFocusCardHtml(focus as ClientCoachingFocus | null | undefined, { blockLine: false, actions: true, headline: false })
           : "";
       const prev = _progFocusCard;
       _progFocusCard = card;

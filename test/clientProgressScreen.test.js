@@ -34,6 +34,7 @@ function loadProgressScreen() {
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-data-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/05-progress.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-volume-route-client.js"), "utf8"), context);
   return context;
 }
 
@@ -213,6 +214,7 @@ function loadProgressScreenWithDom() {
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-data-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-components-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/05-progress.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-volume-route-client.js"), "utf8"), context);
   return { context, view };
 }
 
@@ -332,6 +334,7 @@ function loadVolumeRoute({ peeks = {}, answers = {} } = {}) {
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-components-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-volume-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/05-progress.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-volume-route-client.js"), "utf8"), context);
   return { context, view, slot, writes, pending };
 }
 

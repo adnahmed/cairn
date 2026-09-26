@@ -1568,6 +1568,14 @@ declare global {
   declare function swrInvalidate(keyOrPrefix: string): void;
   declare function swrSweep(): void;
   declare function settledWithin(reads: Promise<unknown>[], ms: number): Promise<void>;
+  declare const CairnPlanHead: {
+    WAIT_MS: number;
+    WARM_WAIT_MS: number;
+    headRead(path: string): Promise<unknown>;
+    headReads(): { week: Promise<unknown>; recovery: Promise<unknown>; upcoming: Promise<unknown> };
+    recoveryBannerHtml(rs: import("./client-api.js").ClientRecoveryWeekStatus): string;
+    loadRecoveryBanner(token: number, pending?: Promise<unknown>): void;
+  };
   declare const CairnSessionSnapshot: {
     KEY: string;
     stamp(date: string, peek: (key: string) => { data: unknown } | null): string | null;
@@ -1583,6 +1591,23 @@ declare global {
       peek: (key: string) => { data: unknown } | null
     ): string | null;
     storage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> | null;
+    PRIMER_WAIT_MS: number;
+    primerPath(date: string, dayNumber: number | null): string;
+    shellHtml(
+      inner: string,
+      meta: {
+        fresh: boolean;
+        kicker: string;
+        dayName: string;
+        dayFocus: string;
+        why?: string;
+        estimate?: number | null;
+        exDone: number;
+        exTotal: number;
+        original?: string[];
+        startDay?: { dayNumber: number; label: string } | null;
+      }
+    ): string;
   };
   declare function routeApi(): ClientRoutesApi | null;
   declare function routeKey(
@@ -5618,6 +5643,7 @@ declare global {
       meals(date: string, today: string, token: number, onChanged: () => void): ClientFuelMealsDeps;
       log(onLogged: (logged: FoodComposerLogged) => void): ClientFuelLogDeps;
       ideas(date: string, onStart: ClientIdeaCardDeps["onStart"]): ClientIdeaCardDeps;
+      firstPaint(date: string, isToday: boolean): Promise<void> | null;
     };
     CairnIdeaCardController: {
       key(date: string): string;

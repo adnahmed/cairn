@@ -11,7 +11,7 @@ import { createHost, flush, loadClientModule } from "./_dom.mjs";
 
 const TODAY = "2026-04-25";
 
-function load({ logDate = "", warm = true, cachedApi = () => new Promise(() => {}) } = {}) {
+function load({ logDate = "", firstPaint = () => null } = {}) {
   const mounts = {};
   const events = [];
   const fakeController = (name, extra = {}) => ({
@@ -53,9 +53,8 @@ function load({ logDate = "", warm = true, cachedApi = () => new Promise(() => {
     loadingState: (label) => `<p>${label}</p>`,
     skelLines: () => `<div class="skel-card"></div>`,
     reducedMotion: () => true,
-    // Warm by default: every read the top slots paint from already has a peek.
-    peekCached: (key) => (warm && /^(food:day|fuel:band|fuel:ideas):/.test(key) ? { data: {}, fresh: true } : null),
-    cachedApi: (...args) => cachedApi(...args),
+    peekCached: () => null,
+    cachedApi: () => new Promise(() => {}),
     paintSWR: async () => undefined,
     swrInvalidate: (key) => events.push(`invalidate:${key}`),
     markRefreshing: () => {},
@@ -68,16 +67,10 @@ function load({ logDate = "", warm = true, cachedApi = () => new Promise(() => {
       meals: (date, today, _token, onChanged) => ({ date, today, onChanged }),
       log: (onLogged) => ({ onLogged }),
       ideas: (date, onStart) => ({ date, onStart }),
+      // Warm by default (null: paint at once); a test hands in a pending first paint.
+      firstPaint: (date, isToday) => firstPaint(date, isToday),
     },
     CairnFuelToday: { skeletonHtml: () => `<div class="fuel-today-skel"></div>` },
-    settledWithin: (reads, ms) =>
-      new Promise((resolve) => {
-        const timer = setTimeout(resolve, ms);
-        Promise.allSettled(reads).then(() => {
-          clearTimeout(timer);
-          resolve();
-        });
-      }),
     CairnFuelTodayController: fakeController("today"),
     CairnFuelMealsController: fakeController("meals"),
     CairnFuelLogController: fakeController("log", {
@@ -115,14 +108,13 @@ test("Fuel paints its shell under Today and mounts every component into its slot
   assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), false, "history stays folded");
 });
 
-test("a cold open asks the slots' reads together and writes the surface once they answer", async () => {
+test("a cold open holds the day card's skeleton and writes the surface once the slots' reads answer", async () => {
+  let answer;
   const asked = [];
-  const pending = [];
   const { win, view, mounts, state } = load({
-    warm: false,
-    cachedApi: (path, options) => {
-      asked.push(options?.key);
-      return new Promise((resolve) => pending.push(resolve));
+    firstPaint: (date, isToday) => {
+      asked.push([date, isToday]);
+      return new Promise((resolve) => (answer = resolve));
     },
   });
   const painted = win.renderFoodJournal();
@@ -131,8 +123,8 @@ test("a cold open asks the slots' reads together and writes the surface once the
   assert.ok(view.querySelector(".fuel-today-skel"));
   assert.equal(view.querySelector("#dayFuelSlot"), null);
   assert.equal(mounts.today, undefined);
-  assert.deepEqual(asked, [`food:day:${TODAY}`, `fuel:band:${TODAY}`, `fuel:ideas:${TODAY}`]);
-  for (const resolve of pending) resolve({});
+  assert.deepEqual(asked, [[TODAY, true]]);
+  answer();
   await painted;
   assert.equal(state.planSeg, "food");
   assert.equal(mounts.today.host, view.querySelector("#dayFuelSlot"));
@@ -141,14 +133,11 @@ test("a cold open asks the slots' reads together and writes the surface once the
 });
 
 test("a cold open whose person has left writes nothing when the reads answer", async () => {
-  const pending = [];
-  const { win, view, mounts, state } = load({
-    warm: false,
-    cachedApi: () => new Promise((resolve) => pending.push(resolve)),
-  });
+  let answer;
+  const { win, view, mounts, state } = load({ firstPaint: () => new Promise((resolve) => (answer = resolve)) });
   const painted = win.renderFoodJournal();
   state.tab = "today";
-  for (const resolve of pending) resolve({});
+  answer();
   await painted;
   assert.equal(mounts.today, undefined);
   assert.equal(view.querySelector("#dayFuelSlot"), null);

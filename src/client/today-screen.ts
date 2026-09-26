@@ -1359,47 +1359,6 @@ function sessionLaunchCardHtml(opts: SessionLaunchOptions): string {
     </button>`;
 }
 
-function sessionShellHtml(
-  inner: string,
-  meta: {
-    fresh: boolean;
-    kicker: string;
-    dayName: string;
-    dayFocus: string;
-    why?: string;
-    estimate?: number | null;
-    exDone: number;
-    exTotal: number;
-    /** The plan day's own list when most of today's slots moved — one tap away. */
-    original?: string[];
-    /** Offer the plan day itself when the accepted session holds no lift for it. */
-    startDay?: { dayNumber: number; label: string } | null;
-  }
-): string {
-  const capped = Math.min(meta.exTotal, 12);
-  const dots = meta.exTotal
-    ? `<div class="sess-dots" aria-hidden="true">${Array.from({ length: capped }, (_v, i) => `<span class="sess-dot${i < meta.exDone ? " on" : ""}"></span>`).join("")}</div>`
-    : "";
-  const prog = meta.exTotal
-    ? `<span class="sess-prog"><b>${meta.exDone}</b><span class="sess-prog-sep"> of </span>${meta.exTotal}</span>`
-    : "";
-  return `<div class="sess-dest${meta.fresh ? " sess-fresh" : ""}">
-    <div class="sess-topbar">
-      <button class="sess-close" id="sessClose" type="button" aria-label="Back to today">←</button>
-      <div class="sess-topbar-mid">
-        <div class="sess-kicker lbl">${escHtml(meta.kicker)}</div>
-        <div class="sess-dayname" role="heading" aria-level="1" tabindex="-1">${escHtml(meta.dayName)}${meta.dayFocus ? `<span class="sess-focus"> · ${escHtml(meta.dayFocus)}</span>` : ""}</div>
-        ${meta.why || meta.estimate ? `<div class="sess-topbar-why">${meta.why ? escHtml(meta.why) : ""}${meta.estimate ? `${meta.why ? " · " : ""}${Math.round(meta.estimate)} min` : ""}</div>` : ""}
-        ${meta.original && meta.original.length ? `<details class="strength-line-orig sess-orig"><summary>The plan's list</summary><span>${escHtml(meta.original.join(" · "))}</span></details>` : ""}
-        ${meta.startDay ? `<button type="button" class="ghostbtn sess-line-start daybtn" data-day="${escAttr(meta.startDay.dayNumber)}">${escHtml(meta.startDay.label)}</button>` : ""}
-      </div>
-      <div class="sess-topbar-side">${prog}</div>
-    </div>
-    ${dots}
-    <div class="sess-body"><div id="sessionPrimerSlot" class="sess-primer-slot"></div>${inner}</div>
-  </div>`;
-}
-
 function wireSessionDestination(): void {
   const close = view.querySelector<HTMLButtonElement>("#sessClose");
   if (close && !close.dataset.wired) {
@@ -1423,16 +1382,6 @@ function wireSessionDestination(): void {
       });
     });
   });
-}
-
-const SESSION_PRIMER_WAIT_MS = 1200;
-
-/** The primer's read for a date and plan day, spelled exactly as the primer asks it. */
-function sessionPrimerPath(date: string, dayNumber: number | null): string {
-  const params: string[] = [];
-  if (date) params.push(`date=${encodeURIComponent(String(date))}`);
-  if (dayNumber != null && Number.isFinite(Number(dayNumber))) params.push(`day=${encodeURIComponent(String(dayNumber))}`);
-  return `/session-primer?${params.join("&")}`;
 }
 
 async function renderSession(opts: any = {}): Promise<void> {
@@ -1474,7 +1423,7 @@ async function renderSession(opts: any = {}): Promise<void> {
   // paint waits (briefly) for it: filled in afterwards it pushed the whole list down.
   // The pre-asked read is handed to the primer only if it names the same day.
   const primerDayAtStart = todayState.day == null ? null : Number(todayState.day);
-  const primerPath = sessionPrimerPath(todayState.logDate, primerDayAtStart);
+  const primerPath = CairnSessionSnapshot.primerPath(todayState.logDate, primerDayAtStart);
   const primerPending = todayApi(primerPath);
   primerPending.catch(() => {});
 
@@ -1534,7 +1483,7 @@ async function renderSession(opts: any = {}): Promise<void> {
   );
 
   const strengthLine = await strengthLinePromise;
-  await settledWithin([primerPending], SESSION_PRIMER_WAIT_MS);
+  await settledWithin([primerPending], CairnSessionSnapshot.PRIMER_WAIT_MS);
   // The plan day's NAME is the title everywhere ("Pull"); its focus is the quiet
   // second half. The server line owns today's title when it speaks for the day this
   // session holds — or when the accepted session holds no lift at all (a rest/easy
@@ -1577,7 +1526,7 @@ async function renderSession(opts: any = {}): Promise<void> {
   // the Session destination, and this paint must never land on another tab.
   if (todayState.tab !== "session" || todayState.logDate !== enteredDate) return;
   const sessionDrafts = CairnTodaySessionSetActions.captureExDrafts(todayView);
-  todayView.innerHTML = sessionShellHtml(surface, {
+  todayView.innerHTML = CairnSessionSnapshot.shellHtml(surface, {
     fresh,
     kicker,
     dayName,
@@ -1637,7 +1586,7 @@ async function renderSession(opts: any = {}): Promise<void> {
     hasLoggedSets,
     api: todayApi,
     guard: primerGuard,
-    pending: sessionPrimerPath(todayState.logDate, primerDayNumber) === primerPath ? primerPending : undefined,
+    pending: CairnSessionSnapshot.primerPath(todayState.logDate, primerDayNumber) === primerPath ? primerPending : undefined,
   });
   // Keep this paint (primer included) for the next bare entry's instant repaint.
   void Promise.resolve(primerHydrated)

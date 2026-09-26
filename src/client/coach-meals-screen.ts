@@ -233,36 +233,6 @@ function mountFuelSurface(token: number, date: string, today: string): void {
   fuelTeardowns = [fuelToday, meals, log, ideas].filter((t): t is NonNullable<typeof t> => !!t);
 }
 
-// The reads behind Fuel's top slots (the day, the intake band, the ideas). Each slot
-// used to paint its own skeleton and fill in on its own answer, and every answer
-// pushed the slots under it down (the meals list and the day card both grow). On a
-// cold open they are asked together up front, through the SAME cache keys the slots
-// read, and the surface is written once they have answered — so every slot paints
-// from its warm peek in one frame. Bounded: a slow read fills in when it lands.
-const FUEL_FIRST_PAINT_WAIT_MS = 1500;
-
-function fuelReadsWarm(date: string, isToday: boolean): boolean {
-  return (
-    !!peekCached(CairnFuelTodayController.dayKey(date)) &&
-    !!peekCached(CairnFuelTodayController.bandKey(date)) &&
-    (!isToday || !!peekCached(CairnIdeaCardController.key(date)))
-  );
-}
-
-function primeFuelReads(date: string, isToday: boolean): Promise<void> {
-  const reads: Promise<unknown>[] = [
-    cachedApi(CairnFuelTodayController.dayPath(date), { key: CairnFuelTodayController.dayKey(date) }),
-    cachedApi(CairnFuelTodayController.bandPath(date), { key: CairnFuelTodayController.bandKey(date) }),
-  ];
-  if (isToday) {
-    reads.push(
-      cachedApi(CairnIdeaCardController.path(date, new Date().getHours()), { key: CairnIdeaCardController.key(date) })
-    );
-  }
-  for (const read of reads) read.catch(() => {});
-  return settledWithin(reads, FUEL_FIRST_PAINT_WAIT_MS);
-}
-
 function renderFoodJournal(options: { history?: boolean } = {}): Promise<unknown> {
   headerTitle.textContent = "Fuel";
   state.planSeg = "food";
@@ -271,28 +241,14 @@ function renderFoodJournal(options: { history?: boolean } = {}): Promise<unknown
   const date = state.logDate || today;
   // Logging and ideas are about the rest of TODAY; another day is read and corrected only.
   const isToday = date === today;
-  if (!fuelReadsWarm(date, isToday)) {
-    // Cold: the day card's own skeleton holds the top while the reads come in; the
-    // whole surface is then written in one go (new content, nothing pushed down).
-    view.innerHTML =
-      homeBackHtml("today", "Today") +
-      `<section class="meal-energy food-journal fuel" aria-busy="true"><div class="fuel-slot">${CairnFuelToday.skeletonHtml()}</div></section>`;
-    wireHomeBack(view);
-    return primeFuelReads(date, isToday).then(() => {
-      if (token !== pollToken || state.tab !== "plan" || state.planSeg !== "food") return undefined;
-      return paintFoodJournal(token, date, today, isToday, options);
-    });
-  }
-  return paintFoodJournal(token, date, today, isToday, options);
+  const primed = CairnFuelDeps.firstPaint(date, isToday); // cold: the slots' reads first, then ONE write
+  if (!primed) return paintFoodJournal(token, date, today, isToday, options);
+  view.innerHTML = `${homeBackHtml("today", "Today")}<section class="meal-energy food-journal fuel" aria-busy="true"><div class="fuel-slot">${CairnFuelToday.skeletonHtml()}</div></section>`;
+  wireHomeBack(view);
+  return primed.then(() => (token === pollToken && state.tab === "plan" && state.planSeg === "food" ? paintFoodJournal(token, date, today, isToday, options) : undefined));
 }
 
-function paintFoodJournal(
-  token: number,
-  date: string,
-  today: string,
-  isToday: boolean,
-  options: { history?: boolean }
-): Promise<unknown> {
+function paintFoodJournal(token: number, date: string, today: string, isToday: boolean, options: { history?: boolean }): Promise<unknown> {
   // Fuel opens from Today (its Fuel card), so it steps back there.
   view.innerHTML =
     homeBackHtml("today", "Today") +

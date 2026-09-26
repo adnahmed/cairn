@@ -7,6 +7,7 @@ import vm from "node:vm";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const today = readFileSync(join(root, "src/client/today-screen.ts"), "utf8");
+const sessionShell = readFileSync(join(root, "src/client/session-snapshot-client.ts"), "utf8");
 const brief = readFileSync(join(root, "src/client/today-brief-actions-client.ts"), "utf8");
 const overview = readFileSync(join(root, "src/client/progress-overview-client.ts"), "utf8");
 const plan = readFileSync(join(root, "src/client/plan-editor-controller.ts"), "utf8");
@@ -69,7 +70,8 @@ test("prepared Session exposes durable source, rationale, and accessible stable 
   assert.match(today, /`From plan\$\{day && day\.name/);
   assert.match(today, /dailySession\?\.why/);
   assert.match(today, /dailySession\?\.est_minutes/);
-  assert.match(today, /role="heading" aria-level="1" tabindex="-1"/);
+  // The session shell (its one heading) lives with the session's first paint.
+  assert.match(sessionShell, /role="heading" aria-level="1" tabindex="-1"/);
   assert.match(today, /focus\(\{ preventScroll: true \}\)/);
   assert.match(today, /role="status" aria-live="polite"/);
   assert.match(today, /id = "sessionPrepareLive"|status\.id = "sessionPrepareLive"/);

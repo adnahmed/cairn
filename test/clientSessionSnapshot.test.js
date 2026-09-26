@@ -90,3 +90,9 @@ test("nothing to stamp against means nothing is kept, and a broken store never t
   assert.equal(snap.load(broken, DATE, peek), null);
   assert.equal(snap.load(null, DATE, peek), null);
 });
+
+test("the primer's early read is spelled exactly as the primer asks it", () => {
+  const snap = load();
+  assert.equal(snap.primerPath("2026-09-26", 3), "/session-primer?date=2026-09-26&day=3");
+  assert.equal(snap.primerPath("2026-09-26", null), "/session-primer?date=2026-09-26");
+});

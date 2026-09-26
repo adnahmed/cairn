@@ -225,3 +225,38 @@ test("Fuel's retry store keeps a live envelope per viewer and drops an expired o
   };
   assert.equal(store.loadRetry(), null, "blocked storage reads as no envelope");
 });
+
+test("Fuel's first paint asks the top slots' reads together, by the slots' own keys, and is null once all are warm", async () => {
+  const asked = [];
+  const peeks = new Set();
+  const answers = [];
+  const win = loadClientModule(["fuel-deps"], {
+    globals: {
+      CairnFuelTodayController: {
+        dayKey: (d) => `food:day:${d}`,
+        bandKey: (d) => `fuel:band:${d}`,
+        dayPath: (d) => `/nutrition/day?date=${d}`,
+        bandPath: (d) => `/nutrition/intake-band?date=${d}`,
+      },
+      CairnIdeaCardController: { key: (d) => `fuel:ideas:${d}`, path: (d, h) => `/fuel/ideas?date=${d}&hour=${h}` },
+      peekCached: (key) => (peeks.has(key) ? { data: {}, fresh: true } : null),
+      cachedApi: (path, options) => {
+        asked.push(options.key);
+        return new Promise((resolve) => answers.push(resolve));
+      },
+      settledWithin: (reads) => Promise.allSettled(reads).then(() => undefined),
+    },
+  });
+  const cold = win.CairnFuelDeps.firstPaint("2026-04-25", true);
+  assert.ok(cold, "a cold open waits on the reads");
+  assert.deepEqual(asked, ["food:day:2026-04-25", "fuel:band:2026-04-25", "fuel:ideas:2026-04-25"]);
+  for (const resolve of answers) resolve({});
+  await cold;
+
+  // Another day asks no ideas; and once every read is warm there is nothing to wait for.
+  asked.length = 0;
+  void win.CairnFuelDeps.firstPaint("2026-04-20", false);
+  assert.deepEqual(asked, ["food:day:2026-04-20", "fuel:band:2026-04-20"]);
+  for (const key of ["food:day:2026-04-25", "fuel:band:2026-04-25", "fuel:ideas:2026-04-25"]) peeks.add(key);
+  assert.equal(win.CairnFuelDeps.firstPaint("2026-04-25", true), null);
+});
