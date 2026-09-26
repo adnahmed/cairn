@@ -215,4 +215,35 @@ test("journey progress keeps a missing goal out of zero-pound copy", () => {
 
   assert.match(html, /Still learning the phase/);
   assert.doesNotMatch(html, /(?:>|toward )0 lb/);
+  // Neither read is in yet: said in words, never the raw machine state.
+  assert.match(html, /Not enough logged yet to read muscle or fuel\./);
+  assert.doesNotMatch(html, /Unknown/);
+});
+
+test("a muscle or fuel state the server has not read yet is spoken, never printed as 'Unknown'", () => {
+  const context = loadJourneyClient();
+  const read = (muscle, fuel) =>
+    context.CairnProgressJourney.journeyCardHtml(
+      {
+        profile: { goal_mode: "lose", goal_weight_lb: 178 },
+        active_phase: null,
+        transition_suggestion: null,
+        proposed_phases: [],
+        milestones: [],
+        recomposition: {
+          stage: { kind: "leaning_out", label: "Leaning-out phase", confidence: "low", basis: [] },
+          progress: null,
+          scale: { state: "trend_clear", line: "The trend is clear." },
+          muscle: { state: muscle, evidence: [] },
+          fuel: { state: fuel, evidence: [] },
+          action: { line: "Holding." },
+          line: "On the way.",
+        },
+      },
+      [],
+    );
+  const one = read("advancing", "unknown");
+  assert.match(one, /Muscle advancing · fuel not read yet/);
+  assert.doesNotMatch(one, /Unknown/);
+  assert.match(read("holding_steady", "adequate"), /Muscle holding steady · fuel adequate/);
 });
