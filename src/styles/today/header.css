@@ -87,7 +87,7 @@
   font-size:var(--text-sm);color:var(--ink2);line-height:1.5;
 }
 .ctxbanner-sep{color:var(--muted)}
-#ctxEvents + #ctxHealth .ctxbanner{margin-top:calc(-1 * var(--space-6));border-top:0}
+#ctxEvents:not(:empty) + #ctxHealth .ctxbanner{margin-top:calc(-1 * var(--space-6));border-top:0}
 
 /* near-term goal anchor under the Brief — calm, score-free; taps into Progress.
    The nearer-term arc (recomp by the goal date) Today should keep in view. */

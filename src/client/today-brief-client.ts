@@ -395,16 +395,12 @@ type TodayBriefHtmlOptions = {
   // that repeats something the Brief already shows is dropped (say it once).
   function todayBriefSessionFoldHtml(
     fold: TodayBriefSessionFold | null | undefined,
-    shown: { estMinutes: number | null; lines: unknown[] }
+    shown: { estMinutes: number | null; lines: unknown[]; linesOnly?: boolean }
   ): string {
     if (!fold || typeof fold !== "object") return "";
     const minutes = fold.minutes != null && Number(fold.minutes) > 0 ? Math.round(Number(fold.minutes)) : null;
-    const meta = [
-      String(fold.progress || "").trim(),
-      minutes != null && minutes !== shown.estMinutes ? `~${minutes} min` : "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    // Under the live card only the progress/minutes meta steps aside; the guardrail and journey lines stay.
+    const meta = shown.linesOnly ? "" : [String(fold.progress || "").trim(), minutes != null && minutes !== shown.estMinutes ? `~${minutes} min` : ""].filter(Boolean).join(" · ");
     const extra: string[] = [];
     for (const line of Array.isArray(fold.lines) ? fold.lines : []) {
       const text = todayBriefDistinctLine(line, ...shown.lines, meta, ...extra);
@@ -510,6 +506,8 @@ type TodayBriefHtmlOptions = {
 
     const actions: string[] = [];
     let sessionFold = "";
+    // The live card is TODAY's alone: a past date's train read never shows a session as under way.
+    const live = kind === "train" && options.isToday === true && options.session?.started && voice ? voice.liveHtml(options.session.live) : "";
     if (kind === "train" && !options.nothingToStart) {
       // ONE ACTION, ONE BUTTON: the server's lift line (todayStrengthLine) says
       // whether today's session already holds logged work; the folded launch facts
@@ -519,6 +517,7 @@ type TodayBriefHtmlOptions = {
       sessionFold = todayBriefSessionFoldHtml(options.session, {
         estMinutes,
         lines: [read?.headline, read?.focus, read?.why, strengthLine ? line?.text : ""],
+        linesOnly: !!live,
       });
     } else if (kind === "done") {
       // A logged activity alone (no session row) can flip the read to "done"
@@ -595,8 +594,7 @@ type TodayBriefHtmlOptions = {
     const forwardHtml = forward ? `<button class="brief-forward" data-redirect="view-week" title="See your week"><span class="brief-forward-arrow" aria-hidden="true">↗</span><span class="brief-forward-txt">${forward}</span></button>` : "";
     const arcHtml = arc ? `<button class="brief-forward brief-arc" data-redirect="view-program" title="See your plan's arc"><span class="brief-forward-arrow" aria-hidden="true">◷</span><span class="brief-forward-txt">${arc}</span></button>` : "";
     const provenance = `<div id="briefProvenance" class="prov-slot"></div>`;
-    const context = voice ? voice.aroundHtml({ forward: forwardHtml, periodization, arc: arcHtml, provenance }) : `${forwardHtml}${periodization}${arcHtml}${provenance}`;
-    const live = kind === "train" && options.session?.started && voice ? voice.liveHtml(options.session.live) : "";
+    const context = voice ? voice.aroundHtml({ forward: forwardHtml, periodization, arc: arcHtml, provenance, isToday: options.isToday !== false }) : `${forwardHtml}${periodization}${arcHtml}${provenance}`;
     return `<section class="brief brief-${kind}${morph}${enter}${thinking}${quiet}" style="--i:0" aria-live="polite"${busy}${band}>
       ${lookBack}
       <div class="brief-kicker lbl"><span class="brief-glyph" aria-hidden="true">${meta.glyph}</span> ${escHtml(meta.kicker ? meta.kicker.toUpperCase() : `${meta.word.toUpperCase()} DAY`)}${est ? ` · ${escHtml(est)}` : ""}</div>
@@ -607,8 +605,7 @@ type TodayBriefHtmlOptions = {
       ${checkinSlot}
       ${weekWins}
       ${recovery}
-      ${live ? "" : strengthLine}
-      ${live || sessionFold}
+      ${strengthLine}${live}${sessionFold}
       ${actions.length ? `<div class="brief-launch">${actions.join("")}</div>` : ""}
       ${steer}
       ${context}

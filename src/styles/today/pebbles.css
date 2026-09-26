@@ -79,6 +79,8 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 /* the rail's ranked reads: hairline cards (no spine), small pill actions */
 .today-wrap .well-accent,.today-wrap .agenda-card{border:1px solid var(--line);border-left:1px solid var(--line);
   box-shadow:none;border-radius:var(--radius-md);background:var(--surface)}
+.today-wrap .fuel-card{border:1px solid var(--line);box-shadow:none;border-radius:var(--radius-md);background:var(--surface)}
+.today-wrap .fuel-card:hover{background:var(--surface2)}
 .today-wrap .agenda-act{background:var(--ink);color:var(--on-ink);border-radius:var(--radius-pill);
   padding:7px 14px;font-size:.84rem}
 .today-wrap .agenda-act:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}

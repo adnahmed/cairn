@@ -194,7 +194,6 @@ function exerciseCardHtml(
       ? `<span class="ex-pair-chip" title="Superset — alternate sets with its partner">Pair</span>`
       : "";
   const progress = `<span class="ex-prog${complete ? " done" : ""}" data-prog>${done}${goal ? ` / ${goal}` : ""} <span>set${done === 1 && !goal ? "" : "s"}</span></span>`;
-  const tile = artImg("exercise", exercise, "artile-sm ex-art", art("exercise", exercise, item.muscle_group));
   const reveal = revealIdx != null ? Number(revealIdx) : null;
   // Timed rows take an optional load before the time (a carry, a weighted hold);
   // blank = unloaded. prefillFor already opens it at the plan's load, else the last logged one.
@@ -266,7 +265,6 @@ function exerciseCardHtml(
   // only a cue unique to this movement (swap, straps, start light).
   return `<div class="ex${complete ? " ex-complete" : ""}${reveal != null ? " reveal" : ""}" data-card="${escAttr(exercise)}"${exKeyAttr} data-mode="${timed ? "timed" : "reps"}"${headlineDose ? ` data-dose="headline"` : ""}${rxSilenced ? ` data-rx="off"` : ""}${reveal != null ? ` style="${stagger(reveal)}"` : ""}>
       <div class="ex-top">
-        ${tile}
         <div class="ex-top-main">
           <button class="ex-name" data-guide="${encodeURIComponent(exercise)}">${escHtml(exercise)}&nbsp;<span class="guide-i">ⓘ</span></button>
           ${target}

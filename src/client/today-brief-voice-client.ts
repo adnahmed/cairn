@@ -8,7 +8,7 @@
 type TodayBriefLive = {
   /** The session's name ("Pull", "Lower B"). */
   name: string;
-  /** Lifts with every set in, and all of them. */
+  /** Lifts with at least one set logged, and all of them. */
   done: number;
   total: number;
   /** The last logged set, already in words ("Deadlift 225 × 6"). */
@@ -36,7 +36,7 @@ type TodayBriefVoiceApi = {
     logged: Record<string, TodayBriefLiveSet[] | undefined>;
   }): TodayBriefLive;
   whyHtml(escaped: string): string;
-  aroundHtml(parts: { forward: string; periodization: string; arc: string; provenance: string }): string;
+  aroundHtml(parts: { forward: string; periodization: string; arc: string; provenance: string; isToday?: boolean }): string;
   liveHtml(live: TodayBriefLive | null | undefined): string;
 };
 
@@ -51,7 +51,7 @@ type TodayBriefVoiceApi = {
     ["strength", /\b(deadlifts?|squats?|bench(?: press)?|lifts?|lifting|strength|back work|top sets?)\b/i],
     ["endurance", /\b(long run|easy run|runs?|running|aerobic|ride|km)\b/i],
     ["fuel", /\b(fuel|protein|calories|eating|meals?|carbs)\b/i],
-    ["body", /\b(bodyweight|body weight|weight|waist|lean mass)\b/i],
+    ["body", /\b(bodyweight|body weight|body mass|waist|lean mass|weigh-ins?)\b/i],
     ["heart", /\b(lipids?|ApoB|cholesterol|blood pressure|cardiovascular)\b/i],
   ];
 
@@ -75,13 +75,15 @@ type TodayBriefVoiceApi = {
     return out + escaped.slice(at);
   }
 
-  // The week around the read — the forward look, the block clock, the plan's arc and
-  // the finding the day honours — folded behind one quiet tap, so the first view is
-  // the read and its one action. With nothing to fold, the provenance slot stands
-  // alone (it fills only when a finding shapes the day).
-  function aroundHtml(parts: { forward: string; periodization: string; arc: string; provenance: string }): string {
+  // The week around the read — the forward look, the block clock and the plan's arc —
+  // folded behind one quiet tap, so the first view is the read and its one action.
+  // The provenance slot (the finding the day honours — the connected brain) is
+  // never folded: it stays in view under the fold, and fills only when a finding
+  // shapes the day.
+  function aroundHtml(parts: { forward: string; periodization: string; arc: string; provenance: string; isToday?: boolean }): string {
     if (!parts.forward && !parts.periodization && !parts.arc) return parts.provenance;
-    return `<details class="brief-around"><summary class="brief-around-sum"><span class="lbl">Around today</span><span class="brief-around-chev" aria-hidden="true">▾</span></summary><div class="brief-around-body">${parts.forward}${parts.periodization}${parts.arc}${parts.provenance}</div></details>`;
+    const label = parts.isToday === false ? "Around this day" : "Around today";
+    return `<details class="brief-around"><summary class="brief-around-sum"><span class="lbl">${label}</span><span class="brief-around-chev" aria-hidden="true">▾</span></summary><div class="brief-around-body">${parts.forward}${parts.periodization}${parts.arc}</div></details>${parts.provenance}`;
   }
 
   // The live card: while a session holds logged work, the Brief shows where it
@@ -89,9 +91,13 @@ type TodayBriefVoiceApi = {
   // slim bar per lift — above the Continue button. Nothing to say, nothing drawn.
   function liveHtml(live: TodayBriefLive | null | undefined): string {
     if (!live || !(live.total > 0)) return "";
-    const total = Math.min(Math.max(0, Math.round(live.total)), 12);
+    // The words carry the true count; only the bar strip is capped so a long card
+    // never draws a comb.
+    const total = Math.max(0, Math.round(live.total));
     const done = Math.min(Math.max(0, Math.round(live.done)), total);
-    const bars = Array.from({ length: total }, (_v, i) => `<i${i < done ? ` class="on"` : ""}></i>`).join("");
+    const barCount = Math.min(total, 12);
+    const barsOn = Math.round((done / total) * barCount);
+    const bars = Array.from({ length: barCount }, (_v, i) => `<i${i < barsOn ? ` class="on"` : ""}></i>`).join("");
     const line = [live.last ? `${live.last}.` : "", live.next ? `Next: ${live.next}.` : ""].filter(Boolean).join(" ");
     return `<div class="brief-live" data-brief-live>
       <div class="brief-live-top lbl"><span class="ping" aria-hidden="true"></span>Now · ${escHtml(live.name)} · ${escHtml(`${done} of ${total}`)}</div>
