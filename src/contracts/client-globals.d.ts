@@ -5895,4 +5895,55 @@ declare global {
   declare const CairnRaceEstimate: Window["CairnRaceEstimate"];
   declare const CairnRaceView: Window["CairnRaceView"];
   declare const CairnRaceViewController: Window["CairnRaceViewController"];
+  type ClientPebble = {
+    key: string;
+    /** The stone's name, the server's ("Strength"). */
+    label: string;
+    /** The server's word, verbatim ("steady", "in progress", "quiet"). */
+    word: string;
+    tone: import("./today-stones.js").TodayStoneTone;
+    /** The server's short sentence, spoken to assistive tech only; null when the word says it all. */
+    line: string | null;
+    target: import("./today-stones.js").TodayStoneTarget | null;
+    href: string | null;
+  };
+  type ClientPebbleStripModel = { date: string; pebbles: ClientPebble[] };
+  type ClientPebbleStripDeps = {
+    /** The day the strip reads (`?date=`), also its SWR key. */
+    date: string;
+    /** Last-known read for `key` without a request (`peekCached`). */
+    peek(key: string): { data: import("./today-stones.js").TodayStonesRead; fresh: boolean } | null;
+    /** SWR read (`cachedApi`) of GET /api/today/stones?date=. */
+    load(path: string, options: { key: string }): Promise<import("./today-stones.js").TodayStonesRead>;
+    /** Open a stone's own surface. */
+    navigate(target: import("./today-stones.js").TodayStoneTarget): void;
+    /** The link a pebble carries for that surface. */
+    hrefFor?(target: import("./today-stones.js").TodayStoneTarget): string | null;
+    reducedMotion(): boolean;
+  };
+  type ClientPebbleStripTodayDeps = {
+    state: { logDate: string };
+    activateTab(tab: string): unknown;
+  };
+  interface Window {
+    CairnPebbleStripModel: {
+      model(
+        read: Partial<import("./today-stones.js").TodayStonesRead> | null | undefined,
+        opts?: { hrefFor?: (target: import("./today-stones.js").TodayStoneTarget) => string | null }
+      ): ClientPebbleStripModel | null;
+    };
+    CairnPebbleStrip: {
+      html(model: ClientPebbleStripModel | null, opts?: { enter?: boolean }): string;
+      skeletonHtml(): string;
+    };
+    CairnPebbleStripController: {
+      keyFor(date: string): string;
+      pathFor(date: string): string;
+      mount(host: Element, deps: ClientPebbleStripDeps): () => void;
+      mountToday(root: ParentNode, deps: ClientPebbleStripTodayDeps): () => void;
+    };
+  }
+  declare const CairnPebbleStripModel: Window["CairnPebbleStripModel"];
+  declare const CairnPebbleStrip: Window["CairnPebbleStrip"];
+  declare const CairnPebbleStripController: Window["CairnPebbleStripController"];
 }
