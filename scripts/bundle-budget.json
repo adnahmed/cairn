@@ -12,22 +12,22 @@
   "bundles": {
     "public/js/bundle-01-core.js": {
       "measured": {
-        "raw": 175275,
-        "brotli": 40198
+        "raw": 192106,
+        "brotli": 43766
       },
       "budget": {
-        "raw": 181248,
-        "brotli": 41984
+        "raw": 198656,
+        "brotli": 46080
       }
     },
     "public/js/bundle-02-today.js": {
       "measured": {
-        "raw": 510342,
-        "brotli": 103205
+        "raw": 528233,
+        "brotli": 106900
       },
       "budget": {
-        "raw": 526336,
-        "brotli": 106496
+        "raw": 544768,
+        "brotli": 110592
       }
     },
     "public/js/bundle-03-capture.js": {
@@ -42,62 +42,62 @@
     },
     "public/js/bundle-04-coach-meals.js": {
       "measured": {
-        "raw": 174336,
-        "brotli": 37616
+        "raw": 176372,
+        "brotli": 38003
       },
       "budget": {
-        "raw": 180224,
-        "brotli": 38912
+        "raw": 182272,
+        "brotli": 39936
       }
     },
     "public/js/bundle-05-me-health.js": {
       "lazy": "me-health",
       "measured": {
-        "raw": 420559,
-        "brotli": 84820
+        "raw": 421983,
+        "brotli": 85197
       },
       "budget": {
-        "raw": 434176,
+        "raw": 435200,
         "brotli": 88064
       }
     },
     "public/js/bundle-07-boot.js": {
       "measured": {
-        "raw": 53907,
-        "brotli": 12771
+        "raw": 55558,
+        "brotli": 13101
       },
       "budget": {
-        "raw": 56320,
-        "brotli": 13312
+        "raw": 57344,
+        "brotli": 14336
       }
     },
     "public/js/bundle-08-train.js": {
       "lazy": "train",
       "measured": {
-        "raw": 312315,
-        "brotli": 68191
+        "raw": 318602,
+        "brotli": 69680
       },
       "budget": {
-        "raw": 322560,
-        "brotli": 70656
+        "raw": 328704,
+        "brotli": 72704
       }
     },
     "public/js/bundle-09-horizon.js": {
       "lazy": "horizon",
       "measured": {
-        "raw": 94439,
-        "brotli": 22732
+        "raw": 95923,
+        "brotli": 23120
       },
       "budget": {
-        "raw": 97280,
-        "brotli": 23552
+        "raw": 99328,
+        "brotli": 24576
       }
     },
     "public/js/bundle-10-ask.js": {
       "lazy": "ask",
       "measured": {
-        "raw": 112778,
-        "brotli": 26104
+        "raw": 113076,
+        "brotli": 26181
       },
       "budget": {
         "raw": 116736,
@@ -117,12 +117,12 @@
     },
     "public/styles.css": {
       "measured": {
-        "raw": 438119,
-        "brotli": 58623
+        "raw": 440974,
+        "brotli": 59011
       },
       "budget": {
-        "raw": 451584,
-        "brotli": 60416
+        "raw": 454656,
+        "brotli": 61440
       }
     },
     "public/art.js": {
