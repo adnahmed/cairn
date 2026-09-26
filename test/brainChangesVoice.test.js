@@ -294,7 +294,8 @@ test("a row from earlier this week names the day the way the feed does, and a da
   const row = rows.find((change) => change.id === id);
   assert.doesNotMatch(row.why, MONTH_DATE);
   assert.doesNotMatch(row.why, ISO_DATE);
-  const weekdayOf = (iso) => new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`));
+  const weekdayOf = (iso) =>
+    new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`));
   assert.equal(row.why, `Your legs took a heavy dose, so on ${weekdayOf(day)} the load held. Soreness was logged.`);
   assert.doesNotMatch(row.why, /that day/);
   // The week is said from where the reader stands: the row's week is "this week" while

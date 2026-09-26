@@ -349,7 +349,9 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
       return n == null ? null : Math.max(0, n - takenOut(k));
     };
     const lead = rowsOf
-      .filter((ing) => ing?.item && !isAlcoholFood(ing.item) && !isSupplementOnly(ing.item) && num(ing?.protein_g) != null)
+      .filter(
+        (ing) => ing?.item && !isAlcoholFood(ing.item) && !isSupplementOnly(ing.item) && num(ing?.protein_g) != null
+      )
       .sort((a, b) => Number(b.protein_g) - Number(a.protein_g))[0];
     out.push({
       key,
@@ -380,7 +382,9 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
   for (const [leadKey, lead] of leads) {
     const together = pairs.get(leadKey) ?? new Map<string, Set<string>>();
     const sides = [...recurring]
-      .filter(([k, c]) => k !== leadKey && !c.protein_supplement && (together.get(k)?.size ?? 0) >= FUEL_STAPLE_MIN_DAYS)
+      .filter(
+        ([k, c]) => k !== leadKey && !c.protein_supplement && (together.get(k)?.size ?? 0) >= FUEL_STAPLE_MIN_DAYS
+      )
       .sort(
         ([ak, a], [bk, b]) =>
           (together.get(bk)?.size ?? 0) - (together.get(ak)?.size ?? 0) ||

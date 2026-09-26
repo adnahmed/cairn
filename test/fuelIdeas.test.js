@@ -336,7 +336,15 @@ test("alcohol words: drinks are caught, cooking uses and soft drinks are not", (
 test("never a supplement: not a side, not a component, out of a staple's words and numbers", () => {
   const chicken = { item: "Chicken breast (cooked)", amount: "200 g", kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7 };
   const rice = { item: "Rice (cooked)", amount: "150 g", kcal: 195, protein_g: 4, carbs_g: 42, fat_g: 0 };
-  const psyllium = { item: "Psyllium husk", amount: "1 tbsp", kcal: 20, protein_g: 0, carbs_g: 6, fat_g: 0, fiber_g: 5 };
+  const psyllium = {
+    item: "Psyllium husk",
+    amount: "1 tbsp",
+    kcal: 20,
+    protein_g: 0,
+    carbs_g: 6,
+    fat_g: 0,
+    fiber_g: 5,
+  };
   const creatine = { item: "Creatine", amount: "5 g", kcal: 0, protein_g: 0 };
   const fishOil = { item: "Fish oil capsules", amount: "2", kcal: 20, protein_g: 0, fat_g: 2 };
   const whey = { item: "Whey protein shake", amount: "1 scoop", kcal: 120, protein_g: 24, carbs_g: 3, fat_g: 1 };
@@ -348,7 +356,9 @@ test("never a supplement: not a side, not a component, out of a staple's words a
   meals.forEach(([summary, ingredients], i) => {
     const kcal = ingredients.reduce((a, r) => a + r.kcal, 0);
     const protein_g = ingredients.reduce((a, r) => a + r.protein_g, 0);
-    repo.addFoodNote("dinner", "", { summary, kcal, protein_g, ingredients }, undefined, { date: localDaysAgo(10 + i) });
+    repo.addFoodNote("dinner", "", { summary, kcal, protein_g, ingredients }, undefined, {
+      date: localDaysAgo(10 + i),
+    });
   });
   const staples = fuelStaples(undefined, 19);
   const components = staples.filter((s) => s.source === "components");
@@ -362,7 +372,10 @@ test("never a supplement: not a side, not a component, out of a staple's words a
   assert.equal(chickenIdea.title, "Chicken breast with rice");
   assert.equal(chickenIdea.prefill, "Chicken breast (200 g) and rice (150 g)");
   assert.equal(chickenIdea.kcal, 525, "only chicken and rice are counted");
-  assert.ok(components.some((s) => /^Whey protein shake\b/.test(s.title)), "a protein shake may still carry an idea");
+  assert.ok(
+    components.some((s) => /^Whey protein shake\b/.test(s.title)),
+    "a protein shake may still carry an idea"
+  );
 
   // A whole meal that names a supplement: it leaves the words and the numbers.
   const bowl = { item: "Oats", kcal: 300, protein_g: 10, fiber_g: 8 };
@@ -370,7 +383,13 @@ test("never a supplement: not a side, not a component, out of a staple's words a
     repo.addFoodNote(
       "breakfast",
       "",
-      { summary: "Oats with berries, psyllium husk", kcal: 320, protein_g: 10, fiber_g: 13, ingredients: [bowl, psyllium] },
+      {
+        summary: "Oats with berries, psyllium husk",
+        kcal: 320,
+        protein_g: 10,
+        fiber_g: 13,
+        ingredients: [bowl, psyllium],
+      },
       undefined,
       { date: localDaysAgo(d) }
     );
@@ -383,12 +402,27 @@ test("never a supplement: not a side, not a component, out of a staple's words a
 });
 
 test("supplement words: supplements are caught, foods are not", () => {
-  for (const pill of ["Psyllium husk", "Creatine monohydrate", "Fish oil", "Omega-3 softgel", "Magnesium glycinate", "Vitamin D3"]) {
+  for (const pill of [
+    "Psyllium husk",
+    "Creatine monohydrate",
+    "Fish oil",
+    "Omega-3 softgel",
+    "Magnesium glycinate",
+    "Vitamin D3",
+  ]) {
     assert.equal(supplementFoodKind(pill), "supplement", pill);
   }
-  for (const shake of ["Whey protein shake", "Casein", "Protein powder"]) assert.equal(supplementFoodKind(shake), "protein", shake);
+  for (const shake of ["Whey protein shake", "Casein", "Protein powder"])
+    assert.equal(supplementFoodKind(shake), "protein", shake);
   assert.equal(supplementFoodKind("Collagen peptides"), "supplement");
-  for (const food of ["Prepared salad", "Turmeric chicken", "Probiotic yogurt", "Mushroom caps", "Chicken breast", "Cod liver"]) {
+  for (const food of [
+    "Prepared salad",
+    "Turmeric chicken",
+    "Probiotic yogurt",
+    "Mushroom caps",
+    "Chicken breast",
+    "Cod liver",
+  ]) {
     assert.equal(supplementFoodKind(food), null, food);
   }
   assert.equal(stripSupplements("Oats with berries, psyllium husk"), "Oats with berries");

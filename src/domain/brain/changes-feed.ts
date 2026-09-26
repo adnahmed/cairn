@@ -445,7 +445,8 @@ function withoutAbsoluteDates(text: string, voice: RowVoice): string | null {
     .replace(/\s{2,}/g, " ")
     .trim();
   // A day left out at the head of a sentence hands its capital to the next word.
-  if (dropped) out = out.replace(/(^|[.!?]["'’”)\]]?\s+)([a-z])/g, (_m, lead: string, c: string) => lead + c.toUpperCase());
+  if (dropped)
+    out = out.replace(/(^|[.!?]["'’”)\]]?\s+)([a-z])/g, (_m, lead: string, c: string) => lead + c.toUpperCase());
   // A date nothing above could say plainly takes its sentence with it.
   out = splitSentences(out)
     .filter((sentence) => !ANY_DATE.test(sentence))
