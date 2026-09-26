@@ -14,7 +14,7 @@ function mealPlannerActionsRenderMealPlans(plans: unknown, sel = "#meallist", re
   wrap.querySelectorAll<HTMLElement>("[data-accept]").forEach((b) =>
     b.addEventListener("click", async () => {
       await api(`/mealplans/${b.dataset.accept}/accept`, { method: "POST" });
-      toast("Meal plan accepted");
+      toast("Kept as this week's ideas");
       swrInvalidate(MEALS_KEY);
       if (refresh) refresh(); else mealPlannerActionsRenderMealPlans(await api("/mealplans?limit=8"), sel);
     })
@@ -63,7 +63,7 @@ function mealPlannerActionsWireMealPrefs(): void {
       head.setAttribute("aria-expanded", "false");
       return true;
     },
-    onDiscard: () => renderMeals(),
+    onDiscard: () => repaintMealHistory(),
   });
   card.querySelectorAll<HTMLElement>("[data-pref]").forEach((c) =>
     c.addEventListener("click", () => {
@@ -98,14 +98,14 @@ function mealPlannerActionsWireMealPlannerBody(currentPlan: MealPlannerActionsPl
   const keep = view.querySelector<HTMLElement>("[data-mkeep]");
   if (keep) keep.addEventListener("click", async () => {
     await api(`/mealplans/${keep.dataset.mkeep}/accept`, { method: "POST" });
-    toast("Meal plan kept");
-    renderMeals();
+    toast("Kept as this week's ideas");
+    repaintMealHistory();
   });
   const disc = view.querySelector<HTMLElement>("[data-mdiscard]");
   if (disc) disc.addEventListener("click", async () => {
     await api(`/mealplans/${disc.dataset.mdiscard}/discard`, { method: "POST" });
     toast("Discarded");
-    renderMeals();
+    repaintMealHistory();
   });
 
   const draftBtn = view.querySelector("#mealDraftBtn");

@@ -160,7 +160,7 @@ function runMealPlan(): void {
 function wireMealDecisionActions(host: Element): void {
   const after = async (): Promise<void> => {
     swrInvalidate(MEALS_KEY);
-    await renderMeals();
+    await repaintMealHistory();
   };
   CairnDecisionUndoController.mount(
     host,
@@ -267,6 +267,17 @@ function rerenderFoodSurface(): void {
   renderFoodJournal({ history: !!view.querySelector("#fuelHistory[open]") });
 }
 
+// A meal-plan history action (keep, discard, Hold/Undo, a draft that finished, a
+// discarded prefs edit) repaints the history fold ALONE. The slots above keep their
+// mounts, so a meal card mid-edit keeps its unsaved grams, the Log composer keeps its
+// attached photo, and the page stays where the athlete scrolled it. Only when the
+// fold is not on view does it fall back to the Plan → Meals navigation.
+function repaintMealHistory(): Promise<unknown> {
+  swrInvalidate(MEALS_KEY);
+  if (!view.querySelector("#fuelHistorySlot")) return Promise.resolve(renderMeals());
+  return paintMealHistory(pollToken);
+}
+
 // Plan → Meals is no longer a destination: it redirects into Fuel with the meal-plan
 // journal open as history, and the URL follows (/app/plan/food).
 async function renderMeals(): Promise<unknown> {
@@ -335,7 +346,7 @@ function paintMealsBody(slot: HTMLElement, plans: unknown, mealPrefs: string): v
   });
   slot.innerHTML = `${painted.html}<h3 class="lbl fuel-history-h">Earlier weeks</h3><div id="mealHist"></div>`;
   runCountUps(slot);
-  CairnMealPlannerController.renderMealPlans(plans, "#mealHist", () => renderMeals());
+  CairnMealPlannerController.renderMealPlans(plans, "#mealHist", () => repaintMealHistory());
   CairnMealPlannerController.wireMealPlannerBody(currentPlan, painted.context);
   wireMealDecisionActions(slot);
   if (currentPlan) loadMealProvenance();
@@ -370,5 +381,6 @@ Object.assign(globalThis, {
   renderCoach,
   renderFoodJournal,
   renderMeals,
+  repaintMealHistory,
   rerenderFoodSurface,
 });

@@ -6876,6 +6876,10 @@ body[data-tab="session"] .tabbar{display:none}
 .fuel-meal.is-open .fuel-meal-panel-in{padding-bottom:var(--space-6)}
 .fuel-meal-note,.fuel-meal-raw{margin:var(--space-3) 0 0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
 .fuel-meal-actions{display:flex;justify-content:flex-end}
+.fuel-meal-fix{margin-top:var(--space-4)}
+.fuel-meal-fix-nums{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:0 var(--space-5)}
+.fuel-meal-fix-nums input{font-variant-numeric:tabular-nums}
+.fuel-meal-fix-actions{display:flex;justify-content:flex-start;margin-top:var(--space-2)}
 .fuel-meal-remove{min-height:44px;font-size:var(--text-sm)}
 .fuel-meals-empty{margin:0 0 var(--space-card);font-size:var(--text-md);color:var(--muted)}
 /* Ideas: a dashed edge, never the logged card's solid one — an idea is not a meal eaten. */
@@ -6901,7 +6905,6 @@ body[data-tab="session"] .tabbar{display:none}
 .fuel-history-h{margin:var(--space-8) 0 var(--space-3)}
 .mp-flush{margin:0}
 .mp-muted{color:var(--muted)}
-.mp-warn{color:var(--warn)}
 .mp-note{margin-top:var(--space-6);color:var(--muted)}
 .mp-upcoming-row{margin-top:var(--space-1)}
 .mp-upcoming-fold{margin:0;flex:1}

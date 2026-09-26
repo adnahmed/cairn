@@ -210,8 +210,8 @@ type MealPlannerPaint = {
     if (p.parsed) {
       hero = `<div class="mp-hero">
           <div class="mp-hero-head">
-            <span class="lbl">${escHtml(p.agent)} · #${escHtml(p.id)}</span>
-            ${statusBadge(visibleStatus)}
+            <span class="lbl">${escHtml(mealRows.planWeekLabel(p))}</span>
+            ${mealRows.planBadge(visibleStatus)}
           </div>
           <div class="mp-hero-nums">
             <div class="mp-hero-kcal">
@@ -238,17 +238,17 @@ type MealPlannerPaint = {
     } else {
       hero = `<div class="mp-hero">
           <div class="mp-hero-head">
-            <span class="lbl">${escHtml(p.agent)} · #${escHtml(p.id)}</span>
-            ${statusBadge(visibleStatus)}
+            <span class="lbl">${escHtml(mealRows.planWeekLabel(p))}</span>
+            ${mealRows.planBadge(visibleStatus)}
           </div>
         </div>`;
-      body = `<div class="sess-line mp-warn">Unparseable output</div>`;
+      body = `<div class="sess-line mp-muted">This week couldn't be read.</div>`;
     }
     const actions =
       p.status === "draft" && !autonomy
-        ? `<div class="sess-line mp-note"><span class="lbl">NEEDS YOUR DECISION</span> · Nothing changes until you choose.</div>
+        ? `<div class="sess-line mp-note">${mealRows.IDEAS_ASK}</div>
          <div class="meals-actions">
-           <button class="pillbtn pill-accent" data-accept="${escAttr(p.id)}">Use this plan</button>
+           <button class="pillbtn pill-accent" data-accept="${escAttr(p.id)}">Keep these ideas</button>
            <button class="pillbtn" data-discard="${escAttr(p.id)}">Discard</button>
          </div>`
         : autonomy
@@ -316,9 +316,9 @@ type MealPlannerPaint = {
            <button class="pillbtn" data-mdiscard="${escAttr(p.id)}">Discard</button>
          </div>`
         : isDraft && !autonomy
-          ? `<div class="sess-line mp-note"><span class="lbl">NEEDS YOUR DECISION</span> · Nothing changes until you choose.</div>
+          ? `<div class="sess-line mp-note">${mealRows.IDEAS_ASK}</div>
          <div class="meals-actions">
-           <button class="pillbtn pill-accent" data-mkeep="${escAttr(p.id)}">Use this plan</button>
+           <button class="pillbtn pill-accent" data-mkeep="${escAttr(p.id)}">Keep these ideas</button>
            <button class="pillbtn" data-mdiscard="${escAttr(p.id)}">Discard</button>
          </div>`
           : autonomy
@@ -328,8 +328,8 @@ type MealPlannerPaint = {
     const stateLabel = needsRefresh ? "NEEDS REFRESH" : autonomy ? "COMING NEXT" : isDraft ? "REVIEW" : kept;
     return `<div class="mealhero reveal" style="${stagger(0)}">
         <div class="mp-hero-head">
-          <span class="lbl">${stateLabel} · Week of ${escHtml(ctx.weekOf)}${p.agent ? ` · ${escHtml(p.agent)}` : ""}</span>
-          ${statusBadge(visibleStatus)}
+          <span class="lbl">${stateLabel} · Week of ${escHtml(ctx.weekOf)}</span>
+          ${mealRows.planBadge(visibleStatus)}
         </div>
         <div class="mp-hero-nums">
           <div><span class="numeral numeral-xl" data-cu="${Number(parsed.daily_kcal) || 0}">0</span><span class="lbl mp-hero-unit">kcal per day</span></div>

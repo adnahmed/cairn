@@ -8,7 +8,7 @@
 // being followed keeps going — and the composer is torn down with this mount.
 //
 //   const log = CairnFuelLogController.mount(slot, deps);
-//   log.open("Greek yogurt (a double portion)"); // "Start from this": fills, never sends
+//   log.open("Greek yogurt (a double portion)"); // "Start from this": fills (below any unsent text), never sends
 //   log();                                         // teardown
 {
   type Deps = ClientFuelLogDeps;
@@ -39,6 +39,7 @@
         isActive: () => isOpen && host.isConnected,
         hour: deps.hour,
         draft: deps.draft,
+        retryStore: deps.retryStore,
         onLogged: (logged) => {
           if (!host.isConnected) return;
           deps.onLogged(logged);
@@ -52,9 +53,19 @@
       if (!host.isConnected) return;
       setOpen(true);
       const c = ensureComposer();
-      // "Start from this" fills the composer for editing (and focuses it); it never sends.
-      if (prefill != null && String(prefill).trim()) c?.fill(String(prefill));
-      else input()?.focus();
+      // "Start from this" fills the composer for editing (and focuses it); it never
+      // sends. Unsent text already there is kept: the idea goes on a line below it.
+      const idea = prefill == null ? "" : String(prefill).trim();
+      if (idea && c) {
+        const typed = input()?.value ?? "";
+        const lines = typed.split("\n").map((line) => line.trim());
+        if (!typed.trim()) c.fill(idea);
+        else if (lines.includes(idea)) c.fill(typed);
+        else {
+          c.fill(`${typed.replace(/\s+$/, "")}\n${idea}`);
+          deps.toast("Added below what you'd typed");
+        }
+      } else input()?.focus();
       const el = root();
       if (el && typeof el.scrollIntoView === "function") {
         el.scrollIntoView({ block: "nearest", behavior: deps.reducedMotion() ? "auto" : "smooth" });

@@ -128,6 +128,7 @@
     const id = Number(entry.id);
     if (!Number.isSafeInteger(id) || id <= 0) return null;
     const pending = active(entry.enrichment_status);
+    const failed = !pending && String(entry.enrichment_status || "") === "failed";
     const note = entryNote(entry);
     const rows = (globalThis as { CairnMealCardModel?: CairnMealCardModelApi }).CairnMealCardModel?.mealCardRows(note);
     const title = String(entry.summary ?? "").trim() || "Food";
@@ -139,11 +140,14 @@
       kcal: rounded(entry.kcal),
       protein_g: rounded(entry.protein_g),
       pending,
+      failed,
       editable: !pending && !!rows && rows.length > 0,
+      slot: String(entry.meal ?? "").trim(),
       raw: raw && raw !== title ? raw : "",
       note,
     };
-    return { ...meal, sig: JSON.stringify([meal.title, meal.meta, meal.kcal, meal.protein_g, pending, note.parsed]) };
+    const sigOf = [meal.title, meal.meta, meal.slot, meal.kcal, meal.protein_g, pending, failed, note.parsed];
+    return { ...meal, sig: JSON.stringify(sigOf) };
   }
 
   /** The day's meals in the server's order (the order they were eaten). */

@@ -113,7 +113,7 @@ test("an empty today collapses; an empty past day says so plainly", () => {
 
 // ---------- controller ----------
 
-function harness({ entries = [bowl()], respond = null, reduced = true } = {}) {
+function harness({ entries = [bowl()], respond = null, reduced = true, date = TODAY } = {}) {
   const win = load();
   const store = new Map();
   let current = day(entries);
@@ -122,7 +122,7 @@ function harness({ entries = [bowl()], respond = null, reduced = true } = {}) {
   const changed = [];
   const watchers = [];
   const deps = {
-    date: TODAY,
+    date,
     today: TODAY,
     peekCached: (key) => store.get(key) ?? null,
     cachedApi: async (_path, options) => {
@@ -276,4 +276,182 @@ test("a refused delete keeps the meal and says so", async () => {
   assert.ok(h.host.querySelector('[data-fuel-meal="42"]'));
   assert.deepEqual(h.toasts, ["Couldn't remove that meal"]);
   assert.equal(h.changed.length, 0);
+});
+
+// ---------- a meal with no items: the totals correction ----------
+
+test("a whole-meal entry opens into a totals correction, protein first, blanks never zeros", () => {
+  const win = load();
+  const meals = win.CairnFuelTodayModel.mealModels(
+    day([bowl({ id: 60, summary: "Leftovers", ingredients: [], kcal: null, protein_g: null, meal: "dinner" })])
+  );
+  const host = renderHtml(win.CairnFuelMeals.listHtml(meals), { document: win.document });
+  const form = host.querySelector("[data-fuel-meal-fix]");
+  assert.ok(form, "numbers can be put on it in the panel");
+  assert.equal(host.querySelector("[data-fuel-meal-card]"), null);
+  const fields = form
+    .querySelectorAll("[data-fuel-meal-fix-field]")
+    .map((el) => el.getAttribute("data-fuel-meal-fix-field"));
+  assert.deepEqual(fields, ["summary", "meal", "protein_g", "kcal", "carbs_g", "fat_g", "fiber_g"]);
+  assert.equal(form.querySelector('[data-fuel-meal-fix-field="protein_g"]').value, "", "unknown stays blank");
+  assert.equal(form.querySelector('[data-fuel-meal-fix-field="summary"]').value, "Leftovers");
+  assert.equal(form.querySelector('option[value="dinner"]').hasAttribute("selected"), true);
+  for (const input of form.querySelectorAll("input")) {
+    assert.equal(form.querySelector(`label[for="${input.id}"]`) != null, true, `${input.id} is labelled`);
+  }
+  assert.match(host.querySelector(".fuel-meal-note").textContent, /one whole meal/);
+  assert.equal(host.querySelector("[data-fuel-meals-fix]").getAttribute("type"), "button");
+});
+
+test("an estimate that did not finish says so and asks for the numbers", () => {
+  const win = load();
+  const meals = win.CairnFuelTodayModel.mealModels(
+    day([bowl({ ingredients: [], kcal: null, protein_g: null, enrichment_status: "failed" })])
+  );
+  assert.equal(meals[0].failed, true);
+  assert.equal(meals[0].pending, false);
+  const host = renderHtml(win.CairnFuelMeals.listHtml(meals), { document: win.document });
+  assert.match(host.querySelector(".fuel-meal-note").textContent, /didn't finish.*Enter what you know/);
+  assert.doesNotMatch(host.textContent, /one whole meal/);
+  assert.ok(host.querySelector("[data-fuel-meal-fix]"));
+});
+
+test("an athlete's own meal label stays chosen in the correction", () => {
+  const win = load();
+  const meals = win.CairnFuelTodayModel.mealModels(day([bowl({ ingredients: [], meal: "Pre-run" })]));
+  const host = renderHtml(win.CairnFuelMeals.listHtml(meals), { document: win.document });
+  const chosen = host.querySelector("option[selected]");
+  assert.equal(chosen.getAttribute("value"), "Pre-run");
+});
+
+test("an ingredient-less meal is corrected with one PUT and today's numbers re-read", async () => {
+  const bare = bowl({
+    id: 60,
+    summary: "Leftovers",
+    ingredients: [],
+    kcal: null,
+    protein_g: null,
+    carbs_g: null,
+    fat_g: null,
+    fiber_g: null,
+    enrichment_status: "failed",
+  });
+  let h;
+  h = harness({
+    entries: [bare],
+    respond: (_path, init) => {
+      const body = JSON.parse(init.body);
+      h.setDay([{ ...bare, ...body, enrichment_status: "done" }]);
+      return { id: 60, parsed: body };
+    },
+  });
+  await flush();
+  const row = h.host.querySelector('[data-fuel-meal="60"]');
+  assert.equal(row.querySelector(".fuel-meal-nums").textContent, "not estimated");
+  await row.querySelector("[data-fuel-meals-toggle]").click();
+  const field = (key) => row.querySelector(`[data-fuel-meal-fix-field="${key}"]`);
+  field("summary").value = "Chicken leftovers";
+  field("meal").value = "lunch";
+  field("protein_g").value = "42";
+  field("kcal").value = "610";
+  field("carbs_g").value = "55";
+  await row.querySelector("[data-fuel-meals-fix]").click();
+  await flush();
+  const puts = h.calls.filter((c) => c.method === "PUT");
+  assert.equal(puts.length, 1);
+  assert.equal(puts[0].path, "/food-notes/60");
+  assert.deepEqual(puts[0].body, {
+    summary: "Chicken leftovers",
+    meal: "lunch",
+    protein_g: 42,
+    kcal: 610,
+    carbs_g: 55,
+    fat_g: null,
+    fiber_g: null,
+  });
+  assert.deepEqual(h.toasts, ["Saved"]);
+  assert.equal(h.changed.length, 1, "today's numbers re-read");
+  const after = h.host.querySelector('[data-fuel-meal="60"]');
+  assert.equal(after, row, "the open row kept its node");
+  assert.equal(after.querySelector(".fuel-meal-nums").textContent, "42 g protein · ~610 kcal");
+  assert.equal(after.querySelector(".fuel-meal-name").textContent, "Chicken leftovers");
+  assert.equal(h.calls.filter((c) => c.path === "/chat").length, 0, "no chat message needed to correct it");
+});
+
+test("a correction that can't be read or saved says so and sends nothing twice", async () => {
+  const h = harness({ entries: [bowl({ ingredients: [] })], respond: () => ({ error: "bad" }) });
+  await flush();
+  const row = h.host.querySelector('[data-fuel-meal="42"]');
+  row.querySelector('[data-fuel-meal-fix-field="protein_g"]').value = "-4";
+  await row.querySelector("[data-fuel-meals-fix]").click();
+  await flush();
+  assert.equal(h.calls.length, 0, "a negative number is never sent");
+  assert.deepEqual(h.toasts, ["Numbers only, and none below zero"]);
+  row.querySelector('[data-fuel-meal-fix-field="protein_g"]').value = "30";
+  await row.querySelector("[data-fuel-meals-fix]").click();
+  await flush();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.toasts.at(-1), "Couldn't save that meal");
+  assert.equal(h.changed.length, 0);
+  assert.equal(row.querySelector("[data-fuel-meals-fix]").disabled, false, "the button is usable again");
+});
+
+// ---------- the watch, and the empty state after the last Remove ----------
+
+test("a watch that gives up re-reads and watches again, a bounded number of times", async () => {
+  const h = harness({ entries: [bowl({ enrichment_status: "pending", kcal: null, protein_g: null })] });
+  await flush();
+  for (let i = 0; i < 10; i++) {
+    const last = h.watchers.at(-1);
+    last.settled(); // the poll fallback capped out; the row is still estimating
+    await flush();
+  }
+  assert.equal(h.watchers.length, 6, "watched again after each give-up, then the surface rests");
+  assert.equal(h.host.querySelector(".fuel-meal-nums").textContent, "estimating…");
+});
+
+test("removing the last meal leaves the day's own empty state, never a heading over nothing", async () => {
+  for (const [date, words] of [
+    [TODAY, ""],
+    ["2026-04-20", "No meals were logged that day."],
+  ]) {
+    const h = harness({ date });
+    await flush();
+    const remove = h.host.querySelector("[data-fuel-meals-remove]");
+    await remove.click();
+    await remove.click();
+    await flush();
+    assert.equal(h.host.querySelector(".fuel-meals-title"), null, `${date}: no Meals heading over an empty list`);
+    assert.equal(h.host.textContent.trim(), words, date);
+  }
+});
+
+test("the Fuel watcher ends once: on the settling update, or when the watch gives up", async () => {
+  const runs = [];
+  const win = loadClientModule(["fuel-deps"], {
+    globals: {
+      enrichmentActive: (s) => s === "pending" || s === "in_progress",
+      pollEnrichment: (_path, _id, opts) => {
+        const run = {};
+        run.promise = new Promise((resolve) => {
+          run.resolve = resolve;
+        });
+        run.opts = opts;
+        runs.push(run);
+        return run.promise;
+      },
+    },
+  });
+  const deps = win.CairnFuelDeps.meals(TODAY, TODAY, 1, () => {});
+  let settled = 0;
+  deps.watchEnrichment(42, () => settled++);
+  runs[0].opts.onUpdate({ enrichment_status: "in_progress" });
+  runs[0].resolve(null); // the poll fallback capped out while still estimating
+  await flush();
+  assert.equal(settled, 1, "a give-up still ends the watch");
+  deps.watchEnrichment(43, () => settled++);
+  runs[1].opts.onUpdate({ enrichment_status: "done" });
+  runs[1].resolve({ enrichment_status: "done" });
+  await flush();
+  assert.equal(settled, 2, "settled once, not again when the watcher resolves");
 });

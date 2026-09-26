@@ -38,6 +38,58 @@
     };
   }
 
+  /**
+   * The composer's idempotency envelope, per viewer: a send writes its request_id
+   * and text here before the draft clears, so a reload or a killed app mid-send
+   * replays the SAME request (the server answers it once) instead of the athlete
+   * retyping and logging the meal twice. Text only — never image bytes — and it
+   * expires with the composer's own window. Every storage access is guarded.
+   */
+  function retryStore(): NonNullable<FoodComposerDeps["retryStore"]> {
+    const KEY = "cairn.fuelLogRetry.v1";
+    const clearRetry = (): void => {
+      try {
+        localStorage.removeItem(KEY);
+      } catch {
+        /* a retry envelope is a convenience */
+      }
+    };
+    const valid = (value: unknown): FoodComposerRetryEnvelope | null => {
+      const v = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+      const requestId = String(v.requestId ?? "")
+        .trim()
+        .slice(0, 160);
+      const text = String(v.text ?? "").slice(0, 12_000);
+      const expiresAt = Number(v.expiresAt);
+      const hasImage = v.hasImage === true;
+      if (!requestId || !Number.isFinite(expiresAt) || expiresAt <= Date.now() || (!text && !hasImage)) return null;
+      return { requestId, text, hasImage, expiresAt };
+    };
+    return {
+      loadRetry: () => {
+        try {
+          const raw = localStorage.getItem(KEY);
+          const retry = raw ? valid(JSON.parse(raw)) : null;
+          if (raw && !retry) clearRetry();
+          return retry;
+        } catch {
+          clearRetry();
+          return null;
+        }
+      },
+      saveRetry: (value) => {
+        const retry = valid(value);
+        if (!retry) return clearRetry();
+        try {
+          localStorage.setItem(KEY, JSON.stringify(retry));
+        } catch {
+          /* a retry envelope is a convenience */
+        }
+      },
+      clearRetry,
+    };
+  }
+
   function today(date: string, todayIso: string): ClientFuelTodayDeps {
     return { ...swr(), date, today: todayIso, runCountUps: (scope) => runCountUps(scope) };
   }
@@ -53,18 +105,26 @@
       collapseEl: (el, done) => collapseEl(el, done),
       armDelete: (btn, onConfirm, options) => armDelete(btn, onConfirm, options),
       // SSE-first, poll fallback (pollEnrichment); its own stale-tab guard means the
-      // settle never fires into a surface the athlete has left.
+      // settle never fires into a surface the athlete has left. The watch ends ONCE:
+      // on the settling update, or when the watcher resolves without one (the poll
+      // fallback caps out while an agent is still estimating), so the meals slot
+      // re-reads and can watch again rather than sitting on "estimating…".
       watchEnrichment: (id, settled) => {
         let done = false;
+        const end = (): void => {
+          if (done) return;
+          done = true;
+          settled();
+        };
         void pollEnrichment("/food-notes", id, {
           tab: "plan",
           token,
           onUpdate: (row) => {
-            if (done || enrichmentActive(row.enrichment_status)) return;
-            done = true;
-            settled();
+            if (!enrichmentActive(row.enrichment_status)) end();
           },
-        });
+        })
+          .catch(() => null)
+          .then(end);
       },
       onChanged,
     };
@@ -78,6 +138,7 @@
       reducedMotion: () => reducedMotion(),
       hour,
       draft: draft(),
+      retryStore: retryStore(),
       onLogged,
     };
   }
@@ -93,7 +154,7 @@
     };
   }
 
-  const CAIRN_FUEL_DEPS = { draft, today, meals, log, ideas };
+  const CAIRN_FUEL_DEPS = { draft, retryStore, today, meals, log, ideas };
 
   Object.assign(globalThis, { CairnFuelDeps: CAIRN_FUEL_DEPS });
 }

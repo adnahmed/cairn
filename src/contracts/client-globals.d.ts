@@ -265,6 +265,10 @@ declare global {
     mealsCtxFor(plan: unknown, now?: unknown): ClientMealRowsPlannerContext;
     mealRowHtml(meal: unknown, mealIndex?: number, options?: { di?: number; count?: number }): string;
     mealDayHtml(day: unknown, dayIndex: number, context: ClientMealRowsContext): string;
+    /** A meal-plan week's state in the athlete's words ("to look over", "kept"…). */
+    planBadge(status: unknown): string;
+    planWeekLabel(plan: unknown): string;
+    IDEAS_ASK: string;
   };
 
   type ClientFamilyControllerDeps = {
@@ -1769,6 +1773,7 @@ declare global {
   declare function renderMeals(): unknown;
   declare function renderCoach(): unknown;
   declare function rerenderFoodSurface(): void;
+  declare function repaintMealHistory(): Promise<unknown>;
   declare function loadTrainingProvenance(isToday?: boolean): unknown;
   declare function loadMealProvenance(): unknown;
   declare function paintEnergyBody(exp: unknown): void;
@@ -5434,7 +5439,12 @@ declare global {
     kcal: number | null;
     protein_g: number | null;
     pending: boolean;
+    /** The estimate ran and did not finish: the athlete can enter the numbers. */
+    failed: boolean;
+    /** The meal card can mount: settled, with ingredient rows to correct. */
     editable: boolean;
+    /** The stored meal slot as written ("lunch", an own label; "" for none), for the totals correction. */
+    slot: string;
     raw: string;
     note: ClientFuelMealNote;
     sig: string;
@@ -5468,6 +5478,8 @@ declare global {
     collapseEl?(el: Element, done: () => void): void;
     hour?(): number;
     draft?: { load(): string; save(value: string): void };
+    /** The composer's idempotency envelope, so a send lost to a reload replays once. */
+    retryStore?: FoodComposerDeps["retryStore"];
     /** The composer followed a send to the food rows it logged. */
     onLogged(logged: FoodComposerLogged): void;
   };
@@ -5509,6 +5521,8 @@ declare global {
       mealHtml(meal: ClientFuelMeal, opts?: { enter?: boolean }): string;
       headMainHtml(meal: ClientFuelMeal): string;
       numsHtml(meal: ClientFuelMeal): string;
+      fixFormHtml(meal: ClientFuelMeal): string;
+      FIX_FIELDS: ReadonlyArray<readonly ["protein_g" | "kcal" | "carbs_g" | "fat_g" | "fiber_g", string]>;
       emptyHtml(isToday: boolean): string;
       errorHtml(): string;
     };
@@ -5529,6 +5543,7 @@ declare global {
     };
     CairnFuelDeps: {
       draft(): { load(): string; save(value: string): void };
+      retryStore(): NonNullable<FoodComposerDeps["retryStore"]>;
       today(date: string, today: string): ClientFuelTodayDeps;
       meals(date: string, today: string, token: number, onChanged: () => void): ClientFuelMealsDeps;
       log(onLogged: (logged: FoodComposerLogged) => void): ClientFuelLogDeps;

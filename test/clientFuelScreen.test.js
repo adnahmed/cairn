@@ -138,3 +138,33 @@ test("a second visit tears the previous mounts down first", async () => {
   await flush();
   for (const name of ["today", "meals", "log", "ideas"]) assert.ok(events.includes(`${name}:teardown`), name);
 });
+
+test("a meal-plan history action repaints the fold alone: Today, Log and Meals stay mounted", async () => {
+  const { win, view, mounts, events, routes } = load();
+  await win.renderMeals();
+  const todaySlot = view.querySelector("#dayFuelSlot");
+  const logSlot = view.querySelector("#fuelLogSlot");
+  routes.length = 0;
+  events.length = 0;
+  const token = win.pollToken;
+  await win.repaintMealHistory();
+  assert.deepEqual(
+    events.filter((e) => e.endsWith(":teardown")),
+    [],
+    "no component is torn down by a history action"
+  );
+  assert.ok(events.includes("invalidate:meals:plans"), "the journal re-reads");
+  assert.equal(view.querySelector("#dayFuelSlot"), todaySlot, "the shell is the same node");
+  assert.equal(view.querySelector("#fuelLogSlot"), logSlot);
+  assert.equal(mounts.log.host, logSlot);
+  assert.equal(win.pollToken, token, "no re-render, so no watcher is orphaned");
+  assert.deepEqual(routes, [], "and no navigation");
+});
+
+test("off the Fuel surface a history action still reaches the journal", async () => {
+  const { win, view, state } = load();
+  view.innerHTML = `<div id="meallist"></div>`;
+  await win.repaintMealHistory();
+  assert.equal(state.planSeg, "food");
+  assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), true);
+});

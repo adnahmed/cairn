@@ -177,3 +177,49 @@ test("end to end: a multi-line meal sent from Fuel logs without leaving the scre
   assert.equal(host.querySelector("[data-fuel-log-toggle]").getAttribute("aria-expanded"), "false");
   assert.equal(toasts.at(-1), "Logged your lunch");
 });
+
+test("Start from this keeps what the athlete already typed: the idea goes on a line below", () => {
+  const win = load();
+  const toasts = [];
+  const { host, handle, composer } = mount(win, { toast: (m) => toasts.push(m) });
+  handle.open();
+  const input = host.querySelector("textarea");
+  input.value = "eggs 3\ntoast 2 slices\n";
+  handle.open("Greek yogurt (a double portion)");
+  assert.equal(input.value, "eggs 3\ntoast 2 slices\nGreek yogurt (a double portion)");
+  assert.deepEqual(toasts, ["Added below what you'd typed"]);
+  handle.open("Greek yogurt (a double portion)");
+  assert.equal(input.value, "eggs 3\ntoast 2 slices\nGreek yogurt (a double portion)", "never twice");
+  assert.equal(composer.mounts.length, 1);
+});
+
+test("the Fuel composer carries a retry store, so a send lost to a reload replays once", () => {
+  const win = load();
+  const store = { loadRetry: () => null, saveRetry() {}, clearRetry() {} };
+  const { handle, composer } = mount(win, { retryStore: store });
+  handle.open();
+  assert.equal(composer.mounts[0].deps.retryStore, store);
+});
+
+test("Fuel's retry store keeps a live envelope per viewer and drops an expired or broken one", () => {
+  const win = loadClientModule(["fuel-deps"]);
+  const store = win.CairnFuelDeps.retryStore();
+  const later = Date.now() + 60_000;
+  store.saveRetry({ requestId: "req-1", text: "chicken 200 g", hasImage: false, expiresAt: later });
+  assert.equal(
+    JSON.stringify(store.loadRetry()),
+    JSON.stringify({ requestId: "req-1", text: "chicken 200 g", hasImage: false, expiresAt: later })
+  );
+  assert.equal(win.CairnFuelDeps.retryStore().loadRetry()?.requestId, "req-1", "survives a remount");
+  store.clearRetry();
+  assert.equal(store.loadRetry(), null);
+  store.saveRetry({ requestId: "req-2", text: "rice", hasImage: false, expiresAt: Date.now() - 1 });
+  assert.equal(store.loadRetry(), null, "an expired envelope never replays");
+  win.localStorage.setItem("cairn.fuelLogRetry.v1", "{not json");
+  assert.equal(store.loadRetry(), null);
+  assert.equal(win.localStorage.getItem("cairn.fuelLogRetry.v1"), null, "a broken envelope is cleared");
+  win.localStorage.getItem = () => {
+    throw new Error("blocked");
+  };
+  assert.equal(store.loadRetry(), null, "blocked storage reads as no envelope");
+});

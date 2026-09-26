@@ -29,7 +29,7 @@ test("meal-plan Hold and Undo use the durable decision rollback path", () => {
   assert.match(source, /"meal-decision-hold": \{/);
   assert.match(source, /"meal-decision-undo": \{/);
   assert.match(source, /swrInvalidate\(MEALS_KEY\)/);
-  assert.match(source, /await renderMeals\(\)/);
+  assert.match(source, /await repaintMealHistory\(\)/);
   assert.match(source, /Undo recorded — showing your current meals/);
   assert.doesNotMatch(source, /Put back the previous meal plan/);
 });
