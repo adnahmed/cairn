@@ -308,8 +308,9 @@ test("the feed shows only the team's changes, in the athlete's register, with no
   const [row] = rows;
   assert.equal(row.id, Number(applied.decision.id));
   assert.equal(row.state, "applied");
-  assert.doesNotMatch(row.why, /^auto:/, "a producer's note is never the why");
-  assert.ok(row.why.length > 0);
+  // Neither the producer's note ("auto: nudge") nor the change's fragment ("top of the
+  // range") is a sentence to the athlete, so nothing is said rather than either.
+  assert.equal(row.why, null, "a producer's note or a fragment is never the why");
   assert.deepEqual(Object.keys(row).sort(), [
     "confidence",
     "day",
@@ -407,7 +408,7 @@ test("a real auto-progression reads as the lift it moved, never the producer's l
 
   const [row] = feedRows();
   assert.ok(row, "the progression is in the feed");
-  assert.equal(row.title, `Moved your ${BENCH} target`);
+  assert.equal(row.title, `Raised your ${BENCH} target`, "the verb follows the snapshot: an earned step is a raise");
   assert.doesNotMatch(row.title, PRODUCER_LABEL);
   if (row.why != null) {
     assert.doesNotMatch(row.why, PRODUCER_LABEL);
