@@ -188,8 +188,6 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/plan-editor-form-client.ts", output: "public/js/plan-editor-form-client.js" },
   { source: "src/client/plan-editor-controller.ts", output: "public/js/plan-editor-controller.js" },
   { source: "src/client/chat-screen.ts", output: "public/js/09-plan-chat.js" },
-  { source: "src/client/day-fuel-client.ts", output: "public/js/day-fuel-client.js" },
-  { source: "src/client/day-fuel-controller.ts", output: "public/js/day-fuel-controller.js" },
   { source: "src/client/meal-fuel-context-client.ts", output: "public/js/meal-fuel-context-client.js" },
   { source: "src/client/meal-row-client.ts", output: "public/js/meal-row-client.js" },
   { source: "src/client/meal-plan-client.ts", output: "public/js/meal-plan-client.js" },
@@ -278,6 +276,16 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/changes-feed-controller.ts", output: "public/js/changes-feed-controller.js" },
   { source: "src/client/ask-card-client.ts", output: "public/js/ask-card-client.js" },
   { source: "src/client/ask-card-controller.ts", output: "public/js/ask-card-controller.js" },
+  { source: "src/client/fuel-today-model.ts", output: "public/js/fuel-today-model.js" },
+  { source: "src/client/fuel-today-client.ts", output: "public/js/fuel-today-client.js" },
+  { source: "src/client/fuel-today-controller.ts", output: "public/js/fuel-today-controller.js" },
+  { source: "src/client/fuel-meals-client.ts", output: "public/js/fuel-meals-client.js" },
+  { source: "src/client/fuel-meals-controller.ts", output: "public/js/fuel-meals-controller.js" },
+  { source: "src/client/fuel-log-client.ts", output: "public/js/fuel-log-client.js" },
+  { source: "src/client/fuel-log-controller.ts", output: "public/js/fuel-log-controller.js" },
+  { source: "src/client/idea-card-client.ts", output: "public/js/idea-card-client.js" },
+  { source: "src/client/idea-card-controller.ts", output: "public/js/idea-card-controller.js" },
+  { source: "src/client/fuel-deps.ts", output: "public/js/fuel-deps.js" },
 ];
 
 // Ordered concatenation manifest. index.html loads a handful of bundles instead
@@ -461,8 +469,6 @@ export const BUNDLES = [
     output: "public/js/bundle-04-coach-meals.js",
     label: "coach proposals + meal planner",
     inputs: [
-      "public/js/day-fuel-client.js",
-      "public/js/day-fuel-controller.js",
       "public/js/meal-fuel-context-client.js",
       "public/js/meal-row-client.js",
       "public/js/meal-plan-client.js",
@@ -477,7 +483,7 @@ export const BUNDLES = [
       "public/js/coach-proposal-controller.js",
       "public/js/06-coach-meals.js",
       // Food-note formatting + the food detail sheet USED to head bundle-05.
-      // They are food, not health: day-fuel-controller (this bundle) and
+      // They are food, not health: the Fuel surface (this bundle) and
       // ui-shell (bundle-01) call them from the Plan/Today surfaces, which must
       // keep working without the lazily-loaded Me/Health bundle. Moving them
       // here keeps the canonical <script> order byte-for-byte — bundle-04 runs
@@ -496,6 +502,18 @@ export const BUNDLES = [
       "public/js/changes-feed-controller.js",
       "public/js/ask-card-client.js",
       "public/js/ask-card-controller.js",
+      // Plan → Food, the Fuel surface (v2 wave 2). renderFoodJournal mounts these
+      // only from inside a function, so they may follow the screen too.
+      "public/js/fuel-today-model.js",
+      "public/js/fuel-today-client.js",
+      "public/js/fuel-today-controller.js",
+      "public/js/fuel-meals-client.js",
+      "public/js/fuel-meals-controller.js",
+      "public/js/fuel-log-client.js",
+      "public/js/fuel-log-controller.js",
+      "public/js/idea-card-client.js",
+      "public/js/idea-card-controller.js",
+      "public/js/fuel-deps.js",
     ],
   },
   {

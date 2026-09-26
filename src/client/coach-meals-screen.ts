@@ -157,13 +157,13 @@ function runMealPlan(): void {
 // durable decision rollback. A later accepted plan intentionally wins over an
 // older rollback: the response confirms the decision was reverted, not that its
 // prior plan became current, so the Undo confirmation stays truthful under that race.
-function wireMealDecisionActions(): void {
+function wireMealDecisionActions(host: Element): void {
   const after = async (): Promise<void> => {
     swrInvalidate(MEALS_KEY);
-    await renderMeals();
+    await repaintMealHistory();
   };
   CairnDecisionUndoController.mount(
-    view,
+    host,
     { api, toast },
     {
       "meal-decision-hold": {
@@ -185,55 +185,117 @@ function wireMealDecisionActions(): void {
   );
 }
 
-// ---------- Meals planner (Plan tab · Meals) ----------
-// A Morsel-style journal over the current weekly meal plan: big serif day names,
-// floating food art, per-meal macro chips, per-day totals. The classic mp-card
-// list survives as a collapsed history beneath it.
-// Meal-plan shell/day render helpers live in /js/meal-plan-client.js.
+// ---------- Plan → Food: the Fuel surface ----------
+// Today so far (protein first, energy, fiber — numbers with units, never a score),
+// the "Log food" composer, the day's meals as editable meal cards, three ideas from
+// the athlete's own staples, and the adaptive energy read. A composition only: the
+// shell paints synchronously, then each component mounts into its own slot. Logging
+// here never leaves the screen — the composer hands back the rows it logged and the
+// slots that read the day refresh. The weekly meal-plan journal is kept as history
+// in a fold at the foot (Plan → Meals redirects here with it open).
+let fuelTeardowns: Array<() => void> = [];
 
-// ---------- Plan → Food (daily logged-food journal + target context) ----------
-// Capture mostly happens in Chat. This tab is the quick review/correction surface:
-// what's logged today, where it sits against the current target, and the adaptive
-// energy-balance check-in. It is intentionally separate from weekly meal plans so
-// the daily log is always one header tap away.
-function renderFoodJournal(): void {
+function mountFuelSurface(token: number, date: string, today: string): void {
+  for (const teardown of fuelTeardowns) teardown();
+  const slot = (id: string): Element | null => view.querySelector(`#${id}`);
+  const deps = CairnFuelDeps;
+  const todaySlot = slot("dayFuelSlot");
+  const fuelToday = todaySlot ? CairnFuelTodayController.mount(todaySlot, deps.today(date, today)) : null;
+  let ideas: ClientFuelRefreshHandle | null = null;
+  const afterChange = (): void => {
+    swrInvalidate("progress:intake");
+    swrInvalidate("progress:energy");
+    void fuelToday?.refresh();
+    void ideas?.refresh();
+  };
+  const mealsSlot = slot("fuelMealsSlot");
+  const meals = mealsSlot
+    ? CairnFuelMealsController.mount(mealsSlot, deps.meals(date, today, token, afterChange))
+    : null;
+  const logSlot = slot("fuelLogSlot");
+  const onLogged = (): void => {
+    void meals?.refresh();
+    afterChange();
+  };
+  const log = logSlot ? CairnFuelLogController.mount(logSlot, deps.log(onLogged)) : null;
+  const ideasSlot = slot("fuelIdeasSlot");
+  ideas = ideasSlot
+    ? CairnIdeaCardController.mount(
+        ideasSlot,
+        deps.ideas(date, (prefill) => log?.open(prefill))
+      )
+    : null;
+  fuelTeardowns = [fuelToday, meals, log, ideas].filter((t): t is NonNullable<typeof t> => !!t);
+}
+
+function renderFoodJournal(options: { history?: boolean } = {}): Promise<unknown> {
   headerTitle.textContent = "Plan";
   state.planSeg = "food";
   const token = ++pollToken;
+  const today = localISO();
+  const date = state.logDate || today;
+  // Logging and ideas are about the rest of TODAY; another day is read and corrected only.
+  const isToday = date === today;
   view.innerHTML =
     segBar("food", planSeg()) +
-    `<section class="meal-energy food-journal" id="mealEnergy">
-      <div id="dayFuelSlot" class="dayfuel-slot">${loadingState("Reading today's food…")}</div>
+    `<section class="meal-energy food-journal fuel" id="mealEnergy">
+      <div id="dayFuelSlot" class="fuel-slot"></div>
+      ${isToday ? `<div id="fuelLogSlot" class="fuel-slot"></div>` : ""}
+      <div id="fuelMealsSlot" class="fuel-slot"></div>
+      ${isToday ? `<div id="fuelIdeasSlot" class="fuel-slot"></div>` : ""}
       <div id="energyCard">${loadingState("Reading your trend…")}</div>
       <div id="energyHero"></div>
       <div id="checkinResult" class="checkin-result"></div>
+      <details class="mp-history fuel-history" id="fuelHistory"${options.history ? " open" : ""}>
+        <summary class="lbl">Meal-plan history</summary>
+        <div id="fuelHistorySlot" class="fuel-history-body"></div>
+      </details>
     </section>`;
   wireSeg(PLAN_HANDLERS);
-  CairnDayFuelController.loadDayFuel(token, {
-    isCurrent: (candidate) => candidate === pollToken && Boolean(view.querySelector("#dayFuelSlot")),
-    onAsk: () => gotoChatWith("How's my eating shaping up today, and does it fit my goal?"),
-    onRerender: rerenderFoodSurface,
-  });
+  mountFuelSurface(token, date, today);
   loadMealsEnergy(token);
+  const fold = view.querySelector<HTMLDetailsElement>("#fuelHistory");
+  fold?.addEventListener("toggle", () => {
+    if (fold.open && !fold.dataset.painted) void paintMealHistory(token);
+  });
+  if (!options.history) return Promise.resolve();
+  fold?.scrollIntoView?.({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" });
+  return paintMealHistory(token);
 }
 
 function rerenderFoodSurface(): void {
-  if (view.querySelector(".food-journal")) renderFoodJournal();
-  else renderMeals();
+  renderFoodJournal({ history: !!view.querySelector("#fuelHistory[open]") });
 }
 
-// The meal-plan journal paints instantly from a warm peek and upgrades on change.
-// The plans list (the surface that actually changes) is the SWR-keyed surface; meal
-// prefs ride along from /settings (peeked, revalidated, but a prefs-only change is
-// rare enough that we just reuse whatever the peek/last fetch gave us per paint).
+// A meal-plan history action (keep, discard, Hold/Undo, a draft that finished, a
+// discarded prefs edit) repaints the history fold ALONE. The slots above keep their
+// mounts, so a meal card mid-edit keeps its unsaved grams, the Log composer keeps its
+// attached photo, and the page stays where the athlete scrolled it. Only when the
+// fold is not on view does it fall back to the Plan → Meals navigation.
+function repaintMealHistory(): Promise<unknown> {
+  swrInvalidate(MEALS_KEY);
+  if (!view.querySelector("#fuelHistorySlot")) return Promise.resolve(renderMeals());
+  return paintMealHistory(pollToken);
+}
+
+// Plan → Meals is no longer a destination: it redirects into Fuel with the meal-plan
+// journal open as history, and the URL follows (/app/plan/food).
 async function renderMeals(): Promise<unknown> {
-  headerTitle.textContent = "Plan";
-  state.planSeg = "meals";
-  const token = ++pollToken;
+  const painted = renderFoodJournal({ history: true });
+  if (typeof syncRouteFromState === "function") syncRouteFromState("replace");
+  return painted;
+}
+
+// The meal-plan journal, as history inside Fuel's fold (render helpers in
+// /js/meal-plan-client.js): it paints instantly from a warm peek and upgrades on change. Meal prefs ride along from /settings (peeked,
+// revalidated in the background).
+function paintMealHistory(token: number): Promise<unknown> {
+  const fold = view.querySelector<HTMLElement>("#fuelHistory");
+  const slot = view.querySelector<HTMLElement>("#fuelHistorySlot");
+  if (!fold || !slot) return Promise.resolve();
+  fold.dataset.painted = "1";
   const peek = peekCached<CoachMealPlan[]>(MEALS_KEY);
-  if (!peek) view.innerHTML = segSkeleton("meals", planSeg(), 3); // cold: skeleton-first
-  // meal prefs come from /settings; peek it so a warm paint has the verbatim text,
-  // and revalidate in the background (cheap, shares the SWR tiers).
+  if (!peek) slot.innerHTML = skelLines(3);
   let mealPrefs = String(
     peekCached<import("../contracts/client-api.js").ClientSettingsResponse>(MEALS_SETTINGS_KEY)?.data?.settings
       ?.meal_prefs || ""
@@ -244,21 +306,22 @@ async function renderMeals(): Promise<unknown> {
       mealPrefs = String(data.settings?.meal_prefs || "");
     },
   }).catch(() => {});
-
   return paintSWR({
     key: MEALS_KEY,
     path: "/mealplans?limit=12",
     peek,
     token,
     tab: "plan",
-    render: (plansRes) => paintMealsBody(plansRes || [], mealPrefs),
+    render: (plansRes) => {
+      if (slot.isConnected) paintMealsBody(slot, plansRes || [], mealPrefs);
+    },
   });
 }
 
-// Build + wire the whole meals journal from a plans list (+ verbatim meal prefs).
-// Called synchronously on a warm peek and again on a changed revalidate; the inner
-// wiring is idempotent (it re-queries the freshly-written DOM each time).
-function paintMealsBody(plans: unknown, mealPrefs: string): void {
+// Build + wire the meal-plan journal from a plans list (+ verbatim meal prefs) into
+// the history slot. Called on a warm peek and again on a changed revalidate; the
+// inner wiring re-queries the freshly written DOM each time.
+function paintMealsBody(slot: HTMLElement, plans: unknown, mealPrefs: string): void {
   const current = CairnMealPlan.currentMealPlan(plans);
   const upcoming = Array.isArray(plans)
     ? plans.find((plan) => {
@@ -270,31 +333,22 @@ function paintMealsBody(plans: unknown, mealPrefs: string): void {
     current && (typeof current.id === "string" || typeof current.id === "number")
       ? (current as Record<string, unknown> & { id: string | number })
       : null;
-  const shopChecked = currentPlan
-    ? new Set(JSON.parse(localStorage.getItem(`shop:${currentPlan.id}`) || "[]"))
-    : new Set();
+  let shopChecked = new Set<unknown>();
+  try {
+    if (currentPlan) shopChecked = new Set(JSON.parse(localStorage.getItem(`shop:${currentPlan.id}`) || "[]"));
+  } catch {
+    /* a ticked shopping list is a convenience */
+  }
   const painted = CairnMealPlan.mealPlannerBodyHtml(current, mealPrefs, {
     checkedShopping: shopChecked,
     verified: currentPlan ? CairnMealPlannerController.verifiedForPlan(currentPlan.id) : null,
     upcoming,
   });
-  const body = painted.html;
-  const ctx = painted.context;
-
-  view.innerHTML =
-    segBar("meals", planSeg()) +
-    body +
-    `
-    <details class="mp-history">
-      <summary class="lbl">Past meal plans</summary>
-      <div id="mealHist" style="margin-top:10px"></div>
-    </details>`;
-  wireSeg(PLAN_HANDLERS);
-  runCountUps(view);
-
-  CairnMealPlannerController.renderMealPlans(plans, "#mealHist", () => renderMeals());
-  CairnMealPlannerController.wireMealPlannerBody(currentPlan, ctx);
-  wireMealDecisionActions();
+  slot.innerHTML = `${painted.html}<h3 class="lbl fuel-history-h">Earlier weeks</h3><div id="mealHist"></div>`;
+  runCountUps(slot);
+  CairnMealPlannerController.renderMealPlans(plans, "#mealHist", () => repaintMealHistory());
+  CairnMealPlannerController.wireMealPlannerBody(currentPlan, painted.context);
+  wireMealDecisionActions(slot);
   if (currentPlan) loadMealProvenance();
 }
 
@@ -327,5 +381,6 @@ Object.assign(globalThis, {
   renderCoach,
   renderFoodJournal,
   renderMeals,
+  repaintMealHistory,
   rerenderFoodSurface,
 });

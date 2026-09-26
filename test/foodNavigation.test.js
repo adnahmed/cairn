@@ -18,7 +18,7 @@ test("logged food has a dedicated Plan Food tab and shortcuts land there", () =>
   assert.match(uiSegments, /food: \(\) => deps\.renderFoodJournal\(\)/, "Food segment is wired to the journal renderer");
   assert.match(ui, /planSeg\(\) \{[\s\S]*uiSegments\(\)\.planSeg\(\)/, "UI shell delegates Plan segments");
   assert.match(meals, /segBar\("food", planSeg\(\)\)/, "daily journal renders as the active Food segment");
-  assert.match(meals, /class="meal-energy food-journal"/, "Food tab owns the daily journal and energy surface");
+  assert.match(meals, /class="meal-energy food-journal fuel"/, "Food tab owns the Fuel surface and the energy read");
   assert.match(todayRailLoaders, /deps\.state\.planJump = "food"; deps\.activateTab\("plan"\)/, "Today logged-fuel card opens Food");
   assert.match(chat, /state\.planJump = "food"; activateTab\("plan"\)/, "Chat fuel strip opens Food");
   assert.match(chat, /chatFuelContextApi\(\)\.wants\(messages\)/, "Chat screen delegates fuel gating to the context helper");

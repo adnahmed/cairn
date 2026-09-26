@@ -142,7 +142,7 @@ function mealPlannerJobMealPlanDraftOpOpts(): MealPlannerJobOpOptions {
         autonomy.announced || autonomy.pending ? "Meals refreshed — the next plan is scheduled" : "Meal plan ready"
       );
       swrInvalidate(MEALS_KEY);
-      renderMeals();
+      repaintMealHistory();
     },
     onFail: (err?: unknown) => {
       const s = view.querySelector("#mealDraftStatus");

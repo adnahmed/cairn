@@ -137,6 +137,33 @@ type MealRowPlannerContext = {
     </section>`;
   }
 
+  // The meal-plan journal speaks to the athlete: a week's state in words, never the
+  // producer (the agent CLI), a row id, or a raw status. Same tones as statusBadge.
+  const PLAN_BADGE_WORDS: Record<string, [string, string]> = {
+    coming: ["coming", "ok"],
+    review: ["to look over", "draft"],
+    draft: ["to look over", "draft"],
+    accepted: ["kept", "ok"],
+    applied: ["kept", "ok"],
+    kept: ["kept", "ok"],
+    discarded: ["set aside", "off"],
+    superseded: ["earlier", "muted"],
+  };
+
+  function planBadge(status: unknown): string {
+    const words = PLAN_BADGE_WORDS[String(status || "draft")];
+    return words ? `<span class="mp-badge ${words[1]}">${escHtml(words[0])}</span>` : "";
+  }
+
+  function planWeekLabel(plan: unknown): string {
+    const weekOf = mealsCtxFor(plan).weekOf;
+    return weekOf ? `Week of ${weekOf}` : "A week of ideas";
+  }
+
+  // A draft is a week of IDEAS the athlete asked for: keeping it changes nothing they
+  // ate, so the ask is to look it over, never a decision to "use a plan".
+  const IDEAS_ASK = `<span class="lbl">IDEAS TO LOOK OVER</span> · Nothing changes unless you keep them.`;
+
   const CAIRN_MEAL_ROWS = {
     MEAL_HINT_CHIPS,
     record: mealRecord,
@@ -146,6 +173,9 @@ type MealRowPlannerContext = {
     mealsCtxFor,
     mealRowHtml,
     mealDayHtml,
+    planBadge,
+    planWeekLabel,
+    IDEAS_ASK,
   };
 
   Object.assign(globalThis, {

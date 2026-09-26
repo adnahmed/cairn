@@ -9,7 +9,7 @@ const settingsScreen = readFileSync(path.join(root, "src/client/settings-screen.
 const settingsTypes = readFileSync(path.join(root, "src/client/settings-screen-types.d.ts"), "utf8");
 const chatScreen = readFileSync(path.join(root, "src/client/chat-screen.ts"), "utf8");
 const swrCache = readFileSync(path.join(root, "src/client/swr-cache.ts"), "utf8");
-const dayFuelController = readFileSync(path.join(root, "src/client/day-fuel-controller.ts"), "utf8");
+const fuelTodayController = readFileSync(path.join(root, "src/client/fuel-today-controller.ts"), "utf8");
 const memoryController = readFileSync(path.join(root, "src/client/me-memory-controller.ts"), "utf8");
 const familyController = readFileSync(path.join(root, "src/client/family-controller.ts"), "utf8");
 const setActions = readFileSync(path.join(root, "src/client/today-session-set-actions.ts"), "utf8");
@@ -56,11 +56,10 @@ test("Track D surfaces use cached-first paint and shared optimistic mutations", 
   assert.match(swrCache, /fallback\(error, optimistic, previous\)/);
   assert.match(swrCache, /Object\.assign\(globalThis,[\s\S]*optimisticMutation/);
 
-  assert.match(dayFuelController, /function dayFuelCacheKey\(\): string/);
-  assert.match(dayFuelController, /peekCached<DayFuelControllerDay>\(key\)/);
-  assert.match(dayFuelController, /paintSWR\(\{[\s\S]*path: "\/nutrition\/day" \+ qs/);
-  assert.match(dayFuelController, /optimisticMutation<DayFuelControllerDay>\(\{[\s\S]*withFuelEntry\(current, id, body\)/);
-  assert.doesNotMatch(dayFuelController, /options\.onRerender\?\.\(\)/);
+  // Plan → Food's today-so-far paints from the SWR peek before its network read; a
+  // correction is the meal card's one PUT (test/clientFuelMeals.test.js drives it).
+  assert.match(fuelTodayController, /const dayKey = \(date: string\): string => `food:day:\$\{date\}`/);
+  assert.match(fuelTodayController, /deps\.peekCached<unknown>\(dayKey\(deps\.date\)\)[\s\S]*deps\s*\.cachedApi\(dayPath\(deps\.date\)/);
 
   assert.match(memoryController, /const ME_MEMORY_CACHE_KEY = "me:memory"/);
   assert.match(memoryController, /peekCached<MeMemoryRow\[\]>\(ME_MEMORY_CACHE_KEY\)/);

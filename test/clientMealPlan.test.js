@@ -112,15 +112,23 @@ test("meal-plan helper renders history cards, actions, and folded settled plans"
   assert.match(html, /data-accept="draft&lt;1&gt;"/);
   assert.match(html, /data-discard="draft&lt;1&gt;"/);
   assert.match(html, /class="pillbtn pill-accent" data-accept=/);
-  assert.match(html, />Use this plan</);
+  assert.match(html, />Keep these ideas</);
+  assert.match(html, /IDEAS TO LOOK OVER/);
+  assert.doesNotMatch(html, /Use this plan|NEEDS YOUR DECISION/, "a draft is ideas to look over, not a plan to adopt");
   assert.match(html, /class="pillbtn" data-discard=/);
   assert.match(html, />Discard</);
   assert.doesNotMatch(html, /USE THIS PLAN|DISCARD|class="logbtn"/);
-  assert.match(html, /chef&lt;script&gt;/);
+  // The producer and the row id never reach the athlete; nor does a raw status.
+  assert.doesNotMatch(html, /chef|stub|#\d|draft&lt;1&gt;<\/span>/);
+  assert.match(html, />to look over</);
+  assert.match(html, />set aside</);
+  assert.match(html, />kept</);
+  assert.doesNotMatch(html, />(discarded|superseded|accepted|draft|review)</);
   assert.match(html, /Build &lt;lean&gt;/);
   assert.match(html, /eggs &lt;toast&gt;/);
   assert.match(html, /Show earlier meal plans \(1\)/);
-  assert.match(html, /Unparseable output/);
+  assert.match(html, /This week couldn't be read\./);
+  assert.doesNotMatch(html, /Unparseable/);
   assert.doesNotMatch(html, /chef<script>|Build <lean>|eggs <toast>|<bad json>/);
 });
 
@@ -193,11 +201,11 @@ test("meal-plan helper renders planner preferences and empty state safely", () =
   assert.match(prefsHtml, /Fasted &lt;AM&gt;/);
   assert.match(prefsHtml, /data-pref="Fasted AM training"/);
   assert.doesNotMatch(prefsHtml, /Fasted <AM>/);
-  assert.match(emptyHtml, /No meal plan yet/);
+  assert.match(emptyHtml, /No week of meal ideas yet/);
   assert.match(emptyHtml, /id="mealDraftBtn"/);
   assert.match(emptyHtml, /class="pillbtn pill-accent"/);
-  assert.match(emptyHtml, /Ask team to plan this week/);
-  assert.doesNotMatch(emptyHtml, /ASK TEAM TO PLAN THIS WEEK|logbtn meals-cta/);
+  assert.match(emptyHtml, /Ask the team for a week of ideas/);
+  assert.doesNotMatch(emptyHtml, /ASK THE TEAM|logbtn meals-cta/);
   assert.match(emptyHtml, /fish &amp; rice/);
 });
 
@@ -240,7 +248,8 @@ test("meal-plan helper selects and renders the current weekly planner shell", ()
   assert.equal(painted.context.targetKcal, 2400);
   assert.equal(painted.context.todayName, "tue");
   assert.match(painted.html, /mealhero/);
-  assert.match(painted.html, /Week of 2026-06-30 · chef&lt;script&gt;/);
+  assert.match(painted.html, /Week of 2026-06-30<\/span>/);
+  assert.doesNotMatch(painted.html, /chef/, "the producer never reaches the athlete");
   assert.match(painted.html, /steady &lt;week&gt;/);
   assert.match(painted.html, /fasted &lt;AM&gt;/);
   assert.match(painted.html, /mealday mealday-today/);
@@ -402,18 +411,19 @@ test("meal-plan helper keeps review-required and applied states distinct", () =>
   );
 
   assert.match(review, /REVIEW · Week/);
-  assert.match(review, /NEEDS YOUR DECISION/);
-  assert.match(review, /Nothing changes until you choose/);
-  assert.match(review, />review<\/span>/);
-  assert.doesNotMatch(review, />draft<\/span>/);
+  assert.match(review, /IDEAS TO LOOK OVER/);
+  assert.match(review, /Nothing changes unless you keep them/);
+  assert.match(review, />Keep these ideas</);
+  assert.match(review, />to look over<\/span>/);
+  assert.doesNotMatch(review, />(draft|review)<\/span>/);
   assert.match(review, /data-mkeep="review&lt;2&gt;"/);
-  assert.doesNotMatch(review, /data-meal-decision-undo|CURRENT PLAN/);
-  assert.match(applied, /CURRENT PLAN · Week/);
+  assert.doesNotMatch(review, /data-meal-decision-undo|THIS WEEK'S IDEAS/);
+  assert.match(applied, /THIS WEEK'S IDEAS · Week/);
   assert.match(applied, /RECENTLY UPDATED/);
   assert.match(applied, /<summary>Why<\/summary>/);
   assert.match(applied, /Training volume rose while protein remains anchored/);
   assert.match(applied, /data-meal-decision-undo="decision&lt;13&gt;"/);
-  assert.doesNotMatch(applied, /data-mkeep|NEEDS YOUR DECISION/);
+  assert.doesNotMatch(applied, /data-mkeep|IDEAS TO LOOK OVER/);
 
   const noLongerRecent = meals.mealPlanHeroHtml(
     {

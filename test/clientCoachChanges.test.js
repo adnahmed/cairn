@@ -25,11 +25,11 @@ test("Plan Changes is history-first and keeps manual reviews secondary", () => {
 test("meal-plan Hold and Undo use the durable decision rollback path", () => {
   // The revert POST itself is the shared decision-undo component's
   // (test/decisionUndo.test.js drives it); this screen mounts it for both actions.
-  assert.match(source, /CairnDecisionUndoController\.mount\(\s*view,/);
+  assert.match(source, /CairnDecisionUndoController\.mount\(\s*host,/);
   assert.match(source, /"meal-decision-hold": \{/);
   assert.match(source, /"meal-decision-undo": \{/);
   assert.match(source, /swrInvalidate\(MEALS_KEY\)/);
-  assert.match(source, /await renderMeals\(\)/);
+  assert.match(source, /await repaintMealHistory\(\)/);
   assert.match(source, /Undo recorded — showing your current meals/);
   assert.doesNotMatch(source, /Put back the previous meal plan/);
 });
