@@ -34,7 +34,10 @@ import {
   cardiovascularRiskRead,
   doctorLoopRead,
   doctorPacketRead,
+  evidenceWantedRead,
   nextCheckupRead,
+  searchRecords,
+  visitQuestionsRead,
   getSettings,
   healthFocus,
   healthStanding,
@@ -136,6 +139,36 @@ connectedBrainRouter.get("/health/doctor-packet", (req, res) => {
   // packet is an explicit user action that may want the newest data).
   const refresh = req.query.refresh === "1" || req.query.refresh === "true";
   res.json(doctorPacketRead({ refresh, asOf }));
+});
+
+// Records search: one search across markers, health documents, visit notes and body
+// readings. ?q= (every word must match) and ?group=out_of_range|panel|newest (default
+// out_of_range). "Out of range" keys on the lab's own flag; outside-optimal is its own
+// mark, never merged into it; panel order is MARKER_GROUPS order; each marker carries
+// its reading's age for its own kind of marker. Read-only. Informational, not medical advice.
+connectedBrainRouter.get("/records/search", (req, res) => {
+  const asOf = typeof req.query.as_of === "string" ? req.query.as_of : undefined;
+  res.json(searchRecords({ q: req.query.q, group: req.query.group, asOf }));
+});
+
+// Visit questions: calm questions proposed for the next visit — one per doctor-loop
+// follow-up due now or opening soon, a couple of worth-adding workups, and any clinical
+// ask the team is holding for a doctor. The athlete's edited list is never stored; it
+// travels with the packet request (?questions= on /health-report*). READ-ONLY by
+// default; ?refresh=1 runs the deterministic attention pass first.
+connectedBrainRouter.get("/health/visit-questions", (req, res) => {
+  const asOf = typeof req.query.as_of === "string" ? req.query.as_of : undefined;
+  const refresh = req.query.refresh === "1" || req.query.refresh === "true";
+  res.json(visitQuestionsRead({ asOf, refresh }));
+});
+
+// Evidence wanted: at most ONE calm line naming the overdue recheck or rescan the team
+// would find useful (an overdue doctor-loop follow-up, an aged body-composition scan, or
+// an off reading past its own marker's validity window), else item:null. Pull, never
+// push — it waits on the page and nothing notifies. Read-only.
+connectedBrainRouter.get("/health/evidence-wanted", (req, res) => {
+  const asOf = typeof req.query.as_of === "string" ? req.query.as_of : undefined;
+  res.json(evidenceWantedRead({ asOf }));
 });
 
 // Intervention -> outcome annotations: compare follow-up marker readings against

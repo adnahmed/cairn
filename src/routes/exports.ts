@@ -3,9 +3,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { todayISO } from "../db.js";
-import { buildHealthExport } from "../domain/health/index.js";
+import { buildHealthExport, parseVisitQuestionList } from "../domain/health/index.js";
 import { exportAll, snapshotDbTo } from "../domain/training/index.js";
-import { buildClinicalReportData, renderClinicalReportHTML, renderClinicalReportText } from "../report.js";
+import {
+  buildClinicalReportData,
+  clinicalReportJson,
+  parseReportSections,
+  renderClinicalReportHTML,
+  renderClinicalReportText,
+} from "../report.js";
 
 export const exportsRouter = Router();
 
@@ -40,23 +46,44 @@ exportsRouter.get("/health-export", (_req, res) => {
   res.send(JSON.stringify(data, null, 2));
 });
 
+// The packet options every format shares: `?sections=` (comma-separated ids — findings,
+// visit_questions, body_composition, panels, supplements, sources; missing = every section
+// but the opt-in `sources`, "all" = every section, "none" = header + the informational
+// line only) and `?questions=` (repeatable: the athlete's
+// final visit-question list, used verbatim and never stored; absent = the proposals).
+function reportOptions(query: Record<string, unknown>) {
+  return {
+    sections: parseReportSections(query.sections),
+    questions: parseVisitQuestionList(query.questions),
+  };
+}
+
 // Clinician-facing health report — a doctor-ready, print-to-PDF HTML document
-// (grouped panels + dated progress + a "findings to discuss" lead + DEXA body
-// comp). The PWA opens it in a new tab (?token=); the page itself has a "Save as
-// PDF" button. `?name=` stamps the patient name (also editable on the page).
-// `.txt` is the plain-text twin for pasting into a MyChart message body.
-// Optimal-zone framing, no scores — same boundary discipline as /health-export.
+// (grouped panels + dated progress + a "findings to discuss" lead + DEXA body comp).
+// The PWA opens it in a new tab (?token=); the page itself has a "Save as PDF" button.
+// `?name=` stamps the patient name (also editable on the page). `?sections=` toggles
+// sections (a section off is absent from every format) and `?questions=` carries the
+// athlete's visit questions. `.txt` is the plain-text twin for pasting into a MyChart
+// message body; `.json` is the same packet as data. Optimal-zone framing, no scores —
+// same boundary discipline as /health-export; the informational line always prints.
 exportsRouter.get("/health-report", (req, res) => {
   const name = typeof req.query.name === "string" ? req.query.name.slice(0, 120) : "";
-  const html = renderClinicalReportHTML(buildClinicalReportData(), { name });
+  const html = renderClinicalReportHTML(buildClinicalReportData(reportOptions(req.query)), { name });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(html);
 });
 
 exportsRouter.get("/health-report.txt", (req, res) => {
   const name = typeof req.query.name === "string" ? req.query.name.slice(0, 120) : "";
-  const text = renderClinicalReportText(buildClinicalReportData(), { name });
+  const text = renderClinicalReportText(buildClinicalReportData(reportOptions(req.query)), { name });
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="cairn-health-summary-${todayISO()}.txt"`);
   res.send(text);
+});
+
+// The doctor packet as JSON — the live preview's data: the same sections and questions
+// as the HTML/text formats, with a toggled-off section's key absent, plus the section
+// catalog (id, label, included) and the informational line.
+exportsRouter.get("/health-report.json", (req, res) => {
+  res.json(clinicalReportJson(buildClinicalReportData(reportOptions(req.query))));
 });

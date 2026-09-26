@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**350 routes** across 118 groups.
+**354 routes** across 120 groups.
 
 ## `/activities`
 
@@ -376,6 +376,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | GET | `/api/health` | Liveness only: process identity plus exact build provenance. It deliberately does not probe optional coaching CLIs or other external providers. |
 | GET | `/api/health/doctor-loop` | Doctor-loop read: missing-workup recommendations plus lab/DEXA retest attention rows derived through the adaptive attention engine. Informational, not medical advice. READ-ONLY by default (like /health/next-checkup): the nightly scheduler op owns the attention-schedule refresh, so a passive PWA/tool open never triggers the write pass. Pass ?refresh=1 to force a fresh deterministic pass. |
 | GET | `/api/health/doctor-packet` | Export-ready doctor packet: current prioritized health focus, active directives, doctor-loop retest/missing-workup plan, PREVENT cardiovascular-risk read, and latest intervention-outcome annotations. Informational, not medical advice. |
+| GET | `/api/health/evidence-wanted` | Evidence wanted: at most ONE calm line naming the overdue recheck or rescan the team would find useful (an overdue doctor-loop follow-up, an aged body-composition scan, or an off reading past its own marker's validity window), else item:null. Pull, never push — it waits on the page and nothing notifies. Read-only. |
 | GET | `/api/health/focus` | The elite-coach synthesis layer: the deterministic TIERED focus (priorities, not a flat directive flood) + the latest cached agentic health-story narrative. Both informational, no scores. The narrative is regenerated via POST below. |
 | GET | `/api/health/markers` |  |
 | GET | `/api/health/next-checkup` | Next-checkup read: the athlete-facing composition over the doctor-loop — rechecks whose window is open/opening, visible follow-through on active supplements & directives (target marker + trend + recheck state), and a deterministic prep list (ordered labs, what to bring, what to ask). Informational, not medical advice; no scores. The read is READ-ONLY by default: the nightly scheduler op owns the attention-schedule refresh, so a PWA open never triggers the write pass. Pass ?refresh=1 to force a fresh deterministic pass (kept for tools / a manual refresh). |
@@ -387,6 +388,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | GET | `/api/health/standing` | Pull-based health standing: a descriptive, visual-friendly orientation read. Percentiles are real reference comparisons where a trustworthy curve exists (e.g. VO2max / body composition), and the "signal age" is a plain-language synthesis, not a 0-100 score or medical diagnosis. |
 | GET | `/api/health/synthesis` | The cached synthesis carries a `stale` flag so the PWA can offer a calm "refresh this read" affordance when newer labs/training have drifted past it. |
 | POST | `/api/health/synthesis` |  |
+| GET | `/api/health/visit-questions` | Visit questions: calm questions proposed for the next visit — one per doctor-loop follow-up due now or opening soon, a couple of worth-adding workups, and any clinical ask the team is holding for a doctor. The athlete's edited list is never stored; it travels with the packet request (?questions= on /health-report*). READ-ONLY by default; ?refresh=1 runs the deterministic attention pass first. |
 
 ## `/health-docs`
 
@@ -432,7 +434,13 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/health-report` | Clinician-facing health report — a doctor-ready, print-to-PDF HTML document (grouped panels + dated progress + a "findings to discuss" lead + DEXA body comp). The PWA opens it in a new tab (?token=); the page itself has a "Save as PDF" button. `?name=` stamps the patient name (also editable on the page). `.txt` is the plain-text twin for pasting into a MyChart message body. Optimal-zone framing, no scores — same boundary discipline as /health-export. |
+| GET | `/api/health-report` | Clinician-facing health report — a doctor-ready, print-to-PDF HTML document (grouped panels + dated progress + a "findings to discuss" lead + DEXA body comp). The PWA opens it in a new tab (?token=); the page itself has a "Save as PDF" button. `?name=` stamps the patient name (also editable on the page). `?sections=` toggles sections (a section off is absent from every format) and `?questions=` carries the athlete's visit questions. `.txt` is the plain-text twin for pasting into a MyChart message body; `.json` is the same packet as data. Optimal-zone framing, no scores — same boundary discipline as /health-export; the informational line always prints. |
+
+## `/health-report.json`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/health-report.json` | The doctor packet as JSON — the live preview's data: the same sections and questions as the HTML/text formats, with a toggled-off section's key absent, plus the section catalog (id, label, included) and the informational line. |
 
 ## `/health-report.txt`
 
@@ -673,6 +681,12 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/recent-training` | The unified "Lately" feed: finished strength sessions + cardio activities merged, newest-first, with the real Garmin start time + body-reaction detail folded in. |
+
+## `/records`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/records/search` | Records search: one search across markers, health documents, visit notes and body readings. ?q= (every word must match) and ?group=out_of_range\|panel\|newest (default out_of_range). "Out of range" keys on the lab's own flag; outside-optimal is its own mark, never merged into it; panel order is MARKER_GROUPS order; each marker carries its reading's age for its own kind of marker. Read-only. Informational, not medical advice. |
 
 ## `/recovery`
 

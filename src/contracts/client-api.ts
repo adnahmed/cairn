@@ -18,6 +18,12 @@ import type {
   ISODateString,
 } from "./client.js";
 import type { ClientFuelIdeas, ClientIntakeBand } from "./fuel.js";
+import type {
+  ClientEvidenceWantedRead,
+  ClientHealthReportJson,
+  ClientRecordsSearchRead,
+  ClientVisitQuestionsRead,
+} from "./health-records.js";
 
 export type ClientJsonObject = Record<string, unknown>;
 export type ClientJsonArray = ClientJsonObject[];
@@ -3630,6 +3636,10 @@ export interface ClientApiResponses {
   "/api/chat/turns": ClientChatTurn[];
   "/api/chat/reset": ClientChatResetResponse;
   "/api/agent-jobs": ClientAgentJobsResponse;
+  "/api/records/search": ClientRecordsSearchRead;
+  "/api/health/visit-questions": ClientVisitQuestionsRead;
+  "/api/health/evidence-wanted": ClientEvidenceWantedRead;
+  "/api/health-report.json": ClientHealthReportJson;
 }
 
 export type ClientApiCanonicalPath = keyof ClientApiResponses;
