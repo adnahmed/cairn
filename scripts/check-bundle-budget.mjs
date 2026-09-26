@@ -13,6 +13,10 @@
 // review signal, like the style ratchet's baseline). `--report` also lists each
 // bundle's largest inputs, which is how you see what a lazy split would move.
 //
+// The render-blocking stylesheet (`public/styles.css`, built from src/styles/**) rides
+// the same budget as a non-bundle asset (`BUDGETED_ASSETS`), so CSS growth is a review
+// signal too.
+//
 // Reads the BUILT bundles, so it runs after `npm run build` (the post-build lane of
 // `npm run verify`).
 //
@@ -28,6 +32,13 @@ const BUDGET_FILE = "scripts/bundle-budget.json";
 /** Headroom above the measured size when a budget is (re)set: 2%, rounded up to a whole KiB. */
 export const BUDGET_MARGIN = 0.02;
 const KIB = 1024;
+/** Served assets outside BUNDLES that are budgeted the same way: the stylesheet every page blocks on. */
+export const BUDGETED_ASSETS = [{ output: "public/styles.css", lazy: null, inputs: [] }];
+
+/** Everything the budget covers: the BUNDLES manifest plus the budgeted assets. */
+export function budgetedOutputs(bundles) {
+  return [...bundles, ...BUDGETED_ASSETS];
+}
 
 /** Brotli with the same parameters `precompressAssets()` uses for the served `.br`. */
 export function brotliSize(bytes) {
@@ -186,7 +197,7 @@ function inputReport(bundles) {
 async function main() {
   const args = new Set(process.argv.slice(2));
   const { BUNDLES } = await import("./build-client.mjs");
-  const { measurements, missing } = measureBuilt(BUNDLES);
+  const { measurements, missing } = measureBuilt(budgetedOutputs(BUNDLES));
   if (missing.length) {
     console.error(`Bundle budget: ${missing.length} bundle(s) not built — run npm run build first:`);
     for (const m of missing) console.error(`  ${m}`);
@@ -228,7 +239,7 @@ async function main() {
 
   if (failures.length || args.has("--report")) console.log(renderTable(rows));
   if (args.has("--report")) {
-    console.log(`\nEager (index.html) total: ${formatBytes(eagerRaw)} raw, ${formatBytes(eagerBrotli)} brotli`);
+    console.log(`\nEager (index.html, stylesheet included) total: ${formatBytes(eagerRaw)} raw, ${formatBytes(eagerBrotli)} brotli`);
     console.log(inputReport(BUNDLES));
   }
   if (failures.length) {

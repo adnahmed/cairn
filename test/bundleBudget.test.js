@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   BUDGET_MARGIN,
   budgetFromMeasurements,
+  budgetedOutputs,
   ceilingFor,
   evaluateBudget,
   formatDelta,
@@ -68,11 +69,13 @@ test("deltas read signed", () => {
   assert.equal(formatDelta(-512), "-512 B");
 });
 
-test("the checked-in budget covers exactly the BUNDLES manifest and runs in verify", async () => {
+test("the checked-in budget covers exactly the BUNDLES manifest plus the stylesheet, and runs in verify", async () => {
   const { BUNDLES } = await import("../scripts/build-client.mjs");
   const budget = JSON.parse(read("scripts/bundle-budget.json"));
-  assert.deepEqual(Object.keys(budget.bundles).sort(), BUNDLES.map((bundle) => bundle.output).sort());
-  for (const bundle of BUNDLES) {
+  const covered = budgetedOutputs(BUNDLES);
+  assert.ok(covered.some((asset) => asset.output === "public/styles.css"), "the render-blocking CSS is budgeted");
+  assert.deepEqual(Object.keys(budget.bundles).sort(), covered.map((bundle) => bundle.output).sort());
+  for (const bundle of covered) {
     const entry = budget.bundles[bundle.output];
     assert.equal(entry.lazy ?? null, bundle.lazy ?? null, `${bundle.output} lazy flag matches the manifest`);
     for (const kind of ["raw", "brotli"]) {
