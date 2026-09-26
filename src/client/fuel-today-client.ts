@@ -92,17 +92,27 @@
     return `<span class="fuel-today-value"><b class="numeral numeral-lg"${cu}>${escHtml(value.toLocaleString())}</b> <span class="fuel-today-unit">${escHtml(unit)}</span></span>`;
   }
 
+  // The protein meter: how far today's protein has come toward its anchor, drawn as a
+  // bar in the fuel stone's own hue. A picture of the numbers beside it, never a score
+  // (no percentage is printed) and never a tone: a short bar is a day in progress.
+  function meterHtml(value: number | null, anchor: number | null): string {
+    if (value == null || anchor == null || anchor <= 0) return "";
+    const fill = Math.max(0, Math.min(100, Math.round((value / anchor) * 100)));
+    return `<dd class="fuel-today-meter" aria-hidden="true"><span class="fuel-today-track"><span class="fuel-today-fill" style="width:${fill}%"></span></span></dd>`;
+  }
+
   function numHtml(
     label: string,
     value: number | null,
     unit: string,
     sub: string,
-    opts: { anchor?: boolean; countUp: boolean }
+    opts: { anchor?: boolean; countUp: boolean; meter?: string; after?: string }
   ): string {
     return `<div class="fuel-today-num${opts.anchor ? " is-anchor" : ""}">
-        <dt class="lbl">${escHtml(label)}</dt>
+        <dt class="fuel-today-k">${escHtml(label)}</dt>
         <dd>${valueHtml(value, unit, opts.countUp)}</dd>
-        ${sub ? `<dd class="fuel-today-sub">${escHtml(sub)}</dd>` : ""}
+        ${opts.meter || ""}
+        ${sub ? `<dd class="fuel-today-sub">${escHtml(sub)}</dd>` : ""}${opts.after || ""}
       </div>`;
   }
 
@@ -139,17 +149,22 @@
         : "";
     const toGo =
       m.protein.toGo != null
-        ? `<p class="fuel-today-line fuel-today-togo"><span class="numeral">${m.protein.toGo}</span> g protein to go</p>`
+        ? `<dd class="fuel-today-togo"><span class="numeral">${m.protein.toGo}</span> g protein to go</dd>`
         : "";
     const band = m.bandWords ? `<p class="fuel-today-line fuel-today-band">${escHtml(m.bandWords)}</p>` : "";
     return `<section class="fuel-today reveal" style="--i:0" aria-label="Today's food">
       ${headHtml(m)}
       <dl class="fuel-today-nums">
-        ${numHtml("Protein", m.protein.value, "g", anchor, { anchor: true, countUp })}
+        ${numHtml("Protein", m.protein.value, "g", anchor, {
+          anchor: true,
+          countUp,
+          meter: meterHtml(m.protein.value, m.protein.anchor),
+          after: toGo,
+        })}
         ${numHtml("Energy", m.energy.value, "kcal", "", { countUp })}
         ${numHtml("Fiber", m.fiber.value, "g", "", { countUp })}
       </dl>
-      ${toGo}${pending}${band}${demandHtml(m)}${carbsHtml(m)}
+      ${pending}${band}${demandHtml(m)}${carbsHtml(m)}
     </section>`;
   }
 

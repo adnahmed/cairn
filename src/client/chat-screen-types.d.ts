@@ -68,3 +68,10 @@ declare function spawnPendingBubble(turnValue: unknown): Element | null;
 declare function chatMonitorEnsure(): void;
 declare function chatReconnect(): Promise<void>;
 declare function wireChatJump(log: HTMLElement | null, jump: HTMLElement | null): void;
+
+/** The speaker line on a team reply (chat-speaker-client.ts). */
+declare const CairnChatSpeaker: {
+  speaker(actions: ChatScreenAppliedAction[], drafts: ChatScreenDraft[]): { stone: string; name: string };
+  html(speaker: { stone: string; name: string }): string;
+  forTurn(actions: ChatScreenAppliedAction[], drafts: ChatScreenDraft[]): string;
+};

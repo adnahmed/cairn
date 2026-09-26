@@ -315,45 +315,43 @@
 .symptom-history-row:first-child{border-top:0}
 .symptom-history-row .linkbtn{flex:0 0 auto;min-height:30px;padding:5px 1px}
 
-/* Energy Balance (Progress) — a calm editorial read, never a dashboard. */
+/* Energy Balance (Progress, and Fuel's foot) — a calm editorial read, never a
+   dashboard. Atelier v2: one surface card, a mono kicker behind a small dot, the
+   read in the serif voice. A lever read (dropping faster than lean-safe) says so
+   with a dawn dot in the kicker, never a painted edge. */
 .eb-ctx{color:var(--muted);margin-top:11px}
 .eb-card{
-  background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
-  padding:17px 19px 15px;margin:0 0 14px;border-left:3px solid var(--sage);
-  position:relative;overflow:hidden;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:var(--space-7) var(--space-8) var(--space-7);margin:0 0 var(--space-7);position:relative;
 }
-.eb-card::before{content:"";position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--sage) 7%,transparent), transparent 62%)}
-.eb-kicker{display:flex;align-items:center;gap:7px;color:var(--muted);margin-bottom:9px;position:relative}
-.eb-glyph{color:var(--sage);font-size:.8rem;line-height:1}
-.eb-lead{font-family:var(--font-display);font-weight:480;font-variation-settings:"opsz" 40;
-  font-size:1.1rem;line-height:1.42;color:var(--ink);margin:0;max-width:46ch;position:relative}
-.eb-body{font-size:.86rem;color:var(--ink-2);line-height:1.55;margin:9px 0 0;max-width:48ch;position:relative}
+.eb-kicker{display:flex;align-items:center;gap:var(--space-3);color:var(--muted);margin-bottom:var(--space-4)}
+.eb-glyph{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--s-fuel);
+  font-size:0;line-height:0;color:transparent;overflow:hidden;flex:0 0 auto}
+.eb-lead{font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.3;
+  color:var(--ink);margin:0;max-width:46ch;text-wrap:pretty}
+.eb-body{font-size:var(--text-sm);color:var(--ink2);line-height:1.55;margin:var(--space-4) 0 0;max-width:48ch}
 /* The goal-aware cut-quality line — is the cut preserving muscle? A calm second read
-   under the lead, set off with a quiet sage rule so it reads as its own quality note. */
-.eb-quality{font-size:.9rem;color:var(--ink);line-height:1.5;margin:10px 0 0;max-width:48ch;
-  padding-left:11px;border-left:2px solid var(--sage);position:relative}
+   under the lead, in the body's own register. */
+.eb-quality{font-size:var(--text-sm);color:var(--ink);line-height:1.5;margin:var(--space-5) 0 0;max-width:48ch}
 /* Confidence as geometry: the maintenance-zone band widens (renderer) AND softens
    (here) as the read loosens — uncertainty shown as WIDTH, never a number or score.
    Composes the §04d .read-band; high confidence keeps the primitive's crisp default. */
-.eb-zone{margin:14px 0 2px;display:flex;flex-direction:column;gap:11px;position:relative}
-.eb-zone .read-band-track{height:10px}
+.eb-zone{margin:var(--space-7) 0 2px;display:flex;flex-direction:column;gap:var(--space-4)}
+.eb-zone .read-band-track{height:8px;background:var(--well)}
 .eb-zone--medium .read-band-range{opacity:.82}
 .eb-zone--low .read-band-range{opacity:.5;box-shadow:none;
   background:linear-gradient(90deg,transparent,var(--sage-bg) 20%,var(--sage-bg) 80%,transparent)}
-/* Lever read (dropping faster than lean-safe): terracotta = attention/a lever, never punishment. */
-.eb-card--lever{border-left-color:var(--accent)}
-.eb-card--lever::before{background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--accent) 8%,transparent), transparent 62%)}
-.eb-card--lever .eb-glyph{color:var(--accent)}
+.eb-card--lever .eb-glyph{background:var(--dawn)}
 /* The numeric hero, demoted BELOW the verbal read — a quiet reference strip, not a masthead. */
 #energyHero .phero{padding:2px 2px 4px}
 #energyHero .phero-title{font-family:var(--font-ui);font-variation-settings:normal;font-weight:600;
   font-size:.68rem;text-transform:uppercase;letter-spacing:.16em;color:var(--muted)}
-#energyHero .phero-stats{margin-top:9px;gap:22px}
-#energyHero .phero-n{font-size:1.3rem}
-.eb-foot{display:flex;align-items:center;flex-wrap:wrap;gap:11px;margin-top:15px;position:relative}
-.eb-checkin{flex:none}
-.eb-note,.eb-advisory{color:var(--muted);text-transform:none;letter-spacing:.02em;font-size:.72rem}
+#energyHero .phero-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:var(--space-4);gap:var(--space-6)}
+#energyHero .phero-n{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1.1}
+#energyHero .phero-stat .lbl{line-height:1.5}
+.eb-foot{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3) var(--space-6);margin-top:var(--space-7)}
+.eb-checkin{flex:none;margin-top:0}
+.eb-note,.eb-advisory{font-family:var(--font-ui);color:var(--muted);text-transform:none;letter-spacing:0;font-size:var(--text-xs)}
 .eb-advisory{margin-top:11px;font-style:italic}
 
 /* check-in result (under the Energy card) */

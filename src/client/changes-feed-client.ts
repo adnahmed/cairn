@@ -37,6 +37,30 @@
 
   const STATES = new Set(["announced", "applied", "reverted", "held"]);
 
+  // The stone a change belongs to, by its decision domain: its dot leads the row in that
+  // stone's own hue. A domain the palette has no stone for keeps the team's ink dot.
+  const DOMAIN_STONE: Record<string, string> = {
+    training: "strength",
+    train: "strength",
+    strength: "strength",
+    running: "endurance",
+    endurance: "endurance",
+    nutrition: "fuel",
+    fuel: "fuel",
+    recovery: "recovery",
+    recover: "recovery",
+    sleep: "recovery",
+    body: "body",
+    health: "heart",
+    labs: "heart",
+    recheck: "heart",
+  };
+
+  function dotHtml(change: BrainChange): string {
+    const stone = DOMAIN_STONE[text(change.domain).toLowerCase()];
+    return `<span class="dot chfeed-dot${stone ? ` stone-${stone}` : " is-team"}" aria-hidden="true"></span>`;
+  }
+
   function text(value: unknown): string {
     return typeof value === "string" ? value.trim() : "";
   }
@@ -94,7 +118,7 @@
     const why = text(change.why);
     const fresh = change.new === true ? `<span class="chfeed-new">New</span>` : "";
     return `<li class="${classes.join(" ")}" data-chfeed-id="${escAttr(change.id)}"${stagger}>
-      <div class="chfeed-head"><p class="chfeed-title">${escHtml(title)}</p>${fresh}</div>
+      <div class="chfeed-head">${dotHtml(change)}<p class="chfeed-title">${escHtml(title)}</p>${fresh}</div>
       ${why ? `<p class="chfeed-why">${escHtml(why)}</p>` : ""}
       ${outcomeHtml(change)}
       ${metaHtml(change)}

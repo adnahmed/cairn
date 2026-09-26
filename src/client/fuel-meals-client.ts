@@ -16,10 +16,29 @@
     return `<span class="fuel-meal-nums">${escHtml(text || "not estimated")}</span>`;
   }
 
-  /** The head's text column: name, meal/time words. The numbers sit beside it. */
+  // What the meal was made of, in portion words ("Baked salmon, one fillet · Jasmine
+  // rice, a cup"): read-only, the first few items, the rest counted. The estimator's
+  // bracketed working weight is dropped, exactly as the meal card at rest reads it.
+  const ITEMS_SHOWN = 3;
+
+  function itemsText(meal: Meal): string {
+    const model = (globalThis as { CairnMealCardModel?: CairnMealCardModelApi }).CairnMealCardModel;
+    const rows = model?.mealCardRows(meal.note) || [];
+    if (!rows.length) return "";
+    const words = rows.slice(0, ITEMS_SHOWN).map((row) => {
+      const portion = model?.portionWords ? model.portionWords(row.amount) : String(row.amount || "");
+      return portion ? `${row.item}, ${portion}` : row.item;
+    });
+    const more = rows.length - ITEMS_SHOWN;
+    return more > 0 ? `${words.join(" · ")} · and ${more} more` : words.join(" · ");
+  }
+
+  /** The head's text column: name, meal/time words, the items in portion words. */
   function headMainHtml(meal: Meal): string {
+    const items = meal.pending ? "" : itemsText(meal);
     return `<span class="fuel-meal-name">${escHtml(meal.title)}</span>
-        ${meal.meta ? `<span class="fuel-meal-meta">${escHtml(meal.meta)}</span>` : ""}`;
+        ${meal.meta ? `<span class="fuel-meal-meta">${escHtml(meal.meta)}</span>` : ""}
+        ${items ? `<span class="fuel-meal-items">${escHtml(items)}</span>` : ""}`;
   }
 
   // Protein first: it is the anchor. The keys are the PUT /food-notes/:id fields.
@@ -123,7 +142,6 @@
     const panelId = `fuelMeal${meal.id}Panel`;
     return `<li class="fuel-meal${opts.enter ? " settle-in" : ""}" data-fuel-meal="${meal.id}">
       <button class="fuel-meal-head" type="button" data-fuel-meals-toggle aria-expanded="false" aria-controls="${panelId}">
-        <span class="fuel-meal-art" aria-hidden="true">${art("food", meal.title)}</span>
         <span class="fuel-meal-main">${headMainHtml(meal)}</span>
         ${numsHtml(meal)}
         <span class="fuel-meal-chev" aria-hidden="true">›</span>
@@ -139,7 +157,7 @@
   function listHtml(meals: readonly Meal[], opts: { isToday?: boolean } = {}): string {
     if (!meals.length) return emptyHtml(opts.isToday !== false);
     return `<section class="fuel-meals reveal" style="--i:1" aria-label="Meals logged">
-      <h2 class="lbl fuel-meals-title">Meals</h2>
+      <h2 class="lbl fuel-meals-title">${opts.isToday === false ? "Logged that day" : "Logged today"}</h2>
       <ul class="fuel-meals-list">${meals.map((meal) => mealHtml(meal)).join("")}</ul>
     </section>`;
   }

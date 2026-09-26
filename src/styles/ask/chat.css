@@ -11,7 +11,7 @@
 body.chat-mode{padding-bottom:var(--vvb,0px)}
 .chatlog-wrap{position:relative;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .chatlog{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
-  display:flex;flex-direction:column;gap:10px;padding:2px 1px 8px}
+  display:flex;flex-direction:column;gap:var(--space-5);padding:2px 1px var(--space-4)}
 .chatdock{flex:0 0 auto;padding-top:2px}
 /* Mobile: the chat column is BOTTOM-ANCHORED, not height-measured. It's fixed
    between the header (top) and either the tab bar (--tabbar-h, keyboard closed)
@@ -58,12 +58,20 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   body.chat-mode.kb-geometry-open .chatnote{display:none}
 }
 
-.bubble{position:relative;max-width:85%;padding:10px 14px;border-radius:16px;font-size:.9rem;
+/* Atelier v2 thread: my words are ink bubbles on the right; the team's are surface
+   bubbles on the left, one hairline, led by a dot + mono speaker. Phone-compact:
+   .88rem copy, 9px/13px padding, the tail squared on the speaking side. */
+.bubble{position:relative;max-width:86%;padding:9px 13px;border-radius:17px;font-size:var(--text-md);
   line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
-.bubble.user{align-self:flex-end;background:var(--ink);color:var(--paper);border-bottom-right-radius:5px}
-.bubble.assistant{align-self:flex-start;background:var(--card);box-shadow:var(--shadow-sm);
+.bubble.user{align-self:flex-end;background:var(--ink);color:var(--on-ink);border-bottom-right-radius:5px}
+.bubble.assistant{align-self:flex-start;background:var(--surface);border:1px solid var(--line);
   border-bottom-left-radius:5px}
-.bubble.pending{background:var(--card);box-shadow:var(--shadow-sm);color:var(--muted)}
+.bubble.pending{background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+/* who is speaking on a team reply: a stone dot + a mono name */
+.bubble-who{display:flex;align-items:center;gap:var(--space-3);margin:0 0 var(--space-2);
+  color:var(--muted);white-space:nowrap}
+.bubble-who .dot{width:7px;height:7px}
+.bubble-who .dot.is-team{background:var(--ink)}
 /* the live phase caption ("Thinking…" → "Drafting…") inside a pending bubble —
    each swap settles in gently so the wait reads as motion, never a jump */
 .bubble.pending .typing-cap{display:inline-block;font-style:italic;
@@ -77,7 +85,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   vertical-align:middle}
 .bubble.pending .turn-stop:hover,.bubble.streaming .turn-stop:hover{color:var(--ink)}
 /* a turn rendering its reply token-by-token (true headless streaming) */
-.bubble.assistant.streaming{align-self:flex-start;background:var(--card);box-shadow:var(--shadow-sm);
+.bubble.assistant.streaming{align-self:flex-start;background:var(--surface);border:1px solid var(--line);
   border-bottom-left-radius:5px}
 .bubble.streaming .stream-text{white-space:normal}
 .bubble.streaming .turn-stop{display:inline-block;margin:6px 0 0}
@@ -95,24 +103,24 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
    synthesis, nutrition check-in, weekly read) before the final render swaps in */
 .job-stream-text{white-space:pre-wrap;color:var(--ink);font-size:.9rem;line-height:1.5}
 /* a stopped turn settles into a subtle in-place note */
-.bubble.turn-stopped{align-self:flex-start;background:var(--card);box-shadow:var(--shadow-sm);
+.bubble.turn-stopped{align-self:flex-start;background:var(--surface);border:1px solid var(--line);
   border-bottom-left-radius:5px}
 .bubble.turn-stopped .turn-stopped-note{font-style:italic;font-size:.82rem;color:var(--muted)}
-.bubble.bubble-in{animation:bubblein .34s var(--ease) both}
+.bubble.bubble-in{animation:bubblein var(--dur-in) var(--ease) both}
 @keyframes bubblein{from{opacity:0;transform:translateY(7px) scale(.98)}to{opacity:1;transform:none}}
 
 /* grouping: consecutive same-role turns stack tight; only the run's last bubble
    keeps the little tail + the timestamp. `.cont` continues a run, `.grouped` is
    a non-last bubble (tail squared off). */
-.bubble.cont{margin-top:-5px}
-.bubble.grouped.user{border-bottom-right-radius:16px}
-.bubble.grouped.assistant{border-bottom-left-radius:16px}
+.bubble.cont{margin-top:calc(var(--space-4) * -1)}
+.bubble.grouped.user{border-bottom-right-radius:17px}
+.bubble.grouped.assistant{border-bottom-left-radius:17px}
 .bubble.cont.user{border-top-right-radius:7px}
 .bubble.cont.assistant{border-top-left-radius:7px}
 
 /* per-message clock time on the last bubble of a run (subtle, side-aligned) */
-.bubble-time{display:block;margin-top:5px;font-family:var(--font-ui);font-size:.58rem;
-  font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.bubble-time{display:block;margin-top:var(--space-2);font-family:var(--font-mono);font-size:.56rem;
+  font-weight:400;letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted)}
 .bubble.user .bubble-time{text-align:right;color:color-mix(in srgb,var(--on-ink) 66%,var(--ink))}
 
 /* copy affordance on coach replies — hover-revealed on desktop, long-press on touch */
@@ -153,15 +161,18 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .bubble-text.md th,.bubble-text.md td{border:1px solid var(--line-2);padding:5px 9px;text-align:left;vertical-align:top}
 .bubble-text.md th{background:var(--card-2);font-family:var(--font-ui);font-weight:700;
   font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
-.bubble-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.bubble-tag{display:inline-flex;align-items:center;background:var(--sage-bg);
-  color:var(--sage);border-radius:var(--radius-pill);padding:3px 9px;
-  font-family:var(--font-ui);font-size:.58rem;font-weight:700;letter-spacing:.1em;
+.bubble-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:var(--space-4)}
+.bubble-tag{display:inline-flex;align-items:center;background:var(--surface2);
+  color:var(--ink2);border-radius:var(--radius-pill);padding:3px 9px;
+  font-family:var(--font-mono);font-size:.56rem;font-weight:400;letter-spacing:var(--tracking-mono);
   text-transform:uppercase;white-space:nowrap}
 .bubble.user .bubble-meta .bubble-tag{background:color-mix(in srgb,var(--on-ink) 14%,transparent);color:color-mix(in srgb,var(--on-ink) 84%,var(--ink))}
 /* A capture food log: the enriched chip carries a readable meal + macros, so drop
    the all-caps pill treatment; while it fills in, a calm muted state + spinner dot. */
-.bubble-tag.capture-food{text-transform:none;letter-spacing:.01em;font-weight:650}
+/* the logged meal: one compact line in the fuel stone's wash, the meal and its numbers */
+.bubble-tag.capture-food{font-family:var(--font-ui);font-size:var(--text-xs);text-transform:none;letter-spacing:0;
+  font-weight:600;background:color-mix(in srgb,var(--s-fuel) 26%,var(--surface));color:var(--d-fuel);
+  white-space:normal;font-variant-numeric:tabular-nums}
 .bubble-tag.capture-food.pending{background:var(--card-2);color:var(--muted);border:1px solid var(--line-2)}
 .bubble-tag.capture-food.pending .enr-dot{display:inline-block;width:7px;height:7px;margin-right:5px;
   border-radius:50%;border:1.5px solid var(--accent);border-top-color:transparent;
@@ -171,7 +182,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
    one quiet line per item (name · portion in words · a muted ~kcal), read-only and
    phone-sized. No inputs, no totals line (the chip above carries the meal's total),
    no provenance line — a correction is the next message, never a form. */
-.capture-review{margin-top:var(--space-3)}
+.capture-review{margin-top:var(--space-3);padding-top:var(--space-3);border-top:1px solid var(--line)}
 /* Only the review that lands WHILE you are looking settles in; one rendered from
    history is already part of the message and must not re-animate on every paint. */
 .capture-review.settling{animation:settlein var(--dur-2) var(--ease)}
@@ -212,80 +223,94 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .chatfuel-slot:empty{display:none}
-.chatfuel-card{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  margin-top:8px;padding:9px 12px;background:var(--card);border:1px solid var(--line);
-  border-left:3px solid var(--sage);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
-  color:var(--ink);font-family:var(--font-ui);cursor:pointer}
-.chatfuel-card:active{transform:var(--press)}
-.chatfuel-mark{flex:0 0 auto;color:var(--sage);font-size:.82rem}
-.chatfuel-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.chatfuel-label{color:var(--muted)}
-.chatfuel-stats{font-size:.84rem;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chatfuel-go{flex:0 0 auto;color:var(--sage);font-weight:700}
-@media (hover:hover){.chatfuel-card:hover{background:var(--card-2)}}
+/* Today's fuel, one compact line above the composer: a fuel dot, the day's figures,
+   a chevron to review them. */
+.chatfuel-card{display:flex;align-items:center;gap:var(--space-4);width:100%;text-align:left;
+  margin-top:var(--space-3);padding:7px 12px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius-pill);color:var(--ink);font-family:var(--font-ui);cursor:pointer;
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.chatfuel-card:active{transform:var(--press-lg)}
+.chatfuel-mark{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:var(--s-fuel);
+  font-size:0;line-height:0;overflow:hidden}
+.chatfuel-main{flex:1;min-width:0;display:flex;align-items:baseline;gap:var(--space-4)}
+.chatfuel-label{flex:0 0 auto;color:var(--muted)}
+.chatfuel-stats{min-width:0;font-size:var(--text-xs);color:var(--ink2);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-variant-numeric:tabular-nums}
+.chatfuel-go{flex:0 0 auto;color:var(--muted);font-size:var(--text-sm)}
+@media (hover:hover){.chatfuel-card:hover{border-color:var(--line-strong)}}
+@media (max-width:400px){.chatfuel-label{display:none}}
 
-.chatbar{display:flex;gap:8px;align-items:flex-end;margin-top:8px}
+/* the composer bar: attach, the field, send — one row, pill-rounded, hairline */
+.chatbar{display:flex;gap:var(--space-4);align-items:flex-end;margin-top:var(--space-3)}
 /* Single "+" attach control — opens the OS chooser (camera / library / files).
    Attaching is occasional, so it stays compact and hands the width to the input. */
 .attachbtn{flex:0 0 auto;width:40px;height:40px;display:flex;align-items:center;justify-content:center;
-  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
-  box-shadow:var(--shadow-sm);transition:color .15s,border-color .15s,background .15s}
-.attachbtn svg{width:22px;height:22px}
-.attachbtn.has-img{color:var(--accent);border-color:var(--accent)}
-@media (hover:hover){ .attachbtn:hover{color:var(--ink);border-color:var(--ink)} }
-.chatbar textarea{flex:1;min-width:0;background:var(--card);border:1px solid var(--line-2);color:var(--ink);
-  border-radius:21px;padding:11px 16px;font-size:.92rem;line-height:1.4;box-shadow:var(--shadow-sm);
-  resize:none;max-height:140px;overflow-y:hidden;display:block}
-.chatbar .logbtn{border-radius:var(--radius-pill);font-size:1.1rem}
+  background:var(--surface);border:1px solid var(--line);color:var(--muted);border-radius:var(--radius-pill);
+  transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.attachbtn:active{transform:var(--press)}
+.attachbtn svg{width:20px;height:20px}
+.attachbtn.has-img{color:var(--dawn);border-color:var(--dawn)}
+@media (hover:hover){ .attachbtn:hover{color:var(--ink);border-color:var(--line-strong)} }
+.chatbar textarea{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);color:var(--ink);
+  border-radius:20px;padding:9px 15px;font-family:var(--font-ui);font-size:var(--text-base);line-height:1.4;
+  min-height:40px;resize:none;max-height:140px;overflow-y:hidden;display:block;
+  transition:border-color var(--dur-1) var(--ease)}
+.chatbar textarea::placeholder{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chatbar textarea:focus{outline:none;border-color:var(--dawn)}
+.chatbar .logbtn{width:40px;height:40px;border-radius:var(--radius-pill);font-size:1.05rem}
 /* Wraps the textarea so the reused .qlmic press-to-talk button (see the
    "effortless capture" block below) can ride its trailing edge, same as it
    once did on Today's quick-log field. */
 .chat-field{position:relative;display:flex;flex:1;min-width:0}
 .chat-field:has(#chatMic:not([hidden])) #chatInput{padding-right:42px}
-.chatnote{text-align:center;color:var(--muted);font-size:.72rem;margin-top:8px;line-height:1.45;text-wrap:balance}
+/* The reassurance line speaks only to an empty thread; once the conversation is
+   going it steps aside and hands its lines to the log. */
+.chatnote{text-align:center;color:var(--muted);font-size:var(--text-xs);margin-top:var(--space-4);line-height:1.45;text-wrap:balance}
+.chatview:has(.chatlog .bubble) .chatdock > .chatnote{display:none}
 
 /* day dividers — slim centered date rules between conversation days */
 .chat-divider{display:flex;align-items:center;gap:12px;flex:0 0 auto;
   margin:8px 0 0;-webkit-user-select:none;user-select:none}
 .chat-divider::before,.chat-divider::after{content:"";flex:1;height:1px;background:var(--line)}
-.chat-divider span{font-family:var(--font-ui);font-size:.58rem;font-weight:700;
-  letter-spacing:.18em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.chat-divider span{font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:400;
+  letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted);white-space:nowrap}
 
 /* collapsed history above the live stretch */
-.chat-earlier{display:flex;flex-direction:column;gap:10px;flex:0 0 auto}
+.chat-earlier{display:flex;flex-direction:column;gap:var(--space-5);flex:0 0 auto}
 .chat-earlier[hidden]{display:none}
 .chat-earlierbar{display:flex;justify-content:center;flex:0 0 auto;padding:2px 0}
-.earlierbtn{background:var(--card);border:1px solid var(--line-2);color:var(--muted);
-  border-radius:var(--radius-pill);padding:7px 15px;font-family:var(--font-ui);font-size:.64rem;
-  font-weight:700;letter-spacing:.12em;text-transform:uppercase;box-shadow:var(--shadow-sm);
+.earlierbtn{background:var(--surface);border:1px solid var(--line);color:var(--muted);
+  border-radius:var(--radius-pill);padding:6px 13px;font-family:var(--font-mono);font-size:var(--text-2xs);
+  font-weight:400;letter-spacing:var(--tracking-mono);text-transform:uppercase;
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
 @media (hover:hover){ .earlierbtn:hover{color:var(--ink);border-color:var(--ink)} }
 
 /* starter chips (empty chat) — pinned just above the chatbar, stagger in */
 .chatlog .empty,.chatlog .loadstate{margin:auto 0;flex:0 0 auto}
-.chat-chips{margin-top:auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
-  padding:10px 2px 2px;flex:0 0 auto}
-.chat-chip{background:var(--card);border:1px solid var(--line-2);color:var(--ink-2);
-  border-radius:var(--radius-pill);padding:10px 15px;font-size:.82rem;box-shadow:var(--shadow-sm);
+/* starter chips: small, fully rounded, laid at the foot of an empty thread */
+.chat-chips{margin-top:auto;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;
+  padding:var(--space-5) 0 var(--space-1);flex:0 0 auto}
+.chat-chip{background:var(--surface);border:1px solid var(--line);color:var(--ink2);
+  border-radius:var(--radius-pill);padding:7px 12px;font-family:var(--font-ui);font-size:var(--text-sm);line-height:1.3;
   animation:rise var(--dur-3) var(--ease) both;animation-delay:calc(var(--i,0) * 70ms);
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
-@media (hover:hover){ .chat-chip:hover{color:var(--accent);border-color:var(--accent)} }
+.chat-chip:active{transform:var(--press)}
+@media (hover:hover){ .chat-chip:hover{color:var(--ink);border-color:var(--line-strong)} }
 
 /* Chat header affordances: a history/search circle + the fresh-start button,
    in one cluster anchored to the (position:relative) header. */
 .hdr-chat-actions{position:absolute;right:18px;bottom:14px;display:flex;align-items:center;gap:8px}
 @media (min-width:960px){ .hdr-chat-actions{right:48px;bottom:18px} }
 .hdrcircbtn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;
-  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
-  box-shadow:var(--shadow-sm);
+  background:var(--surface);border:1px solid var(--line);color:var(--muted);border-radius:var(--radius-pill);
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
 .hdrcircbtn svg{width:17px;height:17px}
 @media (hover:hover){ .hdrcircbtn:hover{color:var(--ink);border-color:var(--ink)} }
 
 /* fresh-start (distill & archive) — inline two-tap confirm; lives in the cluster */
 .freshbtn{display:flex;align-items:center;gap:7px;
-  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
-  height:34px;padding:0 8px;box-shadow:var(--shadow-sm);
+  background:var(--surface);border:1px solid var(--line);color:var(--muted);border-radius:var(--radius-pill);
+  height:34px;padding:0 8px;
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
 .freshbtn[hidden]{display:none}
 .freshbtn svg{width:17px;height:17px;flex:0 0 auto}
