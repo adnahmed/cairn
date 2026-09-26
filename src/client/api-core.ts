@@ -381,9 +381,8 @@ type ApiFetchOutcome = {
     return { body: await response.arrayBuffer(), headers: response.headers };
   }
 
-  // A write that landed somewhere this page did not send it from (a chat turn's
-  // actions, applied server-side long after the POST that queued them) clears the
-  // micro/stale tier the same way a local write does (write-invalidation-client.ts).
+  // A write that landed elsewhere (a chat turn's actions, applied server-side later) clears
+  // the micro/stale tier the same way a local write does (write-invalidation-client.ts).
   function apiInvalidate(): void {
     apiCoalescer().invalidateAll();
   }
