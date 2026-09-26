@@ -132,14 +132,14 @@ test("a first install downloads the whole shell; a one-file deploy downloads tha
   const first = await deploy(caches, { version: "cairn-000000000001", hashes: v1, content: (p) => `v1 ${p}` });
   assert.deepEqual(new Set(first.map((f) => f.path)), new Set(ALL));
 
-  const v2 = { ...v1, "/js/bundle-03-capture-progress.js": "bbbbbbbbbbbb" };
+  const v2 = { ...v1, "/js/bundle-03-capture.js": "bbbbbbbbbbbb" };
   const second = await deploy(caches, { version: "cairn-000000000002", hashes: v2, content: (p) => `v2 ${p}` });
-  assert.deepEqual(second.map((f) => f.path), ["/js/bundle-03-capture-progress.js"]);
+  assert.deepEqual(second.map((f) => f.path), ["/js/bundle-03-capture.js"]);
 
   // The new shell cache holds every mutable asset: the changed one fresh, the rest copied.
   assert.deepEqual([...caches.stores.keys()].sort(), ["cairn-000000000002", "cairn-static-v1"]);
   const shell = caches.stores.get("cairn-000000000002");
-  assert.equal((await shell.match("/js/bundle-03-capture-progress.js")).body, "v2 /js/bundle-03-capture-progress.js");
+  assert.equal((await shell.match("/js/bundle-03-capture.js")).body, "v2 /js/bundle-03-capture.js");
   assert.equal((await shell.match("/js/bundle-01-core.js")).body, "v1 /js/bundle-01-core.js");
   // Stable assets never moved.
   const stable = caches.stores.get("cairn-static-v1");

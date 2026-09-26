@@ -156,10 +156,15 @@ test("an empty draft key does not hold the update", () => {
 test("a navigation that needs a lazy bundle takes a deferred update instead of mixing shells", () => {
   const env = load({ tab: "session" });
   assert.equal(env.gate.reloadIfPending(), false, "nothing pending yet");
+  assert.equal(env.gate.hasPending(), false);
   env.gate.onControllerChange(env.reload);
   assert.equal(env.reloads(), 0);
   assert.equal(env.gate.reloadIfPending(), true);
   assert.equal(env.reloads(), 1);
   const lazy = readFileSync(new URL("../src/client/app/lazy-bundles.ts", import.meta.url), "utf8");
-  assert.match(lazy, /!bundleLoaded\(name\) && gate\?\.reloadIfPending\?\.\(\)/);
+  assert.match(lazy, /!bundleLoaded\(name\)\) \{/);
+  assert.match(lazy, /else if \(gate\?\.reloadIfPending\?\.\(\)\)/);
+  // The idle warm-up is not a safe point: it asks and stops, it never reloads.
+  assert.match(lazy, /if \(warm\) \{\s*if \(gate\?\.hasPending\?\.\(\)\)/);
+  assert.equal(env.gate.hasPending(), true, "a deferred update stays pending until the page reloads");
 });
