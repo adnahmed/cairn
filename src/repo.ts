@@ -135,6 +135,7 @@ export * from "./repo/beliefs.js"; // W3.6 inspectable beliefs — one grouped, 
 export * from "./repo/trajectory.js"; // one periodized arc to the goals, today as the next step
 export * from "./repo/whole-person-trajectory.js"; // standing "everything better" objective, per-domain words not a score
 export * from "./repo/journey.js"; // body-composition journey phases + leanness-aware cut foundation
+export * from "./repo/goal-consistency.js"; // profile goal vs the active journey phase, reported in words
 export * from "./repo/cut-target.js"; // the cut's calorie target, derived from logged intake + the measured weight trend
 export * from "./repo/verify-floors.js"; // the deterministic half of the verify pass — every numeric floor a draft breaches
 export * from "./repo/volume-floor.js"; // the weekly per-group set floor a plan is held to (landmark low, contextual)

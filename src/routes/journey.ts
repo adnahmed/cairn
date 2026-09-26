@@ -10,6 +10,7 @@ import {
   listJourneyPhases,
 } from "../repo/journey.js";
 import { forwardTimeline } from "../repo/forward-timeline.js";
+import { goalConsistencyRead } from "../repo/goal-consistency.js";
 
 export const journeyRouter = Router();
 
@@ -22,6 +23,13 @@ journeyRouter.get("/journey", (req, res) => {
 // strength standards). A calm plan, never a countdown — empty DB yields [].
 journeyRouter.get("/journey/timeline", (req, res) => {
   res.json(forwardTimeline(req.query.date ? String(req.query.date) : undefined));
+});
+
+// One goal, said once: any disagreement between the profile goal weight/date and the
+// active phase's target/end date, in plain words. A pure read — neither side is
+// overwritten; the athlete says which one stands.
+journeyRouter.get("/journey/goal-consistency", (_req, res) => {
+  res.json(goalConsistencyRead());
 });
 
 journeyRouter.get("/journey/milestones", (req, res) => {

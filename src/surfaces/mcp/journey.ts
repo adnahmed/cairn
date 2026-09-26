@@ -10,6 +10,7 @@ import {
   listJourneyPhases,
 } from "../../repo/journey.js";
 import { forwardTimeline } from "../../repo/forward-timeline.js";
+import { goalConsistencyRead } from "../../repo/goal-consistency.js";
 import { asText, type McpToolRegistrar } from "./shared.js";
 
 const phaseKind = z.enum(["cut", "maintenance", "diet_break", "reverse", "gain"]);
@@ -21,6 +22,13 @@ export function registerJourneyTools(server: McpToolRegistrar) {
     "Read the body-composition journey: profile baseline/target, current body-fat estimate, active/proposed phase, transition suggestion, leanness-aware rate, and calm milestones. Read-only; suggestions never auto-apply.",
     { date: z.string().optional().describe("YYYY-MM-DD; defaults to today") },
     async ({ date }) => asText(journeyRead(date))
+  );
+
+  server.tool(
+    "get_journey_goal_consistency",
+    "Read whether the profile goal (weight and date) and the active journey phase (target weight and end date) agree, and whether more than one phase is marked active. Each disagreement comes back as one plain sentence naming both sides. Only a cut or gain phase is compared with the goal; a maintenance, diet break or reverse phase is a deliberate stop, not a second goal. Read-only: it never overwrites either side — ask the athlete which one stands.",
+    {},
+    async () => asText(goalConsistencyRead())
   );
 
   server.tool(

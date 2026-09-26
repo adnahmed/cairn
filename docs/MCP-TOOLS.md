@@ -6,7 +6,7 @@ Cairn serves an MCP server at **`/mcp`** (Streamable HTTP). These tools are thin
 wrappers over the same `src/repo.ts` layer the REST API uses. When `CAIRN_AUTH_TOKEN`
 is set, `/mcp` requires the token (`Authorization: Bearer …`).
 
-**286 tools.**
+**287 tools.**
 
 | Tool | Description |
 |---|---|
@@ -117,6 +117,7 @@ is set, `/mcp` requires the token (`Authorization: Bearer …`).
 | `get_imaging_study` | Get one first-class imaging study and its ordered attachment metadata. Binary paths are private. |
 | `get_injury_impacts` | For each ACTIVE injury on the life timeline, the planned exercises it loads (with where they appear in the plan + any existing constraint note) and a few safe alternative exercises to consider. Deterministic, offline. Suggestions only — it never changes the plan. |
 | `get_journey` | Read the body-composition journey: profile baseline/target, current body-fat estimate, active/proposed phase, transition suggestion, leanness-aware rate, and calm milestones. Read-only; suggestions never auto-apply. |
+| `get_journey_goal_consistency` | Read whether the profile goal (weight and date) and the active journey phase (target weight and end date) agree, and whether more than one phase is marked active. Each disagreement comes back as one plain sentence naming both sides. Only a cut or gain phase is compared with the goal; a maintenance, diet break or reverse phase is a deliberate stop, not a second goal. Read-only: it never overwrites either side — ask the athlete which one stands. |
 | `get_journey_milestones` | Read deterministic journey milestones (weight-loss thresholds, percent-to-goal crossings, body-fat bands). Calm in-app progress markers only. |
 | `get_journey_phase` | Read one journey phase by id. |
 | `get_journey_timeline` | Read the road ahead: one ordered forward-looking timeline composed from the goal date, the phase projection window, scheduled lab re-checks and strength re-tests, a DEXA re-scan window, the program block boundary, and the nearest strength standards. Dated entries carry a real date, projections are windows, and standards are undated direction-of-travel. Empty when there is nothing to plan yet. |

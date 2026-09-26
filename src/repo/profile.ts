@@ -7,6 +7,7 @@ import { getLatestNutritionTarget } from "./nutrition.js";
 import { latestMeasuredRmr, measuredRmrAssessment } from "./metabolism.js";
 import { LB_PER_KG, addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
 import { bumpTrainingDataVersion } from "./training-cache.js";
+import { BODYFAT_TOLERANCE_PCT, GOAL_DIRECTED_PHASE_KINDS, WEIGHT_TOLERANCE_LB } from "./goal-consistency.js";
 import { canonicalBodyweightSeries, recentIdenticalWeighIn, resolvedCurrentBodyweight } from "./bodyweight.js";
 import { classifyRecompositionStage } from "./recomposition-stage.js";
 import { dailySiteSeries } from "./measurement-series.js";
@@ -48,6 +49,37 @@ function coerceFlag(v: any): number | null {
   if (v === true || v === 1 || v === "1" || v === "true") return 1;
   if (v === false || v === 0 || v === "0" || v === "false") return 0;
   return null;
+}
+
+function followsGoal(phaseValue: unknown, oldGoal: unknown, tolerance: number): boolean {
+  const a = phaseValue == null ? null : Number(phaseValue);
+  const b = oldGoal == null ? null : Number(oldGoal);
+  if (a == null || b == null) return a == null && b == null;
+  return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < tolerance;
+}
+
+function carryFollowingPhaseTargets(cur: any, merged: any, goalChanges: string[]): void {
+  const phases = db
+    .prepare(`SELECT id, kind, target_weight_lb, target_bodyfat_pct FROM journey_phases WHERE status = 'active'`)
+    .all() as any[];
+  const update = db.prepare(
+    `UPDATE journey_phases SET target_weight_lb = ?, target_bodyfat_pct = ?, updated_at = datetime('now') WHERE id = ?`
+  );
+  for (const phase of phases) {
+    if (!GOAL_DIRECTED_PHASE_KINDS.has(String(phase.kind || ""))) continue;
+    const moveWeight =
+      goalChanges.includes("goal_weight_lb") &&
+      followsGoal(phase.target_weight_lb, cur.goal_weight_lb, WEIGHT_TOLERANCE_LB);
+    const moveBodyfat =
+      goalChanges.includes("goal_bodyfat_pct") &&
+      followsGoal(phase.target_bodyfat_pct, cur.goal_bodyfat_pct, BODYFAT_TOLERANCE_PCT);
+    if (!moveWeight && !moveBodyfat) continue;
+    update.run(
+      moveWeight ? (merged.goal_weight_lb ?? null) : phase.target_weight_lb,
+      moveBodyfat ? (merged.goal_bodyfat_pct ?? null) : phase.target_bodyfat_pct,
+      phase.id
+    );
+  }
 }
 
 export function setProfile(p: any) {
@@ -258,15 +290,15 @@ export function setProfile(p: any) {
     "bp_treated",
     "statin",
   ]);
-  // The profile goal is the ONE source of the destination. An active journey phase
-  // copied it at creation (createJourneyPhase), so a goal change moves the phase with
-  // it — otherwise the arc kept reading "toward 180 lb" after the goal became 170.
+  // A goal change carries only a phase that was already FOLLOWING the goal: an active
+  // cut or gain whose target matched the OLD goal (within tolerance) moves with it, so
+  // the arc never keeps reading "toward 180 lb" after the goal became 170. A phase that
+  // already disagreed keeps its own target (goalConsistencyRead reports it in words),
+  // and a maintenance, diet-break or reverse phase's holding weight is a deliberate
+  // stop on the way, never rewritten from the goal.
   if (goalChanges.includes("goal_weight_lb") || goalChanges.includes("goal_bodyfat_pct")) {
     try {
-      db.prepare(
-        `UPDATE journey_phases SET target_weight_lb = ?, target_bodyfat_pct = ?, updated_at = datetime('now')
-          WHERE status = 'active'`
-      ).run(merged.goal_weight_lb ?? null, merged.goal_bodyfat_pct ?? null);
+      carryFollowingPhaseTargets(cur, merged, goalChanges);
     } catch {
       /* a DB without journey_phases has no phase to move */
     }
