@@ -42,7 +42,6 @@ type ApiFetchOutcome = {
     shouldBypassApiCache,
     shouldArmGetTimeout,
     resolveSwr: resolveApiSwr,
-    diagnosticRoute: diagnosticApiRoute,
     GET_TIMEOUT_MS: API_GET_TIMEOUT_MS,
   } = CairnApiCache;
 
@@ -66,12 +65,33 @@ type ApiFetchOutcome = {
 
   let promptingAuth = false;
 
+  // Every remembered API body on this device (the SWR tiers, cairn.swr.v1.*). A 401
+  // or a new token means the bodies were read under a credential that no longer
+  // stands, so none of them may paint again — the next open reads fresh or shows
+  // its skeleton. swr-cache.ts owns the memory tier; the disk sweep here also covers
+  // a boot where that module has not loaded yet.
+  function clearRememberedApiBodies(): void {
+    try {
+      (globalThis as { swrClearAll?: () => void }).swrClearAll?.();
+    } catch {}
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("cairn.swr.v1.")) localStorage.removeItem(key);
+      }
+    } catch {}
+    try {
+      apiCoalescer().invalidateAll();
+    } catch {}
+  }
+
   function handleUnauthorized(): void {
     if (promptingAuth) return;
     promptingAuth = true;
     try {
       localStorage.removeItem("cairn_token");
     } catch {}
+    clearRememberedApiBodies();
     CairnTokenSheet.open();
   }
 
@@ -97,43 +117,11 @@ type ApiFetchOutcome = {
     }
   }
 
-  // One coalesced identity for "Cairn is unreachable". A restart or a dropped
-  // connection fails every in-flight route at once; reporting one row per route
-  // made a single deploy read as ~15 separate issues in the operator list. The
-  // server honours this fingerprint (see CLIENT_NETWORK_UNREACHABLE_FINGERPRINT
-  // in src/repo/diagnostics.ts) so the burst folds into one occurrence_count.
-  const API_UNREACHABLE_FINGERPRINT = "network_unreachable";
-
+  // Failure diagnostics live in api-signals.ts (loaded right after this module),
+  // reached at call time, never at load.
   function reportApiError(error: CairnApiError): void {
     try {
-      const report = (globalThis as { CairnClientDiagnostics?: { report?(event: unknown): unknown } })
-        .CairnClientDiagnostics?.report;
-      if (!report) return;
-      const online = typeof navigator === "undefined" ? undefined : navigator.onLine;
-      if (error.kind === "network" || error.kind === "timeout") {
-        report({
-          kind: "api_failure",
-          level: "warning",
-          fingerprint: API_UNREACHABLE_FINGERPRINT,
-          message: "network: Could not reach Cairn",
-          duration_ms: error.durationMs,
-          online,
-        });
-        return;
-      }
-      report({
-        kind: "api_failure",
-        level: error.kind === "http" && error.status != null && error.status < 500 ? "warning" : "error",
-        message: `${error.kind}: ${error.message}`,
-        route: diagnosticApiRoute(error.route),
-        method: error.method,
-        // A status only means something for a request that actually got a
-        // response. Reporting it for an outage is what printed `/api/x:200`.
-        status: error.status ?? undefined,
-        duration_ms: error.durationMs,
-        request_id: error.requestId || undefined,
-        online,
-      });
+      (globalThis as { CairnApiSignals?: { reportFailure?(e: CairnApiError): void } }).CairnApiSignals?.reportFailure?.(error);
     } catch {}
   }
 
@@ -184,6 +172,18 @@ type ApiFetchOutcome = {
     } else if (!bypass) {
       const cached = coalescer.peekFresh<CairnApiResponse<Path>>(p);
       if (cached !== undefined) return Promise.resolve(cached);
+      // A fan-in (the /today or /horizon-race aggregate) already carries this path's
+      // body: take it instead of a round trip. Primes clear on any write, and one the
+      // fan-in came back without falls through to a normal request.
+      const primedRead = coalescer.primed(p);
+      if (primedRead) {
+        const primedGen = coalescer.writeGeneration();
+        return primedRead.then((result) => {
+          if (!result.hit) return api(p, opts);
+          coalescer.store(p, result.data, primedGen);
+          return result.data as CairnApiResponse<Path>;
+        });
+      }
       if (swr) {
         coalescer.markStaleable(p);
         staleHit = coalescer.peekStale<CairnApiResponse<Path>>(p, swr.maxStaleMs);
@@ -210,7 +210,14 @@ type ApiFetchOutcome = {
           typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
         return Math.max(0, ended - started);
       };
-      return fetch("/api" + p, init)
+      // Today's paint-critical reads may already be on the wire: index.html starts
+      // them before the bundles parse, and CairnTodayPrefetch hands each one over
+      // exactly once. A missing or failed early response is a normal fetch.
+      const early = isGet && !bypass ? takeEarlyResponse(p) : undefined;
+      const response = early
+        ? early.then((r) => r || fetch("/api" + p, init))
+        : fetch("/api" + p, init);
+      return response
         .then(async (r) => {
           const base = { status: r.status, durationMs: elapsed(), requestId: responseRequestId(r), writeGen };
           if (r.status === 401 || r.status === 204) return base;
@@ -340,6 +347,24 @@ type ApiFetchOutcome = {
     }
   }
 
+  function takeEarlyResponse(p: string): Promise<Response | null> | undefined {
+    try {
+      const prefetch = (globalThis as { CairnTodayPrefetch?: { takeEarly?(path: string): Promise<Response | null> | undefined } })
+        .CairnTodayPrefetch;
+      return prefetch?.takeEarly?.(p);
+    } catch {
+      return undefined;
+    }
+  }
+
+  // Prime the request layer from a fan-in (see ApiCoalescer.prime): `source`
+  // resolves to a map of path -> the body GET <path> answers.
+  function apiPrime(paths: readonly string[], source: Promise<unknown>, ttlMs?: number): void {
+    try {
+      apiCoalescer().prime(paths, source, ttlMs);
+    } catch {}
+  }
+
   // Binary API reads share the normal token/time-zone headers but intentionally do
   // not enter the JSON coalescer or any persistent browser cache.
   async function apiBinary(p: string, opts: RequestInit = {}): Promise<{ body: ArrayBuffer; headers: Headers }> {
@@ -353,41 +378,13 @@ type ApiFetchOutcome = {
     return { body: await response.arrayBuffer(), headers: response.headers };
   }
 
-  // ---------- offline hairline ----------
-  // A calm, non-alarming banner that rides just under the header whenever a fetch
-  // fails or the browser reports offline. It clears itself the moment any request
-  // succeeds (or `online` fires). Constitution: information, never an alarm, one
-  // thin warm line, no modal. The "will retry" promise is now literally true — a
-  // failed capture / set-log is held in the outbox and replayed on reconnect.
-  let _offline = false;
-
-  function setOffline(on: unknown): void {
-    const offline = !!on;
-    if (offline === _offline) return;
-    _offline = offline;
-    let bar = document.querySelector(".offline-bar");
-    if (offline) {
-      if (!bar) {
-        const created = document.createElement("div");
-        created.className = "offline-bar";
-        created.setAttribute("role", "status");
-        created.setAttribute("aria-live", "polite");
-        created.innerHTML = `<span class="offline-dot" aria-hidden="true"></span><span>Can't reach Cairn — saved logs will retry</span>`;
-        document.body.appendChild(created);
-        bar = created;
-      }
-      const visibleBar = bar;
-      if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => visibleBar.classList.add("show"));
-      else visibleBar.classList.add("show");
-    } else {
-      if (bar) bar.classList.remove("show");
-      // We just regained a live connection (a real response landed, or `online`
-      // fired): drain anything the outbox is holding, in order.
-      try {
-        void flushOutbox();
-      } catch {}
-    }
-  }
-
-  Object.assign(globalThis, { authToken, withToken, deviceTimeZone, api, apiBinary, setOffline });
+  Object.assign(globalThis, {
+    authToken,
+    withToken,
+    deviceTimeZone,
+    api,
+    apiBinary,
+    apiPrime,
+    clearRememberedApiBodies,
+  });
 }

@@ -1320,6 +1320,10 @@ declare global {
   // Binary reads (DICOM frames): the same token/time-zone headers as api(), no cache.
   declare function apiBinary(p: string, opts?: RequestInit): Promise<{ body: ArrayBuffer; headers: Headers }>;
   declare function setOffline(on: unknown): void;
+  // Prime the request layer from a fan-in whose body maps path -> that path's body.
+  declare function apiPrime(paths: readonly string[], source: Promise<unknown>, ttlMs?: number): void;
+  // Forget every remembered API body on this device (a 401, a new token).
+  declare function clearRememberedApiBodies(): void;
 
   // Offline outbox — a durable localStorage queue that replays failed capture /
   // set-log POSTs when Cairn is reachable again (see outbox-queue.ts / outbox.ts).
@@ -1478,6 +1482,9 @@ declare global {
     share<T>(path: string, start: () => Promise<T>): Promise<T>;
     inFlightCount(): number;
     cacheSize(): number;
+    prime(paths: readonly string[], source: Promise<unknown>, ttlMs?: number): void;
+    primed(path: string): Promise<{ hit: true; data: unknown } | { hit: false }> | undefined;
+    primedSize(): number;
   };
   type ClientApiCallOptions = RequestInit & {
     headers?: Record<string, string>;
@@ -1495,6 +1502,7 @@ declare global {
     shouldArmGetTimeout(method: string, opts: ClientApiCallOptions): boolean;
     MICRO_TTL_MS: number;
     MICRO_CACHE_PATHS: readonly string[];
+    PRIME_TTL_MS: number;
     GET_TIMEOUT_MS: number;
     ApiError: typeof CairnApiError;
     isTransientApiFailure(error: unknown): boolean;
@@ -1532,6 +1540,7 @@ declare global {
     freshFor?: number;
     serveFreshFor?: number;
     onUpgrade?: (data: T, meta: SwrUpgradeMeta) => void;
+    project?: (data: T) => T;
   };
   type OptimisticMutationOptions<T, R = unknown> = {
     key: string;
@@ -1566,6 +1575,7 @@ declare global {
   ): Promise<R | undefined>;
   declare function markRefreshing(on: unknown): void;
   declare function swrInvalidate(keyOrPrefix: string): void;
+  declare function swrClearAll(): void;
   declare function swrSweep(): void;
   declare function routeApi(): ClientRoutesApi | null;
   declare function routeKey(
@@ -4234,6 +4244,7 @@ declare global {
               key?: string;
               freshFor?: number;
               onUpgrade?: (data: unknown, meta: { changed: boolean }) => void;
+              project?: (data: unknown) => unknown;
             }
           ): Promise<unknown>;
           peekCached<T = unknown>(key: string, freshFor?: number): { data: T; fresh: boolean } | null;
@@ -4273,6 +4284,8 @@ declare global {
           renderToday(opts?: { soft?: boolean }): unknown;
         }
       ): void;
+      /** The aggregate path a tab asks for (`surface=today` widens it with `responses`). */
+      aggregatePath(date: string, tab: string | undefined): string;
     };
 
     CairnTodayWorth: {
@@ -4339,7 +4352,8 @@ declare global {
         plan: Array<Record<string, unknown>>,
         activeDay: unknown,
         deps: { escapeHtml(value: unknown): string },
-        recovery?: Record<number, { recovering_groups?: string[]; mostly_recovering?: boolean }> | null
+        recovery?: Record<number, { recovering_groups?: string[]; mostly_recovering?: boolean }> | null,
+        pick?: boolean
       ): string;
       rxBannerHtml(
         rxByEx: Record<string, unknown>,

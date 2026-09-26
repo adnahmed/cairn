@@ -74,8 +74,7 @@ nutritionRouter.get("/mealplans/:id", (req, res) => {
 // powers the calm "Energy Balance" view. ?window= is safely clamped by the domain.
 // Memoized on the response freshness key (routes/response-memo.ts): a repeat open
 // with nothing logged since answers without re-running the estimator.
-nutritionRouter.get(
-  "/nutrition/expenditure",
+nutritionRouter.get("/nutrition/expenditure",
   memoizedRead("nutrition-expenditure", (req) => {
     const window = req.query.window ? Number(req.query.window) : undefined;
     const expenditure = estimateExpenditure(Number.isFinite(window as number) ? (window as number) : 21);
@@ -95,15 +94,16 @@ nutritionRouter.get("/nutrition/goal-pace", (req, res) => {
   res.json(goalPace(Number.isFinite(days as number) ? (days as number) : 90));
 });
 
-// A calm review of ONE day's logged food: entries stay nullable while legacy
-// totals/remaining stay numeric (missing values contribute zero); additive
-// `known` flags tell newer clients which nutrient sums are complete. A real
-// target adds the gentle "remaining". ?date=YYYY-MM-DD overrides today.
+// GET /nutrition/day's body, shared with the /today fan-in (routes/today-responses.ts).
 export function nutritionDayResponse(date: string | undefined) {
   const intake = getDayIntake(date);
   return { ...intake, fuel_demand: dayFuelDemand(date, { carbBasis: carbBasis(intake.target) }) };
 }
 
+// A calm review of ONE day's logged food: entries stay nullable while legacy
+// totals/remaining stay numeric (missing values contribute zero); additive
+// `known` flags tell newer clients which nutrient sums are complete. A real
+// target adds the gentle "remaining". ?date=YYYY-MM-DD overrides today.
 nutritionRouter.get("/nutrition/day", (req, res) => {
   const date = typeof req.query.date === "string" ? req.query.date : undefined;
   // `fuel_demand` rides alongside the log rather than inside getDayIntake: the intake
@@ -178,14 +178,15 @@ nutritionRouter.post("/nutrition/target", (req, res) => {
   }
 });
 
-// Fueling follow-through. After a nutrition-target change applies, Today quietly offers a
-// one-tap "how's fueling feeling?" read on days the athlete logs food, only inside the
-// change's 7-day window. Read-only due-check + recent reads; `due:false` is the calm
-// common answer, returned at status 200 like the other nutrition reads (never a 404).
+// GET /nutrition/fueling-followup's body, shared with the /today fan-in.
 export function fuelingFollowupResponse() {
   return { ...fuelingFollowThroughDue(), recent: listFuelingFeedback(14) };
 }
 
+// Fueling follow-through. After a nutrition-target change applies, Today quietly offers a
+// one-tap "how's fueling feeling?" read on days the athlete logs food, only inside the
+// change's 7-day window. Read-only due-check + recent reads; `due:false` is the calm
+// common answer, returned at status 200 like the other nutrition reads (never a 404).
 nutritionRouter.get("/nutrition/fueling-followup", (_req, res) => {
   res.json(fuelingFollowupResponse());
 });

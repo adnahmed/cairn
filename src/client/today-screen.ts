@@ -225,6 +225,7 @@ async function renderToday(opts: any = {}) {
   // render-scoped CairnTodayPrefetch rather than asking again.
   const todayPrefetch = (globalThis as { CairnTodayPrefetch?: TodayPrefetchApi }).CairnTodayPrefetch;
   todayPrefetch?.reset();
+  if (todayState.tab === "today") todayPrefetch?.primeFanIn?.(todayState.logDate, { api: todayApi, peekCached, localISO });
 
   // The Brief's day-read and the session preview need only the date + any active
   // override — not the data load or the prepared plan day — so they start first.
@@ -501,9 +502,9 @@ async function renderToday(opts: any = {}) {
   );
 
   html +=
-    showPlan && !showDone && nothingToStart
+    showPlan && !showDone && nothingToStart && !day.pick
       ? ""
-      : showPlan && !showDone && previewHasItems !== false
+      : showPlan && !showDone && previewHasItems !== false && !day.pick
       ? briefCarriesStart
         ? ""
         : sessionLaunchCardHtml(launchOpts)

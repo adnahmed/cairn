@@ -33,6 +33,7 @@ const MAX_SLOTS = 96;
 type MemoEntry = {
   fresh: string;
   value: unknown;
+  body: unknown;
   raw: Buffer;
   gz: Buffer | null | undefined; // undefined = not built yet, null = not worth it
   etag: string;
@@ -59,13 +60,13 @@ export type MemoizedReadOptions<T> = {
 // `token` is the auth query fallback for direct resource URLs — never part of a read.
 function slotFor(name: string, req: Request): string {
   const params = new URLSearchParams();
-  const query = req.query as Record<string, unknown>;
+  const query = (req.query ?? {}) as Record<string, unknown>;
   for (const key of Object.keys(query).sort()) {
     if (key === "token") continue;
     const value = query[key];
     for (const one of Array.isArray(value) ? value : [value]) params.append(key, String(one));
   }
-  return `${name} ${req.path}?${params.toString()}`;
+  return `${name} ${req.path ?? ""}?${params.toString()}`;
 }
 
 function etagFor(raw: Buffer): string {
@@ -85,19 +86,25 @@ function ifNoneMatchHits(header: string | string[] | undefined, etag: string): b
 }
 
 function acceptsGzip(req: Request): boolean {
-  const header = String(req.headers["accept-encoding"] || "");
+  const header = String(req.headers?.["accept-encoding"] || "");
   return /\bgzip\b/i.test(header) && !/\bgzip\s*;\s*q=0(?:\.0*)?\b/i.test(header);
 }
 
 function buildEntry(fresh: string, value: unknown, body: unknown): MemoEntry {
   const raw = Buffer.from(JSON.stringify(body ?? null), "utf8");
-  return { fresh, value, raw, gz: undefined, etag: etagFor(raw) };
+  return { fresh, value, body, raw, gz: undefined, etag: etagFor(raw) };
 }
 
 function send(req: Request, res: Response, entry: MemoEntry): void {
+  // A bare response object (a router driven directly, without Express's response
+  // prototype) still gets the body the route always answered.
+  if (typeof res.setHeader !== "function" || typeof res.end !== "function") {
+    res.json(entry.body);
+    return;
+  }
   res.setHeader("ETag", entry.etag);
   res.setHeader("Vary", "Accept-Encoding");
-  if (ifNoneMatchHits(req.headers["if-none-match"], entry.etag)) {
+  if (ifNoneMatchHits(req.headers?.["if-none-match"], entry.etag)) {
     res.status(304).end();
     return;
   }
@@ -145,7 +152,8 @@ export function memoizedRead<T>(
   options: MemoizedReadOptions<T> = {},
 ): RequestHandler {
   const project = options.body ?? ((value: T) => value as unknown);
-  return async function memoizedHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Synchronous whenever the read is: only an async compute yields to the loop.
+  return function memoizedHandler(req: Request, res: Response, next: NextFunction): void | Promise<void> {
     try {
       const cacheable = options.cacheable ? options.cacheable(req) : true;
       const slot = slotFor(name, req);
@@ -159,14 +167,20 @@ export function memoizedRead<T>(
           return;
         }
       }
-      const value = await compute(req);
-      if (res.headersSent) return;
-      const body = project(value);
-      const after = before != null ? responseFreshnessKey() : null;
-      const entry = buildEntry(after ?? "", value, body);
-      if (before != null && after === before && !isDesignedFailure(body)) remember(slot, entry);
-      send(req, res, entry);
-      options.onServe?.(req, value);
+      const finish = (value: T): void => {
+        if (res.headersSent) return;
+        const body = project(value);
+        const after = before != null ? responseFreshnessKey() : null;
+        const entry = buildEntry(after ?? "", value, body);
+        if (before != null && after === before && !isDesignedFailure(body)) remember(slot, entry);
+        send(req, res, entry);
+        options.onServe?.(req, value);
+      };
+      const value = compute(req);
+      if (value && typeof (value as { then?: unknown }).then === "function") {
+        return (value as Promise<T>).then(finish).catch(next);
+      }
+      finish(value as T);
     } catch (error) {
       next(error);
     }

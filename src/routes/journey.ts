@@ -34,18 +34,15 @@ journeyRouter.get("/journey/goal-consistency", memoizedRead("journey-goal-consis
 
 journeyRouter.get("/journey/milestones", memoizedRead("journey-milestones", (req) => journeyMilestones(dateOf(req))));
 
-journeyRouter.get(
-  "/journey/transition-suggestion",
+journeyRouter.get("/journey/transition-suggestion",
   memoizedRead("journey-transition-suggestion", (req) => journeyTransitionSuggestion(dateOf(req)))
 );
 
-journeyRouter.get(
-  "/journey/phases",
+journeyRouter.get("/journey/phases",
   memoizedRead("journey-phases", (req) => listJourneyPhases((req.query.status ? String(req.query.status) : "all") as any))
 );
 
-journeyRouter.get(
-  "/journey/phases/:id",
+journeyRouter.get("/journey/phases/:id",
   memoizedRead("journey-phase", (req) => getJourneyPhase(Number(req.params.id)))
 );
 

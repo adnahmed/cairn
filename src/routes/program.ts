@@ -315,8 +315,7 @@ programRouter.get("/training-agenda", (req, res) =>
 // most four). `responses` is keyed by the path each individual route answers, with
 // that route's exact body — every one of those routes still stands on its own.
 // Memoized on the response freshness key like the Today aggregate.
-programRouter.get(
-  "/horizon-race",
+programRouter.get("/horizon-race",
   memoizedRead("horizon-race", (req) => ({ responses: horizonRaceResponses(req.query.dates) }))
 );
 programRouter.get("/run-zones", (_req, res) => res.json(runZones()));

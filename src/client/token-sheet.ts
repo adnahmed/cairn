@@ -47,6 +47,16 @@ declare const CairnTokenSheet: TokenSheetApi;
         input?.focus();
         return;
       }
+      // A new credential: nothing remembered under the old one may paint again.
+      let changed = true;
+      try {
+        changed = (localStorage.getItem("cairn_token") || "").trim() !== value;
+      } catch {}
+      if (changed) {
+        try {
+          (globalThis as { clearRememberedApiBodies?: () => void }).clearRememberedApiBodies?.();
+        } catch {}
+      }
       try {
         localStorage.setItem("cairn_token", value);
       } catch {}

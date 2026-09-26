@@ -1,4 +1,4 @@
-// Today's per-render GET prefetch (CairnTodayPrefetch, today-data-loader.ts) and the
+// Today's per-render GET prefetch (CairnTodayPrefetch, today-prefetch.ts) and the
 // rail's use of it: renderToday starts reads before their slots mount, and each
 // loader takes the in-flight request instead of asking twice. What renders is
 // unchanged; these tests pin the one-shot contract that keeps it that way.
@@ -31,7 +31,7 @@ function load(files, extra = {}) {
 }
 
 test("a prefetched GET is handed out once, then the caller fetches its own", async () => {
-  const { context } = load(["public/js/today-data-loader.js"]);
+  const { context } = load(["public/js/today-prefetch.js"]);
   const prefetch = context.CairnTodayPrefetch;
   let starts = 0;
   const first = prefetch.prefetch("/week-ahead", async () => {
@@ -58,7 +58,7 @@ test("a prefetched GET is handed out once, then the caller fetches its own", asy
 });
 
 test("an old or reset prefetch is never served", async () => {
-  const { context, advance } = load(["public/js/today-data-loader.js"]);
+  const { context, advance } = load(["public/js/today-prefetch.js"]);
   const prefetch = context.CairnTodayPrefetch;
   prefetch.prefetch("/insights", async () => "old");
   advance(15001);
@@ -70,7 +70,7 @@ test("an old or reset prefetch is never served", async () => {
 });
 
 test("a failed prefetch never surfaces as an unhandled rejection, and the taker still sees it fail", async () => {
-  const { context } = load(["public/js/today-data-loader.js"]);
+  const { context } = load(["public/js/today-prefetch.js"]);
   const prefetch = context.CairnTodayPrefetch;
   prefetch.prefetch("/team-week", () => Promise.reject(new Error("offline")));
   prefetch.prefetch("/sync-throw", () => {
@@ -95,7 +95,7 @@ test("the rail prefetch starts exactly the reads its loaders then take", async (
     api,
   };
   const { context } = load(
-    ["public/js/today-data-loader.js", "public/js/capture-reads-client.js", "public/js/today-rail-loaders-client.js"],
+    ["public/js/today-prefetch.js", "public/js/capture-reads-client.js", "public/js/today-rail-loaders-client.js"],
     { CairnCaptureReadDate: { weekRangeLabel: () => "" }, CairnTodayLately: { rowHtml: () => "" } }
   );
   context.CairnTodayRailLoaders.prefetchRail(["fuel", "lately", "weekly-read", "connection-insight"], deps);
@@ -123,7 +123,7 @@ test("an acknowledged weekly read does not prefetch the wins it will never draw"
     calls.push(path);
     return Promise.resolve(path === "/insights" ? [{ id: 1, kind: "weekly_read", feedback: "up" }] : null);
   };
-  const { context } = load(["public/js/today-data-loader.js", "public/js/capture-reads-client.js"], {
+  const { context } = load(["public/js/today-prefetch.js", "public/js/capture-reads-client.js"], {
     CairnCaptureReadDate: { weekRangeLabel: () => "" },
   });
   context.CairnCaptureReads.prefetch({ weekly: true, insight: false }, api);
@@ -158,4 +158,48 @@ test("renderToday starts its independent reads before it awaits the paint-critic
   }
   // The registry is reset once per render, before anything is prefetched into it.
   assert.ok(at("todayPrefetch?.reset()") < at("const readPromise = loadBrief("));
+});
+
+test("primeFanIn primes every Today path from ONE widened aggregate, and skips a fetch seconds old", async () => {
+  const primed = [];
+  const asked = [];
+  const { context } = load(["public/js/today-prefetch.js"], {
+    encodeURIComponent,
+    apiPrime: (paths, source) => primed.push({ paths: [...paths], source }),
+    CairnTodayDataLoader: { aggregatePath: (date, tab) => `/today?date=${date}&surface=${tab}` },
+  });
+  const deps = {
+    api: (path) => {
+      asked.push(path);
+      return Promise.resolve({ responses: { "/directives": { directives: [] } } });
+    },
+    peekCached: () => null,
+    localISO: () => "2026-09-26",
+  };
+  context.CairnTodayPrefetch.primeFanIn("2026-09-26", deps);
+  assert.deepEqual(asked, ["/today?date=2026-09-26&surface=today"], "one request for the whole open");
+  const paths = primed[0].paths;
+  for (const path of [
+    "/today-plan-day?date=2026-09-26",
+    "/today-agenda?date=2026-09-26",
+    "/today-side?date=2026-09-26",
+    "/today/stones?date=2026-09-26",
+    "/training-agenda?date=2026-09-26",
+    "/directives",
+    "/brain/changes",
+    "/settings",
+  ]) {
+    assert.ok(paths.includes(path), path);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(await primed[0].source)), { "/directives": { directives: [] } });
+
+  // A past date has no run line: its agenda is not asked for.
+  context.CairnTodayPrefetch.primeFanIn("2026-09-20", deps);
+  assert.equal(primed[1].paths.some((p) => p.startsWith("/training-agenda")), false);
+
+  // The aggregate landed seconds ago (a soft repaint): its primes still stand.
+  const fresh = { ...deps, peekCached: () => ({ data: {}, fresh: true }) };
+  context.CairnTodayPrefetch.primeFanIn("2026-09-26", fresh);
+  assert.equal(primed.length, 2);
+  assert.equal(asked.length, 2);
 });

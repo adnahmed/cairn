@@ -17,6 +17,7 @@ import { authGuard, authEnabled, requireAuth, authStartupError, rateLimitGuard, 
 import { setAgentRunSink, loadAgents, invalidateAgentConfigured, warmAgentProbes } from "./agents.js";
 import { startLoginSession, killActiveLoginSession } from "./agentLogin.js";
 import { reportScriptCspHash } from "./report.js";
+import { earlyFetchCspHash } from "./earlyFetch.js";
 import { runWithTimeZone } from "./tz.js";
 import { runWithBrainSnapshot } from "./brain/snapshot.js";
 import * as repo from "./repo.js";
@@ -58,6 +59,9 @@ app.disable("x-powered-by");
 function contentSecurityPolicy(pathname: string): string {
   const scriptSources = ["'self'"];
   if (pathname === "/api/health-report") scriptSources.push(reportScriptCspHash());
+  // The shell's single inline block, admitted by its own hash (src/earlyFetch.ts).
+  const earlyFetch = pathname.startsWith("/api/") ? null : earlyFetchCspHash(PUBLIC_DIR);
+  if (earlyFetch) scriptSources.push(earlyFetch);
 
   return (
     "default-src 'self'; img-src 'self' data: blob:; " +

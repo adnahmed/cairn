@@ -38,8 +38,7 @@ export const dayCoachRouter = Router();
 // freshness key (routes/response-memo.ts): a repeat open whose inputs have not moved
 // — no log, no sync, no agent run landing — answers the same body, or a 304, without
 // re-running the reconciliation. A steer or a reset always computes.
-dayCoachRouter.get(
-  "/today-read",
+dayCoachRouter.get("/today-read",
   memoizedRead(
     "today-read",
     (req) => {
@@ -195,8 +194,7 @@ dayCoachRouter.get("/daily-session", (req, res) => {
 // `200 + null` like every other single-row read here; 400 is reserved for malformed
 // input (a bad date or constraint).
 // Memoized on the response freshness key; a malformed request (400) is never remembered.
-dayCoachRouter.get(
-  "/daily-session/preview",
+dayCoachRouter.get("/daily-session/preview",
   memoizedRead("daily-session-preview", (req) => {
     try {
       return previewAdaptiveDailySessionUseCase(previewRequestFor(req));
@@ -327,19 +325,7 @@ dayCoachRouter.get("/session-primer", (req, res) => {
   }
 });
 
-// The week ahead — a calm forward look (lift / run / mixed / rest across the next
-// several days). Agentic with a deterministic plan-rotation floor, so it always
-// returns a usable shape even with no agent. Cached per day+plan+goal.
-//
-// This GET never spawns a CLI inline: weekAheadServe reads the cache
-// synchronously (fresh cache / stale cache / the deterministic floor) and, on a
-// miss or a stale hit, ensureWeekAheadJob kicks (or joins) a durable background
-// job that runs the real agentic read and refreshes the cache for next time —
-// deduplicated so a burst of opens never spawns more than one CLI per day.
-//
-// Memoized on the response freshness key: the served body is remembered, and the
-// refresh kick still runs on EVERY serve that needs one (ensureWeekAheadJob dedupes),
-// so a remembered "computing" floor never strands the agentic read.
+// GET /week-ahead's body plus its refresh kick, shared with the /today fan-in.
 export function weekAheadResponse(agentParam?: string) {
   const served = weekAheadServeSafe();
   if (served.needsRefresh) ensureWeekAheadJob(agentParam, served.cacheKey);
@@ -354,8 +340,20 @@ function weekAheadServeSafe(): { response: unknown; needsRefresh: boolean; cache
   }
 }
 
-dayCoachRouter.get(
-  "/week-ahead",
+// The week ahead — a calm forward look (lift / run / mixed / rest across the next
+// several days). Agentic with a deterministic plan-rotation floor, so it always
+// returns a usable shape even with no agent. Cached per day+plan+goal.
+//
+// This GET never spawns a CLI inline: weekAheadServe reads the cache
+// synchronously (fresh cache / stale cache / the deterministic floor) and, on a
+// miss or a stale hit, ensureWeekAheadJob kicks (or joins) a durable background
+// job that runs the real agentic read and refreshes the cache for next time —
+// deduplicated so a burst of opens never spawns more than one CLI per day.
+//
+// Memoized on the response freshness key: the served body is remembered, and the
+// refresh kick still runs on EVERY serve that needs one (ensureWeekAheadJob dedupes),
+// so a remembered "computing" floor never strands the agentic read.
+dayCoachRouter.get("/week-ahead",
   memoizedRead("week-ahead", () => weekAheadServeSafe(), {
     body: (served) => served.response,
     onServe: (req, served) => {

@@ -50,6 +50,8 @@ type TodayPlanSessionPrepState = {
   day: number | null;
   /** True when the server said today is a calendar run or rest day (no lift selected). */
   calendarDay?: boolean;
+  /** True when today's pick could not be read and none was remembered (see plan selection). */
+  planDayUnknown?: boolean;
   dayPicked?: boolean;
   dayPickedOn?: string | null;
   plan: TodayPlanSessionPrepPlanDay[];
@@ -193,6 +195,9 @@ type TodayPlanSessionPrepDataApi = {
       dailySession?.plan_day_id == null
         ? null
         : deps.state.plan.find((day) => Number(day.id) === Number(dailySession.plan_day_id)) || null;
+    // Only the implicit pick below can leave the day unknown; every other branch
+    // (an accepted session, the athlete's own pick) knows exactly which day it is.
+    deps.state.planDayUnknown = false;
     if (dailySession) {
       deps.state.day = linked?.day_number ?? null;
       deps.state.dayPicked = dailySession.source === "manual_plan";
@@ -206,8 +211,10 @@ type TodayPlanSessionPrepDataApi = {
         deps.state.day = null;
       } else if (!deps.state.dayPicked || deps.state.day === null || !hasSelectedDay) {
         deps.state.day = await deps.suggestedPlanDayNumber(deps.session, deps.isToday);
-        // null = the calendar says run or rest today: no lift is selected by default.
-        deps.state.calendarDay = deps.state.day === null;
+        // null = the calendar says run or rest today: no lift is selected by default —
+        // or the pick could not be read offline (planDayUnknown), which is not a
+        // calendar fact and must not read as one.
+        deps.state.calendarDay = deps.state.day === null && !deps.state.planDayUnknown;
         deps.state.dayPicked = false;
         deps.state.dayPickedOn = null;
       }

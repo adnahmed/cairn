@@ -3478,6 +3478,12 @@ export interface ClientPlanRedrawStatus {
   standing: ClientPlanRedrawStanding[];
 }
 
+// A fan-in (GET /horizon-race, and /today?surface=today's `responses`): the body each
+// named GET path would answer, keyed by that path, for priming the request layer.
+export interface ClientApiFanIn {
+  responses: Record<string, unknown>;
+}
+
 export interface ClientApiResponses {
   "/api/health": ClientHealthResponse;
   "/api/ready": ClientReadinessResponse;
@@ -3614,6 +3620,7 @@ export interface ClientApiResponses {
   "/api/performance": ClientPerformanceStanding;
   "/api/run-plan": ClientWeeklyRunPlan;
   "/api/race-build": ClientRaceBuild;
+  "/api/horizon-race": ClientApiFanIn;
   "/api/training-agenda": ClientFlexibleTrainingAgenda;
   "/api/run-zones": ClientRunZones;
   "/api/muscle-trajectory": ClientMuscleGroupTrajectory;

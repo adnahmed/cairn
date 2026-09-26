@@ -350,3 +350,32 @@ test("a background aggregate only FILLS an empty last-set key, never overwrites 
   assert.equal(keys.includes("last-set:Bench Press"), true);
   assert.deepEqual([...result.primedLastSets], []);
 });
+
+test("the Today tab asks for the widened aggregate, and its fan-in half never reaches the SWR tiers", async () => {
+  const loader = loadDataLoader();
+  assert.equal(loader.aggregatePath("2026-01-02", "today"), "/today?date=2026-01-02&surface=today");
+  assert.equal(loader.aggregatePath("2026-01-02", "session"), "/today?date=2026-01-02");
+  let projected = null;
+  const { deps, calls } = makeDeps({
+    cachedApi: (path, options) => {
+      const raw = {
+        date: "2026-01-02",
+        plan: [],
+        session: null,
+        stats: {},
+        profile: {},
+        exercises: [],
+        responses: { "/directives": { directives: [{ id: 1 }] } },
+      };
+      // What cachedApi remembers and returns is the projection, never the raw body.
+      projected = options.project ? options.project(raw) : raw;
+      if (options.onUpgrade) options.onUpgrade(projected, { changed: true });
+      return projected;
+    },
+  });
+  deps.state.tab = "today";
+  await loader.load({}, deps);
+  assert.equal(calls[1][1], "/today?date=2026-01-02&surface=today");
+  assert.equal("responses" in projected, false, "health reads in the fan-in stay off disk");
+  assert.deepEqual(projected.plan, []);
+});

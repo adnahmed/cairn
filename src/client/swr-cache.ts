@@ -11,6 +11,9 @@ type ClientCachedApiOptions<T> = {
   freshFor?: number;
   serveFreshFor?: number;
   onUpgrade?: (data: T, meta: ClientSwrUpgradeMeta) => void;
+  // Shape a network answer before it is compared, remembered or returned — for a
+  // fan-in whose extra payload (e.g. /today's `responses`) must never reach disk.
+  project?: (data: T) => T;
 };
 type ClientOptimisticMutationOptions<T, R = unknown> = {
   key: string;
@@ -190,14 +193,15 @@ function cachedApi<Path extends string>(
   path: Path,
   options: ClientCachedApiOptions<ClientApiResponse<Path>> = {},
 ): Promise<ClientApiResponse<Path>> {
-  const { key, freshFor = 60000, serveFreshFor = 3000, onUpgrade } = options;
+  const { key, freshFor = 60000, serveFreshFor = 3000, onUpgrade, project } = options;
   const k = key || path;
   const prior = peekCached<ClientApiResponse<Path>>(k, Math.min(freshFor, serveFreshFor));
   if (prior && prior.fresh) return Promise.resolve(prior.data);
   const revisionAtStart = _swrRevision(k);
   const prefixAtStart = _swrPrefixStamp(k);
   return api(path)
-    .then((data) => {
+    .then((raw) => {
+      const data = project ? project(raw) : raw;
       // A mutation write or explicit invalidation landed after this read began.
       // Never let the older response replace or repaint over that newer truth.
       if (_swrRevision(k) !== revisionAtStart || _swrPrefixStamp(k) !== prefixAtStart) {
@@ -292,6 +296,20 @@ function swrInvalidate(keyOrPrefix: string): void {
   }
 }
 
+// Forget every remembered body, both tiers — for a credential change (a 401, a new
+// token), where nothing read under the old one may paint again.
+function swrClearAll(): void {
+  for (const key of [..._swrMem.keys()]) _swrBump(key);
+  _swrMem.clear();
+  _swrPrefixRevision.set("", (_swrPrefixRevision.get("") || 0) + 1);
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const lk = localStorage.key(i);
+      if (lk && lk.startsWith(SWR_NS)) localStorage.removeItem(lk);
+    }
+  } catch {}
+}
+
 // Boot housekeeping: evict stale localStorage SWR rows (older than ~24h) and cap
 // the namespace at ~40 entries (drop the oldest), so the cache never grows
 // unbounded. Cheap, runs once at startup.
@@ -334,5 +352,6 @@ Object.assign(globalThis, {
   optimisticMutation,
   markRefreshing,
   swrInvalidate,
+  swrClearAll,
   swrSweep,
 });

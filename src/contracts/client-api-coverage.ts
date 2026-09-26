@@ -162,6 +162,7 @@ export const CLIENT_API_CONTRACT_PATHS = [
   "/performance",
   "/run-plan",
   "/race-build",
+  "/horizon-race",
   "/journey",
   "/journey/milestones",
   "/journey/timeline",

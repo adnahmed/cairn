@@ -35,6 +35,8 @@ type TodayPlanSessionModelState = {
   day: number | null;
   /** True when the server said today is a calendar run or rest day (no lift selected). */
   calendarDay?: boolean;
+  /** True when today's pick could not be read offline and none was remembered. */
+  planDayUnknown?: boolean;
   plan: TodayPlanSessionModelPlanDay[];
   pendingOffPlan?: Record<string, TodayPlanSessionModelPendingOffPlan[]>;
 };
@@ -208,7 +210,9 @@ type TodayPlanSessionModelApi = {
   }
 
   function selectedPlanDay(state: TodayPlanSessionModelState, revealBlank: boolean): TodayPlanSessionModelPlanDay {
+    // An unknown pick is never quietly day 1: nothing is selected until the athlete says.
     if ((revealBlank || state.calendarDay) && state.day === null) return { day_number: 0, name: "", items: [] };
+    if (state.planDayUnknown && state.day === null) return { day_number: 0, name: "", items: [], pick: true };
     return state.plan.find((day) => day.day_number === state.day) || state.plan[0] || { day_number: 0, name: "", items: [] };
   }
 

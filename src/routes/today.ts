@@ -37,8 +37,7 @@ export { todayAggregate, publicTodayPlanDay };
 //
 // Memoized on the response freshness key (routes/response-memo.ts): a repeat open
 // with nothing logged since answers the stored body — or a 304 — without recomputing.
-todayRouter.get(
-  "/today",
+todayRouter.get("/today",
   memoizedRead("today", (req) => {
     const aggregate = todayAggregate(req.query.date);
     if (req.query.surface !== "today") return aggregate;
@@ -123,8 +122,7 @@ todayRouter.post("/today-agenda/dismiss", (req, res) => {
 // week" read that sits under the agentic weekly sentence (pull-only; words, no
 // scores). This is the human-facing surface, so it MAY drain the oldest 1-2
 // unseen backlog insights (flipping new→seen) so nothing rots unseen.
-todayRouter.get(
-  "/team-week",
+todayRouter.get("/team-week",
   memoizedRead("team-week", () => teamWeekRead({ drainBacklog: true }))
 );
 

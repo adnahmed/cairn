@@ -1747,3 +1747,117 @@ test("a body read that breaks is an outage, not invalid JSON", async () => {
   assert.equal(events[0].route, "/api/insights");
   assert.match(events[0].message, /^invalid_json:/);
 });
+
+// ---------- wave 6C: fan-in primes, prefix micro-cache, early responses, 401 hygiene ----------
+
+test("api() answers primed paths from a fan-in in one trip; a path it lacks falls through; a write clears primes", async () => {
+  const loaded = loadApiClient();
+  const urls = [];
+  let release;
+  const fanIn = new Promise((resolve) => (release = resolve));
+  loaded.context.fetch = async (url) => {
+    urls.push(url);
+    return { status: 200, json: async () => ({ own: url }) };
+  };
+  loaded.context.apiPrime(["/today-plan-day?date=2026-09-26", "/directives", "/not-in-fan-in"], fanIn);
+  // Asked BEFORE the fan-in lands: each waits for it rather than racing it.
+  const planDay = loaded.context.api("/today-plan-day?date=2026-09-26");
+  const directives = loaded.context.api("/directives");
+  const missing = loaded.context.api("/not-in-fan-in");
+  assert.deepEqual(urls, [], "nothing goes out while the fan-in is in flight");
+  release({
+    "/today-plan-day?date=2026-09-26": { day_number: 2 },
+    "/directives": { directives: [] },
+    "/week-ahead": { ok: true, days: [] },
+  });
+  assert.equal((await planDay).day_number, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(await directives)), { directives: [] });
+  assert.equal((await missing).own, "/api/not-in-fan-in", "a path the fan-in lacked asks for itself");
+  // A path the fan-in carried but nobody named up front is primed once it lands.
+  assert.deepEqual(JSON.parse(JSON.stringify(await loaded.context.api("/week-ahead"))), { ok: true, days: [] });
+  assert.deepEqual(urls, ["/api/not-in-fan-in"]);
+
+  // Two readers of one path (the plan-day pick and the pill hints) share the answer.
+  assert.equal((await loaded.context.api("/today-plan-day?date=2026-09-26")).day_number, 2);
+  assert.equal(urls.length, 1);
+
+  // Any write retires every prime: the next read is the network's.
+  await loaded.context.api("/sets", { method: "POST", body: "{}" });
+  const after = await loaded.context.api("/directives");
+  assert.equal(after.own, "/api/directives");
+});
+
+test("api() prime: a failed fan-in falls every waiting reader through to its own request", async () => {
+  const loaded = loadApiClient();
+  const urls = [];
+  loaded.context.fetch = async (url) => {
+    urls.push(url);
+    return { status: 200, json: async () => ({ own: url }) };
+  };
+  loaded.context.apiPrime(["/brain/changes"], Promise.reject(new Error("offline")));
+  assert.equal((await loaded.context.api("/brain/changes")).own, "/api/brain/changes");
+  assert.deepEqual(urls, ["/api/brain/changes"]);
+});
+
+test("api() micro-caches /today-plan-day? (any date) and /markers/priority across two non-overlapping readers", async () => {
+  const loaded = loadApiClient();
+  let fetchCount = 0;
+  loaded.context.fetch = async (url) => {
+    fetchCount++;
+    return { status: 200, json: async () => ({ n: fetchCount, url }) };
+  };
+  await loaded.context.api("/today-plan-day?date=2026-09-26");
+  await loaded.context.api("/today-plan-day?date=2026-09-26");
+  assert.equal(fetchCount, 1, "the plan-day pick and the pill hints are one read");
+  await loaded.context.api("/today-plan-day?date=2026-09-27");
+  assert.equal(fetchCount, 2, "another date is its own read");
+  await loaded.context.api("/markers/priority");
+  await loaded.context.api("/markers/priority");
+  assert.equal(fetchCount, 3);
+});
+
+test("api() takes index.html's early response once, for its exact path only", async () => {
+  const loaded = loadApiClient();
+  const urls = [];
+  loaded.context.fetch = async (url) => {
+    urls.push(url);
+    return { status: 200, json: async () => ({ network: true }) };
+  };
+  const early = new Map([["/today?date=2026-09-26&surface=today", { status: 200, json: async () => ({ early: true }) }]]);
+  loaded.context.CairnTodayPrefetch = {
+    takeEarly(path) {
+      const res = early.get(path);
+      early.delete(path);
+      return res ? Promise.resolve(res) : undefined;
+    },
+  };
+  assert.equal((await loaded.context.api("/today?date=2026-09-26&surface=today")).early, true);
+  assert.deepEqual(urls, [], "no second request for what is already on the wire");
+  assert.equal((await loaded.context.api("/today?date=2026-09-26&surface=today")).network, true, "handed over once");
+  assert.equal((await loaded.context.api("/today?date=2026-09-27&surface=today")).network, true);
+});
+
+test("a 401 forgets every remembered API body (cairn.swr.v1.*) before asking for a token", async () => {
+  const loaded = loadApiClient();
+  const store = loaded.storage;
+  loaded.context.localStorage = {
+    get length() {
+      return store.size;
+    },
+    key: (i) => [...store.keys()][i] ?? null,
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+  };
+  let opened = 0;
+  loaded.context.CairnTokenSheet = { open: () => opened++ };
+  store.set("cairn_token", "old");
+  store.set("cairn.swr.v1.today:aggregate:2026-09-26", "{}");
+  store.set("cairn.swr.v1.profile", "{}");
+  store.set("cairn.unrelated", "keep");
+  loaded.context.fetch = async () => ({ status: 401, json: async () => ({}) });
+  void loaded.context.api("/profile");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(opened, 1);
+  assert.deepEqual([...store.keys()].sort(), ["cairn.unrelated"]);
+});

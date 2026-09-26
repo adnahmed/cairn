@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**357 routes** across 121 groups.
+**358 routes** across 122 groups.
 
 ## `/activities`
 
@@ -220,7 +220,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | GET | `/api/daily-session/decision` | The deterministic decision envelope (Stage 2) — an explainable, reproducible read of what KIND of day today is, the movement/muscle envelope, caps, and the reason codes behind them, BEFORE any agent composes. Synchronous + agent-free. The same bounded snapshot yields the same envelope + input_fingerprint. Recorded best-effort for observability; a record failure never fails the read. |
 | GET | `/api/daily-session/outcome` | Stage 4 — the post-session outcome reconciliation for a date: what was suggested vs what was actually trained (completed / substituted / skipped / reordered), progression evidence, feedback, and the adherence-neutral reason codes + confounders. Deterministic, agent-free. null (200) when the date has no reconciled daily-session composition. |
 | POST | `/api/daily-session/prepare` | Prepare (or explicitly replace) today's durable session without mutating the weekly plan. Plan sources snapshot a plan day; agent_suggest resolves a completed canonical job; athlete_override snapshots a user-authored payload. expected_active_id is assertion-only: it returns the matching active snapshot and bound session without creating/replacing anything. Different replacements stop once logging begins; exact retries remain safe. |
-| GET | `/api/daily-session/preview` | Read-only, authoritative candidate shown immediately before Start. This is built by the same adaptive seam prepare persists and never records a decision or creates a workout session.  A date with no weekly template day has nothing to preview — the ordinary case on a rest/unplanned day, and the PWA asks on EVERY Today render. That absence answers `200 + null` like every other single-row read here; 400 is reserved for malformed input (a bad date or constraint). |
+| GET | `/api/daily-session/preview` | Read-only, authoritative candidate shown immediately before Start. This is built by the same adaptive seam prepare persists and never records a decision or creates a workout session.  A date with no weekly template day has nothing to preview — the ordinary case on a rest/unplanned day, and the PWA asks on EVERY Today render. That absence answers `200 + null` like every other single-row read here; 400 is reserved for malformed input (a bad date or constraint). Memoized on the response freshness key; a malformed request (400) is never remembered. |
 
 ## `/dexa-targeting`
 
@@ -448,6 +448,12 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 |---|---|---|
 | GET | `/api/health-report.txt` |  |
 
+## `/horizon-race`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/horizon-race` | Horizon -> Race in ONE request (routes/today-responses.ts): the goal, compliance, settings, this week's run plan / race build / agenda, the upcoming-session note, and the same three week reads for each later Monday in `?dates=` (comma list, at most four). `responses` is keyed by the path each individual route answers, with that route's exact body — every one of those routes still stands on its own. Memoized on the response freshness key like the Today aggregate. |
+
 ## `/injury-impacts`
 
 | Method | Path | Notes |
@@ -562,7 +568,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 |---|---|---|
 | POST | `/api/nutrition/checkin` | Quiet adaptive-nutrition check-in: medium/high outcome confidence may support a bounded change; low confidence is hold-only except for a server-verified protective fuel raise from fresh hybrid/fatigue evidence. The agent proposes and the server autonomy policy either schedules it for the next food-day boundary or holds it under explicit review posture. Most weeks nothing has moved (change:false) and no proposal is created. ok:false (status 200) is the designed failure signal, mirroring the swap/recipe endpoints. |
 | GET | `/api/nutrition/day` | A calm review of ONE day's logged food: entries stay nullable while legacy totals/remaining stay numeric (missing values contribute zero); additive `known` flags tell newer clients which nutrient sums are complete. A real target adds the gentle "remaining". ?date=YYYY-MM-DD overrides today. |
-| GET | `/api/nutrition/expenditure` | Best-effort chosen expenditure with explicit outcome/prior anchors. Read-only; powers the calm "Energy Balance" view. ?window= is safely clamped by the domain. |
+| GET | `/api/nutrition/expenditure` | Best-effort chosen expenditure with explicit outcome/prior anchors. Read-only; powers the calm "Energy Balance" view. ?window= is safely clamped by the domain. Memoized on the response freshness key (routes/response-memo.ts): a repeat open with nothing logged since answers without re-running the estimator. |
 | POST | `/api/nutrition/fueling-feedback` | Save today's (or ?date=) one-tap fueling read. Adherence-neutral; energy/hunger are the 1-3 running-low/steady/plenty scale, coerced/clamped at the trust boundary. Returns the saved row. Body: { date?, energy, hunger?, note? }. |
 | GET | `/api/nutrition/fueling-followup` | Fueling follow-through. After a nutrition-target change applies, Today quietly offers a one-tap "how's fueling feeling?" read on days the athlete logs food, only inside the change's 7-day window. Read-only due-check + recent reads; `due:false` is the calm common answer, returned at status 200 like the other nutrition reads (never a 404). |
 | GET | `/api/nutrition/goal-pace` | Goal-pace series behind the motivational weight-progress chart: the canonical weigh-in points, the recent-trend line (with a short forward projection), and the straight line to the goal. Read-only, null-safe; ?days= clamps to 14–365. |
@@ -851,7 +857,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/today` | One server read for the whole Today open: the independent low-risk reads the client used to fetch separately (/plan, /sessions?date=, /stats, /profile, /exercises) PLUS the per-plan-day last sets, that day's progression, the strength journey, the salience agenda and the conductor's focus. Every one of those routes still exists and answers identically — this only collapses the request count; the client still primes their individual SWR keys. |
+| GET | `/api/today` | One server read for the whole Today open: the independent low-risk reads the client used to fetch separately (/plan, /sessions?date=, /stats, /profile, /exercises) PLUS the per-plan-day last sets, that day's progression, the strength journey, the salience agenda and the conductor's focus. Every one of those routes still exists and answers identically — this only collapses the request count; the client still primes their individual SWR keys.  `?surface=today` (the Today tab, not the Session destination) widens it with `responses`: the bodies every other Today GET would answer, keyed by the path the client asks with (routes/today-responses.ts), so the whole open is one trip.  Memoized on the response freshness key (routes/response-memo.ts): a repeat open with nothing logged since answers the stored body — or a 304 — without recomputing. |
 | GET | `/api/today/stones` | The six stones (v2 wave 4): Strength, Endurance, Fuel, Recovery, Body, Heart — one plain word and a reading-layer tone each, projected on the server from the signal state and the domain reads (src/domain/today/today-stones.ts). A part of the picture with nothing fresh reads "quiet", never low; no score. A pure read. |
 
 ## `/today-agenda`
@@ -872,7 +878,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/today-read` | The day intelligence read — the soul of the product. Judges what KIND of day today should be (train / easy / rest) as a calm SUGGESTION, never a gate. ALWAYS 200: the agentic read writes the human sentence, and if no agent is reachable (or it returns garbage) it falls back to the deterministic floor so the Brief always has something true to say. ?override= lets the launchpad chips reshape the read ("rough night" / "short on time" / "train anyway").  Fast path: the canonical (no-override) read is cached per day — written nightly by the scheduler and on any miss — so the morning open is instant and never waits on an agent subprocess. Overrides always recompute (they're transient). |
+| GET | `/api/today-read` | The day intelligence read — the soul of the product. Judges what KIND of day today should be (train / easy / rest) as a calm SUGGESTION, never a gate. ALWAYS 200: the agentic read writes the human sentence, and if no agent is reachable (or it returns garbage) it falls back to the deterministic floor so the Brief always has something true to say. ?override= lets the launchpad chips reshape the read ("rough night" / "short on time" / "train anyway").  Fast path: the canonical (no-override) read is cached per day — written nightly by the scheduler and on any miss — so the morning open is instant and never waits on an agent subprocess. Overrides always recompute (they're transient).  The canonical read (no override, no reset) is also memoized on the response freshness key (routes/response-memo.ts): a repeat open whose inputs have not moved — no log, no sync, no agent run landing — answers the same body, or a 304, without re-running the reconciliation. A steer or a reset always computes. |
 | POST | `/api/today-read/reshape` | Background the Brief OVERRIDE reshape ("rough night" / "short on time" / "train anyway") as a durable job, so a steer survives a tab switch / reload / restart like the other 7 ops. The canonical GET /api/today-read (and ?reset=1) stays synchronous (cached + deterministic floor); this POST is ONLY for the agentic override reshape. The job's `done` result is byte-for-byte what GET /api/today-read?override= returns, so the PWA reuses its Brief render. This always queues: a user-facing request never waits on a coaching CLI. |
 | POST | `/api/today-read/trade-rest` | The rest trade — "train today, rest tomorrow", written onto the calendar. Deterministic, synchronous, agent-free: it claims TOMORROW with one context event and hands back today's re-derived read plus train_anyway, so the Brief can reveal the plan on the same tap. Only offered on a quiet day that is about rhythm (the ceiling-easy read, any easy read, the week's own rest day); a rest grounded in the athlete — a rest-grade reading, a symptom, anything clinical — refuses as `{ok:false, error}` at HTTP 200, the designed failure signal the agentic endpoints here already use. Idempotent per date, never more than one open trade, and the plan's ring is untouched — the calendar carries the trade. |
 
@@ -952,7 +958,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/week-ahead` | The week ahead — a calm forward look (lift / run / mixed / rest across the next several days). Agentic with a deterministic plan-rotation floor, so it always returns a usable shape even with no agent. Cached per day+plan+goal.  This GET never spawns a CLI inline: weekAheadServe reads the cache synchronously (fresh cache / stale cache / the deterministic floor) and, on a miss or a stale hit, ensureWeekAheadJob kicks (or joins) a durable background job that runs the real agentic read and refreshes the cache for next time — deduplicated so a burst of opens never spawns more than one CLI per day. |
+| GET | `/api/week-ahead` | The week ahead — a calm forward look (lift / run / mixed / rest across the next several days). Agentic with a deterministic plan-rotation floor, so it always returns a usable shape even with no agent. Cached per day+plan+goal.  This GET never spawns a CLI inline: weekAheadServe reads the cache synchronously (fresh cache / stale cache / the deterministic floor) and, on a miss or a stale hit, ensureWeekAheadJob kicks (or joins) a durable background job that runs the real agentic read and refreshes the cache for next time — deduplicated so a burst of opens never spawns more than one CLI per day.  Memoized on the response freshness key: the served body is remembered, and the refresh kick still runs on EVERY serve that needs one (ensureWeekAheadJob dedupes), so a remembered "computing" floor never strands the agentic read. |
 
 ## `/week-wins`
 

@@ -9,6 +9,9 @@
 // thing that wires it to fetch.
 type CairnApiErrorKind = "http" | "invalid_json" | "network" | "timeout";
 type ApiCoalesceEntry<T> = { data: T; expires: number };
+// A primed read (see ApiCoalescer.prime): the answer another request already
+// carries for this path. `hit:false` means that request came back without it.
+type ApiPrimeResult = { hit: true; data: unknown } | { hit: false };
 type ApiStaleEntry<T> = { data: T; ts: number };
 type ApiCoalescer = {
   isMicroCachePath(path: string): boolean;
@@ -28,6 +31,16 @@ type ApiCoalescer = {
   share<T>(path: string, start: () => Promise<T>): Promise<T>;
   inFlightCount(): number;
   cacheSize(): number;
+  // ---- primed reads (a fan-in response answering other paths) ----
+  // Register `paths` as answered by `source`, a request whose body maps a path to
+  // the exact body GET <path> would return. A GET of a named path made before the
+  // source lands waits for it; every path the map carries stays primed for ttlMs
+  // after it lands. Any write clears every prime, like the micro-cache.
+  prime(paths: readonly string[], source: Promise<unknown>, ttlMs?: number): void;
+  // The primed answer for a path (a fresh copy per caller), or undefined when the
+  // path is not primed, has expired, or a write has landed since.
+  primed(path: string): Promise<ApiPrimeResult> | undefined;
+  primedSize(): number;
 };
 
 {
@@ -37,6 +50,10 @@ type ApiCoalescer = {
   // add-exercise flow) and those bursts do not always overlap, so in-flight dedupe
   // alone misses them. Any write still clears the whole micro-cache, and the TTL is
   // 1.5 s, so neither can serve a stale plan into a surface the athlete just changed.
+  // An entry ending in "?" covers every query of that path. `/today-plan-day?` and
+  // `/markers/priority` are each asked twice in one open by independent readers (the
+  // plan-day pick and the pill recovery hints; the Markers list and its header) that
+  // do not overlap in flight, so dedupe alone missed them.
   const API_MICRO_CACHE_PATHS: readonly string[] = [
     "/settings",
     "/profile",
@@ -44,7 +61,13 @@ type ApiCoalescer = {
     "/coaching-focus",
     "/exercises",
     "/plan",
+    "/today-plan-day?",
+    "/markers/priority",
   ];
+  // How long a fan-in's answers stay primed after they land: long enough for every
+  // loader of one render to ask, short enough that a later deliberate refresh asks
+  // the network. A write clears them at once regardless.
+  const API_PRIME_TTL_MS = 10000;
   const API_GET_TIMEOUT_MS = 20000;
   // Stale-while-revalidate windows for an opted-in GET: a remembered body up to five
   // minutes old paints immediately (a background refresh then upgrades it); one
@@ -138,7 +161,9 @@ type ApiCoalescer = {
   ): ApiCoalescer {
     const now = opts.now || (() => Date.now());
     const ttlMs = opts.ttlMs && opts.ttlMs > 0 ? opts.ttlMs : API_MICRO_TTL_MS;
-    const ttlPaths = new Set(opts.ttlPaths || API_MICRO_CACHE_PATHS);
+    const ttlList = opts.ttlPaths || API_MICRO_CACHE_PATHS;
+    const ttlPaths = new Set(ttlList.filter((path) => !path.endsWith("?")));
+    const ttlPrefixes = ttlList.filter((path) => path.endsWith("?"));
     const maxStaleEntries =
       opts.maxStaleEntries && opts.maxStaleEntries > 0 ? opts.maxStaleEntries : API_SWR_MAX_ENTRIES;
     const inFlight = new Map<string, Promise<unknown>>();
@@ -148,11 +173,12 @@ type ApiCoalescer = {
     // one surface fetches seconds before another); any other path joins the first
     // time a caller opts it in.
     const staleable = new Set<string>(ttlPaths);
+    const primes = new Map<string, { gen: number; expires: number; settled: Promise<ApiPrimeResult> }>();
     const staleCache = new Map<string, ApiStaleEntry<unknown>>();
     let writeGen = 0;
 
     function isMicroCachePath(path: string): boolean {
-      return ttlPaths.has(path);
+      return ttlPaths.has(path) || ttlPrefixes.some((prefix) => path.startsWith(prefix));
     }
     function peekFresh<T = unknown>(path: string): T | undefined {
       const entry = ttlCache.get(path);
@@ -168,7 +194,7 @@ type ApiCoalescer = {
       // afterwards (from either tier) would undo the write on screen.
       if (startedGen != null && startedGen !== writeGen) return;
       const micro = isMicroCachePath(path);
-      const stale = staleable.has(path);
+      const stale = staleable.has(path) || micro;
       if (!micro && !stale) return;
       const copy = cloneJson(data);
       if (micro) ttlCache.set(path, { data: copy, expires: now() + ttlMs });
@@ -186,6 +212,55 @@ type ApiCoalescer = {
       writeGen++;
       ttlCache.clear();
       staleCache.clear();
+      primes.clear();
+    }
+    function prime(paths: readonly string[], source: Promise<unknown>, primeTtlMs = API_PRIME_TTL_MS): void {
+      const gen = writeGen;
+      const table: Promise<Record<string, unknown> | null> = Promise.resolve(source).then(
+        (value) => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null),
+        () => null
+      );
+      // Pending entries: a named path asked for before the source lands waits for it.
+      // They never expire before the source settles (a slow link must not turn a
+      // primed read into a second request), only after.
+      for (const path of paths) {
+        const settled: Promise<ApiPrimeResult> = table.then((map) =>
+          map && Object.prototype.hasOwnProperty.call(map, path) ? { hit: true, data: map[path] } : { hit: false }
+        );
+        primes.set(path, { gen, expires: Number.POSITIVE_INFINITY, settled });
+      }
+      void table.then((map) => {
+        if (writeGen !== gen) return; // a write landed: this map is pre-write truth
+        const expires = now() + primeTtlMs;
+        for (const path of paths) {
+          const entry = primes.get(path);
+          if (entry && entry.gen === gen) entry.expires = expires;
+        }
+        if (!map) return;
+        for (const path of Object.keys(map)) {
+          const entry = primes.get(path);
+          if (entry && entry.gen === gen) continue; // already the pending entry above
+          primes.set(path, { gen, expires, settled: Promise.resolve({ hit: true, data: map[path] }) });
+        }
+      });
+    }
+    function primed(path: string): Promise<ApiPrimeResult> | undefined {
+      const entry = primes.get(path);
+      if (!entry) return undefined;
+      if (entry.gen !== writeGen || now() >= entry.expires) {
+        primes.delete(path);
+        return undefined;
+      }
+      return entry.settled.then((result) => {
+        if (!result.hit) {
+          if (primes.get(path) === entry) primes.delete(path);
+          return result;
+        }
+        return { hit: true, data: cloneJson(result.data) };
+      });
+    }
+    function primedSize(): number {
+      return primes.size;
     }
     function markStaleable(path: string): void {
       staleable.add(path);
@@ -244,6 +319,9 @@ type ApiCoalescer = {
       share,
       inFlightCount,
       cacheSize,
+      prime,
+      primed,
+      primedSize,
     };
   }
 
@@ -279,6 +357,7 @@ type ApiCoalescer = {
     shouldArmGetTimeout,
     MICRO_TTL_MS: API_MICRO_TTL_MS,
     MICRO_CACHE_PATHS: API_MICRO_CACHE_PATHS,
+    PRIME_TTL_MS: API_PRIME_TTL_MS,
     GET_TIMEOUT_MS: API_GET_TIMEOUT_MS,
     ApiError: CairnApiError,
     isTransientApiFailure,

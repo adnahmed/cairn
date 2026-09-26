@@ -27,9 +27,16 @@ type TodayPlanSelectionDeps = {
   state: {
     logDate: string;
     plan: TodayPlanSelectionDay[];
+    // Set on every implicit pick: true when the server's choice could not be read
+    // (offline / timeout) and none was remembered for this date — the surface then
+    // asks the athlete to pick rather than defaulting to a day it cannot vouch for.
+    planDayUnknown?: boolean;
   };
   api(path: string): Promise<unknown>;
   cachedApi?(path: string, options?: { key?: string; freshFor?: number }): Promise<unknown>;
+  // The SWR tiers, for remembering the server's pick per date. Default: the globals.
+  peekCached?<T = unknown>(key: string, freshFor?: number): { data: T; fresh: boolean } | null;
+  storeCached?(key: string, data: unknown): void;
 };
 
 // What the day pills need to know about a day they are offering: which of its
@@ -109,33 +116,73 @@ type TodayPlanDayRecoveryMap = Record<number, TodayPlanDayRecovery>;
     return ordered[idx >= 0 ? (idx + 1) % ordered.length : 0].day_number;
   }
 
+  // The server's pick for a date, remembered in the SWR tiers so an offline or
+  // timed-out open still lands on the day the server chose — never on day 1.
+  const PLAN_DAY_KEY_PREFIX = "today:plan-day:";
+  const planDayKey = (date: string) => PLAN_DAY_KEY_PREFIX + date;
+
+  type SwrGlobals = {
+    peekCached?<T = unknown>(key: string, freshFor?: number): { data: T; fresh: boolean } | null;
+    swrSet?(key: string, data: unknown): void;
+  };
+
+  function peekRemembered(deps: TodayPlanSelectionDeps, date: string): { data: unknown } | null {
+    try {
+      const peek = deps.peekCached ?? (globalThis as SwrGlobals).peekCached;
+      return peek ? peek(planDayKey(date)) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function remember(deps: TodayPlanSelectionDeps, date: string, selected: unknown): void {
+    try {
+      const store = deps.storeCached ?? (globalThis as SwrGlobals).swrSet;
+      store?.(planDayKey(date), selected);
+    } catch {}
+  }
+
+  // The server's answer, read against the loaded plan. `null` = a calendar run or
+  // rest day (no lift selected).
+  function dayFromSelection(selected: unknown, plan: TodayPlanSelectionDay[]): number | null {
+    const row = selected as { day_number?: unknown; source?: unknown } | null;
+    // A calendar run or rest day has no plan day at all. Falling back to the first
+    // plan day here put Push's lift list under a Brief that said "run day"; null keeps
+    // the lift area empty while the pills still let the athlete train anyway.
+    if (row?.source === "calendar" && row.day_number == null) return null;
+    const dayNumber = Number(row?.day_number);
+    if (Number.isFinite(dayNumber) && plan.some((day) => day.day_number === dayNumber)) return dayNumber;
+    return plan[0]?.day_number ?? 1;
+  }
+
   async function suggestedPlanDayNumber(
     session: TodayPlanSelectionSession | null | undefined,
     isToday: boolean,
     deps: TodayPlanSelectionDeps,
   ): Promise<number | null> {
     const plan = deps.state.plan || [];
+    deps.state.planDayUnknown = false;
     const currentLoggedDay = planDayNumberForSession(session, plan);
     if (currentLoggedDay) return currentLoggedDay;
     if (!isToday) return plan[0]?.day_number ?? 1;
 
+    const date = deps.state.logDate;
+    let selected: unknown;
     try {
       // The adaptive selector is server-owned. A direct read avoids accepting a
       // stale browser history cache after a chat or plan edit.
-      const selected = await deps.api(`/today-plan-day?date=${encodeURIComponent(deps.state.logDate)}`) as {
-        day_number?: unknown;
-        source?: unknown;
-      } | null;
-      // A calendar run or rest day has no plan day at all. Falling back to the first
-      // plan day here put Push's lift list under a Brief that said "run day"; null keeps
-      // the lift area empty while the pills still let the athlete train anyway.
-      if (selected?.source === "calendar" && selected.day_number == null) return null;
-      const dayNumber = Number(selected?.day_number);
-      if (Number.isFinite(dayNumber) && plan.some((day) => day.day_number === dayNumber)) return dayNumber;
-      return plan[0]?.day_number ?? 1;
+      selected = await deps.api(`/today-plan-day?date=${encodeURIComponent(date)}`);
     } catch {
-      return plan[0]?.day_number ?? 1;
+      // Offline or timed out. The pick the server made for THIS date earlier stands
+      // (a set queued now must land on that day); with none remembered, nothing is
+      // selected and the surface asks the athlete to pick — day 1 is only a guess.
+      const remembered = peekRemembered(deps, date);
+      if (remembered) return dayFromSelection(remembered.data, plan);
+      deps.state.planDayUnknown = true;
+      return null;
     }
+    remember(deps, date, selected);
+    return dayFromSelection(selected, plan);
   }
 
   function planDayRecoveryFromSelection(payload: unknown): TodayPlanDayRecoveryMap {

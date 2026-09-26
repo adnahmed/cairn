@@ -649,3 +649,59 @@ test("an agent single that names its block folds the same way — heavier, one s
   });
   assert.equal(lighter.length, 2);
 });
+
+// C1: an offline open whose plan-day pick could not be read (and none was remembered
+// for the date) must not fall back to day 1 — a set logged there would land on the
+// wrong day. Nothing is selected, it is not mistaken for a calendar rest/run day,
+// and no lift card exists to log against until the athlete picks.
+test("an unknown plan-day pick selects nothing, never day 1, and is not a calendar day", async () => {
+  const context = loadPreparation();
+  const prep = context.CairnTodayPlanSessionPreparation;
+  const state = {
+    logDate: "2026-07-21",
+    day: null,
+    plan: [
+      { id: 1, day_number: 1, name: "Push", items: [{ exercise: "Bench", sets: 3 }] },
+      { id: 2, day_number: 2, name: "Pull", items: [{ exercise: "Row", sets: 3 }] },
+    ],
+    pendingOffPlan: {},
+  };
+  const result = await prep.preparePlanSession({
+    state,
+    session: { sets: [], skips: [] },
+    isToday: true,
+    suggestedPlanDayNumber: async () => {
+      state.planDayUnknown = true; // what the selection client reports offline
+      return null;
+    },
+    api: async () => {
+      throw new Error("offline");
+    },
+    peekCached: () => null,
+    cachedApi: async () => {
+      throw new Error("offline");
+    },
+  });
+  assert.equal(state.day, null);
+  assert.equal(state.planDayUnknown, true);
+  assert.equal(state.calendarDay, false, "an unread pick is not a calendar fact");
+  assert.equal(result.day.day_number, 0);
+  assert.deepEqual(plain(result.activeItems), [], "no card to log a set against day 1");
+
+  // The athlete's own pick clears the unknown state and selects exactly that day.
+  state.day = 2;
+  state.dayPicked = true;
+  const picked = await prep.preparePlanSession({
+    state,
+    session: { sets: [], skips: [] },
+    isToday: true,
+    suggestedPlanDayNumber: async () => {
+      throw new Error("an explicit pick bypasses selection");
+    },
+    api: async () => ({}),
+    peekCached: () => null,
+    cachedApi: async () => null,
+  });
+  assert.equal(state.planDayUnknown, false);
+  assert.equal(picked.day.name, "Pull");
+});

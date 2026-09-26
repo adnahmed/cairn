@@ -6,6 +6,7 @@ type TodayDataCachedApiOptions<T> = {
   key?: string;
   freshFor?: number;
   onUpgrade?: (data: T, meta: { changed: boolean }) => void;
+  project?: (data: T) => T;
 };
 type TodayDataSwrPeek<T> = { data: T; fresh: boolean };
 type TodayDataState = {
@@ -77,16 +78,8 @@ type TodayDataLoadResult = {
 type TodayDataLoaderApi = {
   load(opts: { soft?: unknown } | null | undefined, deps: TodayDataLoadDeps): Promise<TodayDataLoadResult>;
   scheduleSoftRepaint(result: TodayDataLoadResult, deps: TodayDataRefreshDeps): void;
+  aggregatePath(date: string, tab: string | undefined): string;
 };
-// The per-render GET prefetch (see CairnTodayPrefetch below). Consumers reach it
-// through globalThis at call time, never at load time.
-type TodayPrefetchApi = {
-  reset(): void;
-  prefetch(path: string, start: () => Promise<unknown>): Promise<unknown>;
-  take(path: string): Promise<unknown> | undefined;
-  get(path: string, fetcher: (path: string) => Promise<unknown>): Promise<unknown>;
-};
-
 (() => {
   // Same "did this payload actually change?" test the SWR layer uses: these are
   // small API bodies we already serialize. A value that will not serialize is
@@ -99,6 +92,22 @@ type TodayPrefetchApi = {
     } catch {
       return "~unstable:" + ++unstable;
     }
+  }
+
+  // The Today tab asks for the widened aggregate (`surface=today`): its `responses`
+  // carry every other Today GET's body and prime the request layer (see
+  // today-screen renderToday / apiPrime). The Session destination reads the plain one.
+  function todayAggregatePath(date: string, tab: string | undefined): string {
+    return "/today?date=" + encodeURIComponent(date) + (tab === "today" ? "&surface=today" : "");
+  }
+
+  // The fan-in half never reaches the SWR tiers: it holds health reads (directives,
+  // recovery) that stay off disk, and it is only ever current for the render that
+  // asked. What is remembered is the aggregate proper.
+  function withoutResponses<T>(value: T): T {
+    if (!value || typeof value !== "object" || !("responses" in (value as object))) return value;
+    const { responses: _responses, ...rest } = value as T & { responses?: unknown };
+    return rest as T;
   }
 
   function isTodayAggregate(value: unknown): value is TodayDataAggregate {
@@ -137,7 +146,7 @@ type TodayPrefetchApi = {
         }).catch(() => {}),
       );
     };
-    const aggregatePath = "/today?date=" + encodeURIComponent(deps.state.logDate);
+    const aggregatePath = todayAggregatePath(deps.state.logDate, deps.state.tab);
     const sliceOf = (value: TodayDataAggregate) => [
       { key: "plan", data: value.plan },
       { key: sessKey, data: value.session },
@@ -184,6 +193,7 @@ type TodayPrefetchApi = {
       try {
         const value = await deps.cachedApi(aggregatePath, {
           key: aggregateKey,
+          project: withoutResponses,
           onUpgrade: () => {
             aggregateFresh = true;
           },
@@ -219,6 +229,7 @@ type TodayPrefetchApi = {
       revalidations.push(
         deps.cachedApi(aggregatePath, {
           key: aggregateKey,
+          project: withoutResponses,
           onUpgrade: (data) => {
             if (!isTodayAggregate(data)) return;
             for (const slice of sliceOf(data)) {
@@ -335,70 +346,9 @@ type TodayPrefetchApi = {
   const CAIRN_TODAY_DATA_LOADER: TodayDataLoaderApi = {
     load: loadInner,
     scheduleSoftRepaint,
+    aggregatePath: todayAggregatePath,
   };
 
-  // ---- the per-render GET prefetch ----------------------------------------------
-  // Today's panels each fetch their own data once their slot is on screen, and the
-  // slots only exist after the first paint (which waits on the session preview) or
-  // after the agenda decides the rail. That made independent reads queue behind
-  // unrelated ones in serial waves. The render now STARTS those GETs as soon as it
-  // knows they will be asked for, and the loader that later asks takes the promise
-  // already in flight instead of starting a second request.
-  //
-  // One-shot and render-scoped: each path is handed out AT MOST ONCE, renderToday
-  // resets the registry at its start, and an entry older than PREFETCH_TTL_MS is
-  // dropped rather than served — a later draw of the same panel is a deliberate
-  // refresh and always fetches. A path nobody prefetched falls straight through to
-  // the loader's own fetch, so every caller outside Today keeps working untouched.
-  // The TTL only has to outlast one render's first paint on a slow host; an entry
-  // that ages out costs a second request, never a wrong answer.
-  const PREFETCH_TTL_MS = 15000;
-  let prefetched = new Map<string, { at: number; promise: Promise<unknown> }>();
-
-  function prefetchNow(): number {
-    return typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
-  }
-
-  function resetPrefetch(): void {
-    prefetched = new Map();
-  }
-
-  function prefetch(path: string, start: () => Promise<unknown>): Promise<unknown> {
-    const existing = prefetched.get(path);
-    if (existing && prefetchNow() - existing.at <= PREFETCH_TTL_MS) return existing.promise;
-    let promise: Promise<unknown>;
-    try {
-      promise = Promise.resolve(start());
-    } catch (error) {
-      promise = Promise.reject(error);
-    }
-    // Nobody may ever take it (the render moved on): never an unhandled rejection.
-    promise.catch(() => {});
-    prefetched.set(path, { at: prefetchNow(), promise });
-    return promise;
-  }
-
-  function take(path: string): Promise<unknown> | undefined {
-    const entry = prefetched.get(path);
-    if (!entry) return undefined;
-    prefetched.delete(path);
-    if (prefetchNow() - entry.at > PREFETCH_TTL_MS) return undefined;
-    return entry.promise;
-  }
-
-  function prefetchedGet(path: string, fetcher: (path: string) => Promise<unknown>): Promise<unknown> {
-    return take(path) ?? fetcher(path);
-  }
-
-  const CAIRN_TODAY_PREFETCH: TodayPrefetchApi = {
-    reset: resetPrefetch,
-    prefetch,
-    take,
-    get: prefetchedGet,
-  };
-
-  Object.assign(globalThis, { CairnTodayDataLoader: CAIRN_TODAY_DATA_LOADER, CairnTodayPrefetch: CAIRN_TODAY_PREFETCH });
-  if (typeof window !== "undefined") {
-    Object.assign(window, { CairnTodayDataLoader: CAIRN_TODAY_DATA_LOADER, CairnTodayPrefetch: CAIRN_TODAY_PREFETCH });
-  }
+  Object.assign(globalThis, { CairnTodayDataLoader: CAIRN_TODAY_DATA_LOADER });
+  if (typeof window !== "undefined") Object.assign(window, { CairnTodayDataLoader: CAIRN_TODAY_DATA_LOADER });
 })();
