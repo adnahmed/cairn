@@ -355,7 +355,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     const rec = recoveryData();
     const body = rec ? CairnHealthRead.recoveryHtml(DATA?.recovery as Record<string, unknown> | null) || "" : "";
     return `<div class="stand-detail stand-root">
-      <button class="stand-back linkbtn linkbtn-plain" data-back>‹ Stand</button>
+      <button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>
       <h2 class="stand-detail-h">Recovery</h2>
       ${body || `<p class="stand-empty">No wearable data yet.</p>`}
     </div>`;
@@ -410,15 +410,6 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     </button>`;
   }
 
-  // ---- age (the biological-age / percentile standing read, hosted one tap down) ---
-  function ageTile(): string {
-    if (!(DATA?.markers || []).length) return "";
-    return `<button class="stand-tile reveal" data-age>
-      <span class="stand-tile-top"><span class="hdot hdot-mute"></span><span class="stand-tile-name">Age</span></span>
-      <span class="stand-tile-read">how you compare</span><span class="stand-tile-arw" aria-hidden="true">›</span>
-    </button>`;
-  }
-
   function domainTileHtml(d: StandDomain, st: StandStatus): string {
     const markers = markersOfDomain(d);
     const lead = leadMarker(markers);
@@ -450,8 +441,8 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     if (conn) tiles.push({ st: connectionsStatus(), html: conn });
     const supp = supplementsTile();
     if (supp) tiles.push({ st: "ok", html: supp });
-    const age = ageTile();
-    if (age) tiles.push({ st: "mute", html: age });
+    // The decade view ("How you compare") is not a tile here: its one way in is the
+    // Heart stone's detail on the You home.
     for (const d of DOMAINS) {
       const markers = markersOfDomain(d);
       if (!markers.length) continue;
@@ -459,7 +450,9 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       tiles.push({ st, html: domainTileHtml(d, st) });
     }
     tiles.sort((a, b2) => RANK[b2.st] - RANK[a.st]);
+    // Health lives under You, so the overview steps back there.
     return `<div class="stand-root">
+      ${homeBackHtml("you", "You")}
       ${actionBarHtml()}
       ${readHtml()}
       <div class="stand-browse lbl">Your markers<button class="stand-allmk linkbtn linkbtn-plain linkbtn-sm" type="button" data-allmarkers>All markers<span aria-hidden="true"> →</span></button></div>
@@ -489,11 +482,15 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   }
 
   // ---- hosted health tools (records / share / learned / connections / age) -------
+  const BACK_TO_HEALTH = `<button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>`;
+  // The decade view is reached only from the Heart stone (You → Heart), so it steps
+  // back there rather than to the Health overview.
+  const BACK_TO_HEART = `<button class="stand-back linkbtn linkbtn-plain" type="button" data-back-heart>‹ Heart</button>`;
   // These reuse the shipped controllers with Stand-shaped deps: same upload flow,
   // same doctor report, same directive flips — rendered inside Stand's shell.
-  function toolShellHtml(title: string, mounts: string, lede = ""): string {
+  function toolShellHtml(title: string, mounts: string, lede = "", back = BACK_TO_HEALTH): string {
     return `<div class="stand-detail stand-root">
-      <button class="stand-back linkbtn linkbtn-plain" data-back>‹ Stand</button>
+      ${back}
       <h2 class="stand-detail-h">${escHtml(title)}</h2>
       ${lede ? `<p class="stand-read-lede" style="font-size:1rem">${escHtml(lede)}</p>` : ""}
       ${mounts}
@@ -744,10 +741,16 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
         "How you compare",
         `<div id="hRisk"><div class="hrisk hrisk-busy"><div class="hshimmer hshimmer-lg"></div><div class="hshimmer"></div><div class="hshimmer hshimmer-sm"></div></div></div>
      <div id="hClinicalInputs"></div>
-     <div id="hContent"></div>`
+     <div id="hContent"></div>`,
+        "",
+        BACK_TO_HEART
       )
     );
-    wireBack();
+    view.querySelector<HTMLElement>("[data-back-heart]")?.addEventListener("click", () => {
+      state.youSeg = "stone";
+      state.youStone = "heart";
+      activateTab("you");
+    });
     CairnHealthRiskController.load(riskDeps(), pollToken);
     void paintClinicalInputs(pollToken);
     CairnHealthStandingController.paintReview(standingDeps());
@@ -866,7 +869,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     state.standDomain = all ? null : key;
     setStandSeg(all ? "markers" : "domain");
     paint(`<div class="stand-detail stand-root">
-      <button class="stand-back linkbtn linkbtn-plain" data-back>‹ Stand</button>
+      <button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>
       <h2 class="stand-detail-h">${escHtml(all ? "All markers" : d?.label || "Markers")}</h2>
       ${all ? `<div id="standEvidence" class="records-evw-slot" data-slot="evidence-wanted"></div>` : ""}
       <div id="standRecords"></div>
@@ -904,7 +907,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       .filter(Boolean)
       .join("");
     return `<div class="stand-detail stand-root">
-      <button class="stand-back linkbtn linkbtn-plain" data-back>‹ Stand</button>
+      <button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>
       <h2 class="stand-detail-h">Body</h2>
       <div id="standBodyMetrics" class="stand-bodymetrics"></div>
       ${dexa ? `<div class="stand-subhead">From your DEXA</div><div class="hmk-list">${dexa}</div>` : ""}
@@ -1006,6 +1009,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   }
 
   function wireOverview(): void {
+    wireHomeBack(view);
     view
       .querySelectorAll<HTMLElement>("[data-domain]")
       .forEach((b) => b.addEventListener("click", () => showDomain(b.dataset.domain || "")));
@@ -1014,7 +1018,6 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     view.querySelector<HTMLElement>("[data-supps]")?.addEventListener("click", () => showSupplements());
     view.querySelector<HTMLElement>("[data-connections]")?.addEventListener("click", () => showConnections());
     view.querySelector<HTMLElement>("[data-checkup]")?.addEventListener("click", () => showCheckup());
-    view.querySelector<HTMLElement>("[data-age]")?.addEventListener("click", () => showAge());
     view.querySelector<HTMLElement>("[data-allmarkers]")?.addEventListener("click", () => showAllMarkers());
     view.querySelectorAll<HTMLElement>("[data-tool]").forEach((b) =>
       b.addEventListener("click", () => {
@@ -1291,7 +1294,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   }
 
   async function renderStand(): Promise<void> {
-    headerTitle.textContent = "Stand";
+    headerTitle.textContent = "Health";
     const seg = state.standSeg || null;
 
     // Cold first paint: hydrate DATA from the sessionStorage snapshot so the overview
@@ -1303,7 +1306,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     }
 
     // Self-contained tool views fetch their own data — paint immediately and warm the
-    // overview snapshot behind them for the "‹ Stand" step back. The background
+    // overview snapshot behind them for the "‹ Health" step back. The background
     // refresh never repaints a tool view (quietRepaintStand only touches overview /
     // recovery), so it stays put while its own data lands.
     if (seg && SELF_CONTAINED.has(seg as StandView)) {

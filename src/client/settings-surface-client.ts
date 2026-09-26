@@ -61,7 +61,6 @@ type SettingsAutomationSliceOptions = {
 };
 
 const SETTINGS_SURFACE_SEGMENTS: readonly ClientSegment[] = [
-  ["you", "You"],
   ["sources", "Sources"],
   ["automation", "Automation"],
   ["data", "Data"],

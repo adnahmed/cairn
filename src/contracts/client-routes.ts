@@ -81,9 +81,9 @@ export type ClientProgressSection = ClientRouteDefinitions["sections"]["progress
 export type ClientStandSection = ClientRouteDefinitions["sections"]["stand"][number];
 export type ClientMeSection = ClientRouteDefinitions["sections"]["me"][number];
 export type ClientHealthSection = ClientRouteDefinitions["sections"]["health"][number];
-// "you" is the retired Settings landing slice: still a Settings seg-bar key until
-// the You home absorbs it, and a v1 URL that redirects to /app/you.
-export type ClientSettingsSection = ClientRouteDefinitions["sections"]["settings"][number] | "you";
+// The old "you" Settings slice is gone: the You home's landing is that list now, and
+// /app/settings/you is only a v1 URL that redirects to /app/you.
+export type ClientSettingsSection = ClientRouteDefinitions["sections"]["settings"][number];
 export type ClientHorizonSection = ClientRouteDefinitions["sections"]["horizon"][number];
 export type ClientYouSection = ClientRouteDefinitions["sections"]["you"][number];
 export type ClientRouteSection =
