@@ -12,6 +12,7 @@ import { createHost, flush, loadClientModule } from "./_dom.mjs";
 const MODULES = [
   "html-utils",
   "ui-components",
+  "ui-reads",
   "ui-actions-client",
   "ui-chart",
   "format-utils",
@@ -945,6 +946,87 @@ test("week: each day's lift and run as pills in their stones' hues, ticked when 
   assert.equal(host.querySelector(".horizon-rest").textContent, "Rest");
   assert.equal(host.querySelectorAll(".horizon-pill.is-done").length, 2);
   assert.match(win.CairnHorizon.weekHtml(null), /couldn't be read just now/);
+});
+
+test("week: today speaks the server's today line and the run's own label, never a second answer", () => {
+  const win = load();
+  const read = planWeek();
+  // Today is a lift day the read suggests resting; the run still ahead today is the
+  // agenda's own words for it, the same the week line and the Brief say.
+  read.days[2] = {
+    ...read.days[2],
+    session: null,
+    plan_day: { day_number: 2, name: "Pull", focus: null, purpose: null, day_type: "training", role: "strength", out_of_order: false },
+    run: { kind: "easy", label: "Rest or an easy walk", status: "open", suggested_date: TODAY, completion_date: null, km: 5 },
+  };
+  read.strength_line = {
+    date: TODAY,
+    day_number: 2,
+    title: "Pull",
+    focus: null,
+    role: "strength",
+    state: "not_started",
+    suggestion: "rest",
+    caveat: "The read suggests rest today — Pull is still yours if you want it.",
+    run_in: null,
+    reshaped: false,
+    original: [],
+    text: "Pull · not started",
+  };
+  const week = win.CairnHorizonWeekModel.weekView(read, TODAY);
+  const today = week.days[2];
+  assert.equal(today.today, true);
+  // No lift pill of its own: the server's line carries today's lift.
+  assert.deepEqual(plain(today.pills), [{ stone: "endurance", text: "Rest or an easy walk · 5 km", state: "planned" }]);
+  assert.equal(today.line.text, "Pull · not started");
+  // A past, undone run is still named by its kind; other days carry no line.
+  assert.equal(week.days[1].pills[0].text, "Easy run · 5 km");
+  assert.equal(week.days[1].line, null);
+  assert.deepEqual(plain(week.days[4].pills), [{ stone: "strength", text: "Pull", state: "planned" }]);
+
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.weekHtml(week);
+  const row = host.querySelector(".horizon-day.is-today");
+  assert.equal(row.querySelector(".strength-line-t").textContent, "Pull · not started");
+  assert.match(row.querySelector(".strength-line-caveat").textContent, /suggests rest today/);
+  assert.equal(row.querySelectorAll(".horizon-pill.is-strength").length, 0);
+  assert.match(row.querySelector(".horizon-pill.is-endurance").textContent, /^Rest or an easy walk · 5 km$/);
+
+  // A line for another day, or one with nothing to say, leaves the plan's own pills.
+  const stale = win.CairnHorizonWeekModel.weekView({ ...read, strength_line: { ...read.strength_line, date: "2026-09-15" } }, TODAY);
+  assert.equal(stale.days[2].line, null);
+  assert.equal(stale.days[2].pills[0].text, "Pull");
+  const none = win.CairnHorizonWeekModel.weekView({ ...read, strength_line: { ...read.strength_line, state: "none" } }, TODAY);
+  assert.equal(none.days[2].line, null);
+});
+
+test("a failed week read says so, and the next tap on Week asks again", async () => {
+  const win = load();
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.shellHtml();
+  const root = host.querySelector("[data-horizon]");
+  let fail = true;
+  const asked = [];
+  const { load: base } = reads({ extra: { "/plan/week": planWeek() } });
+  const loader = (path) => {
+    if (path === "/plan/week") {
+      asked.push(path);
+      if (fail) return Promise.reject(new Error("offline"));
+    }
+    return base(path);
+  };
+  win.CairnHorizonController.mount(root, { today: TODAY, load: loader, navigate: () => {} });
+  await flush();
+  await root.querySelector('[data-horizon-seg="week"]').click();
+  await flush();
+  await flush();
+  assert.match(root.querySelector("[data-horizon-weekview]").textContent, /couldn't be read just now/);
+  fail = false;
+  await root.querySelector('[data-horizon-seg="week"]').click();
+  await flush();
+  await flush();
+  assert.equal(asked.length, 2);
+  assert.ok(root.querySelector(".horizon-days"));
 });
 
 test("the week view reads the plan week only once it is opened", async () => {

@@ -35,6 +35,8 @@
       weekAsked = true;
       void read("/plan/week").then((planWeek) => {
         if (!live || !host.isConnected) return;
+        // A failed read says so, and the next tap on Week asks again.
+        if (planWeek == null) weekAsked = false;
         const slot = host.querySelector<HTMLElement>("[data-horizon-weekview]");
         if (!slot) return;
         slot.innerHTML = CairnHorizon.weekHtml(CairnHorizonWeekModel.weekView(planWeek, deps.today), { enter: !calm() });

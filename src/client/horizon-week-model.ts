@@ -5,6 +5,7 @@
 {
   type PlanWeek = import("../contracts/client-api.js").ClientPlanWeek;
   type PlanWeekDay = import("../contracts/client-api.js").ClientPlanWeekDay;
+  type StrengthLine = import("../contracts/client-api.js").ClientTodayStrengthLine;
 
   function record(value: unknown): Record<string, unknown> | null {
     return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
@@ -30,8 +31,10 @@
   /**
    * This week, day by day, off GET /api/plan/week (the plan strip's own read): each day's
    * lift and run as pills, done ones ticked, a run still to place drawn open, and a day
-   * with neither is rest. The week's spoken line is the server's. Null when the read
-   * has no days (the view then says so in one line).
+   * with neither is rest. Today's lift is the server's one today line (`strength_line`,
+   * the words the Brief, Session and plan strip print), never a state read here off the
+   * session. The week's spoken line is the server's. Null when the read has no days (the
+   * view then says so in one line).
    */
   const RUN_KIND_WORD: Readonly<Record<string, string>> = { easy: "Easy run", quality: "Quality run", long: "Long run" };
 
@@ -39,12 +42,20 @@
     const read = record(value) as PlanWeek | null;
     const days = Array.isArray(read?.days) ? (read.days as PlanWeekDay[]) : [];
     if (!read || !days.length) return null;
+    const todayLine = record(read.strength_line) as StrengthLine | null;
     const out: ClientHorizonWeekDay[] = days.map((day) => {
       const date = dayKey(day.date);
       const isToday = day.status === "today" || (!!date && date === today);
       const pills: ClientHorizonWeekPill[] = [];
       const plan = day.plan_day;
-      const lift = text(day.session?.title) || (plan && plan.role === "strength" ? text(plan.name) : "");
+      // Today's lift speaks the server's line when it has one for this day ("none" is
+      // its own "nothing to say", and then the row falls back to the plan's pills).
+      const lineDate = dayKey(todayLine?.date);
+      const line =
+        isToday && todayLine && text(todayLine.text) && todayLine.state !== "none" && (!lineDate || lineDate === date)
+          ? todayLine
+          : null;
+      const lift = line ? "" : text(day.session?.title) || (plan && plan.role === "strength" ? text(plan.name) : "");
       if (lift) {
         const done = day.session?.finished === true || (day.status === "done" && !!day.session);
         pills.push({
@@ -56,10 +67,13 @@
       const run = day.run;
       if (run) {
         const km = num(run.km);
-        // The run's kind names it ("Easy run"); the agenda's label can be a day's read
-        // ("Rest or an easy walk"), which would misname a run already done.
-        const label = RUN_KIND_WORD[String(run.kind)] || text(run.label) || "Run";
         const past = !!date && !!today && date < today;
+        // A run done or behind is named by its kind ("Easy run"): the agenda's label can
+        // be a morning's read ("Rest or an easy walk") that no longer describes it. A run
+        // today or ahead keeps the server's label, the words the day read and the week
+        // line say for that same run, so the row never contradicts the morning.
+        const settled = run.status === "completed" || past;
+        const label = (settled ? RUN_KIND_WORD[String(run.kind)] : "") || text(run.label) || "Run";
         pills.push({
           stone: "endurance",
           text: km != null && km > 0 ? `${label} · ${CairnRaceViewModel.kmText(km)}` : label,
@@ -73,6 +87,7 @@
         day: date ? String(Number(date.slice(8, 10))) : "",
         today: isToday,
         pills,
+        line,
       };
     });
     const line = text(read.progress?.line) || text(read.summary);

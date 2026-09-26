@@ -5954,7 +5954,18 @@ declare global {
     /** done (ticked), live (today's open session), open (a run still to place), planned. */
     state: "done" | "live" | "open" | "planned";
   };
-  type ClientHorizonWeekDay = { date: string; weekday: string; day: string; today: boolean; pills: ClientHorizonWeekPill[] };
+  type ClientHorizonWeekDay = {
+    date: string;
+    weekday: string;
+    day: string;
+    today: boolean;
+    pills: ClientHorizonWeekPill[];
+    /**
+     * Today only: the server's one today line (the Brief's, the Session's, the plan
+     * strip's), printed verbatim in place of a lift pill so one morning reads as one answer.
+     */
+    line: import("./client-api.js").ClientTodayStrengthLine | null;
+  };
   type ClientHorizonWeek = { line: string; days: ClientHorizonWeekDay[] };
   /** One week of the terrain; `logged` weeks are closed weeks read off the log, before the ladder. */
   type ClientHorizonTerrainWeek = { week_start: string; km: number; kind: string; current: boolean; logged?: boolean };
@@ -5992,7 +6003,7 @@ declare global {
       raceLane(build: unknown): ClientHorizonLane;
       goalLane(journey: unknown, timeline: unknown, today: string): ClientHorizonLane;
       labsLane(docs: unknown, checkup: unknown, timeline: unknown, today: string): ClientHorizonLane;
-      ladderAhead(ladder: ClientRaceLadderModel, cap?: number): ClientRaceLadderModel | null;
+      ladderAhead(ladder: ClientRaceLadderModel): ClientRaceLadderModel | null;
       weightLine(read: import("./client-api.js").ClientJourneyRead | null): string;
       season(
         pace: unknown,

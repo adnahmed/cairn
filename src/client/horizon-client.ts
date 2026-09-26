@@ -176,7 +176,7 @@
         ${linksHtml(lane, opts.hrefFor)}
       </section>`;
     }
-    const ladder = lane.ladder ? CairnRaceLadder.ladderHtml(lane.ladder) : "";
+    // Goal line and labs: a headline, a rail, links (the race build takes the branch above).
     return `<section class="${cls}" aria-labelledby="${id}">
       <header class="horizon-lane-head">
         <span class="lbl horizon-lane-kicker">${escHtml(lane.title)}</span>
@@ -185,9 +185,7 @@
       </header>
       ${fitHtml(lane)}
       ${lane.lede ? `<p class="horizon-lane-lede">${escHtml(lane.lede)}</p>` : ""}
-      ${terrainHtml(lane)}
       ${seasonSlotHtml(lane)}
-      ${ladder}
       ${railHtml(lane, opts.hrefFor)}
       ${linksHtml(lane, opts.hrefFor)}
     </section>`;
@@ -216,9 +214,17 @@
     }
     const rows = week.days
       .map((day) => {
-        const body = day.pills.length
-          ? `<div class="horizon-pills">${day.pills.map(pillHtml).join("")}</div>`
-          : `<span class="horizon-rest">Rest</span>`;
+        // Today's lift is the server's one line, verbatim with its caveat (the Brief's
+        // and the plan strip's own words), leading the day as a lift pill would.
+        const line =
+          day.line && typeof CairnUiReads !== "undefined" ? CairnUiReads.strengthLineHtml(day.line) : "";
+        const pills = day.pills.length ? `<div class="horizon-pills">${day.pills.map(pillHtml).join("")}</div>` : "";
+        const body =
+          pills || line
+            ? line
+              ? `<div class="horizon-day-body">${line}${pills}</div>`
+              : pills
+            : `<span class="horizon-rest">Rest</span>`;
         return `<li class="horizon-day${day.today ? " is-today" : ""}"${day.today ? ` aria-current="date"` : ""}>
           <span class="horizon-day-when">${escHtml(day.weekday)}<b>${escHtml(day.day)}</b></span>${body}</li>`;
       })

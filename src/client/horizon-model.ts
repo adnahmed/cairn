@@ -41,7 +41,6 @@
   const PAST_CAP = 3;
   const AHEAD_CAP = 3;
   const GOAL_ROWS_CAP = 4;
-  const LADDER_ROWS_CAP = 4;
 
   const TARGETS = {
     race: { tab: "plan", section: "endurance" },
@@ -112,19 +111,12 @@
 
   // ---- Race -----------------------------------------------------------------------
 
-  /**
-   * The ladder from this week forward, race week always last. `cap` keeps at most that
-   * many rows (race week kept in the last place); Horizon's race view lists every week.
-   */
-  function ladderAhead(ladder: ClientRaceLadderModel, cap: number = LADDER_ROWS_CAP): ClientRaceLadderModel | null {
+  /** The ladder from this week forward to race week: every week, as Horizon lists them. */
+  function ladderAhead(ladder: ClientRaceLadderModel): ClientRaceLadderModel | null {
     const rows = Array.isArray(ladder?.rows) ? ladder.rows : [];
     if (!rows.length) return null;
     const here = rows.findIndex((row) => row.current);
-    const ahead = rows.slice(here >= 0 ? here : 0);
-    const race = ahead.find((row) => row.kind === "race") || null;
-    let kept = ahead.slice(0, cap);
-    if (race && !kept.includes(race)) kept = [...kept.slice(0, cap - 1), race];
-    return { rows: kept, max_km: ladder.max_km, taper_text: ladder.taper_text };
+    return { rows: rows.slice(here >= 0 ? here : 0), max_km: ladder.max_km, taper_text: ladder.taper_text };
   }
 
   function raceLane(value: unknown): Lane {
@@ -146,7 +138,7 @@
         links: [{ label: "Set a race goal", target: copyTarget(TARGETS.profile) }, ...links],
       });
     }
-    const ladder = ladderAhead(model.ladder, Number.POSITIVE_INFINITY);
+    const ladder = ladderAhead(model.ladder);
     const shared = !!ladder?.rows.some((row) => row.run_text && row.lift_text);
     return lane("race", "Race", {
       headline: model.event,

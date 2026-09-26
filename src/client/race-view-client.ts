@@ -34,10 +34,9 @@
    * The ladder, week by week. With the terrain drawn above it the ladder is the detail,
    * one tap deeper; without a chart it stands open, as the build's only picture.
    */
-  function weeksHtml(model: ClientRaceViewModel): string {
+  function weeksHtml(model: ClientRaceViewModel, charted: boolean): string {
     const ladder = CairnRaceLadder.ladderHtml(model.ladder);
     if (!ladder) return "";
-    const charted = typeof CairnHorizonChart !== "undefined" && !!model.terrain;
     if (!charted) return ladder;
     return `<details class="race-view-weeks">
       <summary class="race-view-more-sum">The build, week by week</summary>
@@ -48,15 +47,17 @@
   /** The whole section. `enter` gives it one settle-in entrance and grows the bars. */
   function viewHtml(model: ClientRaceViewModel, opts: { enter?: boolean } = {}): string {
     const when = [model.countdown, model.race_day].filter(Boolean).join(" · ");
+    // The ladder tucks behind a tap only when a chart actually drew above it.
+    const terrain = terrainHtml(model);
     return `<section class="race-view${opts.enter ? " settle-in is-entering" : ""}" aria-label="Race" data-race-view>
       <header class="race-view-head">
         <span class="lbl">Race${model.phase_word ? ` · ${escHtml(model.phase_word)}` : ""}</span>
         <h2 class="race-view-event">${escHtml(model.event)}</h2>
         ${when ? `<p class="race-view-when numeral">${escHtml(when)}</p>` : ""}
       </header>
-      ${terrainHtml(model)}
+      ${terrain}
       ${CairnRaceEstimate.estimateHtml(model.estimate)}
-      ${weeksHtml(model)}
+      ${weeksHtml(model, !!terrain)}
       ${moreHtml(model)}
     </section>`;
   }
