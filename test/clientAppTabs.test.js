@@ -37,15 +37,30 @@ function tabElement(tab, calls) {
   };
 }
 
+// The tab bar's buttons are the five HOMES; state.tab stays the view.
+const HOMES = ["today", "train", "horizon", "ask", "you"];
+
+function loadRoutes() {
+  const src = readFileSync(new URL("../public/js/route-state.js", import.meta.url), "utf8");
+  const context = { window: {}, URL, URLSearchParams };
+  vm.runInNewContext(src, context);
+  return context.window.CairnRoutes;
+}
+
+function homeToggles(active) {
+  return HOMES.map((home) => ["toggle", home, "active", home === active]);
+}
+
 function loadTabs(options = {}) {
   const source = readFileSync(new URL("../public/js/app-tabs.js", import.meta.url), "utf8");
   const calls = [];
   const view = options.view || { innerHTML: "" };
-  const tabs = ["today", "plan", "progress", "chat", "me", "settings"].map((tab) => tabElement(tab, calls));
+  const tabs = HOMES.map((tab) => tabElement(tab, calls));
+  const routes = loadRoutes();
   const context = {
     MEALS_KEY: "meals:plans",
     ME_SEG: [["standing", "Standing"], ["profile", "Profile"], ["health", "Health"]],
-    PROGRESS_SEG: [["sessions", "History"], ["endurance", "Endurance"], ["program", "Program"]],
+    PROGRESS_SEG: [["sessions", "History"], ["endurance", "Endurance"], ["plan", "Plan"], ["program", "Program"]],
     chatTeardownMonitor: () => calls.push(["chatTeardownMonitor"]),
     closeDetail: (instant) => calls.push(["closeDetail", instant]),
     closeMealSheet: (instant) => calls.push(["closeMealSheet", instant]),
@@ -77,8 +92,9 @@ function loadTabs(options = {}) {
     viewEnter: () => calls.push(["viewEnter", view.innerHTML]),
     window: {
       CairnAppRouter: {
-        ROUTE_TABS: ["today", "plan", "progress", "chat", "me", "settings"],
+        ROUTE_TABS: [...routes.validTabs],
       },
+      CairnRoutes: routes,
     },
     tabSwap: (fn) => {
       calls.push(["tabSwap"]);
@@ -99,17 +115,13 @@ test("tab controller switches tabs with skeleton-first paint and route sync", as
   await flush();
 
   assert.equal(env.context.state.tab, "plan");
-  assert.equal(env.view.innerHTML, "seg:edit:5:3");
+  // The plan editor wears Train's group nav, and Train is the home it lights.
+  assert.equal(env.view.innerHTML, "seg:plan:4:3");
   assert.deepEqual(plain(env.calls), [
     ["teardownJobs"],
     ["closeDetail", true],
     ["closeMealSheet", true],
-    ["toggle", "today", "active", false],
-    ["toggle", "plan", "active", true],
-    ["toggle", "progress", "active", false],
-    ["toggle", "chat", "active", false],
-    ["toggle", "me", "active", false],
-    ["toggle", "settings", "active", false],
+    ...homeToggles("train"),
     ["syncRouteFromState", "push"],
     // ONE swap carries the skeleton AND the renderer's synchronous paint; the
     // swap itself is the fade, so no separate view-enter keyframe is played.
@@ -126,21 +138,16 @@ test("tab controller skips warm skeletons and tears down chat when leaving", asy
   await flush();
 
   assert.equal(env.view.innerHTML, "");
-  assert.deepEqual(plain(env.calls.slice(0, 12)), [
+  assert.deepEqual(plain(env.calls.slice(0, 11)), [
     ["chatTeardownMonitor"],
     ["teardownJobs"],
     ["closeDetail", true],
     ["closeMealSheet", true],
-    ["toggle", "today", "active", false],
-    ["toggle", "plan", "active", false],
-    ["toggle", "progress", "active", true],
-    ["toggle", "chat", "active", false],
-    ["toggle", "me", "active", false],
-    ["toggle", "settings", "active", false],
+    ...homeToggles("train"),
     ["syncRouteFromState", "replace"],
     ["tabSwap"],
   ]);
-  assert.deepEqual(plain(env.calls.slice(12)), [
+  assert.deepEqual(plain(env.calls.slice(11)), [
     ["peekCached", "history:sessions"],
     ["renderTab", "progress"],
   ]);
@@ -182,13 +189,13 @@ test("tab controller registers tabbar clicks and normalizes invalid tabs", async
 
   assert.equal(env.context.state.tab, "today");
   assert.match(env.view.innerHTML, /today-skeleton/);
-  assert.equal(env.calls.filter(([kind]) => kind === "addEventListener").length, 6);
+  assert.equal(env.calls.filter(([kind]) => kind === "addEventListener").length, 5);
 
   env.calls.length = 0;
-  env.tabs[5].click();
+  env.tabs[4].click();
   await flush();
 
-  assert.equal(env.context.state.tab, "settings");
+  assert.equal(env.context.state.tab, "you");
   assert.deepEqual(plain(env.calls.slice(0, 4)), [
     ["teardownJobs"],
     ["closeDetail", true],
@@ -196,23 +203,46 @@ test("tab controller registers tabbar clicks and normalizes invalid tabs", async
     ["toggle", "today", "active", false],
   ]);
   // aria-current="page" names the live tab; only the active tab carries it.
-  assert.equal(env.tabs.find((t) => t.dataset.tab === "settings").getAttribute("aria-current"), "page");
+  assert.equal(env.tabs.find((t) => t.dataset.tab === "you").getAttribute("aria-current"), "page");
   assert.equal(env.tabs.find((t) => t.dataset.tab === "today").getAttribute("aria-current"), null);
 });
 
-test("the Plan tab from the tab bar opens on Training, never on a remembered Food visit", async () => {
-  const env = loadTabs({ planSeg: "food" });
-  env.context.registerTabBarHandlers();
-  env.tabs[1].click();
-  await flush();
-  assert.equal(env.context.state.tab, "plan");
-  assert.equal(env.context.state.planSeg, "edit");
-  // A jump someone asked for (a Food link) still lands where it was asked to.
-  const jumped = loadTabs({ planSeg: "edit", planJump: "food" });
-  jumped.context.registerTabBarHandlers();
-  jumped.tabs[1].click();
-  await flush();
-  assert.equal(jumped.context.state.planJump, "food");
+test("each tab-bar button names a home and opens that home's landing view", async () => {
+  const landings = { today: "today", train: "progress", horizon: "horizon", ask: "chat", you: "you" };
+  for (const [index, home] of HOMES.entries()) {
+    const env = loadTabs({ currentTab: home === "today" ? "chat" : "today" });
+    env.context.registerTabBarHandlers();
+    env.tabs[index].click();
+    await flush();
+    assert.equal(env.context.state.tab, landings[home], `${home} opens ${landings[home]}`);
+    assert.equal(env.tabs[index].getAttribute("aria-current"), "page", `${home} is lit`);
+  }
+  // A home name reaches activateTab as a view too (a shortcut, a stale caller).
+  const env = loadTabs();
+  env.context.activateTab("ask", { syncRoute: false });
+  assert.equal(env.context.state.tab, "chat");
+});
+
+test("the Plan view lights the home its section lives under", async () => {
+  const cases = [
+    ["edit", "train"],
+    ["endurance", "horizon"],
+    ["food", "today"],
+    ["meals", "today"],
+    ["coach", "ask"],
+  ];
+  for (const [section, home] of cases) {
+    const env = loadTabs({ planJump: section === "edit" ? null : section, planSeg: section });
+    env.context.switchTab("plan", { syncRoute: false });
+    await flush();
+    const lit = env.tabs.filter((t) => t.getAttribute("aria-current") === "page").map((t) => t.dataset.tab);
+    assert.deepEqual(lit, [home], `plan/${section} lights ${home}`);
+    assert.equal(env.context.highlightHome("plan"), home);
+  }
+  // Every other view has one home.
+  const env = loadTabs();
+  const views = { today: "today", session: "today", progress: "train", horizon: "horizon", chat: "ask", stand: "you", me: "you", settings: "you", you: "you" };
+  for (const [view, home] of Object.entries(views)) assert.equal(env.context.highlightHome(view), home, view);
 });
 
 // A focus-moving tab switch lands on the new view's heading. A tap lands it

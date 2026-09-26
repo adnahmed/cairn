@@ -3,6 +3,7 @@ import type {
   ClientDayRead,
   ClientGoalCheck,
   ClientHealthSection,
+  ClientHorizonSection,
   ClientMeSection,
   ClientPlanDay,
   ClientPlanSection,
@@ -11,6 +12,7 @@ import type {
   ClientSettingsSection,
   ClientStandSection,
   ClientTabName,
+  ClientYouSection,
 } from "./client.js";
 
 export type ClientBriefCache = {
@@ -45,6 +47,11 @@ export type ClientAppState = {
   // standSeg="domain" so a reload/deep link reopens the same drill-in, and
   // cleared whenever Stand steps back to the overview.
   standDomain?: string | null;
+  // Horizon's sub-view (null = the one timeline) and You's (null = the landing;
+  // "stone" = one stone's detail, keyed by youStone, which rides in ?id=).
+  horizonSeg?: ClientHorizonSection | null;
+  youSeg?: ClientYouSection | null;
+  youStone?: string | null;
   pendingHealthScroll?: "hbDirectives" | string | null;
   chatPrefill?: string | null;
   capturePrefill?: string | null;

@@ -158,8 +158,9 @@ app.use(
   }),
 );
 
-// PWA deep links. The client owns `/app/<tab>/<section>` route state; the server
-// returns the app shell so copied/bookmarked links hydrate in-place. API/MCP and
+// PWA deep links. The client owns `/app/<home>/<section>` route state (and rewrites
+// a v1 `/app/<tab>/<section>` link to it in place); the server returns the app
+// shell so copied/bookmarked links hydrate in-place. API/MCP and
 // real static assets are mounted above this, so this fallback stays narrow.
 app.get(/^\/app(?:\/.*)?$/, (_req, res) => {
   res.setHeader("Cache-Control", "no-cache");

@@ -206,6 +206,9 @@ function loadPlanEditorController(plan) {
     state: { tab: "plan", plan: [] },
     pollToken: 0,
     PLAN_HANDLERS: {},
+    PROGRESS_SEG: [["plan", "Plan"], ["program", "Program"]],
+    PROGRESS_LINK_HANDLERS: {},
+    showEnduranceTab: () => false,
     $: (selector) => view.querySelector(selector) || documentEl.querySelector(selector),
     peekCached: (key) => key === "plan" ? { data: plan, fresh: true } : null,
     cachedApi: () => Promise.resolve(plan),
@@ -870,4 +873,15 @@ test("re-asking for something already built never claims a build is running", as
   assert.match(painted, /id="planRedrawText"/, "it reads the real state and paints that");
   // The change it points at belongs in "Coming up", so that strip is refreshed too.
   assert.ok(harness.invalidations.includes("plan"));
+});
+
+// The editor is Train → Program → Plan (v2 wave 5): it wears Train's group nav, and
+// each Progress leaf on it navigates back into the Progress view.
+test("the plan editor paints Train's nav with its own leaf lit, never the old Plan bar", () => {
+  const src = readFileSync(new URL("../src/client/plan-editor-controller.ts", import.meta.url), "utf8");
+  const render = src.slice(src.indexOf("async function renderPlanEditor"));
+  assert.match(render, /segSkeleton\("plan", PROGRESS_SEG, 3\)/);
+  assert.match(render, /segBar\("plan", PROGRESS_SEG\)/);
+  assert.match(render, /wireSeg\(PROGRESS_LINK_HANDLERS\)/);
+  assert.doesNotMatch(render, /planSeg\(\)|PLAN_HANDLERS/);
 });

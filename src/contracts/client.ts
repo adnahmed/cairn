@@ -1,5 +1,7 @@
 import type {
   ClientHealthSection,
+  ClientHomeName,
+  ClientHorizonSection,
   ClientMeSection,
   ClientPlanSection,
   ClientProgressSection,
@@ -8,11 +10,16 @@ import type {
   ClientSettingsSection,
   ClientStandSection,
   ClientTabName,
+  ClientYouSection,
 } from "./client-routes.js";
 
 export type ISODateString = string;
 
+// `tab` is the VIEW (what renders); `home` is the tab-bar button it lives under.
+// parseRoute always fills `home` and `legacy`; a route built in code (a pebble
+// target) may leave them out, and routeToUrl derives the home itself.
 export interface ClientRoute {
+  home?: ClientHomeName;
   tab: ClientTabName;
   section: ClientRouteSection | null;
   healthSection: ClientHealthSection | null;
@@ -20,6 +27,9 @@ export interface ClientRoute {
   id: string | null;
   session: string | null;
   jump: string | null;
+  /** The URL was not in canonical v2 form (a v1 path, a bare /<tab>, ?tab=,
+   *  ?jump=, ...): the shell rewrites it in place with replaceState. */
+  legacy?: boolean;
 }
 
 export interface ClientRoutesApi {
@@ -33,6 +43,13 @@ export interface ClientRoutesApi {
   meSections: readonly ClientMeSection[];
   healthSections: readonly ClientHealthSection[];
   settingsSections: readonly ClientSettingsSection[];
+  horizonSections: readonly ClientHorizonSection[];
+  youSections: readonly ClientYouSection[];
+  homes: readonly ClientHomeName[];
+  /** The tab-bar home a view (and, for Plan, its section) lives under. */
+  homeOf(view: unknown, section?: unknown): ClientHomeName;
+  /** The view a home or view name opens: a home key maps to its landing view. */
+  viewFor(name: unknown): ClientTabName;
 }
 
 // The Today LEAD arbitration (server-owned, additive, optional). One decision

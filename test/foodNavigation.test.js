@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 const file = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("logged food has a dedicated Plan Food tab and shortcuts land there", () => {
+test("logged food opens Fuel under Today, and shortcuts land there", () => {
   const ui = file("public/js/02-ui.js");
   const uiSegments = file("public/js/ui-segments-client.js");
   const meals = file("public/js/06-coach-meals.js");
@@ -14,10 +14,11 @@ test("logged food has a dedicated Plan Food tab and shortcuts land there", () =>
   const chatFuelContext = file("public/js/chat-fuel-context-client.js");
   const appRenderDispatch = file("public/js/app-render-dispatch.js");
 
-  assert.match(uiSegments, /\["food",\s*"Food"\]/, "Plan segment includes Food");
-  assert.match(uiSegments, /food: \(\) => deps\.renderFoodJournal\(\)/, "Food segment is wired to the journal renderer");
+  assert.match(uiSegments, /\["food",\s*"Food"\]/, "the race view's Plan bar still reaches Food");
+  assert.match(uiSegments, /food: \(\) => openPlan\("food"\)/, "the Food segment navigates to Fuel (it lives under Today)");
   assert.match(ui, /planSeg\(\) \{[\s\S]*uiSegments\(\)\.planSeg\(\)/, "UI shell delegates Plan segments");
-  assert.match(meals, /segBar\("food", planSeg\(\)\)/, "daily journal renders as the active Food segment");
+  assert.match(meals, /homeBackHtml\("today", "Today"\)/, "Fuel steps back to Today, its home");
+  assert.doesNotMatch(meals, /segBar\("food", planSeg\(\)\)/, "Fuel no longer wears the Plan bar");
   assert.match(meals, /class="meal-energy food-journal fuel"/, "Food tab owns the Fuel surface and the energy read");
   assert.match(todayRailLoaders, /deps\.state\.planJump = "food"; deps\.activateTab\("plan"\)/, "Today logged-fuel card opens Food");
   assert.match(chat, /state\.planJump = "food"; activateTab\("plan"\)/, "Chat fuel strip opens Food");

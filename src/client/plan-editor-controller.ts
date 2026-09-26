@@ -553,7 +553,7 @@ async function renderPlanEditor(): Promise<void> {
   state.planSeg = "edit";
   const token = ++pollToken;
   const peek = peekCached<PlanEditorControllerApiDay[]>("plan");
-  if (!peek) view.innerHTML = segSkeleton("edit", planSeg(), 3);
+  if (!peek) view.innerHTML = segSkeleton("plan", PROGRESS_SEG, 3);
   const revalidate = cachedApi("/plan", {
     key: "plan",
     onUpgrade: (_data, { changed }) => {
@@ -570,12 +570,12 @@ async function renderPlanEditor(): Promise<void> {
 
   const icsUrl = withToken("/api/plan.ics");
   const calFooter = helpers.calendarFooterHtml(plan, location.host, icsUrl);
-  view.innerHTML = segBar("edit", planSeg()) + `<div id="planWeekSlot" class="card-stack-item"></div><div id="planRecoverySlot"></div><div id="planUpcomingSlot"></div><div id="planRedrawSlot"></div><div id="planedit"></div>
-    ${planSeg().some(([key]) => key === "endurance") ? `<div id="planRunsNote">${helpers.runsElsewhereHtml()}</div>` : ""}
+  view.innerHTML = segBar("plan", PROGRESS_SEG) + `<div id="planWeekSlot" class="card-stack-item"></div><div id="planRecoverySlot"></div><div id="planUpcomingSlot"></div><div id="planRedrawSlot"></div><div id="planedit"></div>
+    ${showEnduranceTab() ? `<div id="planRunsNote">${helpers.runsElsewhereHtml()}</div>` : ""}
     <button id="addDay" class="ghostbtn" style="width:100%;text-align:center;padding:11px;margin-top:8px">+ Add day</button>
     <div id="planstatus" style="margin-top:8px;color:var(--muted);font-size:.82rem"></div>${calFooter}
     <datalist id="exerciseNames"></datalist>`;
-  wireSeg(PLAN_HANDLERS);
+  wireSeg(PROGRESS_LINK_HANDLERS);
   loadPlanRecoveryBanner(token);
   loadPlanUpcomingNote(token);
   loadExerciseNameOptions(token);
@@ -587,7 +587,7 @@ async function renderPlanEditor(): Promise<void> {
     helpers.dayModelFromPlan(day)
   );
   view.querySelector<HTMLElement>("[data-plan-runs]")?.addEventListener("click", () => {
-    void renderPlanEndurance();
+    state.planJump = state.planSeg = "endurance"; activateTab("plan"); // the race view is Horizon's
   });
   const editing = new Set<number>();
   let planBar: ClientSaveBar | null = null;

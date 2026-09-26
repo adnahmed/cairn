@@ -136,6 +136,9 @@ const PERSISTED_KEYS = {
   "cairn.wakeLock.v1": ["app/wake-lock"],
   "cairn.app.identity.v1": ["app-identity-model"],
   "cairn.app.readd.dismissed.v1": ["app-identity-model"],
+  // The five-home navigation's one-time "what moved here" line (v2 wave 5).
+  "cairn.nav.homes.v1": ["app/moved-note"],
+  "cairn.nav.moved.v1.": ["app/moved-note"],
 };
 // Tab-scoped (sessionStorage) snapshots and non-storage literals: they never outlive
 // a launch, so they are listed only so the sweep below knows them.

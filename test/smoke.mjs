@@ -136,7 +136,17 @@ async function runOpenSmoke(ctx) {
 
   // 6) PWA deep links — copied/bookmarked route-state URLs must return the app
   //    shell, not a 404 or JSON API body, so the client can hydrate the screen.
-  for (const route of ["/app/today", "/app/me/health/read", "/app/chat?session=smoke-session", "/app/settings/data"]) {
+  //    Both grammars: v2 homes, and the v1 paths the client rewrites in place.
+  for (const route of [
+    "/app/today",
+    "/app/today/fuel",
+    "/app/horizon/race",
+    "/app/ask?session=smoke-session",
+    "/app/you/settings/data",
+    "/app/me/health/read",
+    "/app/chat?session=smoke-session",
+    "/app/settings/data",
+  ]) {
     const { status, headers, text } = await getText(base, route);
     ok(status === 200, `GET ${route} → app shell 200`, `got ${status}`);
     ok((headers.get("content-type") || "").includes("text/html"), `GET ${route} returns HTML`);

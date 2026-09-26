@@ -1,5 +1,6 @@
 // The Fuel surface's composition (coach-meals-screen.ts renderFoodJournal/renderMeals,
-// docs/V2-PLAN.md wave 2). Plan → Food paints its shell at once and mounts each Fuel
+// docs/V2-PLAN.md wave 2). Fuel (/app/today/fuel, opened from Today) paints its
+// shell at once, titled "Fuel" with a "‹ Today" back link, and mounts each Fuel
 // component into its own slot; a meal logged from the composer refreshes every slot
 // that reads the day without leaving the screen; "Start from this" opens the composer
 // filled; Plan → Meals redirects here with the meal-plan journal open as history.
@@ -26,8 +27,16 @@ function load({ logDate = "" } = {}) {
   });
   const state = { logDate, planSeg: "edit", tab: "plan" };
   const routes = [];
+  const tabs = [];
   const globals = {
     state,
+    escHtml: (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+    escAttr: (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
+    activateTab: (name) => tabs.push(name),
+    // The shell's home-back helpers (ui-shell.ts), faked the way they behave.
+    homeBackHtml: (home, label) => `<button class="home-back" type="button" data-home-back="${home}">‹ ${label}</button>`,
+    wireHomeBack: (root) =>
+      root.querySelector("[data-home-back]")?.addEventListener("click", (e) => tabs.push(e.currentTarget.dataset.homeBack)),
     pollToken: 0,
     headerTitle: { textContent: "" },
     segBar: (active) => `<div class="seg" data-active="${active}"></div>`,
@@ -64,14 +73,21 @@ function load({ logDate = "" } = {}) {
   const view = createHost(win.document);
   win.view = view;
   win.$ = (sel) => view.querySelector(sel);
-  return { win, view, mounts, events, state, routes };
+  return { win, view, mounts, events, state, routes, tabs };
 }
 
-test("Plan → Food paints the Fuel shell and mounts every component into its slot", () => {
-  const { win, view, mounts, state } = load();
+test("Fuel paints its shell under Today and mounts every component into its slot", () => {
+  const { win, view, mounts, state, tabs } = load();
   win.renderFoodJournal();
   assert.equal(state.planSeg, "food");
-  assert.equal(view.querySelector(".seg").getAttribute("data-active"), "food");
+  // Fuel lives under Today: its own title, no Plan seg bar, one quiet way back.
+  assert.equal(win.headerTitle.textContent, "Fuel");
+  assert.equal(view.querySelector(".seg"), null);
+  const back = view.querySelector("[data-home-back]");
+  assert.equal(back.getAttribute("data-home-back"), "today");
+  assert.match(back.textContent, /‹ Today/);
+  back.click();
+  assert.deepEqual(tabs, ["today"]);
   for (const id of ["dayFuelSlot", "fuelLogSlot", "fuelMealsSlot", "fuelIdeasSlot", "energyCard", "fuelHistory"]) {
     assert.ok(view.querySelector(`#${id}`), `#${id}`);
   }
@@ -127,7 +143,7 @@ test("Plan → Meals redirects into Fuel with the meal-plan journal open as hist
   assert.ok(view.querySelector(".food-journal"));
   assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), true);
   assert.equal(view.querySelector("#fuelHistory").dataset.painted, "1", "the journal paints into the fold");
-  assert.deepEqual(routes, ["replace"], "the URL follows to /app/plan/food");
+  assert.deepEqual(routes, ["replace"], "the URL follows to /app/today/fuel");
 });
 
 test("a second visit tears the previous mounts down first", async () => {

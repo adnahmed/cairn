@@ -6,6 +6,9 @@ import type {
   ClientChatSearchHit,
   ClientChatSessionSummary,
   ClientHealthSection as ContractClientHealthSection,
+  ClientHomeName as ContractClientHomeName,
+  ClientHorizonSection as ContractClientHorizonSection,
+  ClientYouSection as ContractClientYouSection,
   ClientMeSection as ContractClientMeSection,
   ClientPlanSection as ContractClientPlanSection,
   ClientProgressSection as ContractClientProgressSection,
@@ -66,6 +69,9 @@ declare global {
   type ClientMeSection = ContractClientMeSection;
   type ClientHealthSection = ContractClientHealthSection;
   type ClientSettingsSection = ContractClientSettingsSection;
+  type ClientHomeName = ContractClientHomeName;
+  type ClientHorizonSection = ContractClientHorizonSection;
+  type ClientYouSection = ContractClientYouSection;
   type ClientSegment = readonly [string, string];
   type ClientSettingsRouteTask = readonly [string, string];
   type ClientSaveBar = { markDirty(): void; save(): Promise<void> };
@@ -1869,6 +1875,10 @@ declare global {
   declare function updateHeaderCondense(): void;
   declare function switchTab(tab: unknown, opts?: { replace?: boolean; syncRoute?: boolean }): void;
   declare function registerTabBarHandlers(): void;
+  declare function highlightHome(tab?: unknown): ClientHomeName;
+  // The You and Horizon homes' landing renderers (you-screen.ts, horizon-screen.ts).
+  declare function renderYou(): unknown;
+  declare function renderHorizon(): unknown;
   declare function syncRouteFromState(mode?: "push" | "replace"): void;
   declare function planSeg(): readonly ClientSegment[];
   declare function todaySkeleton(): string;
@@ -2101,6 +2111,7 @@ declare global {
     currentRouteState(): Partial<ClientRoute>;
     defaultProgressSeg(): string;
     registerTabBarHandlers(): void;
+    highlightHome(tab?: unknown): ClientHomeName;
     routeApi(): ClientRoutesApi | null;
     routeKey(
       key: unknown,

@@ -104,15 +104,28 @@ async function openFoodDetail(note: unknown, fromTile?: Element | null): Promise
   return CairnFoodDetailController.openFoodDetail(note, fromTile, foodDetailDeps());
 }
 function gotoChatWith(text: string): void {
-  document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
-  const t = document.querySelector('.tab[data-tab="chat"]');
-  if (t) t.classList.add("active");
   state.tab = "chat";
+  // The shell owns which tab-bar home is lit (chat lives under Ask); it is
+  // defined by a later bundle, so it is reached lazily at call time.
+  if (typeof highlightHome === "function") highlightHome("chat");
   document.body.dataset.tab = "chat"; // keep the header's Today-scoped styling off
   if (typeof syncRouteFromState === "function") syncRouteFromState();
   Promise.resolve(renderChat()).then(() => {
     const i = $<HTMLTextAreaElement>("#chatInput");
     if (i) { i.value = text; autosizeChatInput(i); i.focus(); }
+  });
+}
+
+// A sub-view reached from inside a home (Fuel from Today, Changes from Ask, the race
+// view from Horizon, Health from You) steps back to the home's landing with one
+// quiet link, never a seg bar. `home` is a tab-bar home key; activateTab opens its
+// landing view, and the shell keeps the home lit.
+function homeBackHtml(home: ClientHomeName, label: string): string {
+  return `<button class="home-back linkbtn linkbtn-plain" type="button" data-home-back="${escAttr(home)}">‹ ${escHtml(label)}</button>`;
+}
+function wireHomeBack(root: ParentNode): void {
+  root.querySelector<HTMLElement>("[data-home-back]")?.addEventListener("click", (e) => {
+    activateTab((e.currentTarget as HTMLElement | null)?.dataset.homeBack || "today");
   });
 }
 
@@ -124,6 +137,8 @@ function uiSegmentsDeps(): UiSegmentsDeps {
   return {
     root: view,
     state,
+    // activateTab is defined by a later bundle (app/tabs.ts); reached at call time.
+    activateTab: (name) => activateTab(name),
     segmentedNavHtml: (options) => CairnUi.segmentedNavHtml(options),
     withViewTransition,
     viewEnter,
@@ -167,6 +182,8 @@ function fitSeg(seg: Element | null | undefined): void {
 }
 const PROGRESS_SEG: readonly UiSegment[] = uiSegmentsApi().PROGRESS_SEG;
 const PROGRESS_HANDLERS: Record<string, () => unknown> = uiSegments().progressHandlers;
+// Train's nav as painted by the plan editor: every Progress leaf navigates there.
+const PROGRESS_LINK_HANDLERS: Record<string, () => unknown> = uiSegments().progressLinkHandlers;
 function planSeg(): readonly UiSegment[] {
   return uiSegments().planSeg();
 }
@@ -298,12 +315,15 @@ const CAIRN_UI_SHELL_GLOBALS = {
   exerciseExplanationHtml,
   replaceExerciseExplanation,
   gotoChatWith,
+  homeBackHtml,
+  wireHomeBack,
   openFoodDetail,
   segBar,
   wireSeg,
   fitSeg,
   PROGRESS_SEG,
   PROGRESS_HANDLERS,
+  PROGRESS_LINK_HANDLERS,
   planSeg,
   PLAN_HANDLERS,
   viewEnter,
