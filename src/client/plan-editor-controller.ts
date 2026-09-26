@@ -692,7 +692,12 @@ async function paintPlanEditor(reuseHeads?: PlanHeadReads): Promise<void> {
 
   // A blank plan already has the compose-week entry — asking to REDRAW a week that does
   // not exist yet would be two doors to the same empty room.
-  if (!planIsBlank()) loadPlanRedraw(token, redrawRead ?? undefined);
+  // Its read can land after the paint (it queues behind the head reads), so the
+  // collapsed strip holds its place until then — the gallery never jumps down under it.
+  if (!planIsBlank()) {
+    paintPlanRedraw(token, planRedrawHtml(null));
+    loadPlanRedraw(token, redrawRead ?? undefined);
+  }
 
   draw();
 }
