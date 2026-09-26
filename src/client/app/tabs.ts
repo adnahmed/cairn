@@ -284,7 +284,11 @@ type TabSwitchOptions = {
     document.querySelectorAll<HTMLElement>(".tab").forEach((tab) => {
       tab.addEventListener("click", (event?: MouseEvent) => {
         // Each button names a HOME (today, train, horizon, ask, you); normalizeTabName
-        // opens that home's landing view.
+        // opens that home's landing view. The Horizon button is the home, so it
+        // always opens the timeline, whatever section Horizon last showed (a
+        // goal-line visit from Train would otherwise stick). Reset here, in the
+        // eager shell, so it holds before the lazy Horizon bundle has ever loaded.
+        if (tab.dataset.tab === "horizon") state.horizonSeg = null;
         // A keyboard-activated button click reports detail 0; a tap or mouse click ≥ 1.
         switchTab(tab.dataset.tab, { focusView: true, focusRing: !!event && event.detail === 0 });
       });

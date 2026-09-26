@@ -4880,8 +4880,9 @@ thunk, since function hoisting does NOT cross `<script>` boundaries; see
 of ordered `public/js/bundle-*.js` bundles (the `BUNDLES` manifest is the source of truth for that
 order); `index.html` loads just those bundles (`/art.js` still first) while `sw.js` precaches them —
 with one exception: a bundle carrying `lazy: "<name>"` in the manifest is **not** in `index.html`.
-Only the Today / You / Fuel / capture shell is eager (bundles 01–04 and 07, held to ≤200 KB brotli
-in total by `scripts/bundle-budget.json`'s `eager` ceilings). Train (`bundle-08-train`: every Train
+Only the Today / You / Fuel / capture shell is eager (bundles 01–04 and 07; with `art.js` and
+`cairn-body-figure.js` beside them, every script `index.html` loads is held to ≤220 KB brotli in
+total by `scripts/bundle-budget.json`'s `eager` ceilings). Train (`bundle-08-train`: every Train
 view, the plan editor and its week strip, body metrics), Horizon (`bundle-09-horizon`, depends on
 train), Ask (`bundle-10-ask`: the thread, the ripple card, Changes) and Settings
 (`bundle-11-settings`, with the agent-login terminal), plus Health / About you (`bundle-05-me-health`,
@@ -4891,18 +4892,22 @@ they execute, and rejects into the tab's error state on a failed fetch. Callers 
 `withBundle(name, fn)`: warm, it calls `fn` synchronously (a warm tab still paints inside its view
 transition); cold, after the load. The dispatcher (`app/render-dispatch.ts`) routes every lazy
 destination that way and drops a deferred render a newer navigation has superseded; the segment
-nav's render thunks (`uiSegmentsDeps` in `ui-shell.ts`) do the same. After the first paint,
+nav's render thunks (`uiSegmentsDeps` in `ui-shell.ts`) and the chat hand-off claim the same render
+turn through `withLatestRender`, so a cold segment never paints over the home the athlete moved to. After the first paint,
 `prefetchLazyBundles()` (from `app/startup.ts`, on `load`) executes each lazy bundle in its own idle
-slot, so a first tap on another home does not wait; a bundle load re-runs the job-reconnector
-registration and sweeps `/agent-jobs` only when it registered something new. Every lazy bundle
+slot, so a first tap on another home does not wait (`CAIRN_NO_WARMUP` turns it off for the browser
+smoke's cold-navigation pass). A bundle load re-runs the job-reconnector registration; when that
+registered something new, the bundle owes ONE `/agent-jobs` sweep, paid by the first navigation into
+it (`withBundle`) once that destination has painted — never by the warm-up, since a reconnector
+(`health_review`) reattaches only while its own view is on screen. Every lazy bundle
 stays in `CORE_ASSETS`, so an installed PWA precaches it and a cold OFFLINE deep link still works —
 which is also why its url carries no query string (Cache Storage keys on the whole url, and static
 assets are never token-gated). The rule that follows: nothing in an eager bundle may touch a lazy
 bundle's globals except through `withBundle`, behind a `typeof` guard, or from code that runs only
 while that bundle's surface is on screen — `test/lazyBundleContract.test.js` resolves every
 cross-bundle global reference in the built client and enforces exactly that (a job reconnector
-factory, which must register at boot, therefore stays eager: the energy surface's nutrition
-check-in, the meal planner's). `scripts/check-sw-cache.mjs` holds `index.html` to exactly the
+factory otherwise stays eager: the energy surface's nutrition check-in, the meal planner's; only
+`health_review`'s lives in me-health, and rides the owed-sweep path above). `scripts/check-sw-cache.mjs` holds `index.html` to exactly the
 non-lazy bundles and `CORE_ASSETS` to the whole manifest; `scripts/check-public-scripts.mjs` scans
 the lazy bundles too, since they land in the same global scope.
 

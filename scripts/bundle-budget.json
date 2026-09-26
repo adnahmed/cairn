@@ -3,7 +3,7 @@
   "margin": 0.03,
   "eager": {
     "js": {
-      "brotli": 204800
+      "brotli": 225280
     },
     "styles": {
       "brotli": 71680
@@ -123,6 +123,26 @@
       "budget": {
         "raw": 451584,
         "brotli": 60416
+      }
+    },
+    "public/art.js": {
+      "measured": {
+        "raw": 32548,
+        "brotli": 9859
+      },
+      "budget": {
+        "raw": 33792,
+        "brotli": 10240
+      }
+    },
+    "public/cairn-body-figure.js": {
+      "measured": {
+        "raw": 16574,
+        "brotli": 4251
+      },
+      "budget": {
+        "raw": 17408,
+        "brotli": 5120
       }
     }
   }

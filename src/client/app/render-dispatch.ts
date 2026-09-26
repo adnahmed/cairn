@@ -3,7 +3,16 @@
   // Every renderTab call is a newer paint of #view. A lazy destination whose
   // bundle is still loading must not paint over a destination the athlete has
   // since moved to, so a deferred render runs only while it is still the latest.
+  // Every other painter of #view that may wait on a lazy bundle (a Train or Plan
+  // segment tap, the chat hand-off) claims a turn the same way through
+  // withLatestRender, so whichever paint was asked for LAST is the one that lands.
   let renderSeq = 0;
+
+  /** Claim the next paint of #view; the returned render runs only if nothing newer has claimed one. */
+  function withLatestRender<T>(bundle: ClientLazyBundleName, render: () => T): T | undefined | Promise<Awaited<T> | undefined> {
+    const seq = ++renderSeq;
+    return withBundle(bundle, () => (seq === renderSeq ? render() : undefined));
+  }
 
   function renderAppTab(tabName: unknown): unknown {
     const tab = String(tabName || "");
@@ -67,8 +76,10 @@
   }
 
   Object.assign(globalThis, { renderTab: renderAppTab });
+  Object.assign(globalThis, { withLatestRender });
 
   if (typeof window !== "undefined") {
     window.renderTab = renderAppTab;
+    window.withLatestRender = withLatestRender;
   }
 }

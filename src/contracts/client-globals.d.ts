@@ -2001,6 +2001,7 @@ declare global {
   declare function bundleLoaded(name: ClientLazyBundleName): boolean;
   /** Run `fn` synchronously when the bundle is ready, else after ensureBundle resolves. */
   declare function withBundle<T>(name: ClientLazyBundleName, fn: () => T): T | Promise<Awaited<T>>;
+  declare function withLatestRender<T>(name: ClientLazyBundleName, render: () => T): T | undefined | Promise<Awaited<T> | undefined>;
   /** Warm every lazy bundle on idle after the first paint (once per page). */
   declare function prefetchLazyBundles(options?: { delayMs?: number }): void;
   declare function startAppShell(): void;
@@ -2134,6 +2135,7 @@ declare global {
     ensureBundle(name: ClientLazyBundleName): Promise<void>;
     bundleLoaded(name: ClientLazyBundleName): boolean;
     withBundle<T>(name: ClientLazyBundleName, fn: () => T): T | Promise<Awaited<T>>;
+    withLatestRender<T>(name: ClientLazyBundleName, render: () => T): T | undefined | Promise<Awaited<T> | undefined>;
     prefetchLazyBundles(options?: { delayMs?: number }): void;
     installMobileViewportGuards(): void;
     installDayRolloverWatcher(): void;

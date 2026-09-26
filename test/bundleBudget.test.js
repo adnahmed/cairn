@@ -10,8 +10,11 @@ import {
   eagerTotals,
   evaluateBudget,
   evaluateEagerBudget,
+  eagerScriptsFromIndex,
   formatDelta,
+  unbudgetedEagerScripts,
 } from "../scripts/check-bundle-budget.mjs";
+import { BUNDLES } from "../scripts/build-client.mjs";
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
 
@@ -102,7 +105,7 @@ test("the eager totals sum what the first open downloads, and fail past their fi
   assert.equal(totals.js.brotli, 190_000, "a lazy bundle is not part of the first open");
   assert.equal(totals.styles.brotli, 60_000);
 
-  const budget = budgetFromMeasurements(files);
+  const budget = budgetFromMeasurements(files, BUDGET_MARGIN, { js: { brotli: 200 * 1024 }, styles: { brotli: 70 * 1024 } });
   assert.deepEqual(budget.eager, { js: { brotli: 200 * 1024 }, styles: { brotli: 70 * 1024 } });
   assert.deepEqual(evaluateEagerBudget(files, budget).failures, []);
 
@@ -116,6 +119,27 @@ test("the eager totals sum what the first open downloads, and fail past their fi
 
 test("the checked-in eager ceilings hold the first open to the per-screen load-time targets", () => {
   const budget = JSON.parse(read("scripts/bundle-budget.json"));
-  assert.ok(budget.eager.js.brotli <= DEFAULT_EAGER_BUDGET.js.brotli, "eager JS stays at or under 200 KB brotli");
+  assert.ok(budget.eager.js.brotli <= DEFAULT_EAGER_BUDGET.js.brotli, "eager JS stays at or under 220 KB brotli");
+  assert.ok(DEFAULT_EAGER_BUDGET.js.brotli <= 220 * 1024);
   assert.ok(budget.eager.styles.brotli <= 85 * 1024, "the stylesheet stays at or under 85 KB brotli");
+});
+
+test("the eager JS total counts every script index.html loads, not only the bundles", () => {
+  const html = `<script src="/art.js" defer></script>
+    <script src="/js/bundle-01-core.js?v=1" defer></script>
+    <script>inline()</script>
+    <script src="https://cdn.example/x.js"></script>`;
+  assert.deepEqual(eagerScriptsFromIndex(html), ["public/art.js", "public/js/bundle-01-core.js"]);
+  const onlyBundles = [{ output: "public/js/bundle-01-core.js", lazy: null, raw: 1, brotli: 1 }];
+  const missing = unbudgetedEagerScripts(html, onlyBundles);
+  assert.equal(missing.length, 1);
+  assert.match(missing[0], /public\/art\.js eagerly but the eager JS total does not count it/);
+  // A LAZY bundle loaded eagerly would be undercounted too.
+  assert.equal(unbudgetedEagerScripts(html, [{ ...onlyBundles[0], lazy: "x" }, { output: "public/art.js", lazy: null }]).length, 1);
+
+  // The real index.html: every eager script is measured as eager.
+  const real = budgetedOutputs(BUNDLES).map((b) => ({ output: b.output, lazy: b.lazy ?? null }));
+  assert.deepEqual(unbudgetedEagerScripts(read("public/index.html"), real), []);
+  const listed = eagerScriptsFromIndex(read("public/index.html"));
+  assert.ok(listed.includes("public/art.js") && listed.includes("public/cairn-body-figure.js"));
 });

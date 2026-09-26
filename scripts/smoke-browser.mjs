@@ -14,7 +14,7 @@ import { serverEntry, sleep, withServer } from "./smoke-server.mjs";
 const SMOKE_NAME = "browser";
 const NAV_TIMEOUT_MS = 20000;
 const SETTLE_MS = 600;
-const WORKFLOW_COUNT = 13;
+const WORKFLOW_COUNT = 14;
 
 // Five homes (v2 wave 5): Today / Train / Horizon / Ask / You. `tab` is the VIEW
 // (window.state.tab); `home` is the lit tab-bar button. Every v1 path is rewritten
@@ -343,6 +343,49 @@ async function navigateAndHydrate(cdp, base, path, tab) {
   await loaded;
   await waitForHydration(cdp, tab);
   await sleep(SETTLE_MS);
+}
+
+// The idle warm-up executes every lazy bundle ~1.5 s after load, so the route pass
+// above can be satisfied by the warm-up rather than by the navigation path. This
+// pass boots with the warm-up OFF (CAIRN_NO_WARMUP) and proves a tab switch onto a
+// COLD bundle injects it, paints the destination, and never double-injects.
+async function smokeColdTabNavigation(cdp, base) {
+  const { failures, off } = collectFailures(cdp, base);
+  const { identifier } = await cdp.command("Page.addScriptToEvaluateOnNewDocument", {
+    source: "window.CAIRN_NO_WARMUP = true;",
+  });
+  try {
+    await navigateAndHydrate(cdp, base, "/app/today", "today");
+    await sleep(2500); // well past the warm-up's delay: nothing may have loaded itself
+    const cold = await evaluate(cdp, `[...document.querySelectorAll("script[data-cairn-bundle]")].map((s) => s.dataset.cairnBundle)`);
+    ok(Array.isArray(cold) && cold.length === 0, "with the warm-up off, no lazy bundle loads on its own", JSON.stringify(cold));
+    const hops = [
+      { home: "train", tab: "progress", bundles: ["train"] },
+      { home: "horizon", tab: "horizon", bundles: ["horizon", "train"] },
+      { home: "ask", tab: "chat", bundles: ["ask"] },
+    ];
+    for (const hop of hops) {
+      await evaluate(cdp, `(() => {
+        const btn = document.querySelector('.tabbar .tab[data-tab="${hop.home}"]');
+        if (!btn) throw new Error("missing the ${hop.home} home");
+        btn.click();
+        return true;
+      })()`);
+      await waitForCondition(cdp, `a tap on the cold ${hop.home} home paints its destination`, `(() => {
+        const view = document.querySelector("#view");
+        return {
+          ok: Boolean(window.state?.tab === "${hop.tab}" && view && view.textContent.trim().length > 0 &&
+            document.querySelector('script[data-cairn-bundle="${hop.bundles[0]}"][data-cairn-bundle-loaded="1"]')),
+          tab: window.state && window.state.tab
+        };
+      })()`);
+      for (const name of hop.bundles) await assertLazyBundle(cdp, name, `cold tap on ${hop.home}`);
+    }
+    ok(failures.length === 0, "cold tab navigation has no browser runtime/load errors", failures.join("\n"));
+  } finally {
+    await cdp.command("Page.removeScriptToEvaluateOnNewDocument", { identifier });
+    off();
+  }
 }
 
 async function smokeTodayAddExercise(cdp, base) {
@@ -1448,6 +1491,7 @@ try {
   cdp = await newPage(chrome);
   await withServer({ label: SMOKE_NAME, authToken: "", portOffset: 2, extraEnv: { AGENTS_CONFIG: smokeAgents.file, CAIRN_SEED_DEMO: "1" } }, async (ctx) => {
     for (const route of routes) await smokeRoute(cdp, ctx.base, route);
+    await smokeColdTabNavigation(cdp, ctx.base);
     await smokeTodayAddExercise(cdp, ctx.base);
     await smokeChatAttachmentFocus(cdp, ctx.base);
     await smokeChatSendStreamReconnect(cdp, ctx.base);

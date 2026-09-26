@@ -167,41 +167,111 @@ test("withBundle runs synchronously when warm and after the load when cold", asy
   assert.deepEqual(calls, ["cold", "warm"]);
 });
 
-test("loading a bundle re-runs the boot registrations it carries", async () => {
+const settle = () => new Promise((r) => setImmediate(r));
+
+function reconnectEnv(extra = {}, newRegistrations = 1) {
   const calls = [];
   const env = loadLoader({
     registerAppJobReconnectors: () => {
       calls.push("register");
-      return 1;
+      return newRegistrations;
     },
     jobReconnect: async () => {
       calls.push("reconnect");
     },
+    ...extra,
   });
-  const pending = env.context.ensureBundle("ask");
+  return { env, calls };
+}
+
+test("a navigation into a bundle that brought a reconnector sweeps once, after it paints", async () => {
+  const { env, calls } = reconnectEnv();
+  const nav = env.context.withBundle("ask", () => {
+    calls.push("paint");
+  });
   assert.deepEqual(calls, [], "nothing runs before the script executes");
   env.scripts[0].fire("load");
-  await pending;
-  // The health_review reconnector lives on the Stand screen, so an in-flight
-  // review only reattaches once that bundle has landed.
-  assert.deepEqual(calls, ["register", "reconnect"]);
+  await nav;
+  await settle();
+  // The health_review reconnector lives on the Stand screen and reattaches only
+  // while its view is on screen, so the sweep follows the paint.
+  assert.deepEqual(calls, ["register", "paint", "reconnect"]);
+  // The owed sweep is paid once: a later visit costs no /agent-jobs round trip.
+  env.context.withBundle("ask", () => calls.push("paint"));
+  await settle();
+  assert.deepEqual(calls, ["register", "paint", "reconnect", "paint"]);
+});
+
+test("a sweep waits for an async destination render to settle", async () => {
+  const { env, calls } = reconnectEnv();
+  let finish;
+  const nav = env.context.withBundle("settings", () =>
+    new Promise((resolve) => {
+      finish = () => {
+        calls.push("painted");
+        resolve();
+      };
+    })
+  );
+  env.scripts[0].fire("load");
+  await settle();
+  assert.deepEqual(calls, ["register"], "the render has not landed yet");
+  finish();
+  await nav;
+  await settle();
+  assert.deepEqual(calls, ["register", "painted", "reconnect"]);
 });
 
 test("a bundle that registers no new reconnector costs no /agent-jobs sweep", async () => {
-  const calls = [];
-  const env = loadLoader({
-    registerAppJobReconnectors: () => {
-      calls.push("register");
-      return 0;
-    },
-    jobReconnect: async () => {
-      calls.push("reconnect");
-    },
-  });
-  const pending = env.context.ensureBundle("settings");
+  const { env, calls } = reconnectEnv({}, 0);
+  const nav = env.context.withBundle("settings", () => calls.push("paint"));
   env.scripts[0].fire("load");
-  await pending;
-  assert.deepEqual(calls, ["register"]);
+  await nav;
+  await settle();
+  assert.deepEqual(calls, ["register", "paint"]);
+});
+
+// The regression this guards: the idle warm-up loaded me-health on Today and ran
+// the one reconnect sweep there, where the health_review reconnector (which only
+// reattaches on the Health read view) found nothing. The later tap into Health was
+// warm — no load, no sweep — so a running review never reattached, and every open
+// paid a second /agent-jobs round trip for nothing.
+test("the idle warm-up never sweeps; the first navigation into the warmed bundle does", async () => {
+  const idle = [];
+  const timers = [];
+  const { env, calls } = reconnectEnv({
+    requestIdleCallback: (cb) => idle.push(cb),
+    setTimeout: (cb) => timers.push(cb),
+    navigator: {},
+  });
+  env.context.prefetchLazyBundles();
+  timers.shift()();
+  while (idle.length) {
+    idle.shift()();
+    for (const s of env.scripts) if (s.dataset.cairnBundleLoaded !== "1") s.fire("load");
+    await settle();
+  }
+  assert.equal(env.context.bundleLoaded("me-health"), true, "the warm-up executed me-health");
+  assert.equal(calls.includes("reconnect"), false, "no /agent-jobs sweep at warm-up time");
+
+  // Later, the athlete opens Health: warm, so it paints synchronously — and the
+  // sweep it is owed follows, now that the Health view is on screen.
+  const out = env.context.withBundle("me-health", () => {
+    calls.push("paint-health");
+    return "health";
+  });
+  assert.equal(out, "health", "a warm destination still paints inside the caller's turn");
+  await settle();
+  assert.deepEqual(calls.slice(-2), ["paint-health", "reconnect"]);
+  assert.equal(calls.filter((c) => c === "reconnect").length, 1);
+});
+
+test("CAIRN_NO_WARMUP keeps every bundle cold for the browser smoke's navigation pass", () => {
+  const timers = [];
+  const env = loadLoader({ setTimeout: (cb) => timers.push(cb), navigator: {}, CAIRN_NO_WARMUP: true });
+  env.context.prefetchLazyBundles();
+  assert.equal(timers.length, 0);
+  assert.equal(env.scripts.length, 0);
 });
 
 test("the idle warm-up executes every lazy bundle one at a time, once", async () => {

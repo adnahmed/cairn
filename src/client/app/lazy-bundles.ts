@@ -48,23 +48,36 @@ type CairnLazyBundleName = ClientLazyBundleName;
   const executed = new Set<CairnLazyBundleName>();
 
   // A lazily-loaded bundle can bring boot-time registrations with it (the
-  // health_review job reconnector lives on the Stand screen). Re-run the app's
-  // idempotent registration pass, and — only when that registered something new —
-  // one reconnect sweep, so an in-flight review still reattaches on the surface
-  // that owns it without every idle warm-up costing an /agent-jobs round trip.
-  function afterBundleLoaded(): void {
-    const root = globalThis as {
-      registerAppJobReconnectors?: () => unknown;
-      jobReconnect?: () => Promise<void>;
-    };
+  // health_review job reconnector lives on the Stand screen). Loading re-runs the
+  // app's idempotent registration pass; when that registered something new, the
+  // bundle OWES one reconnect sweep. The sweep is paid by the first NAVIGATION
+  // into the bundle (withBundle), after that destination has painted — never at
+  // load time. A reconnector only reattaches while its own view is on screen, so a
+  // sweep run by the idle warm-up (on Today, say) found nothing, used up the one
+  // chance, and cost every open an extra /agent-jobs round trip.
+  const sweepOwed = new Set<CairnLazyBundleName>();
+
+  function afterBundleLoaded(name: CairnLazyBundleName): void {
+    const root = globalThis as { registerAppJobReconnectors?: () => unknown };
     let added: unknown;
     try {
       added = root.registerAppJobReconnectors?.();
     } catch {}
-    if (added === 0) return;
-    try {
-      void root.jobReconnect?.();
-    } catch {}
+    if (added !== 0) sweepOwed.add(name);
+  }
+
+  // Pay any sweep `name`'s closure owes, once `painted` (the destination's render)
+  // has settled, so the reconnector finds its view on screen.
+  function settleOwedSweep(name: CairnLazyBundleName, painted: unknown): void {
+    const owed = closure(name).filter((n) => sweepOwed.has(n));
+    if (!owed.length) return;
+    for (const n of owed) sweepOwed.delete(n);
+    const reconnect = (globalThis as { jobReconnect?: () => Promise<void> }).jobReconnect;
+    if (typeof reconnect !== "function") return;
+    void Promise.resolve(painted)
+      .catch(() => {})
+      .then(() => reconnect())
+      .catch(() => {});
   }
 
   function injectBundle(name: CairnLazyBundleName, src: string): Promise<void> {
@@ -113,7 +126,7 @@ type CairnLazyBundleName = ClientLazyBundleName;
     if (pending) return pending;
     const promise = injectBundle(name, LAZY_BUNDLE_SRC[name]).then(() => {
       executed.add(name);
-      afterBundleLoaded();
+      afterBundleLoaded(name);
     });
     inflight.set(name, promise);
     return promise;
@@ -159,8 +172,13 @@ type CairnLazyBundleName = ClientLazyBundleName;
    * did when the bundle was eager; only a cold one waits on the load.
    */
   function withBundle<T>(name: CairnLazyBundleName, fn: () => T): T | Promise<Awaited<T>> {
-    if (bundleLoaded(name)) return fn();
-    return ensureBundle(name).then(() => fn() as Awaited<T>);
+    const run = (): T => {
+      const painted = fn();
+      settleOwedSweep(name, painted);
+      return painted;
+    };
+    if (bundleLoaded(name)) return run();
+    return ensureBundle(name).then(() => run() as Awaited<T>);
   }
 
   // Warm every lazy bundle one idle slot at a time after the first paint, so the
@@ -168,12 +186,17 @@ type CairnLazyBundleName = ClientLazyBundleName;
   // were eager. Executing (not just fetching) is the point: the parse is what a
   // tap would otherwise wait on. Skipped on Save-Data; a failed warm-up is silent
   // (the navigation that needs the bundle retries and shows its own error state).
+  // The warm-up goes through ensureBundle, never withBundle, so it never pays a
+  // reconnect sweep: that waits for the athlete to actually open the destination.
   let prefetchStarted = false;
   function prefetchLazyBundles(options: { delayMs?: number } = {}): void {
     if (prefetchStarted || typeof document === "undefined") return;
     prefetchStarted = true;
-    const nav = (globalThis as { navigator?: { connection?: { saveData?: boolean } } }).navigator;
-    if (nav?.connection?.saveData) return;
+    const root = globalThis as { navigator?: { connection?: { saveData?: boolean } }; CAIRN_NO_WARMUP?: unknown };
+    if (root.navigator?.connection?.saveData) return;
+    // The browser smoke sets this for one pass so a tab switch onto a COLD bundle is
+    // proven through the navigation path, not satisfied by the warm-up.
+    if (root.CAIRN_NO_WARMUP === true) return;
     const idle = (cb: () => void) => {
       const ric = (globalThis as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => unknown })
         .requestIdleCallback;

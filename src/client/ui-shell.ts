@@ -110,8 +110,9 @@ function gotoChatWith(text: string): void {
   if (typeof highlightHome === "function") highlightHome("chat");
   document.body.dataset.tab = "chat"; // keep the header's Today-scoped styling off
   if (typeof syncRouteFromState === "function") syncRouteFromState();
-  // The thread lives in the lazy ask bundle; withBundle awaits it on a cold tap.
-  void withBundle("ask", () =>
+  // The thread lives in the lazy ask bundle; a cold tap awaits it, and a newer
+  // paint of #view in the meantime (the athlete moved on) wins.
+  void withLatestRender("ask", () =>
     Promise.resolve(renderChat()).then(() => {
       const i = $<HTMLTextAreaElement>("#chatInput");
       if (i) { i.value = text; autosizeChatInput(i); i.focus(); }
@@ -151,23 +152,25 @@ function uiSegmentsDeps(): UiSegmentsDeps {
     addResizeListener: (listener) => window.addEventListener("resize", listener),
     // Train's views and the plan editor ride the lazy train bundle, the race view
     // the lazy horizon bundle (app/lazy-bundles.ts, defined by a later bundle and
-    // reached at call time). Warm, withBundle calls straight through.
-    renderTrainOverview: () => withBundle("train", () => renderTrainOverview()),
-    renderProgress: () => withBundle("train", () => renderProgress()),
-    renderVolume: () => withBundle("train", () => renderVolume()),
-    renderEndurance: () => withBundle("train", () => renderEndurance()),
-    renderWeight: () => withBundle("train", () => renderWeight()),
-    renderMeasurements: () => withBundle("train", () => renderMeasurements()),
-    renderCalendar: () => withBundle("train", () => renderCalendar()),
-    renderHistory: () => withBundle("train", () => renderHistory()),
-    renderProgram: () => withBundle("train", () => renderProgram()),
-    renderIntake: () => withBundle("train", () => renderIntake()),
-    renderEnergy: () => withBundle("train", () => renderEnergy()),
-    renderPlanEditor: () => withBundle("train", () => renderPlanEditor()),
-    renderPlanEndurance: () => withBundle("horizon", () => renderPlanEndurance()),
+    // reached at call time). Warm, they call straight through; cold, a segment tap
+    // paints only if no newer paint of #view (a tab switch) has claimed it since
+    // (withLatestRender, app/render-dispatch.ts).
+    renderTrainOverview: () => withLatestRender("train", () => renderTrainOverview()),
+    renderProgress: () => withLatestRender("train", () => renderProgress()),
+    renderVolume: () => withLatestRender("train", () => renderVolume()),
+    renderEndurance: () => withLatestRender("train", () => renderEndurance()),
+    renderWeight: () => withLatestRender("train", () => renderWeight()),
+    renderMeasurements: () => withLatestRender("train", () => renderMeasurements()),
+    renderCalendar: () => withLatestRender("train", () => renderCalendar()),
+    renderHistory: () => withLatestRender("train", () => renderHistory()),
+    renderProgram: () => withLatestRender("train", () => renderProgram()),
+    renderIntake: () => withLatestRender("train", () => renderIntake()),
+    renderEnergy: () => withLatestRender("train", () => renderEnergy()),
+    renderPlanEditor: () => withLatestRender("train", () => renderPlanEditor()),
+    renderPlanEndurance: () => withLatestRender("horizon", () => renderPlanEndurance()),
     renderFoodJournal: () => renderFoodJournal(),
     renderMeals: () => renderMeals(),
-    renderCoach: () => withBundle("ask", () => renderCoach()),
+    renderCoach: () => withLatestRender("ask", () => renderCoach()),
   };
 }
 

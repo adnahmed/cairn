@@ -13,12 +13,15 @@
 // review signal, like the style ratchet's baseline). `--report` also lists each
 // bundle's largest inputs, which is how you see what a lazy split would move.
 //
-// The render-blocking stylesheet (`public/styles.css`, built from src/styles/**) rides
-// the same budget as a non-bundle asset (`BUDGETED_ASSETS`), so CSS growth is a review
-// signal too.
+// The render-blocking stylesheet (`public/styles.css`, built from src/styles/**) and the
+// two SVG libraries index.html loads next to the bundles (`public/art.js`,
+// `public/cairn-body-figure.js`) ride the same budget as non-bundle assets
+// (`BUDGETED_ASSETS`), so their growth is a review signal too.
 //
 // On top of the per-file ceilings sit two EAGER totals (`eager` in the budget file):
-// the brotli bytes of every bundle index.html loads, and of the stylesheet. They are
+// the brotli bytes of every script index.html loads, and of the stylesheet. The check
+// reads index.html's own <script src> list and fails on any eager script it does not
+// budget, so the total cannot silently undercount what the first open downloads. They are
 // fixed design limits for the first open (the athlete's per-screen load-time ask),
 // not re-measured by `--update`: per-file headroom may never add up past them.
 //
@@ -37,14 +40,41 @@ const BUDGET_FILE = "scripts/bundle-budget.json";
 /** Headroom above the measured size when a budget is (re)set: 3%, rounded up to a whole KiB. */
 export const BUDGET_MARGIN = 0.03;
 const KIB = 1024;
-/** Served assets outside BUNDLES that are budgeted the same way: the stylesheet every page blocks on. */
-export const BUDGETED_ASSETS = [{ output: "public/styles.css", lazy: null, inputs: [] }];
+/**
+ * Served assets outside BUNDLES that are budgeted the same way: the stylesheet every
+ * page blocks on, and the two SVG libraries index.html loads eagerly beside the bundles.
+ */
+export const BUDGETED_ASSETS = [
+  { output: "public/styles.css", lazy: null, inputs: [] },
+  { output: "public/art.js", lazy: null, inputs: [] },
+  { output: "public/cairn-body-figure.js", lazy: null, inputs: [] },
+];
 
 /**
  * Default eager totals (brotli bytes) for a budget file that has none yet. Eager JS:
- * every non-lazy bundle; styles: the render-blocking stylesheet.
+ * every script index.html loads (the non-lazy bundles plus art.js and the body
+ * figure); styles: the render-blocking stylesheet.
  */
-export const DEFAULT_EAGER_BUDGET = { js: { brotli: 200 * KIB }, styles: { brotli: 70 * KIB } };
+export const DEFAULT_EAGER_BUDGET = { js: { brotli: 220 * KIB }, styles: { brotli: 70 * KIB } };
+
+/** The `public/...` path of every same-origin <script src> in index.html, in order. */
+export function eagerScriptsFromIndex(html) {
+  const out = [];
+  for (const match of String(html).matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)) {
+    const src = match[1].split(/[?#]/)[0];
+    if (!src.startsWith("/") || src.startsWith("//")) continue;
+    out.push(`public${src}`);
+  }
+  return out;
+}
+
+/** Failures for eager scripts index.html loads that the budget does not measure as eager. */
+export function unbudgetedEagerScripts(html, measurements) {
+  const eager = new Set(measurements.filter((m) => !m.lazy).map((m) => m.output));
+  return eagerScriptsFromIndex(html)
+    .filter((output) => !eager.has(output))
+    .map((output) => `index.html loads ${output} eagerly but the eager JS total does not count it — add it to BUDGETED_ASSETS`);
+}
 
 /** Brotli totals of what the first open downloads: eager bundles, and the stylesheet. */
 export function eagerTotals(measurements) {
@@ -282,6 +312,7 @@ async function main() {
   const { rows, failures } = evaluateBudget(measurements, budget);
   const eager = evaluateEagerBudget(measurements, budget);
   failures.push(...eager.failures);
+  failures.push(...unbudgetedEagerScripts(readFileSync(path.join(root, "public/index.html"), "utf8"), measurements));
   const eagerRaw = measurements.filter((m) => !m.lazy).reduce((sum, m) => sum + m.raw, 0);
   const eagerBrotli = measurements.filter((m) => !m.lazy).reduce((sum, m) => sum + m.brotli, 0);
   const eagerLine =

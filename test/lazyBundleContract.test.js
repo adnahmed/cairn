@@ -28,7 +28,7 @@ const GLOBAL_ROOT = /^(globalThis|window|self)$/;
 // Eager call sites that reach a lazy global outside withBundle, each reviewed:
 // the surrounding code only runs once that bundle's own surface is on screen.
 const REVIEWED = {
-  // renderCoach is only ever entered through withBundle("ask") (dispatcher + segment deps).
+  // renderCoach is only ever entered through the ask bundle (dispatcher lazy() + segment deps' withLatestRender).
   "06-coach-meals.js": ["CairnAskCardController", "CairnChangesFeedController"],
   // reconnectProposal reaches these only while horizon's #endDraftStatus is in #view.
   "coach-proposal-controller.js": ["enduranceComposerLock", "enduranceProposalOpOpts"],
@@ -115,13 +115,13 @@ function runsAtLoad(node) {
   return true;
 }
 
-/** The bundle a withBundle(...)/lazy(...)/ensureBundle(...).then(...) around `node` waits for, if any. */
+/** The bundle a withBundle(...)/withLatestRender(...)/lazy(...)/ensureBundle(...).then(...) around `node` waits for, if any. */
 function routedBundle(node) {
   for (let p = node.parent; p; p = p.parent) {
     if (!ts.isCallExpression(p)) continue;
     const callee = p.expression.getText();
     const arg = p.arguments[0];
-    if ((callee === "withBundle" || callee === "lazy") && arg && ts.isStringLiteral(arg) && p.arguments[1] && node.pos >= p.arguments[1].pos) {
+    if ((callee === "withBundle" || callee === "withLatestRender" || callee === "lazy") && arg && ts.isStringLiteral(arg) && p.arguments[1] && node.pos >= p.arguments[1].pos) {
       return arg.text;
     }
   }

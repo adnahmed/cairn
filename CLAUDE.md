@@ -83,7 +83,8 @@ marked `lazy: "<name>"` in `BUNDLES` (`scripts/build-client.mjs`) — Train, Hor
 Me/Health — is injected on first navigation by `ensureBundle`/`withBundle`
 (`src/client/app/lazy-bundles.ts`), warmed on idle, and still precached. So eager code reaches a lazy
 global ONLY through `withBundle(name, fn)` (or a `typeof` guard), never at top level —
-`test/lazyBundleContract.test.js` enforces it. A job-reconnector factory must stay eager.
+`test/lazyBundleContract.test.js` enforces it. A job-reconnector factory in a lazy bundle is swept by
+the first NAVIGATION into it (`withBundle`), never by the idle warm-up, which runs off its view.
 
 **`public/js/*.js` is generated** from `src/client/**/*.ts` by `npm run client:build`; the only
 hand-written file there is the `10-boot.js` shim. Never hand-edit generated output. `public/styles.css` is

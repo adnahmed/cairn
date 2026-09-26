@@ -185,6 +185,30 @@ test("a deferred lazy render is dropped when a newer navigation happened meanwhi
   assert.equal(env.calls.at(-1)[0], "renderToday");
 });
 
+test("a cold segment render is dropped when the athlete switched home meanwhile", async () => {
+  // A Train segment tap (or the chat hand-off) waiting on a cold bundle must not
+  // paint over the home the athlete moved to while it loaded.
+  const env = loadRenderDispatch();
+  let painted = false;
+  const segment = env.context.withLatestRender("train", () => {
+    painted = true;
+  });
+  env.context.renderTab("today");
+  await segment;
+  assert.equal(painted, false);
+  assert.equal(env.calls.at(-1)[0], "renderToday");
+});
+
+test("a segment render claims #view: an older deferred tab render is dropped", async () => {
+  const env = loadRenderDispatch({ warm: ["ask"] });
+  const slow = env.context.renderTab("horizon");
+  const out = env.context.withLatestRender("ask", () => "chat");
+  assert.equal(out, "chat", "warm: runs synchronously and returns the render");
+  await slow;
+  assert.equal(env.calls.some(([kind]) => kind === "renderHorizon"), false);
+  assert.equal(typeof env.context.window.withLatestRender, "function");
+});
+
 // Stand and Me live in the lazily-injected me-health bundle. The dispatcher must
 // wait for it rather than calling into globals that do not exist yet, and a
 // failed injection must surface as a rejected render (switchTab's error state)

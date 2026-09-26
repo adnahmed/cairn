@@ -1005,8 +1005,10 @@ are allowed to shrink but never to grow, and each is split when a wave touches i
 Each served bundle, and the render-blocking `public/styles.css`, also has a **byte budget**, raw and
 brotli, in `scripts/bundle-budget.json`,
 set 3% (rounded up to a whole KiB) above its size when last measured. On top sit two fixed **eager
-ceilings** for the first open: every bundle `index.html` loads at most **200 KB brotli** together,
-the stylesheet at most **70 KB brotli**; `--update` never raises them. `npm run verify` fails when a
+ceilings** for the first open: every script `index.html` loads (the eager bundles plus `art.js` and
+`cairn-body-figure.js`, which carry per-file budgets too) at most **220 KB brotli** together, the
+stylesheet at most **70 KB brotli**; `--update` never raises them, and the check fails on an eager
+`<script>` in `index.html` it does not count. `npm run verify` fails when a
 built bundle grows past either number and prints how far over it is and how much it grew since the
 budget was set. Before raising one, try moving the heavy surface into a lazy bundle. If the growth
 is deliberate, run `npm run build`, then `node scripts/check-bundle-budget.mjs --update`, and commit
