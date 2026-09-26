@@ -54,7 +54,9 @@ async function renderWeight() {
   }).catch(() => {});
   // Best-effort goal-pace overlay; a missing endpoint leaves the Weight view
   // exactly as it was (it never throws into the render path).
-  api("/nutrition/goal-pace?days=90")
+  // A cold paint waits (bounded) for it, since it mounts ABOVE the hero and landing
+  // late pushed the whole view down.
+  const goalPaceRead = api("/nutrition/goal-pace?days=90")
     .then((gp) => {
       goalPace = gp;
       mountGoalPaceChart(token, goalPace);
@@ -68,7 +70,9 @@ async function renderWeight() {
     key: "progress:weight",
     onUpgrade: (rows, { changed }) => {
       if (peekRows && !peekRows.fresh) markRefreshing(false);
-      if (changed || !peekRows) skelSwap(() => paint(rows, profile));
+      if (peekRows) {
+        if (changed) skelSwap(() => paint(rows, profile));
+      } else void settledWithin([goalPaceRead], 1500).then(() => skelSwap(() => paint(rows, profile)));
     },
   }).catch(() => {
     if (peekRows && !peekRows.fresh) markRefreshing(false);
