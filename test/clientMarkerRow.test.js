@@ -83,6 +83,34 @@ test("a lab flag alone carries no optimal phrase, and an optimal miss alone no f
   assert.equal(optOnly.querySelector(".hmk-opt").textContent, "above optimal");
 });
 
+test("a week-basis wearable marker takes its side from the week, never one night", () => {
+  const win = load();
+  // The week's mean sits below the band (the status), last night above it.
+  const weekly = {
+    name: "Synthetic HRV",
+    unit: "ms",
+    source: "wearable",
+    latest: { value: 70, date: "2031-09-21", flag: null },
+    optimal: { low: 44, high: 54, dir: "low" },
+    in_optimal: false,
+    status_basis: "week",
+    status_note: "this week's average (6 nights)",
+    trend_window: { value: 38, nights: 6 },
+    points: [
+      { value: 36, date: "2031-09-20" },
+      { value: 70, date: "2031-09-21" },
+    ],
+  };
+  const host = row(win, weekly);
+  assert.equal(host.querySelector(".hmk-opt").textContent, "below optimal");
+  const ask = win.CairnHealthMarkers.markerAskQuestion(weekly);
+  assert.match(ask, /38 ms on average this week, below optimal/);
+  assert.doesNotMatch(ask, /\b70\b/, "the one night is never quoted as the status");
+  // No week mean to judge a side from: the plain phrase, never a guess off the night.
+  const noMean = row(win, { ...weekly, trend_window: null });
+  assert.equal(noMean.querySelector(".hmk-opt").textContent, "outside optimal");
+});
+
 test("a value outside the lab's printed range reads as the lab mark even without a flag", () => {
   const win = load();
   const host = row(win, {

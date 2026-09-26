@@ -40,6 +40,24 @@ const DEXA = {
 };
 const REVIEW = { signal_key: "review:x", label: "A review", kind: "review", next_due: null, when_text: null, why: "…" };
 
+test("a joined label or the DEXA label stands on its own, never spliced mid-sentence", () => {
+  const win = load();
+  const E = win.CairnEvidenceWanted;
+  const several = { ...LAB, label: "Synthetic A, Synthetic B and 2 more" };
+  assert.equal(
+    E.text(E.model(checkup([several]))),
+    "Synthetic A, Synthetic B and 2 more: a fresh read would sharpen the team's picture (window is open)."
+  );
+  const dexa = { ...DEXA, label: "Body composition (DEXA)", when_text: "worth considering around Mar 3–Mar 17" };
+  assert.equal(
+    E.text(E.model(checkup([dexa]))),
+    "Body composition (DEXA): a fresh scan would sharpen the team's picture (worth considering around Mar 3–Mar 17)."
+  );
+  for (const line of [E.text(E.model(checkup([several]))), E.text(E.model(checkup([dexa])))]) {
+    assert.doesNotMatch(line, /more reading|fresh [A-Z]/, "no singular noun after a list, no capital mid-sentence");
+  }
+});
+
 test("one line for the first recheck or rescan whose window is open; reviews are not evidence", () => {
   const win = load();
   const E = win.CairnEvidenceWanted;
@@ -53,10 +71,13 @@ test("one line for the first recheck or rescan whose window is open; reviews are
   assert.equal(lines.length, 1, "a single line, never a list");
   assert.equal(
     host.querySelector(".evw-text").textContent,
-    "A fresh Synthetic Marker A reading would sharpen the team's read (window is open)."
+    "Synthetic Marker A: a fresh read would sharpen the team's picture (window is open)."
   );
   assert.doesNotMatch(host.textContent, /overdue|must|should|urgent|\d+\s*\/\s*\d+/i, "calm words, no nag, no score");
-  assert.equal(E.text(E.model(checkup([DEXA]))), "A fresh DEXA body composition scan would sharpen the team's read.");
+  assert.equal(
+    E.text(E.model(checkup([DEXA]))),
+    "DEXA body composition: a fresh scan would sharpen the team's picture."
+  );
   assert.equal(E.lineHtml(null), "");
 });
 

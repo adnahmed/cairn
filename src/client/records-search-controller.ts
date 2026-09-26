@@ -2,12 +2,13 @@
 // records-search, the controller (docs/V2-PLAN.md wave 3). `mount(host, deps)` paints
 // the controls once, then the marker catalog grouped by the chosen mode:
 //   - markers load through SWR (`markers:priority`, the same key as the older Health
-//     tab — one cache per fact), painted from `deps.seed` or a warm peek first, the
+//     tab — one cache per fact), painted from `deps.seed` (else a warm peek) first, the
 //     skeleton only on a true cold start, and repainted only when the result changed;
 //   - typing narrows the markers locally on every keystroke (focus never leaves the
 //     field), and, when `deps.searchRecords` is on, asks the server search for the
 //     documents, visit notes and body readings the catalog doesn't hold (debounced;
-//     a stale answer is dropped, a failure is one calm line);
+//     a stale answer is dropped, a 404 shows nothing, any other failure is one calm
+//     line; a mode switch asks again under the new mode);
 //   - the grouping mode is a per-viewer preference (`cairn.records.group`).
 // Rows expand in place; "Ask the coach", a row's directive line, a hit and the empty
 // state's "Add labs" hand off to `deps`. Returns the teardown.
@@ -79,8 +80,9 @@
 
     function load(): Promise<void> {
       const gen = ++generation;
-      const warm = catalog(deps.peekCached(KEY)?.data);
-      if (warm) data = warm;
+      // The screen's seed is the freshest snapshot there is (Stand refreshes it after an
+      // upload); a warm SWR peek only stands in when there is no seed at all.
+      if (!data) data = catalog(deps.peekCached(KEY)?.data);
       if (data) paintResults();
       else if (results) results.innerHTML = CairnRecordsSearch.skeletonHtml();
       return deps
@@ -117,13 +119,19 @@
       let res: unknown;
       try {
         res = await deps.api(CairnRecordsSearchModel.searchPath(needle, mode));
-      } catch {
-        if (gen === searchGen) paintOther({ status: "error", items: [] });
+      } catch (err) {
+        // api() throws on every non-2xx. A 404 means this server has no records search
+        // (an older build): nothing else to show, not a failure line.
+        if (gen === searchGen) paintOther({ status: notFound(err) ? "idle" : "error", items: [] });
         return;
       }
       if (gen !== searchGen) return;
       const items = CairnRecordsSearchModel.otherItems(res);
       paintOther(items ? { status: "done", items } : { status: "idle", items: [] });
+    }
+
+    function notFound(err: unknown): boolean {
+      return !!err && typeof err === "object" && (err as { status?: unknown }).status === 404;
     }
 
     function scheduleOther(): void {
@@ -161,6 +169,8 @@
         if (on) seg?.style.setProperty("--segi", String(i));
       });
       paintResults(true);
+      // The server search takes the mode too, so a showing query is asked again under it.
+      if (q.trim()) scheduleOther();
     }
 
     function toggleRow(btn: HTMLElement): void {

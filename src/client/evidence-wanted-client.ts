@@ -27,9 +27,12 @@
     return null;
   }
 
+  // The label leads and stands on its own: the server hands a finished name, a joined
+  // list ("LDL, ApoB and 2 more") or the DEXA label, so it is never spliced mid-sentence
+  // (where its number and capitals would read machine-assembled).
   function text(m: Model): string {
-    const what = m.kind === "dexa" ? `A fresh ${m.label} scan` : `A fresh ${m.label} reading`;
-    return `${what} would sharpen the team's read${m.when ? ` (${m.when})` : ""}.`;
+    const what = m.kind === "dexa" ? "a fresh scan" : "a fresh read";
+    return `${m.label}: ${what} would sharpen the team's picture${m.when ? ` (${m.when})` : ""}.`;
   }
 
   /** The one line, or "" (the slot collapses when empty). */

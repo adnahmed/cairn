@@ -10,7 +10,7 @@
 // Wave 3 stream A) reaches the records the catalog doesn't hold — documents, visit
 // notes and body readings — through `searchPath`/`otherItems`, a small adapter that
 // accepts either a flat `results[]` (each with a `kind`) or per-kind arrays, and
-// returns null for anything else so a missing endpoint reads as "no other records".
+// returns null for anything else (a body that isn't a search result shows nothing).
 {
   type Mode = ClientRecordsMode;
   type Marker = ClientRecordsMarker;
@@ -18,8 +18,11 @@
   type Section = ClientRecordsSection;
   type Other = ClientRecordsOtherItem;
 
+  // Labels stay short: the sliding bar's thumb assumes three equal pills, and an
+  // uppercase tracked label wider than a third of a 360px screen would stretch its
+  // pill out from under the thumb. The mode leads with what is out of range.
   const MODES: ReadonlyArray<readonly [Mode, string]> = [
-    ["outrange", "Out of range first"],
+    ["outrange", "Out of range"],
     ["panel", "By panel"],
     ["newest", "Newest"],
   ];

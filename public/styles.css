@@ -6922,7 +6922,9 @@ body[data-tab="session"] .tabbar{display:none}
 .records-search .hmk-search-in{height:44px}
 .records-segwrap{position:static;margin:0;padding:0;background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 .records-seg{margin:0}
-.records-seg .segbtn{min-height:44px}
+/* The sliding thumb assumes equal pills: a label never widens its own (min-width:auto),
+   and a touch less tracking keeps "Out of range" whole in a third of a 360px screen. */
+.records-seg .segbtn{min-height:44px;min-width:0;overflow:hidden;text-overflow:ellipsis;letter-spacing:.05em}
 .records-status{margin:0 var(--space-1) var(--space-5);font-size:var(--text-xs);color:var(--muted)}
 .records-status:empty{display:none}
 .records-skel{padding:var(--space-2) var(--space-8) var(--space-8)}

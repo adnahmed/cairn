@@ -149,12 +149,21 @@ test("the server-search adapter takes flat or per-kind results and leaves marker
   ]);
   const keyed = M.otherItems({ body: [{ id: 3, label: "Waist", value: 80, unit: "cm", date: "2031-02-02" }] });
   assert.deepEqual(plain(keyed[0]), { kind: "body", id: "3", title: "Waist", date: "2031-02-02", detail: "80 cm" });
-  // A missing endpoint answers with an error body (api() resolves regardless of status).
+  // A body that isn't a search result shows nothing (a 404 never gets here: api() throws).
   assert.equal(M.otherItems({ error: "not found" }), null);
   assert.equal(M.otherItems(null), null);
 });
 
 // ---------- renderer ----------
+
+test("the sliding bar's labels fit three equal pills on a 360px screen", () => {
+  const win = load();
+  // Uppercase .68rem with .08em tracking runs ~8px a character; a third of a 360px
+  // screen, less the gutters and the bar's own padding, leaves room for about 12.
+  for (const [, label] of win.CairnRecordsSearchModel.MODES) {
+    assert.ok(label.length <= 12, `"${label}" fits its pill`);
+  }
+});
 
 test("the controls are one search field plus the grouping segmented control", () => {
   const win = load();
@@ -171,7 +180,7 @@ test("the controls are one search field plus the grouping segmented control", ()
   assert.deepEqual(
     buttons.map((b) => [b.dataset.recordsGroup, b.textContent, b.getAttribute("aria-pressed")]),
     [
-      ["outrange", "Out of range first", "false"],
+      ["outrange", "Out of range", "false"],
       ["panel", "By panel", "true"],
       ["newest", "Newest", "false"],
     ]
@@ -211,7 +220,13 @@ test("empty states: nothing yet says what fills it; no match offers to clear", (
 
 // ---------- controller ----------
 
-function harness({ seed = catalog(), fetchCatalog = () => catalog(), search = () => ({ results: [] }), storage } = {}) {
+function harness({
+  seed = catalog(),
+  fetchCatalog = () => catalog(),
+  search = () => ({ results: [] }),
+  storage,
+  peek = null,
+} = {}) {
   const win = load();
   const timers = createFakeTimers();
   const reads = [];
@@ -227,7 +242,7 @@ function harness({ seed = catalog(), fetchCatalog = () => catalog(), search = ()
       reads.push(path);
       return fetchCatalog();
     },
-    peekCached: () => null,
+    peekCached: () => peek,
     storage: storage ?? createStorage(),
     seed,
     searchRecords: true,
@@ -320,6 +335,50 @@ test("a superseded server answer is dropped, and a failed one is one calm line",
   release({ results: [{ kind: "document", id: 1, title: "Stale answer" }] });
   await flush();
   assert.doesNotMatch(h.host.textContent, /Stale answer/, "the older answer never paints");
+});
+
+test("a server without records search (a thrown 404) shows nothing extra, never the failure line", async () => {
+  const h = harness({
+    search: () => {
+      throw Object.assign(new Error("http: Not Found"), { kind: "http", status: 404 });
+    },
+  });
+  await flush();
+  const input = h.host.querySelector("[data-records-q]");
+  input.value = "ld";
+  await input.dispatchEvent(new h.win.Event("input", { bubbles: true }));
+  h.timers.tick(250);
+  await flush();
+  assert.equal(h.calls.length, 1);
+  assert.doesNotMatch(h.host.querySelector("[data-records-other]").textContent, /couldn't be searched/);
+  assert.equal(h.host.querySelectorAll("[data-records-open]").length, 0);
+});
+
+test("switching the grouping while a query shows asks the server again under the new mode", async () => {
+  const h = harness();
+  await flush();
+  const input = h.host.querySelector("[data-records-q]");
+  input.value = "tsh";
+  await input.dispatchEvent(new h.win.Event("input", { bubbles: true }));
+  h.timers.tick(250);
+  await flush();
+  await h.host.querySelector('[data-records-group="newest"]').click();
+  h.timers.tick(250);
+  await flush();
+  assert.deepEqual(h.calls, ["/records/search?q=tsh&group=out_of_range", "/records/search?q=tsh&group=newest"]);
+});
+
+test("the screen's seed outranks a warm SWR peek; the peek only stands in without one", async () => {
+  const stale = { markers: [mk("Synthetic Stale Marker")], groups: [] };
+  let release;
+  const pending = new Promise((resolve) => (release = resolve));
+  const seeded = harness({ peek: { data: stale }, fetchCatalog: () => pending });
+  assert.equal(seeded.host.querySelectorAll(".hmk").length, 6, "the fresher seed paints");
+  assert.doesNotMatch(seeded.host.textContent, /Synthetic Stale Marker/);
+  const cold = harness({ seed: null, peek: { data: stale }, fetchCatalog: () => pending });
+  assert.match(cold.host.textContent, /Synthetic Stale Marker/, "no seed: the warm peek paints at once");
+  release(catalog());
+  await flush();
 });
 
 test("a row expands in place and Ask the coach hands its grounded question over", async () => {

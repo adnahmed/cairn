@@ -1,17 +1,9 @@
 // @ts-check
 // Pure Health marker row/chart helpers for the vanilla PWA.
 
-type HealthMarkersPoint = {
-  value?: unknown;
-  date?: unknown;
-  flag?: unknown;
-};
+type HealthMarkersPoint = { value?: unknown; date?: unknown; flag?: unknown };
 
-type HealthMarkersBand = {
-  low?: unknown;
-  high?: unknown;
-  dir?: unknown;
-};
+type HealthMarkersBand = { low?: unknown; high?: unknown; dir?: unknown };
 
 type HealthMarkersRow = {
   key?: unknown;
@@ -35,6 +27,7 @@ type HealthMarkersRow = {
   // so `latest` is shown for reference but `in_optimal` is null — no status drawn from it.
   status_basis?: unknown;
   status_note?: unknown;
+  trend_window?: { value?: unknown } | null; // the week's mean a 'week' status was judged on
 };
 
 type HealthMarkersChartPoint = {
@@ -126,15 +119,16 @@ function offOptimalWord(marker: HealthMarkersRow | null | undefined): string {
 function markerAskQuestion(marker: HealthMarkersRow | null | undefined): string {
   const name = String(marker?.name || marker?.key || "this marker").replace(/\s+/g, " ").trim();
   const latest = marker?.latest || {};
-  const val = latest.value != null && latest.value !== ""
-    ? `${formatMarkerNumber(latest.value)}${marker?.unit ? ` ${String(marker.unit)}` : ""}`
-    : "";
+  const unit = marker?.unit ? ` ${String(marker.unit)}` : "";
+  const val = latest.value != null && latest.value !== "" ? `${formatMarkerNumber(latest.value)}${unit}` : "";
   const phrase = optimalPhrase(marker);
   if (markerOutOfRange(marker)) {
+    const week = marker?.status_basis === "week" ? statusValue(marker) : Number.NaN;
+    const status = Number.isFinite(week) ? `${formatMarkerNumber(week)}${unit} on average this week` : val;
     const side = optimalSideWord(marker);
     const where = side || (flaggedByLab(latest.flag) ? `flagged ${String(latest.flag).toLowerCase()}` : "outside its optimal range");
     const opt = phrase ? ` (optimal ${phrase})` : "";
-    return `Can you tell me about my ${name}? It's ${val ? `${val}, ` : ""}${where}${opt}. What's likely driving it, and what should I focus on to improve it?`;
+    return `Can you tell me about my ${name}? It's ${status ? `${status}, ` : ""}${where}${opt}. What's likely driving it, and what should I focus on to improve it?`;
   }
   return `Can you tell me about my ${name}${val ? ` — it's ${val}` : ""}? Is this something I should keep an eye on?`;
 }
@@ -213,12 +207,18 @@ function effectiveBand(marker: HealthMarkersRow | null | undefined):
   return null;
 }
 
-// Which side of the optimal band the latest value sits on, in plain words.
+// What the status was judged on: a 'week' wearable's mean (never one night), else the latest.
+function statusValue(marker: HealthMarkersRow | null | undefined): number {
+  const v = marker?.status_basis === "week" ? marker.trend_window?.value : marker?.latest?.value;
+  return v == null || v === "" ? Number.NaN : Number(v);
+}
+
+// Which side of the optimal band the STATUS sits on, in plain words ("" when unsaid).
 function optimalSideWord(marker: HealthMarkersRow | null | undefined): string {
   const band = marker?.optimal;
   const low = Number(band?.low);
   const high = Number(band?.high);
-  const value = Number(marker?.latest?.value);
+  const value = statusValue(marker);
   if (!band || !Number.isFinite(low) || !Number.isFinite(high) || !Number.isFinite(value)) return "";
   return value > high ? "above optimal" : value < low ? "below optimal" : "";
 }

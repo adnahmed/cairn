@@ -508,6 +508,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       if (DATA && priority && typeof priority === "object") {
         DATA.markers = Array.isArray(priority.markers) ? priority.markers : DATA.markers;
         DATA.groups = Array.isArray(priority.groups) ? priority.groups : DATA.groups;
+        swrSet("markers:priority", priority); // records-search's SWR copy stays as fresh as DATA
       }
     } catch {
       /* the overview simply repaints from the last snapshot */
@@ -824,11 +825,11 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   }
 
   // ---- domain detail + All markers — the records-search component ----------------
-  // A domain drill-in and the full catalog both mount records-search (search, the
-  // grouping modes, marker rows) into #standRecords; the full catalog also searches
-  // documents, visit notes and body readings, and carries the evidence-wanted line.
-  // Reading `localStorage` itself can throw where site data is blocked; the grouping
-  // preference and a dismissed evidence line are conveniences, so null just skips them.
+  // A drill-in and All markers mount records-search into #standRecords; All markers adds the
+  // evidence-wanted line, and searches documents, notes and body readings once
+  // RECORDS_SEARCH_LIVE is on (GET /api/records/search, stream A: flipped at integration, as
+  // api() reports every non-2xx). viewerStorage: `localStorage` can throw; null skips it.
+  const RECORDS_SEARCH_LIVE = false;
   function viewerStorage(): Storage | null {
     try {
       return localStorage;
@@ -845,8 +846,8 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       seed: DATA ? { markers: DATA.markers, groups: DATA.groups } : null,
       scope,
       searchable: all || (DATA?.markers || []).filter((m) => !scope || scope.includes(String(m.group))).length > 5,
-      searchRecords: all,
-      placeholder: all ? "Search markers, documents, notes…" : "Search markers…",
+      searchRecords: all && RECORDS_SEARCH_LIVE,
+      placeholder: all && RECORDS_SEARCH_LIVE ? "Search markers, documents, notes…" : "Search markers…",
       askCoach: (question) => CairnHealthClient.askCoach(question),
       onDirective: () => showConnections(),
       onOpenRecord: (item) => (item.kind === "body" ? showBody() : showRecords()),
@@ -854,10 +855,9 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     };
   }
 
-  // A domain drill-in is a real route (/app/stand/domain?id=<key>), not a silent
-  // in-place swap: setting standSeg=null left the URL sitting on the overview, so
-  // browser/OS Back walked straight out of Stand instead of stepping back up to it.
-  // An unknown/absent key is not an error — it falls back to the overview.
+  // A domain drill-in is a real route (/app/stand/domain?id=<key>), not a silent in-place
+  // swap (standSeg=null left the URL on the overview, so Back walked straight out of
+  // Stand). An unknown/absent key is not an error — it falls back to the overview.
   function showDomain(key: string): void {
     const all = key === "__all__";
     const d = all ? null : DOMAINS.find((x) => x.key === key);
