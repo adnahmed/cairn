@@ -221,3 +221,28 @@ test("the 1RM picker lists loaded lifts and opens on the one trained last", () =
   assert.match(view.html, /<option selected>Barbell Bench Press<\/option>/);
   assert.match(view.html, /<option >Back Squat<\/option>/);
 });
+
+test("the bodyweight line measures 'to go' in the goal's own direction", () => {
+  const paint = (rows, profile) => {
+    const { elements, trendWeight, view } = loadTrendWeight();
+    elements.set("#chart", { kind: "canvas" });
+    trendWeight.paintWeightBody(rows, profile);
+    return view.innerHTML;
+  };
+  const gain = [
+    { date: "2026-06-01", weight_lb: 146 },
+    { date: "2026-06-30", weight_lb: 150 },
+  ];
+  // A gain still short of its goal is never "at your goal".
+  assert.match(paint(gain, { goal_weight_lb: 160 }), /class="phero-line">150 lb, 10 to go\.</);
+  assert.match(paint(gain, { goal_weight_lb: 160, goal_mode: "gain" }), /150 lb, 10 to go\./);
+  // A cut that has passed its goal, or a reading within half a pound, is there.
+  const cut = [
+    { date: "2026-06-01", weight_lb: 160 },
+    { date: "2026-06-30", weight_lb: 153 },
+  ];
+  assert.match(paint(cut, { goal_weight_lb: 154 }), /153 lb — at your goal\./);
+  assert.match(paint(cut, { goal_weight_lb: 153.4, goal_mode: "lose" }), /153 lb — at your goal\./);
+  // Maintenance reads the distance either way, without "to go".
+  assert.match(paint(cut, { goal_weight_lb: 150, goal_mode: "maintain" }), /153 lb, 3 from your goal\./);
+});

@@ -555,7 +555,7 @@ async function renderIntake() {
   const token = ++pollToken;
   const head = segBar("intake", PROGRESS_SEG);
   const peek = peekCached<import("../contracts/client.js").ClientNutritionProgress>("progress:intake");
-  view.innerHTML = head + `<div id="intakeProgress">${peek ? "" : loadingState("Reading recorded intake…")}</div>`;
+  view.innerHTML = head + `<div data-train-deeper-slot></div><div id="intakeProgress">${peek ? "" : loadingState("Reading recorded intake…")}</div>`;
   wireSeg(PROGRESS_HANDLERS);
   const paint = (data: unknown) => {
     if (token !== pollToken || state.progressSeg !== "intake") return;

@@ -87,6 +87,17 @@ function paintProgressBody(exercises: ProgressExercise[]): void {
   drawProgress(saved ?? "");
 }
 
+// Pounds still between the athlete and their goal, in the goal's direction (never
+// negative-means-done for a gain): the stated goal mode wins, then the recorded
+// start weight, then the first weigh-in on the chart.
+function weightToGoal(last: number, goal: number, profile: ProgressRecord, first: number): number {
+  const mode = profile.goal_mode;
+  const start = profile.start_weight_lb != null ? CairnProgressData.number(profile.start_weight_lb) : first;
+  const gaining = mode === "gain" || (mode !== "lose" && mode !== "maintain" && start < goal);
+  if (mode === "maintain") return Math.round(Math.abs(last - goal) * 10) / 10;
+  return Math.max(0, Math.round((gaining ? goal - last : last - goal) * 10) / 10);
+}
+
 function paintWeightBody(rows: ProgressWeightRow[], profile: ProgressRecord): void {
   const head = segBar("weight", PROGRESS_SEG);
   const pts = rows.map((p) => ({ date: CairnProgressData.string(p.date), v: CairnProgressData.number(p.weight_lb) }));
@@ -99,14 +110,17 @@ function paintWeightBody(rows: ProgressWeightRow[], profile: ProgressRecord): vo
   const goalW = profile.goal_weight_lb != null ? CairnProgressData.number(profile.goal_weight_lb) : null;
   const first = pts[0].v, last = pts[pts.length - 1].v;
   const delta = Math.round((last - first) * 10) / 10;
-  const toGoal = goalW != null ? Math.round((last - goalW) * 10) / 10 : null;
+  // "To go" is measured in the goal's own direction: a gain reads its shortfall
+  // below the goal, a cut its excess above it. Only a reading within half a pound,
+  // or already past the goal in that direction, is "at your goal".
+  const toGoal = goalW != null ? weightToGoal(last, goalW, profile, first) : null;
   // One voice line and one fact; the goal-pace read above carries the pace.
   const hero = progressHero("Bodyweight", [], {
     line:
       toGoal == null
         ? `${last} lb today.`
-        : toGoal > 0
-          ? `${last} lb, ${toGoal} to go.`
+        : toGoal > 0.5
+          ? `${last} lb, ${toGoal} ${profile.goal_mode === "maintain" ? "from your goal" : "to go"}.`
           : `${last} lb — at your goal.`,
     fact: pts.length > 1 ? `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)} lb since ${fmtShortDate(pts[0].date)}` : "",
   });

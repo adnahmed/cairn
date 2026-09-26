@@ -3,7 +3,7 @@
 
 type ProgressHeroStat =
   | readonly [unknown, unknown]
-  | readonly [unknown, unknown, { text?: boolean; k?: boolean; unit?: string }];
+  | readonly [unknown, unknown, { text?: boolean; unit?: string }];
 
 // A day as the chart module labels it ("Jun 20").
 function progressShortDate(iso: unknown): string {
@@ -33,8 +33,8 @@ function progressHeroHtml(title: unknown, stats: Array<ProgressHeroStat | null |
       const fig = opts.text
         ? `<span class="phero-n numeral${String(value).length > 6 ? " phero-n-sm" : ""}">${escHtml(String(value))}${unit}</span>`
         : unit
-          ? `<span class="phero-n numeral"><span data-cu="${Number(value) || 0}"${opts.k ? ` data-cufmt="k"` : ""}>0</span>${unit}</span>`
-          : `<span class="phero-n numeral" data-cu="${Number(value) || 0}"${opts.k ? ` data-cufmt="k"` : ""}>0</span>`;
+          ? `<span class="phero-n numeral"><span data-cu="${Number(value) || 0}">0</span>${unit}</span>`
+          : `<span class="phero-n numeral" data-cu="${Number(value) || 0}">0</span>`;
       return `<div class="phero-stat">${fig}<span class="lbl">${escHtml(label)}</span></div>`;
     })
     .join("");

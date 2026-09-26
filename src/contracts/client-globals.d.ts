@@ -179,7 +179,6 @@ declare global {
     formatValue(value: number): string;
   };
   type ProgressHistoryRecord = Record<string, unknown>;
-  type ProgressHistoryStat = readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }];
   type ProgressHistorySet = ProgressHistoryRecord & {
     id?: number | string;
     exercise?: unknown;
@@ -216,9 +215,7 @@ declare global {
   };
   type ProgressHistorySummary = {
     monthSessions: number;
-    tonnage30: number;
     sets30: number;
-    stats: ProgressHistoryStat[];
   };
   type ProgressVolumeGroup = ProgressRecord & { muscle_group?: string; sets?: number | null; tonnage?: number | null };
   type ProgressCalendarCell = ProgressRecord & { date?: string; lifted?: unknown; activity?: unknown };

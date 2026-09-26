@@ -33,7 +33,6 @@ test("progress components format dates and hero stats safely", () => {
   const html = components.progressHero("<Progress>", [
     ["tracked <label>", 7],
     ["long text", "1234567", { text: true }],
-    ["volume", 1200, { k: true }],
     null,
   ]);
 
@@ -41,7 +40,7 @@ test("progress components format dates and hero stats safely", () => {
   assert.match(html, /tracked &lt;label&gt;/);
   assert.match(html, /data-cu="7"/);
   assert.match(html, /phero-n-sm/);
-  assert.match(html, /data-cufmt="k"/);
+  assert.doesNotMatch(html, /data-cufmt/);
   assert.doesNotMatch(html, /<Progress>|<label>/);
 });
 

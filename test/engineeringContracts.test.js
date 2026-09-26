@@ -4872,7 +4872,8 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     progressProgramControllerSource,
     /type ProgressProgramState = import\("\.\.\/contracts\/client-api\.js"\)\.ClientProgramState/
   );
-  assert.match(progressProgramControllerSource, /type ProgressProgramStat = readonly \[unknown, unknown\]/);
+  // Program's header is a voice line, never a stat row: no stat type survives there.
+  assert.doesNotMatch(progressProgramControllerSource, /type ProgressProgramStat\b/);
   assert.match(progressProgramControllerSource, /var _progFocusCard: string \| undefined/);
   assert.match(
     progressProgramControllerSource,

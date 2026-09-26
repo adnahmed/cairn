@@ -396,8 +396,8 @@ function tovMastHtml(data: TovData, rows: TovRow[]): string {
 // A quiet personal-baseline band under the masthead: this week's training load
 // against the athlete's OWN trailing-typical weekly volume, in plain words —
 // "running hot" (terracotta) only when genuinely above typical. Absent until
-// there's enough history. The numbers stay on the masthead stats; the band is
-// words (VISION Amendment 2). The server envelope is { band }.
+// there's enough history. The numbers live one tap deeper, on Volume; the band
+// is words (VISION Amendment 2). The server envelope is { band }.
 // One aligned row — label · compact meter · one word — so the word sits where the
 // eye lands after the dot instead of wrapping under the track. The word is read off
 // the band the server already drew (dot above / below / inside the athlete's own

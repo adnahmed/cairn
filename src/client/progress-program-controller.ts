@@ -2,7 +2,6 @@
 // Progress -> Program route controller: SWR fan-out, conductor state, DOM paint, and actions.
 
 type ProgressProgramRecord = Record<string, unknown>;
-type ProgressProgramStat = readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }];
 type ProgressProgramState = import("../contracts/client-api.js").ClientProgramState;
 type ProgressStrengthJourney = import("../contracts/client-api.js").ClientStrengthJourney;
 type ProgressAnchorSuggestion = import("../contracts/client-api.js").ClientAnchorObjectiveSuggestion;
@@ -465,7 +464,6 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
     return;
   }
 
-  const heroStats: ProgressProgramStat[] = [];
   const heroVoice = programHeroVoice(lifts, deps.countWord);
 
   const conductor = CairnProgressFocus.cardHtml();
@@ -505,7 +503,7 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
   if (hasConductor) {
     html =
       head +
-      deps.hero("Program", heroStats, heroVoice) + `<div data-train-deeper-slot></div>` +
+      deps.hero("Program", [], heroVoice) + `<div data-train-deeper-slot></div>` +
       conductor +
       strengthJourneySlot +
       liftsHtml +
@@ -530,7 +528,7 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
   } else {
     html =
       head +
-      deps.hero("Program", heroStats, heroVoice) +
+      deps.hero("Program", [], heroVoice) +
       headlineHtml + `<div data-train-deeper-slot></div>` +
       strengthJourneySlot +
       testSlot +

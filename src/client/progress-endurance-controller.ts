@@ -2,7 +2,7 @@
 // Progress -> Endurance route controller: data fan-out, stale guards, and DOM paint.
 
 type ProgressEnduranceRecord = Record<string, unknown>;
-type ProgressEnduranceStat = readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }];
+type ProgressEnduranceStat = readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean }];
 type ProgressEnduranceGoalRow = import("../contracts/client-api.js").ClientEnduranceGoal;
 type ProgressEndurancePRRows = import("../contracts/client-api.js").ClientEndurancePRs;
 type ProgressEnduranceCompliance = import("../contracts/client-api.js").ClientRunCompliance;
@@ -41,6 +41,12 @@ function progressEnduranceNumber(value: unknown, fallback = 0): number {
 
 function hasProgressEnduranceRecord(value: unknown): value is ProgressEnduranceRecord {
   return !!value && typeof value === "object";
+}
+
+// A week's moving time as a voice line says it: "70 minutes", then "4 h 10 min".
+function progressEnduranceMovingWords(min: number): string {
+  if (min < 90) return `${min} minute${min === 1 ? "" : "s"}`;
+  return min % 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min / 60} h`;
 }
 
 function progressEnduranceSportRows(end: ProgressEnduranceRecord): ProgressEnduranceRecord[] {
@@ -268,33 +274,26 @@ function paintProgressEnduranceBody(
     return;
   }
 
-  // One voice line (the week's distance, or its moving time) and one fact (the
-  // longest); the sport split and the rest read below, one fold deeper.
-  const heroStats: ProgressEnduranceStat[] = [];
+  // One voice line, one fact (the longest). Several sports never sum into one km
+  // figure (a ride is not running load): they speak moving time, else the lead sport.
   let heroVoice: { line: string; fact: string } | null = null;
   if (hasProgressEnduranceRecord(end)) {
     const distanceRows = sportRows.filter((row) => progressEnduranceNumber(row.distance_km) > 0);
-    const km = distanceRows.length
-      ? distanceRows.reduce((total, row) => total + progressEnduranceNumber(row.distance_km), 0)
-      : progressEnduranceNumber(endRow.week_km);
     const sportWord: Record<string, string> = { run: "running", ride: "riding", bike: "riding", swim: "swimming", walk: "walking", hike: "hiking", row: "rowing" };
-    const what =
-      distanceRows.length === 1
-        ? sportWord[String(distanceRows[0].sport || "")] || "endurance work"
-        : distanceRows.length
-          ? "endurance work"
-          : "running";
-    const totalMoving = endRow.total_moving_min ?? endRow.week_moving_min;
-    const minutes = totalMoving != null ? Math.round(progressEnduranceNumber(totalMoving)) : 0;
+    const minutes = Math.round(progressEnduranceNumber(endRow.total_moving_min ?? endRow.week_moving_min));
+    const movingLine = minutes > 0 ? `${progressEnduranceMovingWords(minutes)} moving this week.` : "";
+    const leadRow = distanceRows[0]; // sportRows lead with the run, then the longest-moving sport
+    const kmLine = (km: number, sport: unknown) =>
+      km > 0 ? `${fmtKm(km)} km of ${sportWord[String(sport || "")] || "endurance work"} this week.` : "";
     const line =
-      km > 0
-        ? `${fmtKm(km)} km of ${what} this week.`
-        : minutes > 0
-          ? `${minutes} minutes moving this week.`
-          : "";
+      distanceRows.length > 1
+        ? movingLine || kmLine(progressEnduranceNumber(leadRow?.distance_km), leadRow?.sport)
+        : distanceRows.length === 1
+          ? kmLine(progressEnduranceNumber(distanceRows[0].distance_km), distanceRows[0].sport) || movingLine
+          : kmLine(progressEnduranceNumber(endRow.week_km), "run") || movingLine;
     const fact =
       endRow.longest_km != null
-        ? `longest ${String(endRow.longest_km)} km`
+        ? `longest ${fmtKm(endRow.longest_km)} km`
         : endRow.longest_min != null
           ? `longest ${Math.round(progressEnduranceNumber(endRow.longest_min))} min`
           : "";
@@ -303,7 +302,7 @@ function paintProgressEnduranceBody(
 
   const coachLineHtml = enduranceCoachLine(runPlan, agenda);
   const leadHtml =
-    deps.hero("Endurance", heroStats, heroVoice) +
+    deps.hero("Endurance", [], heroVoice) +
     coachLineHtml +
     goalHtml +
     raceBuildHtml +
