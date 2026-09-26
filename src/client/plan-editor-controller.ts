@@ -380,7 +380,15 @@ function wireComposeWeek(root: ParentNode): void {
   btn?.addEventListener("click", () => { void composeFirstWeek(btn); });
 }
 
+type PlanHeadReads = { week: Promise<unknown>; recovery: Promise<unknown>; upcoming: Promise<unknown> };
+
 async function renderPlanEditor(): Promise<void> {
+  return paintPlanEditor();
+}
+
+// `reuseHeads`: a repaint for a revalidated plan keeps the head reads this visit
+// already made, so a slow revalidation never asks for the week strip twice.
+async function paintPlanEditor(reuseHeads?: PlanHeadReads): Promise<void> {
   const helpers = planHelpers();
   const form = planForm();
   headerTitle.textContent = "Plan";
@@ -388,7 +396,7 @@ async function renderPlanEditor(): Promise<void> {
   const token = ++pollToken;
   const peek = peekCached<PlanEditorControllerApiDay[]>("plan");
   if (!peek) view.innerHTML = segSkeleton("plan", PROGRESS_SEG, 3);
-  const heads = CairnPlanHead.headReads();
+  const heads: PlanHeadReads = reuseHeads ?? CairnPlanHead.headReads();
   const revalidate = cachedApi("/plan", {
     key: "plan",
     onUpgrade: (_data, { changed }) => {
@@ -396,7 +404,7 @@ async function renderPlanEditor(): Promise<void> {
       if (!changed || !peek) return;
       if (state.tab !== "plan" || token !== pollToken || !view.querySelector("#planedit")) return;
       if (view.querySelector(".pday") || document.querySelector(".savebar.show")) return;
-      renderPlanEditor();
+      void paintPlanEditor(heads);
     },
   });
   const plan = peek ? peek.data : await revalidate.catch(() => []);
