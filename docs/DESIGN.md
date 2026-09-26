@@ -228,18 +228,37 @@ control, a mono eyebrow `.hdr-date` — "Sat 26 Sep", "Yesterday · Fri 25 Sep" 
 Brief's voice is the page's one focal point; it pins to the top of the scroll and
 condenses to a slim blurred band — see `body[data-tab="today"] header.condensed`).
 
-**Today (Atelier v2).** The Brief (`.brief`) is the page's voice, not a card: it sits on the
-ground with a mono kicker, the Young Serif `.brief-headline`, and the ink2 `.brief-why`. In the
-why, the first word naming each stone (at most three) is a `.brief-tok.stone-<key>` — ink with the
-stone's hue as its underline (`CairnTodayBriefVoice.whyHtml`, `today-brief-voice-client.ts`). The
-order is read → action → context: today's lift line and the one start (`.brief-launch`, the
-primary solid ink), the steer, then `.brief-around` ("Around today", a `<details>`) folding the
-forward look, block clock, arc and provenance. While a session holds logged work, `.brief-live`
-replaces the lift facts: a `.ping`, "Now · <session> · n of m", the last set and the next set or
-lift as one serif line, and one `.brief-live-bars` bar per lift in the strength hue. The
-life-context line (`.ctxbanner`) follows the pebble strip as a hairline row. Today-only
-components whose base rules still live in older partials (the block thread, agenda cards, the
-run line, the context tags) take the v2 look in `today/pebbles.css`, scoped to `.today-wrap`.
+**Today (Atelier v2).** One focal point, then show-when-needed, in this order: the Brief's voice →
+the six stones → NOW → Fuel today → around today → "Worth a look". The Brief (`.brief`) is the
+page's voice, not a card: it sits on the ground with a mono kicker, the Young Serif
+`.brief-headline`, and the ink2 `.brief-why`. In the why, the first word naming each stone (at most
+three) is a `.brief-tok.stone-<key>` — ink with the stone's hue as its underline
+(`CairnTodayBriefVoice.whyHtml`, `today-brief-voice-client.ts`). The pebble strip
+(`#pebbleStripSlot`) stands INSIDE the Brief, right above `.brief-now`
+(`CairnPebbleStripController.place`); each pebble prints the server's one-word `short` form of its
+stone word (`TODAY_STONE_SHORT`, `src/domain/today/today-stones.ts`) so every word holds one line
+at 360 px — the full word stays in the aria label and on every other surface. `.brief-now` wraps
+today's lift line and the read's actions; while the Brief carries today's start it is the NOW
+card (`.brief-now-card`): a mono `.brief-now-top` with a still dawn dot, the server lift line in the
+serif voice (verbatim), the focus saying only what the line does not, the session facts (the
+session's minutes live here, so the kicker drops its own), one slim idle bar per lift, then the
+one start. While a session holds logged work, `.brief-live` (a `.ping`, "Now · <session> · n of
+m", the last and next set as one serif line, a bar per lift in the strength hue) leads the card
+instead. The steer line follows the card; then Fuel today (`#todayFuelSlot`, `.tfuel`,
+`today-fuel-glance-client.ts`): protein and energy as slim fuel-hue meters beside the day's number
+and ONE idea for later — no meters on an unlogged day (absent, never low), every tap opens Fuel —
+which replaces the rail's `fuel` card on today's column. Both slots are transplanted across the
+Brief's in-place upgrade. Around today reads as hairline ROWS, never cards: `.brief-around` (a
+`<details>` folding the forward look, block clock and arc), the provenance line, the life-context
+line (`.ctxbanner`, which drops an injury the NOW card already names), the block thread
+(`.cfocus-thread`), the capture row (bodyweight chip + context tags on ONE sideways-scrolling
+line), today's run and the week fold. Housekeeping and one-off reads (the install note, a Garmin
+merge, the ranked agenda reads, the "n more" disclosure) sit in ONE quiet group at the foot,
+`.today-rail` under a single "Worth a look" `.rail-mast`, as hairline rows; a health card whose
+subject the block thread already names is left out (`CairnTodayAgenda.threadEchoIds`). Only the
+NOW card and the Fuel card are surfaces on Today. Today-only components whose base rules still
+live in older partials (the block thread, agenda cards, the run line, the context tags) take the v2
+look in `today/pebbles.css`, scoped to `.today-wrap`.
 
 **Session (Atelier v2).** `.ex` is a compact hairline card: the name in the UI face, the dose muted
 on the right, `.ex-prog` in mono. The first lift still open (`:nth-child(1 of .ex:not(.ex-complete))`)

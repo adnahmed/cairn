@@ -484,6 +484,7 @@ async function renderToday(opts: any = {}) {
         started: folded.started,
         progress: folded.progress,
         minutes: folded.minutes,
+        count: folded.count,
         lines: [folded.guardrails, folded.journey].filter(Boolean),
         preview: sessionPreview,
         live: folded.started ? window.CairnTodayBriefVoice?.liveFacts({ name: folded.name, done: exDone, total: exTotal, items: activeItems, logged: loggedByEx }) : null,
@@ -594,14 +595,6 @@ async function renderToday(opts: any = {}) {
   const paintedRunSlot = todayView.querySelector("#todayRunSlot") as HTMLElement | null;
   if (paintedRunSlot) wireTodayRunLine(paintedRunSlot);
 
-  // Calm, dismissible "add to home screen" coach — appended to the primary column AFTER
-  // the wholesale innerHTML write above (mounting before it would be silently wiped).
-  // Pull, not push: it waits below the Brief, hidden in standalone mode and after dismissal.
-  try {
-    const main = todayView.querySelector(".today-main");
-    if (main && typeof renderPhoneCoachBanner === "function") renderPhoneCoachBanner(main);
-  } catch {}
-
   // Phase-1 wiring covers everything the user can act on immediately (capture,
   // Brief, session launch, day switch, drafts, wearable). The RAIL and the standalone
   // health lever are deferred to phase two: deferRail skips both rail loaders, and
@@ -621,7 +614,8 @@ async function renderToday(opts: any = {}) {
   );
   wireExerciseDecisionUndo(todayView, () => renderToday({ soft: true }));
   if (isToday) CairnTodayRailController.mountChangesLine(todayView, todayRailDeps()); // "2 changes overnight"
-  if (isToday) CairnPebbleStripController.mountToday(todayView, todayRailDeps()); // six stones, under the Brief
+  if (isToday) CairnPebbleStripController.mountToday(todayView, todayRailDeps()); // six stones, between the voice and NOW
+  if (isToday) CairnTodayFuelGlance.mountToday(todayView, { ...todayRailDeps(), date: todayState.logDate }); // under NOW
   wireGuides(view);
 
   CairnTodaySessionController.wireSessionSurface({ session, hasLoggedSets, lastSets }, todaySessionDeps());
@@ -667,18 +661,24 @@ async function renderToday(opts: any = {}) {
   // which runAgendaRail then wires — keep that order.
   const agendaGeneric: any[] = [];
   const railEl = todayView.querySelector(".today-rail");
+  // What the column above already says (the fuel glance, the block thread) leaves the rail.
+  const fuelGlance = todayView.querySelector("#todayFuelSlot");
+  const railAgenda = CairnTodayWorth.railAgenda(agenda, { fuelGlance: !!fuelGlance, thread: conductorLeads ? conductor?.lead : null });
+  if (fuelGlance && read?.attention?.primary === "fuel") fuelGlance.setAttribute("data-attention", "lead");
   if (railEl) {
-    railEl.outerHTML = agenda
-      ? CairnTodayRailController.railHtml(agenda, agendaGeneric)
+    railEl.outerHTML = railAgenda
+      ? CairnTodayRailController.railHtml(railAgenda, agendaGeneric)
       : CairnTodayRailController.fallbackRailHtml(isToday);
     // The LEAD arbitration (read.attention, server-owned): move whichever surface
     // earned today's position of prominence out of the rail and into the main
     // column BEFORE the loaders run, so each loader still finds its slot by id
     // wherever it now lives. A payload without the decision changes nothing.
-    CairnTodayRailController.promoteAttentionLead(todayView, read?.attention);
-    if (agenda) CairnTodayRailController.runAgendaRail(agenda, agendaGeneric, todayRailDeps());
+    if (!(fuelGlance && read?.attention?.primary === "fuel"))
+      CairnTodayRailController.promoteAttentionLead(todayView, read?.attention);
+    if (railAgenda) CairnTodayRailController.runAgendaRail(railAgenda, agendaGeneric, todayRailDeps());
     else CairnTodayRailController.runFallbackRail(isToday, todayRailDeps());
   }
+  CairnTodayWorth.mountInstallRow(todayView); // the install note, first row of "Worth a look"
 }
 
 // ---------- The focused Session destination (its own route, isolated from Today) ----------
@@ -1321,7 +1321,9 @@ function sessionLaunchFacts(opts: SessionLaunchOptions) {
         ? "Anchor day · hold or ease; the relevant safety signal leads."
         : `Anchor day · ${String(objective?.exercise ?? "")}${Number(opts.strengthJourney?.gap_lb) > 0 ? ` · ${Number(opts.strengthJourney?.gap_lb).toFixed(1)} lb estimated 1RM gap` : ""}`
     : "";
-  return { name, focus, started, progress, minutes, why, guardrails, journey };
+  // How many lifts the session holds, for the NOW card's idle bars (one per lift).
+  const count = previewCount != null ? Number(previewCount) || 0 : Number(opts.exTotal) || 0;
+  return { name, focus, started, progress, minutes, why, guardrails, journey, count };
 }
 
 // The Today "lead entry": instead of the full set-by-set logging surface living

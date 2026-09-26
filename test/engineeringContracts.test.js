@@ -1973,7 +1973,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(clientGlobals, /cardHtml\(read: unknown\): string/);
   assert.match(clientGlobals, /ClientWeekAheadDayKind/);
   assert.match(clientGlobals, /CairnTodayContext/);
-  assert.match(clientGlobals, /contextBannerHtml\(events: unknown, todayISO\?: string\): string/);
+  assert.match(clientGlobals, /contextBannerHtml\(events: unknown, todayISO\?: string, spoken\?: string\): string/);
   assert.match(
     clientGlobals,
     /goalLineHtml\(stats: unknown, currentWeight: unknown, isToday: unknown, todayISO\?: string\): string/
@@ -4440,7 +4440,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   );
   assert.match(todayWeekAheadSource, /function todayWeekAheadCardHtml\(value: unknown\): string/);
   assert.match(todayWeekAheadSource, /CairnTodayWeekAhead/);
-  assert.match(todayContextSource, /function contextBannerHtml\(events: unknown, todayISO\?: string\): string/);
+  assert.match(todayContextSource, /function contextBannerHtml\(events: unknown, todayISO\?: string, spoken\?: string\): string/);
   assert.match(
     todayContextSource,
     /function goalLineHtml\(statsValue: unknown, currentWeight: unknown, isToday: unknown, todayISO\?: string\): string/

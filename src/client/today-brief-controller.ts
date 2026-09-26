@@ -264,12 +264,9 @@ type TodayBriefControllerDeps = {
     }
     const live = deps.root.querySelector(".brief");
     if (!live) return;
-    // The Today tab renders the showPlan state as the session LAUNCH card
-    // (.sess-launch), not the .plansurface branch — recognize both, or a same-kind
-    // 'done' upgrade would think nothing below offers an entry and inject a
-    // redundant "Log training" action above the live Continue card.
-    // A launch card folded INTO the Brief (state.briefSession, one action one
-    // button) is the same showPlan state with no card in the DOM.
+    // showPlan is the LAUNCH card (.sess-launch), the .plansurface, or the launch facts
+    // folded into the Brief (state.briefSession) — else a same-kind 'done' upgrade would
+    // think nothing offers an entry and inject a redundant "Log training" action.
     const showPlan =
       !!(deps.root.querySelector(".plansurface") || deps.root.querySelector(".sess-launch")) ||
       deps.state.briefSession?.date === deps.state.logDate;
@@ -287,7 +284,10 @@ type TodayBriefControllerDeps = {
       return;
     }
     fresh.classList.add(deps.reducedMotion() ? "" : "brief-settle");
+    // The stones and the fuel glance live INSIDE the Brief: carry them across the swap.
+    const carry = (globalThis as { CairnTodayMainShell?: Window["CairnTodayMainShell"] }).CairnTodayMainShell?.carryBriefSlots?.(live);
     live.replaceWith(fresh);
+    carry?.(fresh);
     wireBrief(read, { isToday }, deps);
     remountCheckin();
     deps.runCountUps(fresh);

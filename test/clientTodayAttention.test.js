@@ -304,7 +304,7 @@ test("no decision, an unknown surface, a missing slot or a missing container all
 test("promotion runs before the loaders so every slot is still reachable by id", () => {
   const source = readFileSync(join(root, "src/client/today-screen.ts"), "utf8");
   const promote = source.indexOf("promoteAttentionLead");
-  const runAgenda = source.indexOf("runAgendaRail(agenda");
+  const runAgenda = source.indexOf("runAgendaRail(railAgenda");
   assert.ok(promote > -1 && runAgenda > -1);
   assert.ok(promote < runAgenda, "the move must happen before runAgendaRail hydrates the slots");
 });

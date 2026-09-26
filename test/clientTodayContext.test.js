@@ -82,6 +82,19 @@ test("a resolved injury stops bannering on Today", () => {
   assert.doesNotMatch(todayContext.contextBannerHtml([healed], "2026-07-01"), /Knee/);
 });
 
+test("an injury the Brief's NOW card already names is not said again in the context line", () => {
+  const todayContext = loadTodayContext();
+  const knee = { kind: "injury", title: "Right knee — old runner's knee" };
+  const trip = { kind: "trip", title: "Lisbon", start_date: "2026-07-08" };
+  const spoken = "Today's lift Pull · not started Recheck Right knee — old runner's knee on the affected movement";
+  const html = todayContext.contextBannerHtml([knee, trip], "2026-07-01", spoken);
+  assert.doesNotMatch(html, /knee/i, "said once, where it shapes the session");
+  assert.match(html, /Lisbon · in 7 days/, "the rest of the life context still speaks");
+  // Without the Brief's words, or with an unrelated one, the injury still banners.
+  assert.match(todayContext.contextBannerHtml([knee], "2026-07-01"), /Right knee/);
+  assert.match(todayContext.contextBannerHtml([knee], "2026-07-01", "Push · not started"), /Right knee/);
+});
+
 test("Today goal line stays calm and mode-aware", () => {
   const todayContext = loadTodayContext();
 

@@ -13,7 +13,7 @@
     const stone = CairnStone.pebbleSvg(pebble.key, { idPrefix: `pebble-${pebble.key}`, flag: pebble.tone === "watch" });
     const inner = `<span class="pebble-strip-stone" aria-hidden="true">${stone}</span><span class="pebble-strip-label">${escHtml(
       pebble.label
-    )}</span><span class="pebble-strip-word">${escHtml(pebble.word)}</span>`;
+    )}</span><span class="pebble-strip-word">${escHtml(pebble.short || pebble.word)}</span>`;
     const cls = `pebble-strip-pebble pebble-strip-${pebble.tone} ${CairnStone.hueClass(pebble.key)}`;
     const body = pebble.href
       ? `<a class="${cls}" href="${escAttr(pebble.href)}" data-pebble-strip-go="${escAttr(pebble.key)}" aria-label="${escAttr(name)}">${inner}</a>`

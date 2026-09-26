@@ -37,6 +37,12 @@ export interface TodayStone {
   label: string;
   /** One or two plain words, finished on the server ("steady", "in progress", "quiet"). */
   word: string;
+  /**
+   * The same word as ONE word ("go gently" → "gently"), for a label that must sit on
+   * one line under a pebble at phone width. Null only when no one-word form exists;
+   * a renderer then prints `word`.
+   */
+  short: string | null;
   tone: TodayStoneTone;
   /** One short athlete-facing sentence, or null when the word says it all. */
   line: string | null;

@@ -3802,6 +3802,53 @@ body.sheet-open{overflow:hidden}
 .sug-stream .job-stream{max-height:7.5em;overflow-y:auto}
 .sug-stream .job-stream-text{font-size:.86rem;color:var(--ink-2);line-height:1.5}
 
+
+/* NOW — today's session as ONE card under the stones (the reference phone's "Now"
+   card): a mono eyebrow with a still dawn dot (the live card's ping while work is
+   logged), the server's lift line in the serif voice, the focus, the session facts,
+   one slim bar per lift, then the one start. The card holds only while the Brief
+   carries the start; any other read keeps a bare `.brief-now` wrapper. */
+.brief-now{margin-top:var(--space-8)}
+.brief-now-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:14px 16px 16px;display:flex;flex-direction:column}
+.brief-now-top{display:flex;align-items:center;gap:8px;color:var(--ink2)}
+.brief-now-dot{width:7px;height:7px;border-radius:50%;background:var(--dawn);flex:0 0 auto}
+.brief-now-card .brief-strength{margin:var(--space-3) 0 0;padding:0;border:0}
+.brief-now-card .strength-line{display:block}
+.brief-now-card .strength-line-t{display:block;font-family:var(--font-display);font-weight:400;
+  font-size:var(--text-xl);line-height:1.18;letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
+.brief-now-card .strength-line-caveat,.brief-now-card .strength-line-orig{display:block;margin-top:var(--space-2);
+  font-size:var(--text-xs);color:var(--muted)}
+.brief-now-card .brief-now-focus{margin-top:var(--space-2);font-size:var(--text-sm);font-weight:400;color:var(--ink2);
+  letter-spacing:0}
+.brief-now-card .brief-session{margin-top:var(--space-4)}
+.brief-now-card .brief-session-meta{color:var(--muted)}
+.brief-now-card .brief-now-bars{margin-top:var(--space-5)}
+.brief-now-card .brief-now-bars i{background:var(--line)}
+.brief-now-card .brief-launch{margin-top:var(--space-6)}
+/* live: the live card's own top (ping, "Now · Pull · 2 of 5") and serif line lead,
+   so the lift line underneath would only say "in progress" again */
+.brief-now-live .brief-strength{display:none}
+.brief-now-card .brief-live{margin:0;padding:0;border:0;background:none;border-radius:0}
+.brief-now-card .brief-live + .brief-session{margin-top:var(--space-3)}
+.brief-now-card .brief-live-bars i{height:3px}
+.brief-now + .brief-steer{margin-top:var(--space-5)}
+
+/* the around-today rows follow one another as hairline rows, never a doubled rule */
+.brief-around + .prov-slot .prov-line{margin-top:0}
+.brief > .agent-offline + .brief-updated + .brief-why-more,
+.brief > .agent-offline + .brief-why-more{margin-top:var(--space-4)}
+
+/* capture on Today: the bodyweight chip and the context tags hold ONE line that
+   scrolls sideways (a soft fade says there is more), instead of wrapping into a
+   second row of chips; the weight input, once opened, takes its own line */
+.today-wrap .capture-row{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;
+  margin-inline:calc(-1 * var(--gutter,16px));padding:2px var(--gutter,16px);
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,black var(--gutter,16px),black calc(100% - 28px),transparent);
+  mask-image:linear-gradient(90deg,transparent 0,black var(--gutter,16px),black calc(100% - 28px),transparent)}
+.today-wrap .capture-row::-webkit-scrollbar{display:none}
+.today-wrap .capture-row > *,.today-wrap .capture-row .tags-chips > *{flex:0 0 auto}
+.today-wrap .capture-row:has(.wt-inline:not([hidden])){flex-wrap:wrap;-webkit-mask-image:none;mask-image:none}
 /* -------------------------------------------------------------------
    atelier loading — one calm vocabulary for "an agent is thinking",
    used app-wide. A terracotta→gold filament sweeps a surface that's
@@ -7934,9 +7981,12 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
    moves. Hairline cards, no coloured spines, mono keys, small pills.
    ===================================================================== */
 /* the block thread: a hairline row card, the mono key in the strength hue */
-.today-wrap .cfocus-thread{background:var(--surface);border:1px solid var(--line);border-left:1px solid var(--line);
-  border-radius:var(--radius-md);box-shadow:none;padding:10px 12px;margin:0 0 var(--space-6)}
-.today-wrap .cfocus-thread:hover{background:var(--surface);border-color:var(--line-strong)}
+/* around today reads as hairline ROWS under the two cards (NOW, Fuel), so those
+   stay the column's only surfaces: the block thread is a row, the mono key in the
+   strength hue */
+.today-wrap .cfocus-thread{background:none;border:0;border-bottom:1px solid var(--line);
+  border-radius:0;box-shadow:none;padding:12px 0;margin:0}
+.today-wrap .cfocus-thread:hover{background:none}
 .today-wrap .cfocus-thread:active{transform:var(--press-lg)}
 .today-wrap .cfocus-thread-arrow{color:var(--d-strength);font-weight:400}
 .today-wrap .cfocus-thread-lbl{color:var(--d-strength)}
@@ -7944,8 +7994,9 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 .today-wrap .cfocus-thread-why{font-size:var(--text-xs)}
 
 /* today's run: the same hairline card, a mono key led by the endurance dot */
-.today-run-line .wrun-row{background:var(--surface);border:1px solid var(--line);border-left:1px solid var(--line);
-  border-radius:var(--radius-md);padding:11px 13px}
+/* today's run: the same hairline row, a mono key led by the endurance dot */
+.today-run-line .wrun-row{background:none;border:0;border-bottom:1px solid var(--line);
+  border-radius:0;padding:12px 0}
 .today-run-line .wrun-kind{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);
   letter-spacing:var(--tracking-mono);color:var(--d-endurance);display:inline-flex;align-items:center;gap:6px}
 .today-run-line .wrun-kind::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--s-endurance)}
@@ -7968,6 +8019,89 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
   padding:7px 14px;font-size:.84rem}
 .today-wrap .agenda-act:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
 .today-wrap .rail-mast-mark{color:var(--dawn)}
+
+/* a stone's word holds ONE line under its pebble (the server's one-word `short`) */
+.pebble-strip-word{white-space:nowrap;overflow-wrap:normal;hyphens:none}
+.pebble-strip-word::first-letter{text-transform:uppercase}
+
+/* =====================================================================
+   Fuel today — the glance under the NOW card (today-fuel-glance-client.ts):
+   protein and energy as slim meters in the fuel hue with the logged amount
+   beside the day's number, and ONE idea for later as a hairline row. No
+   meters on an unlogged day (absent, never low). Every tap opens Fuel.
+   ===================================================================== */
+.tfuel-slot:empty{display:none}
+.tfuel-slot{margin-top:var(--space-6)}
+.tfuel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:13px 16px 6px}
+.tfuel-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;color:var(--ink2);margin-bottom:var(--space-3)}
+.tfuel-log{background:none;border:0;padding:4px 0;cursor:pointer;font:inherit;font-size:var(--text-sm);font-weight:500;
+  color:var(--ink);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.tfuel-log:hover{text-decoration-color:var(--ink)}
+.tfuel-meters{display:flex;flex-direction:column;gap:var(--space-3);padding-bottom:var(--space-4)}
+.tfuel-m{display:grid;grid-template-columns:4.4rem minmax(0,1fr) auto;align-items:center;gap:12px}
+.tfuel-k{font-size:var(--text-sm);color:var(--ink)}
+.tfuel-bar{position:relative;height:6px;border-radius:3px;background:color-mix(in srgb,var(--line) 75%,transparent);overflow:hidden}
+.tfuel-bar i{position:absolute;inset:0 auto 0 0;width:calc(var(--p,0) * 100%);border-radius:3px;background:var(--s-fuel);
+  transform-origin:left center;animation:tfuel-grow var(--dur-3) var(--ease) both}
+@keyframes tfuel-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.tfuel-v{font-size:var(--text-sm);color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tfuel-empty{margin:0;padding-bottom:var(--space-4);font-size:var(--text-sm);color:var(--muted)}
+.tfuel-idea{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;width:100%;text-align:left;
+  background:none;border:0;border-top:1px solid var(--line);padding:11px 0 10px;margin:0;cursor:pointer;font:inherit;color:inherit;
+  -webkit-tap-highlight-color:transparent}
+.tfuel-idea-k{grid-column:1;color:var(--d-fuel)}
+.tfuel-idea-t{grid-column:1;font-family:var(--font-display);font-size:var(--text-md);line-height:1.25;color:var(--ink);margin-top:3px}
+.tfuel-idea-n{grid-column:1;font-size:var(--text-xs);color:var(--muted);margin-top:2px}
+.tfuel-idea-go{grid-column:2;grid-row:1 / span 3;align-self:center;color:var(--muted);font-size:1.1rem}
+.tfuel-idea:active{transform:var(--press-xs)}
+.tfuel[data-attention="lead"],.tfuel-slot[data-attention="lead"] .tfuel{border-color:var(--line-strong)}
+.tfuel-skel .tfuel-meters .hshimmer{display:block;height:14px;border-radius:7px}
+@media (prefers-reduced-motion:reduce){.tfuel-bar i{animation:none}}
+
+/* =====================================================================
+   "Worth a look" — Today's ONE quiet group at the foot of the column. The
+   agenda's ranked reads, the install note and the "n more" disclosure are
+   hairline ROWS under a single mono key, not a stack of cards under the Brief.
+   ===================================================================== */
+.today-rail.card-stack{gap:0}
+.today-rail .rail-mast{margin:var(--space-7) 0 0;padding-bottom:var(--space-3);border-bottom:1px solid var(--line)}
+.today-rail > .agenda-card,
+.today-rail > .phone-coach,
+.today-rail > .app-readd{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;
+  margin:0;padding:11px 28px 11px 0;position:relative}
+.today-rail > .agenda-card .agenda-kicker{margin-bottom:2px;color:var(--muted)}
+.today-rail > .agenda-card .agenda-title{font-family:var(--font-ui);font-size:var(--text-md);font-weight:600;line-height:1.35}
+.today-rail > .agenda-card .agenda-body{margin-top:2px;font-size:var(--text-sm);color:var(--muted);line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.today-rail > .agenda-card .agenda-foot{margin-top:4px;gap:14px}
+.today-rail > .agenda-card .agenda-act,
+.today-rail > .agenda-card .linkbtn-quiet{background:none;border:0;border-radius:0;padding:3px 0;color:var(--ink);
+  font-size:var(--text-sm);font-weight:500;text-decoration:underline;text-underline-offset:3px;
+  text-decoration-color:var(--line-strong);align-self:auto !important}
+.today-rail > .agenda-card .agenda-act:hover{background:none;text-decoration-color:var(--ink)}
+.today-rail > .agenda-card .agenda-x{top:9px;right:-4px}
+/* the install note: one line and its two quiet taps (the longer note stays in Settings) */
+.today-rail > .phone-coach{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+.today-rail > .phone-coach .sess-line{flex:1 1 100%;font-size:var(--text-md);line-height:1.35;color:var(--ink2)}
+.today-rail > .phone-coach .sess-line b{font-weight:600;color:var(--ink)}
+.today-rail > .phone-coach .phone-coach-sub{flex:1 1 100%;margin:0;font-size:var(--text-sm);color:var(--muted)}
+.today-rail > .phone-coach[data-coach-mode="prompt"] .phone-coach-sub{display:none}
+.today-rail > .phone-coach .phone-coach-actions{margin-top:2px;gap:14px}
+.today-rail > .phone-coach .phone-coach-install,
+.today-rail > .phone-coach .phone-coach-dismiss{background:none;border:0;box-shadow:none;border-radius:0;padding:3px 0;margin:0;
+  font-family:var(--font-ui);font-size:var(--text-sm);font-weight:500;letter-spacing:0;color:var(--ink);
+  text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.today-rail > .phone-coach .phone-coach-dismiss{color:var(--muted)}
+.today-rail > .today-more{margin:0}
+.today-rail > .today-more > .today-more-sum{min-height:44px;padding:0;border-bottom:1px solid var(--line)}
+
+/* the around-today rows run on without card gaps */
+.today-wrap #ctxEvents .ctxbanner{margin-bottom:0}
+.today-wrap .cfocus-thread-slot{margin:0}
+.today-wrap .capture-row{margin-top:var(--space-4);margin-bottom:var(--space-3)}
+.today-wrap .today-run-line{margin:0}
+.today-wrap .today-run-line .wrun-row{border-top:1px solid var(--line)}
+.today-wrap .weekfold{margin-top:0;border-top:0;padding-top:0}
 /* =====================================================================
    Cairn stack + stone detail (v2 wave 5 stream B): the You home leads with
    the whole cairn (.cairn-stack-*) — six stones drawn by CairnStone (§04e),

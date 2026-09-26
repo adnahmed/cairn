@@ -22,6 +22,7 @@ import {
   BODY_STONE_MAX_AGE_DAYS,
   TODAY_STONE_LINES,
   TODAY_STONE_ORDER,
+  TODAY_STONE_SHORT,
   TODAY_STONE_WORDS,
   todayStones,
 } from "../dist/domain/today/today-stones.js";
@@ -49,6 +50,26 @@ function assertCalm(read) {
     assert.doesNotMatch(json, /#[0-9a-f]{3,6}\b/i, "no colours in the DTO");
   }
 }
+
+test("every stone word has a calm ONE-word form that fits under a pebble at phone width", () => {
+  const all = [];
+  const walk = (v) => (typeof v === "string" ? all.push(v) : Object.values(v).forEach(walk));
+  walk(TODAY_STONE_WORDS);
+  for (const word of all) {
+    const short = TODAY_STONE_SHORT[word] ?? (/\s/.test(word) ? null : word);
+    assert.ok(short, `"${word}" has a one-word form`);
+    assert.doesNotMatch(short, /\s/, `"${short}" is one word`);
+    assert.ok(short.length <= 8, `"${short}" holds one line in a sixth of 360 px`);
+    assert.doesNotMatch(short, /\d/);
+    assert.doesNotMatch(short, LOW, `"${short}" never reads as low`);
+    assert.equal(violatesReadingGrammar(short), null, `short "${short}"`);
+  }
+  // Every served stone carries its short form alongside the full word.
+  for (const s of todayStones().stones) {
+    assert.equal(typeof s.short, "string", `${s.key} carries a short word`);
+    assert.doesNotMatch(s.short, /\s/);
+  }
+});
 
 test("always six stones, in order, each opening a route the client knows", () => {
   const read = todayStones();

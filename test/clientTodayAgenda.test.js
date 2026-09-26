@@ -220,3 +220,49 @@ test("the disclosure whispers when something genuinely new waits inside", () => 
   );
   assert.doesNotMatch(quiet, /today-more-new/);
 });
+
+test("Today's rail heads its one quiet group with a single 'Worth a look' key", () => {
+  const agenda = loadTodayAgendaClient();
+  const html = agenda.railHtml(
+    { primary: [{ id: "a", kind: "reconcile", title: "Merged one workout" }], more: [] },
+    []
+  );
+  assert.match(html, /class="rail-mast"/);
+  assert.match(html, />Worth a look</);
+  assert.doesNotMatch(html, /Also worth a look/);
+  // Only the "n more" behind the disclosure still earns the key: the group is one list.
+  const onlyMore = agenda.railHtml({ primary: [], more: [{ id: "b", kind: "plan", title: "x" }] }, []);
+  assert.match(onlyMore, />Worth a look</);
+  assert.equal(agenda.railHtml({ primary: [], more: [] }, []), "", "nothing to look at, no group");
+  assert.match(agenda.mastHtml(), /rail-mast-lbl lbl">Worth a look</);
+});
+
+test("withoutCards drops named client cards and ids from both tiers, keeping order", () => {
+  const agenda = loadTodayAgendaClient();
+  const input = {
+    primary: [{ id: "fuel", client_card: "fuel" }, { id: "health-focus", kind: "health" }, { id: "g" }],
+    more: [{ id: "w", client_card: "weekly-read" }, { id: "fuel2", client_card: "fuel" }],
+    other: 1,
+  };
+  const out = agenda.withoutCards(input, ["fuel"], ["health-focus"]);
+  assert.deepEqual(out.primary.map((c) => c.id), ["g"]);
+  assert.deepEqual(out.more.map((c) => c.id), ["w"]);
+  assert.equal(out.other, 1);
+  assert.equal(input.primary.length, 3, "the agenda itself is never mutated");
+  assert.equal(agenda.withoutCards(null, ["fuel"]), null);
+});
+
+test("a health card whose subject the block thread already names is an echo; a different read is not", () => {
+  const agenda = loadTodayAgendaClient();
+  const a = {
+    primary: [
+      { id: "health-focus", kind: "health", title: "Iron & Red Blood is the priority right now." },
+      { id: "garmin", kind: "reconcile", title: "Merged 1 Garmin workout" },
+    ],
+    more: [{ id: "standing", kind: "health", title: "Lipids are shaping today's coaching." }],
+  };
+  const ids = agenda.threadEchoIds(a, "Move your iron & red blood Ferritin and Hemoglobin sit off together");
+  assert.deepEqual([...ids], ["health-focus"]);
+  assert.deepEqual([...agenda.threadEchoIds(a, "")], [], "no thread, nothing is an echo");
+  assert.deepEqual([...agenda.threadEchoIds(a, "Keep your easy runs easy")], []);
+});

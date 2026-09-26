@@ -38,6 +38,22 @@ type TodayBriefVoiceApi = {
   whyHtml(escaped: string): string;
   aroundHtml(parts: { forward: string; periodization: string; arc: string; provenance: string; isToday?: boolean }): string;
   liveHtml(live: TodayBriefLive | null | undefined): string;
+  nowHtml(parts: TodayBriefNowParts): string;
+};
+
+// The NOW card's pieces, each already built (and escaped) by the Brief.
+type TodayBriefNowParts = {
+  /** The server lift line, rendered without its kicker ("" when there is none). */
+  line: string;
+  /** The day's focus, ESCAPED. */
+  focus: string;
+  /** The plan day's name, raw ("Pull"), to take off the front of the focus. */
+  title?: unknown;
+  live: string;
+  fold: string;
+  /** Lifts in a session not yet started: one idle bar each (0 → none). */
+  idle: number;
+  launch: string;
 };
 
 (() => {
@@ -106,6 +122,32 @@ type TodayBriefVoiceApi = {
     </div>`;
   }
 
+  // Under a lift line that already names the day, the focus says only what it adds:
+  // "Pull — back, rear delts, biceps" → "back, rear delts, biceps". Runs over ESCAPED text.
+  function nowFocus(escapedFocus: string, title: unknown): string {
+    const name = escHtml(String(title ?? "").trim());
+    if (!name || escapedFocus.slice(0, name.length).toLowerCase() !== name.toLowerCase()) return escapedFocus;
+    const tail = escapedFocus.slice(name.length);
+    const rest = tail.replace(/^\s*(?:—|–|-|:|·)\s*/, "");
+    return rest && rest !== tail ? rest : escapedFocus;
+  }
+
+  // NOW — today's session as ONE card (the reference phone's "Now" card): a mono key
+  // with a still dawn dot (the live card's ping stands in while work is logged), the
+  // server's lift line in the serif voice, the focus, the session facts, one slim
+  // bar per lift, then the one start.
+  function nowHtml(parts: TodayBriefNowParts): string {
+    const focus = parts.focus ? nowFocus(parts.focus, parts.title) : "";
+    const top = !parts.live && parts.line
+      ? `<div class="brief-now-top lbl"><span class="brief-now-dot" aria-hidden="true"></span>Today's lift</div>`
+      : "";
+    const idle = Math.max(0, Math.min(12, Math.round(Number(parts.idle) || 0)));
+    const bars = idle ? `<div class="brief-live-bars brief-now-bars" aria-hidden="true">${"<i></i>".repeat(idle)}</div>` : "";
+    return `<div class="brief-now brief-now-card${parts.live ? " brief-now-live" : ""}">${top}${parts.line}${
+      focus ? `<div class="brief-focus brief-now-focus">${focus}</div>` : ""
+    }${parts.live}${parts.fold}${bars}${parts.launch}</div>`;
+  }
+
   function weightWord(weight: unknown): string {
     if (weight == null || weight === "") return "";
     const n = Number(weight);
@@ -157,7 +199,7 @@ type TodayBriefVoiceApi = {
     return { name: input.name, done: input.done, total: input.total, last, next };
   }
 
-  const CAIRN_TODAY_BRIEF_VOICE: TodayBriefVoiceApi = { whyHtml, aroundHtml, liveHtml, liveFacts };
+  const CAIRN_TODAY_BRIEF_VOICE: TodayBriefVoiceApi = { whyHtml, aroundHtml, liveHtml, liveFacts, nowHtml };
 
   Object.assign(globalThis, { CairnTodayBriefVoice: CAIRN_TODAY_BRIEF_VOICE });
   if (typeof window !== "undefined") {

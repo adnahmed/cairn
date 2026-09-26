@@ -51,6 +51,43 @@ function todayAgendaRenderableBuckets(agenda: Partial<ClientTodayAgenda> | null 
   };
 }
 
+// The agenda without the named client cards — for a card whose content already
+// stands elsewhere on the same column (Today's fuel glance). Both tiers, same order.
+// `ids` drops generic candidates the same way (a read the column already carries).
+function todayAgendaWithoutCards<T extends Partial<ClientTodayAgenda> | null | undefined>(
+  agenda: T,
+  cards: readonly string[],
+  ids: readonly string[] = []
+): T {
+  if (!agenda || typeof agenda !== "object") return agenda;
+  const keep = (c: ClientTodayAgendaCandidate) =>
+    !(c && ((c.client_card && cards.includes(c.client_card)) || (c.id && ids.includes(c.id))));
+  return {
+    ...agenda,
+    primary: Array.isArray(agenda.primary) ? agenda.primary.filter(keep) : agenda.primary,
+    more: Array.isArray(agenda.more) ? agenda.more.filter(keep) : agenda.more,
+  } as T;
+}
+
+// The health cards whose subject the block thread above already names: "Iron & Red
+// Blood is the priority right now." under a thread titled "Move your iron & red
+// blood" says the same lever twice on one column. Its SUBJECT words (4+ letters, the
+// framing words left out) must all appear in the thread's own words; anything less
+// is a different read and stays.
+const AGENDA_ECHO_FRAME = new Set(["priority", "right", "shaping", "today", "today's", "coaching", "worth", "look", "read"]);
+function todayAgendaThreadEchoIds(agenda: Partial<ClientTodayAgenda> | null | undefined, threadText: string): string[] {
+  const words = (text: string) => String(text || "").toLowerCase().match(/[a-z][a-z'-]+/g) || [];
+  const thread = new Set(words(threadText));
+  if (!thread.size || !agenda) return [];
+  const ids: string[] = [];
+  for (const c of [...(agenda.primary || []), ...(agenda.more || [])]) {
+    if (!c || c.client_card || c.kind !== "health" || !c.id) continue;
+    const subject = words(c.title || "").filter((w) => w.length >= 4 && !AGENDA_ECHO_FRAME.has(w));
+    if (subject.length && subject.every((w) => thread.has(w))) ids.push(c.id);
+  }
+  return ids;
+}
+
 function todayAgendaGenericCardHtml(candidate: ClientTodayAgendaCandidate, revealIdx: number): string {
   const kicker = candidate.kicker ? `<div class="agenda-kicker lbl">${escHtml(candidate.kicker)}</div>` : "";
   const title = candidate.title ? `<div class="agenda-title">${escHtml(candidate.title)}</div>` : "";
@@ -102,10 +139,14 @@ function todayAgendaRailHtml(
       </details>`
       : "";
   if (!primaryHtml && !moreHtml) return "";
-  const mast = primaryHtml
-    ? `<div class="rail-mast"><span class="rail-mast-mark" aria-hidden="true">✦</span><span class="rail-mast-lbl lbl">Also worth a look</span></div>`
-    : "";
-  return `<aside class="today-rail card-stack">${mast}${primaryHtml}${moreHtml}</aside>`;
+  // ONE quiet group at the foot of Today: whatever the agenda ranked (and the "n more"
+  // behind it) sits under a single "Worth a look" key as hairline rows — shown only
+  // when there is something in it, never a stack of cards under the Brief.
+  return `<aside class="today-rail card-stack">${todayAgendaMastHtml()}${primaryHtml}${moreHtml}</aside>`;
+}
+
+function todayAgendaMastHtml(): string {
+  return `<div class="rail-mast"><span class="rail-mast-mark" aria-hidden="true">✦</span><span class="rail-mast-lbl lbl">Worth a look</span></div>`;
 }
 
 function todayFuelCardHtml(day: ClientDayIntake | null | undefined): string {
@@ -161,8 +202,11 @@ Object.assign(globalThis, {
     TODAY_RAIL_SLOTS,
     TODAY_PRIMARY_CLIENT_MAX,
     renderableBuckets: todayAgendaRenderableBuckets,
+    withoutCards: todayAgendaWithoutCards,
+    threadEchoIds: todayAgendaThreadEchoIds,
     genericCardHtml: todayAgendaGenericCardHtml,
     railHtml: todayAgendaRailHtml,
+    mastHtml: todayAgendaMastHtml,
     fuelCardHtml: todayFuelCardHtml,
   },
 });
