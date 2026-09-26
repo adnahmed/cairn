@@ -324,7 +324,6 @@ type TodayPrefetchApi = {
       const active = document.activeElement;
       if (active && (
         active.closest?.(".ex") ||
-        active.closest?.(".quicklog") ||
         active.closest?.(".addex") ||
         active.closest?.(".wt-inline")
       )) return;

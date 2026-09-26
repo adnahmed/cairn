@@ -11,7 +11,7 @@ import {
 } from "./equipment-capability.js";
 import { harmEvidenceOnDay, withMorningReadiness } from "./brain/read-adherence.js";
 import { canonicalGroup, classifyMuscleGroup, resolveExerciseName } from "./exercise-canon.js";
-import { findExercise, recentWorkingWeight } from "./exercises.js";
+import { findExercise } from "./exercises.js";
 import { flexibleTrainingAgenda } from "./flexible-training-agenda.js";
 import { getInjuryImpacts, listContextEvents } from "./health.js";
 import { type AcuteGateReading, RUN_PRIME_GROUPS, acuteGates, recentEnduranceImpacts } from "./hybrid-load.js";

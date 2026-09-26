@@ -6,7 +6,7 @@ import {
   revertDecision,
 } from "../dist/domain/brain/autonomy-service.js";
 import { addDaysISO, localDateISO } from "../dist/repo/shared.js";
-import { repo, resetTables, savePlanDaySettled, replacePlanSettled } from "./_seed.js";
+import { repo, resetTables, savePlanDaySettled } from "./_seed.js";
 
 beforeEach(() => {
   resetTables(

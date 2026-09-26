@@ -7,69 +7,6 @@ function captureFailureIsTransient(error: unknown): boolean {
   return typeof classify === "function" ? classify(error) : true;
 }
 
-async function quickLog(): Promise<void> {
-  const inp = document.querySelector<HTMLInputElement>("#qlInput");
-  if (!inp) return;
-  const text = inp.value.trim();
-  if (!text) return;
-  inp.value = "";
-  const wrap = view.querySelector<HTMLElement>("#qlRecent");
-  let a: CaptureActivity | null = null;
-  try {
-    a = await api("/activities", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    }) as unknown as CaptureActivity;
-  } catch (error) {
-    if (!captureFailureIsTransient(error)) {
-      inp.value = text;
-      toast("Couldn't log that — try again.");
-      return;
-    }
-    // Network dropped — DON'T lose the log. Queue the exact POST and replay it on
-    // reconnect (the input was already cleared, so the text lives only in the outbox).
-    const saved = await outboxEnqueue("activity", "/activities", { text });
-    if (!saved) {
-      inp.value = text;
-      toast("Couldn’t save that on this device — free storage and try again.");
-      return;
-    }
-    toast("Saved — will sync when you're back online");
-    return;
-  }
-  if (a && a.error) { toast("Couldn't log that — try again."); return; }
-  toast("Logged");
-
-  // Instant feedback: show the regex result at the top of Lately right away. The
-  // full rebuild (reshapeToday → loadRecentActivities) normalizes it into a feed
-  // row a beat later; this just avoids an empty gap between submit and that rebuild.
-  if (wrap) {
-    let head = wrap.querySelector(".lately-h");
-    if (!head) {
-      wrap.insertAdjacentHTML("afterbegin", `<div class="lately-h"><span class="ql-recent-h lbl">Lately</span></div>`);
-      head = wrap.querySelector(".lately-h");
-    }
-    if (head) head.insertAdjacentHTML("afterend", actEntryHtml(a));
-  }
-
-  // A logged activity is movement — refresh the Brief so it reflects the day. This
-  // re-renders Today once the recomputed (agentic) read is ready; the entry above
-  // persists (rebuilt from server state). reshapeToday bumps pollToken, retiring any
-  // prior poll, so resume enrichment polling against the fresh DOM afterward.
-  await reshapeToday();
-  if (state.tab === "today" && a && a.id && enrichmentActive(a.enrichment_status)) {
-    const tab = state.tab, token = pollToken;
-    pollEnrichment("/activities", a.id, {
-      tab, token,
-      onUpdate: (row) => {
-        const el = view.querySelector(`.qlent[data-actid="${row.id}"]`);
-        if (el) updateActEntry(el, row);
-      },
-    });
-  }
-}
-
 function setupWeightChip(): void {
   const chip = view.querySelector<HTMLElement>("#wtChip");          // compass tile (in the week fold)
   const mini = view.querySelector<HTMLElement>("#wtChipMini");      // always-on capture-row chip
@@ -445,7 +382,6 @@ function reconnectInsight(): ClientAgentOpHandlers | null {
 Object.assign(globalThis, {
   MIC_GLYPH,
   weekRangeLabel,
-  quickLog,
   setupWeightChip,
   setupVoiceCapture,
   loadCheckin,

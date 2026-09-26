@@ -5,7 +5,6 @@ type CaptureDirective = import("../contracts/client.js").ClientDirective & {
   directive?: unknown;
   uncertain?: unknown;
 };
-type CaptureActivity = import("../contracts/client.js").ClientActivity & { error?: string };
 type CaptureFoodNote = import("../contracts/client.js").ClientFoodNote & { error?: string };
 type CaptureFrequentFood = import("../contracts/client.js").ClientFrequentFood & {
   kcal?: number | string | null;

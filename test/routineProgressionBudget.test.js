@@ -19,7 +19,7 @@ import {
 } from "../dist/domain/brain/autonomy-service.js";
 import * as repo from "../dist/repo.js";
 import { db } from "../dist/db.js";
-import { replacePlanSettled, savePlanDaySettled } from "./_seed.js";
+import { savePlanDaySettled } from "./_seed.js";
 
 function isoDaysAgo(n) {
   return new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);

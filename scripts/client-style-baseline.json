@@ -3,7 +3,7 @@
   "totals": {
     "hex": 221,
     "style": 384,
-    "over400": 30,
+    "over400": 29,
     "over600": 13
   },
   "files": {
@@ -23,9 +23,6 @@
     },
     "src/client/capture-read-cards-client.ts": {
       "lines": 419
-    },
-    "src/client/capture.ts": {
-      "lines": 455
     },
     "src/client/cardio-sync-client.ts": {
       "hex": 5
@@ -195,7 +192,7 @@
       "lines": 411
     },
     "src/client/today-data-loader.ts": {
-      "lines": 405
+      "lines": 404
     },
     "src/client/today-lately-client.ts": {
       "hex": 5,

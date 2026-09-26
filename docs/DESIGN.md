@@ -266,9 +266,9 @@ New/changed components (CSS must implement, the client JS must emit):
   `.pperf-aero` aerobic line; `.pperf-balance` italic holistic note. Tone classes `-strong` (sage) /
   `-watch` (terracotta) / `-steady` (gold). Level-ladder words only; population-percentile numbers
   never print (constitution). Clinical risk % and vascular age stay the `.hrisk*` exemption.
-- Keep ALL other existing class names working (`.sess`, `.modal*`, `.heat*`, `.vol*`, `.mem*`,
+- Keep ALL other existing class names working (`.sess`, `.modal*`, `.vol*`, `.mem*`,
   `.hdoc*`, `.life*`, `.enr*`, `.seg*`, `.daybtn`, `.logrow`, `.field`, `.toast`, `.rest*`,
-  `.ob-*`, `.agentrow` family) — restyled to the Atelier language, same selectors.
+  `.ob-*`, `.agent-card` family) — restyled to the Atelier language, same selectors.
 
 ## Reading layer primitives
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { db, localDaysAgo, repo, savePlanDaySettled, replacePlanSettled } from "./_seed.js";
+import { db, localDaysAgo, repo, savePlanDaySettled } from "./_seed.js";
 import { nextPrescription } from "../dist/repo/progression.js";
 import { recordDecision } from "../dist/repo/brain-decisions.js";
 import { insertBrainEvaluation } from "../dist/repo/brain-evaluations.js";

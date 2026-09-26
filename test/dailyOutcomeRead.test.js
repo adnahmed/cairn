@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { db, repo, resetTables, savePlanDaySettled, replacePlanSettled } from "./_seed.js";
+import { db, repo, resetTables, savePlanDaySettled } from "./_seed.js";
 
 const FIRST = "2024-08-01";
 const SECOND = "2024-08-05";

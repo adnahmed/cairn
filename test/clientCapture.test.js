@@ -63,43 +63,6 @@ test("capture provenance line escapes directive and marker text", () => {
   assert.doesNotMatch(html, /Tilt <easy>/);
 });
 
-test("activity capture restores the text and does not enqueue a permanent rejection", async () => {
-  const capture = loadCapture();
-  const permanent = new Error("validation");
-  const input = { value: "ran 5k" };
-  const queued = [];
-  const toasts = [];
-  capture.document = { querySelector: (selector) => selector === "#qlInput" ? input : null };
-  capture.view = { querySelector: () => null };
-  capture.api = async () => { throw permanent; };
-  capture.CairnApiCache = { isTransientApiFailure: (error) => error !== permanent };
-  capture.outboxEnqueue = (...args) => queued.push(args);
-  capture.toast = (message) => toasts.push(message);
-
-  await capture.quickLog();
-
-  assert.equal(input.value, "ran 5k");
-  assert.equal(queued.length, 0);
-  assert.deepEqual(toasts, ["Couldn't log that — try again."]);
-});
-
-test("activity capture surfaces device-storage failure instead of claiming an offline save", async () => {
-  const capture = loadCapture();
-  const input = { value: "ran 5k" };
-  const toasts = [];
-  capture.document = { querySelector: (selector) => selector === "#qlInput" ? input : null };
-  capture.view = { querySelector: () => null };
-  capture.api = async () => { throw new Error("offline"); };
-  capture.CairnApiCache = { isTransientApiFailure: () => true };
-  capture.outboxEnqueue = () => null;
-  capture.toast = (message) => toasts.push(message);
-
-  await capture.quickLog();
-
-  assert.equal(input.value, "ran 5k", "the unsaved text remains recoverable in the input");
-  assert.deepEqual(toasts, ["Couldn’t save that on this device — free storage and try again."]);
-});
-
 test("weight capture only enqueues transient failures", async () => {
   const capture = loadCapture();
   const permanent = new Error("forbidden");
