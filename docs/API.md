@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**354 routes** across 120 groups.
+**355 routes** across 120 groups.
 
 ## `/activities`
 
@@ -852,6 +852,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/today` | One server read for the whole Today open: the independent low-risk reads the client used to fetch separately (/plan, /sessions?date=, /stats, /profile, /exercises) PLUS the per-plan-day last sets, that day's progression, the strength journey, the salience agenda and the conductor's focus. Every one of those routes still exists and answers identically — this only collapses the request count; the client still primes their individual SWR keys. |
+| GET | `/api/today/stones` | The six stones (v2 wave 4): Strength, Endurance, Fuel, Recovery, Body, Heart — one plain word and a reading-layer tone each, projected on the server from the signal state and the domain reads (src/domain/today/today-stones.ts). A part of the picture with nothing fresh reads "quiet", never low; no score. A pure read. |
 
 ## `/today-agenda`
 

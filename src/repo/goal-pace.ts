@@ -158,9 +158,11 @@ export function postInterventionWeightTrend(since: string, through = localDateIS
 
 // The motivational weight-progress read. `windowDays` clamps to 14–365; everything
 // is null-safe and never throws (an empty DB returns empty points + all-null lines).
-export function goalPace(windowDays = 90): GoalPaceResult {
+// `asOf` (default today) bounds the series and anchors the fit, so a past-date read
+// never fits weigh-ins logged after it.
+export function goalPace(windowDays = 90, asOf: string = localDateISO()): GoalPaceResult {
   const window = clampWindowDays(windowDays);
-  const today = localDateISO();
+  const today = asOf;
   const since = addDaysISO(today, -(window - 1)) ?? today;
 
   // The canonical series: one lb-valued point per date, manual weigh-ins winning
