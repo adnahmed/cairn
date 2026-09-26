@@ -4914,6 +4914,50 @@ declare global {
         refreshToday(options: { soft: boolean }): unknown;
       }): Promise<void>;
     };
+
+    CairnChangesFeed: {
+      feedHtml(
+        data: import("./brain-changes.js").ClientBrainChanges | null | undefined,
+        options?: { reveal?: boolean; enter?: boolean }
+      ): string;
+      rowHtml(
+        change: import("./brain-changes.js").ClientBrainChange,
+        options?: { index?: number | null; enter?: boolean; settled?: boolean }
+      ): string;
+      dayShellHtml(day: import("./brain-changes.js").ClientBrainChangeDay, rows?: string): string;
+      dayLabel(day: import("./brain-changes.js").ClientBrainChangeDay): string;
+      errorHtml(): string;
+      undoAttr(change: import("./brain-changes.js").ClientBrainChange): string;
+    };
+
+    CairnChangesFeedController: {
+      KEY: string;
+      PATH: string;
+      mount(host: Element, deps: ClientChangesFeedDeps): () => void;
+    };
+
+    CairnAskCard: {
+      asksHtml(rows: unknown): string;
+      askCardHtml(ask: { id: number; summary: string; explanation: string; forClinician: boolean }): string;
+      askModels(rows: unknown): Array<{ id: number; summary: string; explanation: string; forClinician: boolean }>;
+      talkPrefill(rows: unknown, id: unknown): string;
+    };
+
+    CairnAskCardController: {
+      KEY: string;
+      PATH: string;
+      mount(
+        host: Element,
+        deps: {
+          peekCached<T = unknown>(key: string): { data: T; fresh: boolean } | null;
+          cachedApi(
+            path: string,
+            options?: { key?: string; onUpgrade?(data: unknown, meta: { changed: boolean }): void }
+          ): Promise<unknown>;
+          gotoChatWith(text: string): unknown;
+        }
+      ): () => void;
+    };
   }
 
   declare const CairnChatClient: Window["CairnChatClient"];
@@ -5123,4 +5167,23 @@ declare global {
   declare const CairnTodayContext: Window["CairnTodayContext"];
   declare const CairnTodayCompass: Window["CairnTodayCompass"];
   declare const CairnTodayGarminReconciliation: Window["CairnTodayGarminReconciliation"];
+  declare const CairnChangesFeed: Window["CairnChangesFeed"];
+  declare const CairnChangesFeedController: Window["CairnChangesFeedController"];
+  declare const CairnAskCard: Window["CairnAskCard"];
+  declare const CairnAskCardController: Window["CairnAskCardController"];
+  type ClientChangesFeedDeps = {
+    api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+    toast(message: string, options?: { action?: string; onAction?: () => void }): void;
+    peekCached<T = unknown>(key: string): { data: T; fresh: boolean } | null;
+    cachedApi(
+      path: string,
+      options?: { key?: string; onUpgrade?(data: unknown, meta: { changed: boolean }): void }
+    ): Promise<unknown>;
+    swrInvalidate(key: string): void;
+    reducedMotion(): boolean;
+    markRefreshing?(on: boolean): void;
+    collapse?(el: Element, done: () => void): void;
+    skeleton?(): string;
+    onReverted?(change: import("./brain-changes.js").ClientBrainChange | null): unknown;
+  };
 }
