@@ -18,8 +18,11 @@
       // navigated since boot, and the endurance default actually changed the seg.
       if (state.tab === "progress" && !state.progressSeg && defaultProgressSeg() !== before) renderTab("progress");
       // Likewise: a cold-boot landing straight on Plan painted the 3-tab sub-nav
-      // before the profile resolved. Repaint so Endurance appears once known.
-      if (state.tab === "plan" && showEnduranceTab() !== beforeEnduranceVisible) renderTab("plan");
+      // before the profile resolved. Repaint so Endurance appears once known. The race
+      // view itself carries no sub-nav, so it is never painted (and read) twice.
+      if (state.tab === "plan" && state.planSeg !== "endurance" && showEnduranceTab() !== beforeEnduranceVisible) {
+        renderTab("plan");
+      }
     }).catch(() => {});
   }
 
