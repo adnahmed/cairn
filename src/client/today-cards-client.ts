@@ -194,25 +194,24 @@ function exerciseCardHtml(
       ? `<span class="ex-pair-chip" title="Superset — alternate sets with its partner">Pair</span>`
       : "";
   const progress = `<span class="ex-prog${complete ? " done" : ""}" data-prog>${done}${goal ? ` / ${goal}` : ""} <span>set${done === 1 && !goal ? "" : "s"}</span></span>`;
-  const tile = artImg("exercise", exercise, "artile-sm ex-art", art("exercise", exercise, item.muscle_group));
   const reveal = revealIdx != null ? Number(revealIdx) : null;
   // Timed rows take an optional load before the time (a carry, a weighted hold);
   // blank = unloaded. prefillFor already opens it at the plan's load, else the last logged one.
   const timedLoad = prefill.weight != null && Number(prefill.weight) !== 0 ? prefill.weight : "";
   const logrow = timed
-    ? `<div class="logcaps logcaps-timed" aria-hidden="true"><span>WT</span><span>TIME</span><i></i><i></i></div>
+    ? `<div class="logcaps logcaps-timed" aria-hidden="true"><span>Weight</span><span>Time</span><i></i><i></i></div>
       <div class="logrow logrow-timed" data-ex="${encodeURIComponent(exercise)}"${exKeyAttr} data-day="${escAttr(options.day ?? "")}" data-mode="timed">
         <input type="number" inputmode="decimal" placeholder="WT" class="in-w" aria-label="${escAttr(`${exercise} weight (optional)`)}" value="${escAttr(timedLoad ?? "")}">
         <input type="text" inputmode="numeric" autocomplete="off" placeholder="TIME · 1:30" class="in-dur" aria-label="${escAttr(`${exercise} duration`)}" value="${prefill.duration_sec != null ? fmtDur(prefill.duration_sec) : ""}">
         <button type="button" class="timerbtn" data-stopwatch-state="idle" aria-label="${escAttr(`Start ${exercise} stopwatch`)}" aria-pressed="false">Start</button>
-        <button class="logbtn">+</button>
+        <button class="logbtn" aria-label="${escAttr(`Log a set of ${exercise}`)}">Log</button>
       </div>`
-    : `<div class="logcaps" aria-hidden="true"><span>WT</span><span>REPS</span><span>RIR</span><i></i></div>
+    : `<div class="logcaps" aria-hidden="true"><span>Weight</span><span>Reps</span><span>RIR</span><i></i></div>
       <div class="logrow" data-ex="${encodeURIComponent(exercise)}"${exKeyAttr} data-day="${escAttr(options.day ?? "")}">
         <input type="number" inputmode="decimal" placeholder="WT" class="in-w" aria-label="Weight" value="${prefill.weight ?? ""}">
         <input type="number" inputmode="numeric" placeholder="REPS" class="in-r" aria-label="Reps" value="${prefill.reps ?? ""}">
         <input type="number" inputmode="decimal" placeholder="RIR" class="in-rir" title="Reps in reserve — how many more you could have done" aria-label="RIR (reps in reserve)" value="${prefill.rir ?? ""}">
-        <button class="logbtn">+</button>
+        <button class="logbtn" aria-label="${escAttr(`Log a set of ${exercise}`)}">Log</button>
       </div>`;
   const skipButton =
     !offPlan && !exerciseLogged
@@ -266,7 +265,6 @@ function exerciseCardHtml(
   // only a cue unique to this movement (swap, straps, start light).
   return `<div class="ex${complete ? " ex-complete" : ""}${reveal != null ? " reveal" : ""}" data-card="${escAttr(exercise)}"${exKeyAttr} data-mode="${timed ? "timed" : "reps"}"${headlineDose ? ` data-dose="headline"` : ""}${rxSilenced ? ` data-rx="off"` : ""}${reveal != null ? ` style="${stagger(reveal)}"` : ""}>
       <div class="ex-top">
-        ${tile}
         <div class="ex-top-main">
           <button class="ex-name" data-guide="${encodeURIComponent(exercise)}">${escHtml(exercise)}&nbsp;<span class="guide-i">ⓘ</span></button>
           ${target}

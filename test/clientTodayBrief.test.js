@@ -1186,3 +1186,108 @@ test("Today Brief carries the today strength line and names the open lift", () =
   // No line → nothing new rendered.
   assert.doesNotMatch(brief.briefHtml({ kind: "train", headline: "x" }, { isToday: true }), /brief-strength/);
 });
+
+function loadVoicedBrief() {
+  const context = { Array, Math, Number, Object, String, escHtml, escAttr };
+  context.window = context;
+  vm.runInNewContext(readFileSync(join(root, "public/js/today-brief-voice-client.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/today-brief-client.js"), "utf8"), context);
+  return { brief: context.CairnTodayBrief, voice: context.CairnTodayBriefVoice };
+}
+
+test("the why marks at most one word per stone, escaped first, and leaves plain prose alone", () => {
+  const { brief, voice } = loadVoicedBrief();
+  assert.equal(voice.whyHtml("Keep the dose light."), "Keep the dose light.");
+  const html = voice.whyHtml("You slept well, deadlift climbs, and sleep holds; protein matters");
+  assert.match(html, /<span class="brief-tok stone-recovery">slept<\/span>/);
+  assert.match(html, /<span class="brief-tok stone-strength">deadlift<\/span>/);
+  assert.equal((html.match(/stone-recovery/g) || []).length, 1, "one token per stone");
+  // The Brief escapes before the tokens run.
+  const painted = brief.briefHtml({ kind: "train", headline: "Pull", why: "Sleep <script>", signals: {} }, { isToday: true });
+  assert.match(painted, /<span class="brief-tok stone-recovery">Sleep<\/span> &lt;script&gt;/);
+  // Without the voice module (a partial boot) the why is plain escaped prose.
+  assert.match(loadTodayBrief().briefHtml({ kind: "train", headline: "Pull", why: "Sleep <script>", signals: {} }, { isToday: true }), /<p class="brief-why">Sleep &lt;script&gt;<\/p>/);
+});
+
+test("the week around the read folds behind one tap, and a started session shows the live card", () => {
+  const { brief } = loadVoicedBrief();
+  const html = brief.briefHtml(
+    { kind: "train", headline: "Pull", why: "", forward: "Next: legs", signals: {} },
+    {
+      isToday: true,
+      session: {
+        date: "2026-01-05",
+        started: true,
+        progress: "1 of 3 logged",
+        minutes: 50,
+        lines: [],
+        live: { name: "Pull <b>", done: 1, total: 3, last: "Row 140 × 8", next: "Curl 30 × 12" },
+      },
+    }
+  );
+  assert.match(html, /<details class="brief-around">[\s\S]*Next: legs[\s\S]*<\/details>/);
+  // The connected-brain provenance is never folded away.
+  assert.ok(html.indexOf('id="briefProvenance"') > html.indexOf("</details>"), "provenance stays in view");
+  assert.match(html, /class="brief-live"/);
+  assert.match(html, /Now · Pull &lt;b&gt; · 1 of 3/);
+  assert.match(html, /Row 140 × 8\. Next: Curl 30 × 12\./);
+  assert.equal((html.match(/<i class="on"><\/i>/g) || []).length, 1);
+  assert.match(html, /data-redirect="start-session">Continue session/);
+  assert.ok(html.indexOf("brief-live") < html.indexOf("brief-launch"), "the live card sits over the Continue button");
+});
+
+test("the live card keeps the server's lift line and the session's guardrails, and only takes the progress meta", () => {
+  const { brief } = loadVoicedBrief();
+  const session = {
+    date: "2026-01-05",
+    started: true,
+    progress: "1 of 3 logged",
+    minutes: 50,
+    lines: ["Recheck the sore knee on the affected movement"],
+    live: { name: "Pull", done: 1, total: 3, last: "Row 140 × 8", next: "Curl 30 × 12" },
+  };
+  const html = brief.briefHtml({ kind: "train", headline: "Pull", why: "", signals: {} }, { isToday: true, session });
+  assert.match(html, /class="brief-live"/);
+  assert.match(html, /Recheck the sore knee on the affected movement/);
+  assert.doesNotMatch(html, /brief-session-meta/);
+  assert.doesNotMatch(html, /1 of 3 logged/);
+  // A past date's train read never shows a session as under way; its fold keeps the meta.
+  const past = brief.briefHtml({ kind: "train", headline: "Pull", why: "", forward: "Next: legs", signals: {} }, { isToday: false, session });
+  assert.doesNotMatch(past, /brief-live/);
+  assert.match(past, /1 of 3 logged/);
+  assert.match(past, /Around this day/);
+});
+
+test("the live card counts every lift in its words and caps only the bars", () => {
+  const { voice } = loadVoicedBrief();
+  const html = voice.liveHtml({ name: "Full", done: 7, total: 14 });
+  assert.match(html, /Full · 7 of 14/);
+  assert.equal((html.match(/<i[ >]/g) || []).length, 12);
+  assert.equal((html.match(/<i class="on"><\/i>/g) || []).length, 6);
+});
+
+test("a bar load is not the body stone", () => {
+  const { voice } = loadVoicedBrief();
+  assert.doesNotMatch(voice.whyHtml("add weight to the bar"), /stone-body/);
+  assert.match(voice.whyHtml("your bodyweight is holding"), /stone-body/);
+});
+
+test("the live facts come off the log: the newest set, then the next set or the next open lift", () => {
+  const { voice } = loadVoicedBrief();
+  const items = [
+    { exercise: "Row", sets: 3, rep_low: 8, rep_high: 10, target_weight: 140 },
+    { exercise: "Assisted Pull-Up", sets: 2, rep_low: 6, rep_high: 8, target_weight: -30 },
+  ];
+  const mid = voice.liveFacts({ name: "Pull", done: 0, total: 2, items, logged: { Row: [{ id: 4, weight: 140, reps: 9 }] } });
+  assert.equal(mid.last, "Row 140 × 9");
+  assert.equal(mid.next, "set 2 of 3");
+  const moved = voice.liveFacts({
+    name: "Pull",
+    done: 1,
+    total: 2,
+    items,
+    logged: { Row: [{ id: 4, weight: 140, reps: 9 }, { id: 5, weight: 140, reps: 8 }, { id: 7, weight: 140, reps: 8 }] },
+  });
+  assert.equal(moved.next, "Assisted Pull-Up 30 assist × 6–8");
+  assert.equal(voice.liveHtml(null), "");
+});

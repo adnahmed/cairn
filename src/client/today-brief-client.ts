@@ -44,6 +44,7 @@ type TodayBriefSessionFold = {
   lines: string[];
   // The exact preview the card would have bound its start to.
   preview?: unknown;
+  live?: TodayBriefLive | null; // where a started session stands (the live card)
 };
 
 type TodayBriefHtmlOptions = {
@@ -66,11 +67,7 @@ type TodayBriefHtmlOptions = {
   // gone for the rest of the day rather than reappearing on the next repaint.
   tradeRefused?: boolean;
   // Same "nothing to launch" witness the plan surface uses to hide its own launch
-  // card (today-screen.ts): every source — session preview, plan day items, logged
-  // sets — agrees the day is empty. Wired through by the controller once it carries
-  // the signal; undefined behaves exactly as before (Start still offered), so this
-  // stays backward compatible until that plumbing lands. See the caller's report
-  // for the exact change needed upstream.
+  // card (today-screen.ts); undefined behaves as before (Start still offered).
   nothingToStart?: boolean;
   // Set only when the Brief carries the start AND the launch card below was
   // dropped for it; see TodayBriefSessionFold.
@@ -398,16 +395,12 @@ type TodayBriefHtmlOptions = {
   // that repeats something the Brief already shows is dropped (say it once).
   function todayBriefSessionFoldHtml(
     fold: TodayBriefSessionFold | null | undefined,
-    shown: { estMinutes: number | null; lines: unknown[] }
+    shown: { estMinutes: number | null; lines: unknown[]; linesOnly?: boolean }
   ): string {
     if (!fold || typeof fold !== "object") return "";
     const minutes = fold.minutes != null && Number(fold.minutes) > 0 ? Math.round(Number(fold.minutes)) : null;
-    const meta = [
-      String(fold.progress || "").trim(),
-      minutes != null && minutes !== shown.estMinutes ? `~${minutes} min` : "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    // Under the live card only the progress/minutes meta steps aside; the guardrail and journey lines stay.
+    const meta = shown.linesOnly ? "" : [String(fold.progress || "").trim(), minutes != null && minutes !== shown.estMinutes ? `~${minutes} min` : ""].filter(Boolean).join(" · ");
     const extra: string[] = [];
     for (const line of Array.isArray(fold.lines) ? fold.lines : []) {
       const text = todayBriefDistinctLine(line, ...shown.lines, meta, ...extra);
@@ -473,7 +466,8 @@ type TodayBriefHtmlOptions = {
       read?.est_minutes != null && Number(read.est_minutes) > 0 ? Math.round(Number(read.est_minutes)) : null;
     const est = estMinutes != null ? `${estMinutes} min` : "";
     const headline = escHtml(read?.headline || meta.lead);
-    const why = read?.why ? escHtml(read.why) : "";
+    const voice = (globalThis as { CairnTodayBriefVoice?: TodayBriefVoiceApi }).CairnTodayBriefVoice;
+    const why = read?.why ? (voice ? voice.whyHtml(escHtml(read.why)) : escHtml(read.why)) : "";
     const recovery = todayBriefRecoveryHtml(read, kind);
     const weekWins = todayBriefWeekHtml(read, kind);
     // The forward line rides on train days AND done days — after the work is in,
@@ -505,14 +499,15 @@ type TodayBriefHtmlOptions = {
     const checkinSlot = todayBriefCheckinSlotHtml(kind, options.isToday !== false);
     // The athlete's own recent pattern, read back to them as the default. Two quiet
     // mornings trained through with nothing saying it cost them, and "Train anyway"
-    // is no longer the honest name for the tap — the plan day is. Nothing about what
-    // the buttons DO changes; this is the label and the order.
+    // is no longer the honest name for the tap — the plan day is (label and order only).
     const leaning =
       options.isToday === true && (kind === "rest" || kind === "easy") && todayBriefOverriddenMornings(read) >= 2;
     const planDay = leaning ? todayBriefPlanDayLabel(options.planDayName) : "";
 
     const actions: string[] = [];
     let sessionFold = "";
+    // The live card is TODAY's alone: a past date's train read never shows a session as under way.
+    const live = kind === "train" && options.isToday === true && options.session?.started && voice ? voice.liveHtml(options.session.live) : "";
     if (kind === "train" && !options.nothingToStart) {
       // ONE ACTION, ONE BUTTON: the server's lift line (todayStrengthLine) says
       // whether today's session already holds logged work; the folded launch facts
@@ -522,6 +517,7 @@ type TodayBriefHtmlOptions = {
       sessionFold = todayBriefSessionFoldHtml(options.session, {
         estMinutes,
         lines: [read?.headline, read?.focus, read?.why, strengthLine ? line?.text : ""],
+        linesOnly: !!live,
       });
     } else if (kind === "done") {
       // A logged activity alone (no session row) can flip the read to "done"
@@ -594,25 +590,26 @@ type TodayBriefHtmlOptions = {
     const yields = todayBriefYieldsLead(read);
     const quiet = yields ? " brief-quiet" : "";
     const band = todayBriefAttentionPrimary(read) ? ` data-attention="${yields ? "supporting" : "lead"}"` : "";
+    // Atelier v2 order: the read, its action, then the week around it folded (voice client).
+    const forwardHtml = forward ? `<button class="brief-forward" data-redirect="view-week" title="See your week"><span class="brief-forward-arrow" aria-hidden="true">↗</span><span class="brief-forward-txt">${forward}</span></button>` : "";
+    const arcHtml = arc ? `<button class="brief-forward brief-arc" data-redirect="view-program" title="See your plan's arc"><span class="brief-forward-arrow" aria-hidden="true">◷</span><span class="brief-forward-txt">${arc}</span></button>` : "";
+    const provenance = `<div id="briefProvenance" class="prov-slot"></div>`;
+    const context = voice ? voice.aroundHtml({ forward: forwardHtml, periodization, arc: arcHtml, provenance, isToday: options.isToday !== false }) : `${forwardHtml}${periodization}${arcHtml}${provenance}`;
     return `<section class="brief brief-${kind}${morph}${enter}${thinking}${quiet}" style="--i:0" aria-live="polite"${busy}${band}>
-      ${offline}
       ${lookBack}
       <div class="brief-kicker lbl"><span class="brief-glyph" aria-hidden="true">${meta.glyph}</span> ${escHtml(meta.kicker ? meta.kicker.toUpperCase() : `${meta.word.toUpperCase()} DAY`)}${est ? ` · ${escHtml(est)}` : ""}</div>
       <h2 class="brief-headline">${headline}</h2>
       ${focus && kind === "train" ? `<div class="brief-focus">${focus}</div>` : ""}
       ${why ? `<p class="brief-why">${why}</p>` : ""}
       ${reason}
-      ${strengthLine}
       ${checkinSlot}
       ${weekWins}
       ${recovery}
-      ${forward ? `<button class="brief-forward" data-redirect="view-week" title="See your week"><span class="brief-forward-arrow" aria-hidden="true">↗</span><span class="brief-forward-txt">${forward}</span></button>` : ""}
-      ${periodization}
-      ${arc ? `<button class="brief-forward brief-arc" data-redirect="view-program" title="See your plan's arc"><span class="brief-forward-arrow" aria-hidden="true">◷</span><span class="brief-forward-txt">${arc}</span></button>` : ""}
-      <div id="briefProvenance" class="prov-slot"></div>
-      ${sessionFold}
+      ${strengthLine}${live}${sessionFold}
       ${actions.length ? `<div class="brief-launch">${actions.join("")}</div>` : ""}
       ${steer}
+      ${context}
+      ${offline}
       ${updated}
       <button class="brief-why-more" data-briefwhy hidden>tap to see why</button>
     </section>`;

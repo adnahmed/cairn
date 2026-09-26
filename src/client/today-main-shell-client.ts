@@ -1,5 +1,7 @@
 // @ts-check
 // Today main shell markup: Brief/capture lead, weekly fold, and focus/rail wrapper.
+// The Brief leads (Atelier v2: the day's voice is the first thing on Today); the
+// life-context banner follows it as a quiet line rather than sitting above it.
 
 type TodayMainShellLeadOptions = {
   isToday: boolean;
@@ -48,8 +50,8 @@ type TodayMainShellApi = {
   function leadHtml(options: TodayMainShellLeadOptions, deps: TodayMainShellDeps): string {
     void deps;
     return `${options.isToday ? "" : `<button id="backToday" class="ghostbtn back-today">← Back to today</button>`}
-    <div id="ctxBanner"><div id="ctxEvents"></div><div id="ctxHealth"></div></div>
     ${options.briefHtml}
+    <div id="ctxBanner"><div id="ctxEvents"></div><div id="ctxHealth"></div></div>
     ${options.conductorHtml ? `<div class="cfocus-slot cfocus-thread-slot" id="cfocusSlot">${options.conductorHtml}</div>` : `<div class="cfocus-slot" id="cfocusSlot"></div>`}
     <div id="attentionLead" class="card-stack"></div>
     <div id="sugSlot" class="sug-slot"></div>

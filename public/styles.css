@@ -874,15 +874,18 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 .logdate-today{margin-top:0;flex:0 0 auto;padding:9px 13px;border-style:solid;
   border-color:var(--accent);color:var(--accent)}
 
-/* active life-context banner */
+/* active life-context banner — Atelier v2: a quiet line under the read, not a
+   card above it. A small dawn-free dot leads; the events run inline, muted. */
+#ctxEvents:empty,#ctxHealth:empty{display:none}
 .ctxbanner{
-  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
-  background:var(--card);border:none;box-shadow:var(--shadow-sm);
-  border-left:3px solid var(--gold);
-  border-radius:var(--radius-sm);padding:10px 14px;margin:2px 0 12px;
-  font-size:.84rem;color:var(--ink-2);line-height:1.45;
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;
+  background:none;border:0;box-shadow:none;border-radius:0;
+  padding:var(--space-4) 0;margin:0 0 var(--space-6);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  font-size:var(--text-sm);color:var(--ink2);line-height:1.5;
 }
-.ctxbanner-sep{color:var(--line-2)}
+.ctxbanner-sep{color:var(--muted)}
+#ctxEvents:not(:empty) + #ctxHealth .ctxbanner{margin-top:calc(-1 * var(--space-6));border-top:0}
 
 /* near-term goal anchor under the Brief — calm, score-free; taps into Progress.
    The nearer-term arc (recomp by the goal date) Today should keep in view. */
@@ -950,22 +953,22 @@ a.li:active,button.li:active{transform:var(--press-lg)}
    Information, never a verdict — it never raises its voice. */
 .prov-slot:empty{display:none}
 .prov-line{
-  display:flex;align-items:baseline;gap:7px;width:100%;text-align:left;
-  margin:12px 0 0;padding:8px 11px;
-  background:transparent;border:none;border-left:2px solid var(--gold);
-  border-radius:0 var(--radius-sm) var(--radius-sm) 0;
-  color:var(--ink-2);font-family:var(--font-ui);font-size:.8rem;line-height:1.4;
-  cursor:pointer;transition:background var(--dur-1) var(--ease);
+  display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;
+  margin:var(--space-6) 0 0;padding:var(--space-4) 0 0;
+  background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;
+  color:var(--ink2);font-family:var(--font-ui);font-size:var(--text-sm);line-height:1.45;
+  cursor:pointer;transition:color var(--dur-1) var(--ease);
 }
-.prov-line:hover{background:var(--card-2)}
+.prov-line:hover{color:var(--ink)}
 .prov-line:active{transform:var(--press-lg)}
-.prov-glyph{color:var(--gold);font-size:.74rem;flex:0 0 auto;line-height:1.4}
+/* a finding from the labs speaks for the heart stone: its hue, a small dot */
+.prov-glyph{color:var(--s-heart);font-size:.6rem;flex:0 0 auto;line-height:1.4}
 .prov-text{flex:1;min-width:0;overflow-wrap:anywhere}
 .prov-marker{font-weight:600;color:var(--ink)}
-.prov-soft{color:var(--muted);font-style:italic}
-.prov-why{flex:0 0 auto;font-size:.62rem;font-weight:600;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--muted);align-self:center}
-.prov-line:hover .prov-why{color:var(--accent)}
+.prov-soft{color:var(--muted);font-style:normal}
+.prov-why{flex:0 0 auto;font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:400;
+  letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted);align-self:center}
+.prov-line:hover .prov-why{color:var(--dawn)}
 
 /* recent activity entries */
 .ql-recent{margin:2px 0 14px}
@@ -1033,34 +1036,47 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 /* -------------------------------------------------------------------
    08 · Exercise cards (Today)
    ------------------------------------------------------------------- */
-.ex{border-radius:var(--radius);padding:15px 16px;margin-bottom:13px;position:relative;overflow:hidden}
-.ex-top{display:flex;align-items:center;gap:12px}
+/* Atelier v2: a compact card — surface, one hairline, the name in the UI face
+   (650), the dose muted on the right, the rest of the card at secondary size. */
+.ex{border-radius:var(--radius);padding:12px 14px;margin-bottom:var(--space-4);position:relative;overflow:hidden}
+.ex-top{display:flex;align-items:center;gap:10px}
 /* .ex-top-main wraps the name + prescription so a long name never overlaps the
    prescription: they share a wrapping flex row, and once the name takes more than
    one line the prescription drops to its own (still right-aligned) line beneath it.
-   Short names keep today's look — name and prescription on one line — because the
-   row simply never needs to wrap. Only the reps/timed card uses this wrapper; the
-   cardio variants keep their own single-line ellipsizing name. */
-.ex-top-main{display:flex;flex:1;min-width:0;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
-.ex-top-main .ex-name{flex:1 1 auto;min-width:150px}
+   Only the reps/timed card uses this wrapper; the cardio variants keep their own
+   single-line ellipsizing name. */
+.ex-top-main{display:flex;flex:1;min-width:0;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.ex-top-main .ex-name{flex:1 1 auto;min-width:140px}
 .ex-top-main .ex-sets{flex:0 0 auto;margin-left:auto}
+/* no illustration on the card: the name and the numbers lead */
 .ex-name{
-  font-family:var(--font-display);font-weight:540;font-size:1.15rem;line-height:1.3;
-  font-variation-settings:"opsz" 32;background:none;border:none;color:var(--ink);
-  padding:0;text-align:left;
+  font-family:var(--font-ui);font-weight:650;font-size:var(--text-base);line-height:1.3;
+  background:none;border:none;color:var(--ink);padding:0;text-align:left;letter-spacing:-.003em;
 }
-.guide-i{color:var(--accent);font-size:.78rem;font-family:var(--font-ui);white-space:nowrap}
-.ex-sets{font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--muted);white-space:nowrap}
+.guide-i{color:var(--muted);font-size:.72rem;font-family:var(--font-ui);font-weight:400;white-space:nowrap}
+.ex-sets{font-family:var(--font-ui);font-size:var(--text-xs);font-weight:500;letter-spacing:0;text-transform:none;
+  color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 .ex-target{
-  font-family:var(--font-display);font-weight:600;font-variation-settings:"opsz" 144;
-  color:var(--accent);font-size:1.2rem;font-variant-numeric:lining-nums;
+  font-family:var(--font-ui);font-weight:600;color:var(--ink2);font-size:var(--text-xs);
+  font-variant-numeric:tabular-nums;letter-spacing:0;
 }
-.ex-note{margin-top:9px;font-size:.8rem;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
-.ex-lastset{margin-top:6px;font-size:.78rem;color:var(--muted);transition:color var(--dur-1) var(--ease)}
-.ex-lastset.ex-lastset-beat{color:var(--sage-text);font-weight:600}
-.ex-flag{margin-top:9px;background:var(--warn-bg);border:none;border-left:3px solid var(--warn);
-  border-radius:8px;padding:8px 11px;font-size:.78rem;color:var(--warn)}
+.ex-note{margin-top:var(--space-3);font-size:var(--text-sm);color:var(--ink2);line-height:1.45}
+.ex-lastset{margin-top:var(--space-3);font-size:var(--text-xs);color:var(--muted);transition:color var(--dur-1) var(--ease)}
+.ex-lastset.ex-lastset-beat{color:var(--d-endurance);font-weight:600}
+.ex-flag{margin-top:var(--space-3);background:color-mix(in srgb,var(--d-heart) 9%,transparent);border:none;
+  border-radius:var(--radius-xs);padding:7px 10px;font-size:var(--text-xs);color:var(--d-heart);line-height:1.45}
+
+/* The ACTIVE card — the first lift still open — wears the dawn ring; the one a
+   finger is typing into does too. Finished cards settle back. Pure CSS, so no
+   re-render ever has to remember which card was "current". */
+.sess-dest .ex:nth-child(1 of .ex:not(.ex-complete)),
+.sess-dest .ex:focus-within{border-color:var(--dawn);box-shadow:inset 0 0 0 1px var(--dawn)}
+/* Other open cards stay compact: the dose, the log row, the last-time line. The
+   coaching prose waits on the active card (and the one being typed into). */
+.sess-dest .ex:not(:nth-child(1 of .ex:not(.ex-complete))):not(:focus-within) .ex-rx-why,
+.sess-dest .ex:not(:nth-child(1 of .ex:not(.ex-complete))):not(:focus-within) .ex-journey,
+.sess-dest .ex:not(:nth-child(1 of .ex:not(.ex-complete))):not(:focus-within) .ex-rx-supporting{display:none}
+.sess-dest .ex:not(:nth-child(1 of .ex:not(.ex-complete))):not(:focus-within) .ex-rx{padding-block:5px}
 
 /* One easing stated once for the whole session, instead of on every card. */
 .session-eased{margin:0 0 12px;color:var(--muted)}
@@ -1091,61 +1107,77 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 .session-brain-fold[open] .session-brain-more{animation:settlein var(--dur-2) var(--ease) both}
 @media (prefers-reduced-motion:reduce){.session-brain-fold[open] .session-brain-more{animation:none}}
 
-/* set progress + completion */
-.ex-meta{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:5px}
-.ex-prog{font-family:var(--font-display);font-variation-settings:"opsz" 60;font-weight:600;
-  font-size:.85rem;color:var(--muted);font-variant-numeric:lining-nums}
-.ex-prog span{font-family:var(--font-ui);font-weight:600;text-transform:uppercase;
-  letter-spacing:.12em;font-size:.58rem}
-.ex-prog.done{color:var(--sage)}
+/* set progress + completion — mono, small */
+.ex-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:var(--space-2)}
+.ex-prog{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  color:var(--muted);font-variant-numeric:tabular-nums;text-transform:uppercase}
+.ex-prog span{font-family:inherit;font-weight:400;text-transform:uppercase;letter-spacing:inherit;font-size:inherit}
+.ex-prog.done{color:var(--d-endurance)}
 .ex-prog.done::before{content:"✓ ";font-family:var(--font-ui)}
-.ex-offplan{color:var(--accent-deep);text-transform:uppercase;letter-spacing:.14em;
-  font-size:.58rem;font-weight:700}
-.ex-complete{box-shadow:var(--shadow-sm),inset 3px 0 0 var(--sage)}
-.ex-complete .ex-name,.ex-complete .ex-target{opacity:.62}
-.ex-complete .ex-art,.ex-complete .qlent-art{filter:saturate(.55);opacity:.75}
+.ex-offplan{color:var(--dawn-deep);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:var(--tracking-mono);
+  font-size:var(--text-2xs);font-weight:400}
+.ex-complete{box-shadow:none;background:color-mix(in srgb,var(--surface) 60%,var(--ground))}
+.ex-complete .ex-name{color:var(--ink2)}
+.ex-complete .ex-name,.ex-complete .ex-target{opacity:1}
+.ex-complete .qlent-art{filter:saturate(.55);opacity:.75}
 
-/* logged set chips — cream pills */
-.logged{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+/* logged sets — hairline set rows: mono index, the set in tabular figures */
+.logged{display:flex;flex-direction:column;gap:2px;margin-top:var(--space-4)}
 .logged:empty{display:none}
 .chip{
   display:inline-flex;align-items:center;gap:4px;
-  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
-  font-size:.82rem;font-variant-numeric:lining-nums;
-  background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-pill);
+  font-family:var(--font-ui);font-weight:500;font-size:.82rem;font-variant-numeric:tabular-nums;
+  background:var(--surface2);border:1px solid var(--line);border-radius:var(--radius-pill);
   padding:4px 11px;color:var(--ink);
 }
 .chip span{color:var(--muted)}
+/* on an exercise card a logged set is a ROW, not a pill: mono index, the set in
+   tabular figures, the remove at the far end */
+.logged .chip{display:flex;align-items:baseline;gap:5px;background:none;border:0;border-radius:0;
+  padding:3px 0;font-size:var(--text-md);border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.logged .chip:first-child{border-top:0}
 /* a set that is already on the card but not yet acknowledged by the server:
    present and readable, just quieter — never a doubt about whether it saved */
 .chip[data-pending="1"]{opacity:.62;border-style:dashed}
+.logged .chip[data-pending="1"]{border-style:solid}
 .chip[data-pending="1"] .chip-x,.chip[data-pending="1"] [data-del]{display:none}
 .chip-n{color:var(--accent);font-weight:620;margin-right:1px}
+.logged .chip-n{flex:0 0 24px;font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--muted);font-weight:400;margin:0}
 /* destructive remove → .xbtn; delta = faint glyph that warms to --warn */
 .chip-x{color:var(--faint);font-size:1rem;padding:0 0 0 4px}
+.logged .chip-x{margin-left:auto;color:var(--muted)}
 .chip-x:active,.chip-x:hover{color:var(--warn)}
 
-/* set logging row */
-.logrow{display:flex;gap:7px;margin-top:10px;align-items:center}
+/* set logging row: mono caps over compact wells, the dawn Log button */
+.logrow{display:flex;gap:6px;margin-top:var(--space-5);align-items:center}
 /* persistent caps over the wells — a prefilled value hides the placeholder, and
    three bare numbers do not say which is weight, reps or RIR */
-.logcaps{display:flex;gap:7px;margin-top:10px}
-.logcaps span{flex:1 1 0;min-width:0;text-align:center;font-family:var(--font-ui);font-size:.58rem;
-  font-weight:600;letter-spacing:.14em;color:var(--muted)}
-.logcaps i{flex:0 0 44px}
-/* timed row: WT · TIME · stopwatch · + — the first spacer sits over the stopwatch */
+.logcaps{display:flex;gap:6px;margin-top:var(--space-5)}
+.logcaps span{flex:1 1 0;min-width:0;text-align:left;padding-left:2px;font-family:var(--font-mono);font-size:.58rem;
+  font-weight:400;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.logcaps i{flex:0 0 58px}
+/* timed row: WT · TIME · stopwatch · Log — the first spacer sits over the stopwatch */
 .logcaps-timed i:first-of-type{flex-basis:56px}
-.logcaps + .logrow{margin-top:4px}
+.logcaps + .logrow{margin-top:var(--space-1)}
 .logrow input{
-  width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
-  border-radius:10px;padding:10px 8px;text-align:center;
-  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:1rem;font-weight:520;
+  width:100%;min-width:0;background:var(--ground);border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--radius-xs);padding:9px 10px;text-align:left;
+  font-family:var(--font-ui);font-size:1.05rem;font-weight:500;font-variant-numeric:tabular-nums;
+  transition:border-color var(--dur-1) var(--ease);
 }
-.logrow input::placeholder{font-family:var(--font-ui);font-size:.62rem;
-  letter-spacing:.14em;font-weight:600}
+@media (pointer:coarse){.logrow input{font-size:16px}}
+.logrow input::placeholder{font-family:var(--font-mono);font-size:.62rem;color:var(--muted);
+  letter-spacing:.08em;font-weight:400}
 .logrow input:focus,.wt-inline input:focus,.chatbar input:focus,.chatbar textarea:focus{
   outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent);
 }
+/* the set row's Log: the one dawn verb on the card */
+.logrow .logbtn{width:58px;height:42px;background:var(--dawn);color:var(--on-accent);font-size:var(--text-sm);
+  font-weight:650;letter-spacing:.01em}
+.logrow .logbtn:hover{background:var(--dawn-deep)}
+/* only the active card's Log is dawn; the others wait in ink on surface2 */
+.sess-dest .ex:not(:nth-child(1 of .ex:not(.ex-complete))):not(:focus-within) .logrow .logbtn{
+  background:var(--surface2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
 .timerbtn{
   flex:0 0 auto;min-width:56px;height:44px;padding:0 9px;border:1px solid var(--line);border-radius:var(--radius-pill);
   background:var(--card-2);color:var(--muted);font-family:var(--font-ui);font-size:.72rem;font-weight:700;
@@ -1197,10 +1229,16 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 .skip-name:active{transform:var(--press)}
 .skip-undo{display:inline-block;color:var(--accent);font-size:.82rem} /* inline-block escapes the strikethrough */
 
-/* finish workout */
-.finish{margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
-.finish-stat{font-family:var(--font-display);font-variation-settings:"opsz" 40;
-  font-size:.92rem;color:var(--ink-2);font-variant-numeric:lining-nums}
+/* finish workout — the tally in mono, a notes well and the one solid ink Finish */
+.finish{margin-top:var(--space-4);padding-top:var(--space-7);border-top:1px solid var(--line)}
+.finish-stat{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--muted);font-variant-numeric:tabular-nums}
+.finish .finish-row{margin-top:var(--space-5)}
+.finish .finish-row input{font-size:var(--text-md);background:var(--surface)}
+@media (pointer:coarse){.finish .finish-row input{font-size:16px}}
+.finish .finish-row input::placeholder{font-family:var(--font-ui);font-size:var(--text-sm);letter-spacing:0}
+.finish .logrow .finish-btn{width:auto;padding:0 20px;background:var(--ink);color:var(--on-ink);font-size:.84rem}
+.finish .logrow .finish-btn:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
 
 /* Finish micro-exit: the logging surface lifts away before the "done" card reveals. */
 @keyframes slideOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-18px) scale(.98)}}
@@ -3118,6 +3156,15 @@ header{position:relative}
   -webkit-user-select:none;user-select:none}
 .hdr-chev{display:inline-block;font-size:.85rem;color:var(--muted);margin-left:9px;
   vertical-align:6px;transition:transform var(--dur-2) var(--ease)}
+/* Atelier v2: Today's header is the mono date eyebrow over the Brief's voice —
+   small, tracked, muted; the whole line stays the date-picker tap target. */
+body[data-tab="today"] header #header-title{
+  font-family:var(--font-mono);font-weight:400;font-size:.7rem;letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--ink2);line-height:1.6;margin:0;display:inline-flex;align-items:center;
+  min-height:32px;
+}
+body[data-tab="today"] header #header-title .hdr-chev{font-size:.7rem;margin-left:6px;vertical-align:0}
+body[data-tab="today"] header{padding-bottom:0}
 
 /* Today: the date control stays reachable — the header pins to the top of the
    scroll. At rest it's the full editorial header; once the page scrolls it
@@ -3136,10 +3183,10 @@ body[data-tab="today"] header::after{
 }
 body[data-tab="today"] header #header-title{transition:font-size var(--dur-2) var(--ease)}
 body[data-tab="today"] header.condensed{
-  padding-top:calc(env(safe-area-inset-top) + 11px);padding-bottom:11px;
+  padding-top:calc(env(safe-area-inset-top) + 6px);padding-bottom:4px;
 }
 body[data-tab="today"] header.condensed::after{opacity:1}
-body[data-tab="today"] header.condensed #header-title{font-size:1.5rem}
+body[data-tab="today"] header.condensed #header-title{font-size:.7rem}
 /* full-size transparent overlay over the title — a real tap target that opens the
    native date picker reliably (a genuine pointer event on a real input). */
 .hdr-datepick{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;
@@ -3354,10 +3401,13 @@ body.sheet-open{overflow:hidden}
 /* The day's judgment is the hero, in plain language — no score, no gauge. The
    surface tone shifts with kind: restful for rest, light for easy, warm for
    train. A calm card, generous whitespace, Atelier editorial. */
+/* Atelier v2: the Brief is the page's VOICE, not a card. It sits straight on the
+   ground — a mono eyebrow, a big Young Serif headline, ink2 prose — so the day's
+   read is the one focal point of Today. No border, no wash, no shadow: the kind
+   (rest / easy / train / done) speaks in the eyebrow's glyph colour only. */
 .brief{
-  background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
-  padding:24px 22px 20px;margin:6px 0 14px;position:relative;overflow:hidden;
-  border-left:3px solid var(--accent);
+  background:none;box-shadow:none;border:0;border-radius:0;
+  padding:2px 0 0;margin:0 0 var(--space-9);position:relative;
 }
 /* shared element for the override-chip reshape: the hero morphs, never pops.
    The name is applied dynamically (JS) only for that moment, so ordinary tab
@@ -3367,36 +3417,14 @@ body.sheet-open{overflow:hidden}
    it's an in-place element swap), so the real read doesn't pop the filament off */
 .brief.brief-settle{animation:briefsettle var(--dur-3) var(--ease) both}
 @keyframes briefsettle{from{opacity:.55}to{opacity:1}}
-/* a soft warm wash bleeds in from the accent edge — kind-tinted, very quiet.
-   On an override reshape the whole hero (incl. this wash) morphs via the
-   brief-hero view transition, so no per-property transition is needed here. */
-.brief::before{content:"";position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--accent) 5%,transparent), transparent 62%);}
-.brief-rest{border-left-color:var(--sage)}
-.brief-rest::before{background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--sage) 7%,transparent), transparent 62%)}
-.brief-easy{border-left-color:var(--gold)}
-.brief-easy::before{background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--gold) 8%,transparent), transparent 62%)}
-.brief-train{border-left-color:var(--accent)}
-.brief-done{border-left-color:var(--sage)}
-.brief-done::before{background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--sage) 8%,transparent), transparent 62%)}
 
 /* The QUIET band. The server's lead arbitration (src/domain/brain/today-attention.ts)
    handed today's position of prominence to another surface, because this read is
-   repeating yesterday's. The Brief recedes by ELEVATION, SURFACE and AREA — it stops
-   floating (no shadow), settles onto the inset surface, drops the hero wash, thins its
-   spine and steps one rung down the display scale.
-   It never recedes by DIMMING. No opacity, no greying, no desaturation: ink, controls,
-   the steer chips and the kind spine-colour all keep full strength, because the read is
-   still a suggestion the athlete can act on — a faded Brief would read as switched off,
-   which it never is. `--muted` is specified to clear WCAG AA on `--card-2`, so every
-   line inside stays as legible here as on the raised card. */
-.brief.brief-quiet{
-  background:var(--card-2);box-shadow:none;border-left-width:2px;
-  padding:18px 20px 16px;
-}
-.brief.brief-quiet::before{background:none}
-.brief-quiet .brief-headline{font-size:1.5rem}
-
+   repeating yesterday's. The Brief recedes by AREA only — one rung down the display
+   scale and a tighter rhythm. It never recedes by DIMMING: no opacity, no greying,
+   because the read is still a suggestion the athlete can act on. */
+.brief.brief-quiet{padding:0;margin-bottom:var(--space-7)}
+.brief-quiet .brief-headline{font-size:var(--text-xl)}
 /* the morning wake-up review (W4.7) — a quiet past-tense passage ABOVE the
    day's suggestion, set apart with its own hairline so it never reads as part
    of today's read. Absent entirely when the server sent nothing. */
@@ -3404,26 +3432,39 @@ body.sheet-open{overflow:hidden}
 .brief-lookback-lbl{color:var(--muted);margin-bottom:5px}
 .brief-lookback-txt{font-size:.85rem;color:var(--ink-2);line-height:1.5;margin:0;font-style:italic}
 
-.brief-kicker{display:flex;align-items:center;gap:7px;color:var(--muted);margin-bottom:9px}
-.brief-glyph{font-size:.72rem;line-height:1}
-.brief-rest .brief-glyph{color:var(--sage)}
-.brief-easy .brief-glyph{color:var(--gold)}
-.brief-train .brief-glyph{color:var(--accent)}
-.brief-done .brief-glyph{color:var(--sage)}
+.brief-kicker{display:flex;align-items:baseline;gap:7px;color:var(--muted);margin-bottom:var(--space-3)}
+.brief-glyph{font-size:.62rem;line-height:1}
+.brief-rest .brief-glyph{color:var(--d-recovery)}
+.brief-easy .brief-glyph{color:var(--d-endurance)}
+.brief-train .brief-glyph{color:var(--dawn)}
+.brief-done .brief-glyph{color:var(--d-endurance)}
 
+/* the voice line — the one focal point of Today */
 .brief-headline{
-  font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 100;
-  font-size:1.95rem;line-height:1.1;letter-spacing:-.012em;color:var(--ink);margin:0;
+  font-family:var(--font-display);font-weight:400;
+  font-size:clamp(1.8rem,8.2vw,2.2rem);line-height:1.06;letter-spacing:-.014em;color:var(--ink);
+  margin:0;text-wrap:balance;
 }
-.brief-rest .brief-headline{font-style:italic;font-weight:480}
+.brief-rest .brief-headline{font-style:normal}
+/* the day's focus under the voice: a quiet sans line, never a second headline */
 .brief-focus{
-  font-family:var(--font-display);font-style:italic;font-weight:480;
-  font-variation-settings:"opsz" 50;font-size:1.05rem;color:var(--accent);margin-top:5px;
+  font-family:var(--font-ui);font-style:normal;font-weight:500;
+  font-size:var(--text-md);color:var(--ink2);margin-top:var(--space-3);letter-spacing:.005em;
 }
-.brief-why{font-size:.92rem;color:var(--ink-2);line-height:1.5;margin:11px 0 0;max-width:46ch}
+.brief-why{font-size:var(--text-base);color:var(--ink2);line-height:1.6;margin:var(--space-5) 0 0;max-width:48ch;
+  text-wrap:pretty}
+/* a stone the read leans on, named in the why: ink word, the stone's own hue as
+   its underline. Words only — the tone never recolours it. */
+.brief-tok{color:var(--ink);text-decoration:none;border-bottom:2px solid color-mix(in srgb,var(--c) 85%,transparent);
+  padding-bottom:0;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 /* the rest/easy read's specific reason — a quieter second line under the why */
-.brief-reason{font-size:.82rem;color:var(--muted);line-height:1.45;margin:6px 0 0;max-width:46ch}
-.brief-strength{margin-top:13px;padding-top:11px;border-top:1px solid var(--line);max-width:46ch}
+.brief-reason{font-size:var(--text-sm);color:var(--muted);line-height:1.5;margin:var(--space-3) 0 0;max-width:48ch}
+/* today's lift: a hairline row, mono key on the left, the line on the right */
+.brief-strength{margin-top:var(--space-7);padding-top:var(--space-5);border-top:1px solid var(--line);max-width:none}
+.brief-strength .strength-line{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;align-items:baseline}
+.brief-strength .strength-line-k{grid-column:1;white-space:nowrap}
+.brief-strength .strength-line-t{grid-column:2;font-size:var(--text-md);font-weight:600;color:var(--ink);line-height:1.4}
+.brief-strength .strength-line-caveat,.brief-strength .strength-line-orig{grid-column:2;font-size:var(--text-xs);color:var(--muted)}
 
 /* the week-wins reassurance on a rest/easy Brief — same sentence + rules as the
    done card's week footnote (.done-week), just repositioned here. */
@@ -3467,6 +3508,27 @@ body.sheet-open{overflow:hidden}
 }
 .brief-clock-row:hover{color:var(--ink-2)}
 .brief-clock-mark{color:var(--sage);font-size:.75rem}
+/* "Around today" — the week around the read (forward look, block clock, the
+   plan's arc, the finding the day honours), folded behind one quiet tap so the
+   first view is the read and its one action. A hairline row, mono label. */
+.brief-around{margin-top:var(--space-7);border-top:1px solid var(--line)}
+.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;
+  list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.brief-around-sum::-webkit-details-marker{display:none}
+.brief-around-chev{color:var(--muted);font-size:.7rem;transition:transform var(--dur-2) var(--ease)}
+.brief-around[open] .brief-around-chev{transform:rotate(180deg)}
+.brief-around-body{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-4);padding:0 0 var(--space-4)}
+.brief-around-body .brief-forward,.brief-around-body .brief-clocks{margin-top:0;padding-top:0;border-top:0}
+.brief-around-body .prov-slot:empty{display:none}
+.brief-around[open] .brief-around-body{animation:in var(--dur-in) var(--ease)}
+/* the offline note is a footnote under the read: no well, a small dot, muted */
+.brief > .agent-offline{margin:var(--space-6) 0 0;background:none;border:0;border-radius:0;padding:0;
+  font-size:var(--text-xs);color:var(--muted)}
+.brief > .agent-offline .agent-offline-dot{width:6px;height:6px}
+@media (prefers-reduced-motion:reduce){
+  .brief-around-chev{transition:none}
+  .brief-around[open] .brief-around-body{animation:none}
+}
 /* provenance (sync / read clock) lives inside the "tap to see why" disclosure,
    in the tracked muted label (.lbl); hidden until that disclosure opens */
 .brief-updated{margin-top:10px;line-height:1.6}
@@ -3542,31 +3604,46 @@ body.sheet-open{overflow:hidden}
 /* the other options freeze while we think */
 .brief-steer-opt:disabled,.brief-steer-reset:disabled{opacity:.45;cursor:default;text-decoration-color:transparent}
 
-/* launchpad redirects — the heart of "you drive": always present, quiet */
-.brief-launch{display:flex;flex-wrap:wrap;gap:9px;margin-top:17px}
+/* The LIVE card — a session under way. It stands where the lift facts sat, over
+   the Continue button: the dawn ping and a mono key, the last set and the next
+   lift as one serif line, then one slim bar per lift in the strength hue. */
+.brief-live{margin-top:var(--space-8);background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:var(--space-4)}
+.brief-live-top{display:flex;align-items:center;gap:7px;color:var(--ink2)}
+.brief-live-line{font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.25;
+  color:var(--ink);text-wrap:balance}
+.brief-live-bars{display:flex;gap:4px}
+.brief-live-bars i{flex:1 1 0;height:4px;border-radius:2px;background:var(--surface2)}
+.brief-live-bars i.on{background:var(--s-strength)}
+.brief-live + .brief-launch{margin-top:var(--space-5)}
+
+/* launchpad redirects — the heart of "you drive": always present, quiet. Small
+   rounded buttons; the one primary is solid ink (the v2 solid), never a shout. */
+.brief-launch{display:flex;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-8)}
 /* the launch card's facts, folded above the Brief's one start button when the
    Brief carries it ("1 of 5 logged · ~60 min") — quiet, never a second card */
-.brief-session{margin-top:15px;font-family:var(--font-ui);font-size:.78rem;line-height:1.45;color:var(--muted);max-width:46ch}
-.brief-session + .brief-launch{margin-top:9px}
-.brief-session-meta{color:var(--ink-2);font-weight:600;letter-spacing:.01em}
+.brief-session{margin-top:var(--space-7);font-family:var(--font-ui);font-size:var(--text-xs);line-height:1.5;color:var(--muted);max-width:48ch}
+.brief-session + .brief-launch{margin-top:var(--space-5)}
+.brief-session-meta{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--ink2)}
 .brief-session-line{margin-top:2px}
 .brief-redirect{
-  background:transparent;border:1px solid var(--line-2);color:var(--ink-2);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  background:var(--surface);border:1px solid var(--line);color:var(--ink);
   border-radius:var(--radius-pill);padding:9px 16px;font-family:var(--font-ui);font-weight:600;
-  font-size:.78rem;letter-spacing:.02em;cursor:pointer;
-  transition:border-color var(--dur-1),color var(--dur-1),background var(--dur-1),box-shadow var(--dur-1),transform var(--dur-1);
+  font-size:.84rem;letter-spacing:0;cursor:pointer;
+  transition:border-color var(--dur-1),color var(--dur-1),background var(--dur-1),transform var(--dur-1) var(--ease);
 }
-.brief-redirect:hover{border-color:var(--ink);color:var(--ink)}
+.brief-redirect:hover{border-color:var(--line-strong);color:var(--ink)}
 .brief-redirect:active{transform:var(--press)}
-.brief-redirect-primary{
-  background:var(--accent);border-color:var(--accent);color:var(--on-accent);box-shadow:var(--shadow-sm);
-}
-.brief-redirect-primary:hover{background:var(--accent-deep);border-color:var(--accent-deep);color:var(--on-accent)}
+.brief-redirect-primary,
 .brief-rest .brief-redirect-primary,.brief-easy .brief-redirect-primary{
-  background:var(--ink);border-color:var(--ink);color:var(--paper);
+  background:var(--ink);border-color:var(--ink);color:var(--on-ink);box-shadow:none;padding-inline:20px;
 }
+.brief-redirect-primary:hover,
 .brief-rest .brief-redirect-primary:hover,.brief-easy .brief-redirect-primary:hover{
-  background:var(--ink);border-color:var(--ink);color:var(--paper);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  background:color-mix(in srgb,var(--ink) 86%,var(--ground));border-color:transparent;color:var(--on-ink);
+  box-shadow:none;transform:none}
 
 /* always-on bodyweight quick action — quiet, there until you want it */
 .capture-row{margin:0 0 12px}
@@ -6723,42 +6800,60 @@ body[data-tab="session"] .tabbar{display:none}
 
 .sess-dest{max-width:600px;margin:0 auto}
 
+/* Atelier v2: a quiet sticky bar — the back control, a mono eyebrow, the day's
+   name as the serif voice line, and the set count in mono on the right. */
 .sess-topbar{
   position:sticky;top:0;z-index:var(--z-session-bar);isolation:isolate;
-  display:flex;align-items:center;gap:12px;
-  padding:calc(env(safe-area-inset-top) + 14px) 0 12px;
-  background:var(--paper);
-  box-shadow:0 1px 0 var(--line), 0 10px 16px -12px rgba(72,58,35,.16);
+  display:flex;align-items:flex-start;gap:10px;
+  padding:calc(env(safe-area-inset-top) + 12px) 0 10px;
+  background:var(--ground);
+  box-shadow:0 1px 0 var(--line);
 }
 .sess-close{
-  flex:0 0 auto;width:38px;height:38px;border-radius:50%;
+  flex:0 0 auto;width:34px;height:34px;border-radius:50%;margin-top:2px;
   display:grid;place-items:center;
-  background:var(--card);border:1px solid var(--line);color:var(--ink);
-  font-size:1.2rem;line-height:1;box-shadow:var(--shadow-sm);
-  transition:transform var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease);
+  background:var(--surface);border:1px solid var(--line);color:var(--ink2);
+  font-size:1rem;line-height:1;box-shadow:none;
+  transition:transform var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease);
 }
+.sess-close:hover{border-color:var(--line-strong);color:var(--ink)}
 .sess-close:active{transform:var(--press-sm)}
 .sess-topbar-mid{min-width:0;flex:1}
-.sess-topbar-mid .sess-kicker{margin-bottom:3px}
+.sess-topbar-mid .sess-kicker{margin-bottom:2px}
 .sess-dayname{
-  font-family:var(--font-display);font-weight:560;font-size:1.32rem;
-  line-height:1.15;color:var(--ink);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);letter-spacing:-.01em;
+  line-height:1.12;color:var(--ink);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
 }
-.sess-focus{color:var(--muted);font-weight:500;font-size:.95rem}
-.sess-topbar-side{flex:0 0 auto;text-align:right}
-.sess-prog{font-family:var(--font-ui);color:var(--muted);font-size:.82rem;letter-spacing:.02em;white-space:nowrap}
-.sess-prog b{font-family:var(--font-display);color:var(--ink);font-size:1.1rem;font-weight:600}
-.sess-prog-sep{opacity:.55}
+.sess-focus{font-family:var(--font-ui);color:var(--ink2);font-weight:500;font-size:var(--text-sm);letter-spacing:0}
+.sess-topbar-why{margin-top:4px;font-size:var(--text-xs);color:var(--muted);line-height:1.45}
+.sess-topbar-side{flex:0 0 auto;text-align:right;padding-top:4px}
+.sess-prog{font-family:var(--font-mono);color:var(--muted);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  white-space:nowrap;text-transform:uppercase}
+.sess-prog b{font-family:var(--font-mono);color:var(--ink);font-size:var(--text-2xs);font-weight:500}
+.sess-prog-sep{opacity:1}
 
-.sess-dots{display:flex;gap:6px;padding:0 2px 12px}
-.sess-dot{width:8px;height:8px;border-radius:50%;background:var(--line-2);
+/* lift progress: one slim bar per lift, filled in the strength stone's hue */
+.sess-dots{display:flex;gap:4px;padding:8px 0 12px}
+.sess-dot{flex:1 1 0;height:4px;border-radius:2px;background:var(--line);
   transition:background var(--dur-2) var(--ease)}
-.sess-dot.on{background:var(--sage)}
+.sess-dot.on{background:var(--s-strength)}
 
 .sess-body{padding-bottom:calc(env(safe-area-inset-bottom) + 44px)}
 .sess-dest .plansurface{margin-top:2px}
-.sess-dest .day-switch{padding-top:2px}
+.sess-dest .day-switch{padding:2px 0 12px;gap:6px}
+.sess-dest .daybtn{padding:6px 12px;font-size:var(--text-xs);font-weight:500;letter-spacing:0;
+  border-color:var(--line);background:var(--surface);color:var(--ink2)}
+.sess-dest .daybtn.active{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+/* the adapted-next line on a card: a compact well, the stone-free verdict word in
+   mono, the target in tabular figures — tone rides the word, never a spine */
+.sess-dest .ex .ex-rx{margin:var(--space-4) 0 var(--space-2);padding:8px 10px;background:var(--surface2);
+  border-left:0;border-radius:var(--radius-xs)}
+.sess-dest .ex .ex-rx-supporting{background:transparent;padding:4px 0}
+.sess-dest .ex .ex-rx-target{font-family:var(--font-ui);font-weight:600;font-size:var(--text-md);font-variant-numeric:tabular-nums}
+.sess-dest .ex .ex-rx-why{font-size:var(--text-xs);line-height:1.5}
+.sess-dest .ex .ex-rx-up .ex-rx-tag,.sess-dest .ex .ex-rx-up .ex-rx-delta{color:var(--d-endurance)}
+.sess-dest .ex .ex-rx-down .ex-rx-tag,.sess-dest .ex .ex-rx-down .ex-rx-delta{color:var(--dawn-deep)}
 
 /* The pre-session primer — "a coach was already here". A calm editorial card:
    a lead sentence, three reading-grammar sections (.read-contribs), an approach
@@ -6766,13 +6861,14 @@ body[data-tab="session"] .tabbar{display:none}
 .sess-primer-slot:empty{display:none}
 .sess-orig{margin-top:4px}
 .sess-line-start{margin-top:8px}
-.sess-primer{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-  padding:14px 16px;margin-bottom:12px}
+/* the primer reads as the team's note above the cards: a dawn-washed well */
+.sess-primer{background:var(--dawn-wash);border:0;border-radius:var(--radius-md);
+  padding:10px 12px;margin-bottom:var(--space-6)}
 .sess-primer-head{display:flex;align-items:baseline;gap:10px;width:100%;background:none;border:0;
   padding:0;text-align:left;cursor:pointer;color:inherit}
 .sess-primer-head-text{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 .sess-primer-kicker{color:var(--muted)}
-.sess-primer-why{color:var(--ink);font-size:.95rem;line-height:1.4}
+.sess-primer-why{color:var(--ink2);font-size:var(--text-sm);line-height:1.45}
 .sess-primer-chev{flex:0 0 auto;color:var(--muted);font-size:.7rem;transition:transform var(--dur-1) ease;margin-top:2px}
 .sess-primer.collapsed .sess-primer-chev{transform:rotate(-90deg)}
 .sess-primer.collapsed .sess-primer-why{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -7427,8 +7523,8 @@ a.pebble-strip-pebble:hover{background:var(--card-2)}
 a.pebble-strip-pebble:active{transform:var(--press-sm)}
 .pebble-strip-stone{display:block;flex:none;width:44px;height:28px;margin:0 0 var(--space-1)}
 .pebble-strip-stone .stone-svg{width:100%;height:100%}
-.pebble-strip-label{max-width:100%;font-size:var(--text-xs);font-weight:500;line-height:1.2;color:var(--ink2);
-  overflow-wrap:anywhere}
+.pebble-strip-label{max-width:100%;font-size:clamp(.6rem,3cqi,.74rem);font-weight:500;line-height:1.2;color:var(--ink2);
+  overflow-wrap:normal;word-break:keep-all;white-space:nowrap}
 .pebble-strip-word{max-width:100%;font-family:var(--font-display);font-size:clamp(.66rem,3.3cqi,.8rem);font-weight:400;
   line-height:1.2;color:var(--cd,var(--ink));hyphens:auto;overflow-wrap:anywhere}
 @keyframes pebble-settle{
@@ -7444,6 +7540,54 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
   .pebble-strip.is-entering .pebble-strip-stone{animation:none}
 }
 
+
+/* =====================================================================
+   Today column rhythm (Atelier v2). Today-only components whose base rules
+   still live in older partials (the block thread and agenda cards in
+   train/strength.css, the context tags in ask/capture.css) take the v2 look
+   here, scoped to `.today-wrap` and late in the cascade, so no other surface
+   moves. Hairline cards, no coloured spines, mono keys, small pills.
+   ===================================================================== */
+/* the block thread: a hairline row card, the mono key in the strength hue */
+.today-wrap .cfocus-thread{background:var(--surface);border:1px solid var(--line);border-left:1px solid var(--line);
+  border-radius:var(--radius-md);box-shadow:none;padding:10px 12px;margin:0 0 var(--space-6)}
+.today-wrap .cfocus-thread:hover{background:var(--surface);border-color:var(--line-strong)}
+.today-wrap .cfocus-thread:active{transform:var(--press-lg)}
+.today-wrap .cfocus-thread-arrow{color:var(--d-strength);font-weight:400}
+.today-wrap .cfocus-thread-lbl{color:var(--d-strength)}
+.today-wrap .cfocus-thread-txt{font-size:var(--text-md);font-weight:600}
+.today-wrap .cfocus-thread-why{font-size:var(--text-xs)}
+
+/* today's run: the same hairline card, a mono key led by the endurance dot */
+.today-run-line .wrun-row{background:var(--surface);border:1px solid var(--line);border-left:1px solid var(--line);
+  border-radius:var(--radius-md);padding:11px 13px}
+.today-run-line .wrun-kind{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);
+  letter-spacing:var(--tracking-mono);color:var(--d-endurance);display:inline-flex;align-items:center;gap:6px}
+.today-run-line .wrun-kind::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--s-endurance)}
+.today-run-line .wrun-quality .wrun-kind{color:var(--dawn-deep)}
+.today-run-line .wrun-quality .wrun-kind::before{background:var(--dawn)}
+.today-run-line .wrun-label{font-size:var(--text-md)}
+.today-run-line .wrun-note{font-size:var(--text-sm);color:var(--ink2)}
+.today-run-line .wrun-note .linkbtn{color:var(--ink2);font-size:var(--text-xs);text-decoration:underline;
+  text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+
+/* capture: the bodyweight chip and the context tags share one quiet wrapping row */
+.today-wrap .capture-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 var(--space-7)}
+.today-wrap .capture-row .tags-slot,.today-wrap .capture-row .tags-chips{display:contents}
+.today-wrap .wt-inline:not([hidden]){display:flex;gap:6px;flex:1 1 100%}
+.today-wrap .wt-mini{height:32px;padding:0 12px;background:var(--surface);font-size:var(--text-md)}
+.today-wrap .tag-chip{padding:5px 11px;font-size:var(--text-xs);color:var(--ink2);min-height:32px}
+.today-wrap .tag-chip-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+
+/* the rail's ranked reads: hairline cards (no spine), small pill actions */
+.today-wrap .well-accent,.today-wrap .agenda-card{border:1px solid var(--line);border-left:1px solid var(--line);
+  box-shadow:none;border-radius:var(--radius-md);background:var(--surface)}
+.today-wrap .fuel-card{border:1px solid var(--line);box-shadow:none;border-radius:var(--radius-md);background:var(--surface)}
+.today-wrap .fuel-card:hover{background:var(--surface2)}
+.today-wrap .agenda-act{background:var(--ink);color:var(--on-ink);border-radius:var(--radius-pill);
+  padding:7px 14px;font-size:.84rem}
+.today-wrap .agenda-act:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
+.today-wrap .rail-mast-mark{color:var(--dawn)}
 /* =====================================================================
    Cairn stack + stone detail (v2 wave 5 stream B): the You home leads with
    the whole cairn (.cairn-stack-*) — six stones drawn by CairnStone (§04e),
