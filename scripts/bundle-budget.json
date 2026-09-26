@@ -4,12 +4,12 @@
   "bundles": {
     "public/js/bundle-01-core.js": {
       "measured": {
-        "raw": 205494,
-        "brotli": 39704
+        "raw": 219529,
+        "brotli": 42463
       },
       "budget": {
-        "raw": 209920,
-        "brotli": 40960
+        "raw": 224256,
+        "brotli": 44032
       }
     },
     "public/js/bundle-02-today.js": {
@@ -34,8 +34,8 @@
     },
     "public/js/bundle-04-coach-meals.js": {
       "measured": {
-        "raw": 205960,
-        "brotli": 37215
+        "raw": 206034,
+        "brotli": 37228
       },
       "budget": {
         "raw": 210944,
@@ -65,11 +65,11 @@
     },
     "public/js/bundle-07-settings-boot.js": {
       "measured": {
-        "raw": 193881,
-        "brotli": 36859
+        "raw": 194796,
+        "brotli": 37070
       },
       "budget": {
-        "raw": 198656,
+        "raw": 199680,
         "brotli": 37888
       }
     }
