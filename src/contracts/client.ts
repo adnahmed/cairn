@@ -698,3 +698,4 @@ export interface ClientChatResetResponse {
 export * from "./client-api.js";
 export * from "./client-api-coverage.js";
 export * from "./client-routes.js";
+export * from "./brain-changes.js";

@@ -88,6 +88,32 @@ export function defaultAutonomyTier(
   return "quiet_apply";
 }
 
+// THE TEAM DECIDES THESE, AND TELLS YOU (v2 wave 1). Under lead, the kinds of change
+// that used to be asked about and then quietly lapse unanswered — a training target, a
+// rotation, the shape of the week — are the coach's standing job. Every one is
+// server-reversible (a rollback snapshot rides every autonomous apply), so a REQUESTED
+// `ask` on one of them (a caller's or a model's opinion of how loudly to say it) lands
+// as an announced change with the one-tap Undo instead of waiting on the athlete. A
+// requested `clinician` without the server's own clinical mark reads the same way: the
+// clinician floor is `clinical`/clinicianFloorHolds' alone, in both directions.
+//
+// What does NOT move: `clinical` stays clinician, and a lock, a refused safety clamp and
+// an irreversible action still ask (the floor checks below run after this). The other
+// two lead modes keep the requested tier exactly, and the surprise budget still paces
+// the change downstream (applyProposalWithAutonomy).
+export const LEAD_DECIDED_KINDS: ReadonlySet<BrainDecisionKind> = new Set([
+  "training_target",
+  "exercise_rotation",
+  "training_structure",
+]);
+
+function leadDecidedRequest(input: AutonomyPolicyInput, headsUp: boolean): AutonomyTier | null | undefined {
+  const requested = input.requested_tier;
+  if (!requested || !headsUp || !LEAD_DECIDED_KINDS.has(input.kind)) return requested;
+  if (input.clinical || input.risk_class === "clinical") return requested;
+  return requested === "ask" || requested === "clinician" ? "announce" : requested;
+}
+
 export function decideAutonomyTier(input: AutonomyPolicyInput): AutonomyPolicyDecision {
   const reasons: string[] = [];
   const leadMode = input.lead_mode ?? DEFAULT_LEAD_MODE;
@@ -95,9 +121,12 @@ export function decideAutonomyTier(input: AutonomyPolicyInput): AutonomyPolicyDe
   let tier = defaultAutonomyTier({ ...input, lead_mode: leadMode });
   if (input.kind === "meal_plan" && input.routine === true && tier === "quiet_apply")
     reasons.push("a routine refresh keeps the plan fresh without asking");
-  if (input.requested_tier) {
-    const clamped = moreRestrictive(tier, input.requested_tier);
-    if (clamped !== input.requested_tier)
+  const requestedTier = leadDecidedRequest(input, headsUp);
+  if (requestedTier !== input.requested_tier)
+    reasons.push("the team decides this kind of change and tells you, with a one-tap undo");
+  if (requestedTier) {
+    const clamped = moreRestrictive(tier, requestedTier);
+    if (clamped !== requestedTier)
       reasons.push("server policy required a more restrictive tier than the model requested");
     tier = clamped;
   }

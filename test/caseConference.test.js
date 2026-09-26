@@ -1516,11 +1516,19 @@ test("a thawed conference hold is re-offered at the tier it was asked at, never 
     summary: "Hold Day 3 squat at 185",
     changes: [{ day_number: 3, exercise: "Back Squat", target_weight: 185 }],
   });
-  // An older pass parked it at the specialist's ask.
-  const held = applyProposalWithAutonomy(Number(proposal.id), { requested_tier: "ask" });
+  // An older pass parked it at the specialist's ask. Under lead a requested ask on a
+  // training target is decided and announced now (v2 wave 1), so the older hold is
+  // written as that pass left it: a review row that recorded the requested ask.
+  const held = applyProposalWithAutonomy(Number(proposal.id), { user_locked: true });
   assert.equal(held.decision.status, "review");
-  assert.equal(held.decision.context.policy_inputs.requested_tier, "ask");
-  repo.patchBrainDecision(Number(held.decision.id), { source: "case_conference" });
+  repo.patchBrainDecision(Number(held.decision.id), {
+    source: "case_conference",
+    context: {
+      ...held.decision.context,
+      review_reason_code: "requested_review",
+      policy_inputs: { ...held.decision.context.policy_inputs, requested_tier: "ask", user_locked: false },
+    },
+  });
 
   const thaw = thawParkedReviewDecisions("lead");
   assert.equal(thaw.thawed, 1);

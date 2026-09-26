@@ -142,11 +142,23 @@ test("a spent surprise budget delays to the next boundary instead of demoting to
 
 // ---------- parked-state thaw ----------
 
+// Under lead a requested ask on a training target is now decided and announced (v2 wave
+// 1, LEAD_DECIDED_KINDS), so a parked hold is made under the stricter announce_first
+// posture and the athlete's posture is restored afterwards. lead_mode is part of a
+// draft's evidence snapshot, so the draft (written under lead) is held as a stale ask
+// there and reads fresh again once lead is back — a parked hold the thaw must re-read.
 function heldReviewDecision(proposalId, { userLocked = false } = {}) {
-  return applyProposalWithAutonomy(Number(proposalId), {
-    requested_tier: "ask",
-    ...(userLocked ? { user_locked: true } : {}),
-  });
+  // A lock is a floor at every posture, so it is held under lead as it is.
+  const posture = repo.getSettings().lead_mode;
+  if (posture === "lead" && !userLocked) repo.setSettings({ lead_mode: "announce_first" });
+  try {
+    return applyProposalWithAutonomy(Number(proposalId), {
+      requested_tier: "ask",
+      ...(userLocked ? { user_locked: true } : {}),
+    });
+  } finally {
+    repo.setSettings({ lead_mode: posture });
+  }
 }
 
 test("the thaw re-offers a parked decision once, and only once", () => {

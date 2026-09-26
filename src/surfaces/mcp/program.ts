@@ -406,7 +406,7 @@ export function registerProgramTools(server: McpToolRegistrar) {
         .enum(["observe", "quiet_apply", "announce", "ask", "clinician"])
         .optional()
         .describe(
-          "the caller's preferred autonomy tier; server policy can only clamp it MORE restrictive (e.g. clinical or user-locked changes still ask), never loosen it"
+          "the caller's preferred autonomy tier. Server policy otherwise only clamps it MORE restrictive, with one exception: under lead_mode 'lead', a requested ask or clinician on a training target, exercise rotation or training restructure is announced with a one-tap Undo and lands at its boundary on its own. Clinical, user-locked, safety-clamp-refused and irreversible changes still hold for the athlete."
         ),
       safety_response: z
         .boolean()

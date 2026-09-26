@@ -537,7 +537,7 @@ export function queueExpectationRevisions(
 
       // THE constitutional line: the same entry every other change uses. A bounded,
       // reversible target restore is eligible for quiet_apply, but decideAutonomyTier
-      // owns that call — requested_tier only ever clamps tighter, never looser.
+      // owns that call — a requested quiet_apply only ever clamps tighter, never looser.
       const autonomy = applyProposalWithAutonomy(Number(proposal.id), { requested_tier: "quiet_apply" });
       if (!autonomy || autonomy.ok === false) {
         // Nothing landed and nothing is waiting — do not leave a dangling draft.

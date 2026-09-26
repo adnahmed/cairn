@@ -137,7 +137,16 @@ const sqlAgo = (days) => new Date(Date.now() - days * 86_400_000).toISOString().
 // A chat request the older pass left parked at review, `days` old.
 function parkedRequest(summary, days, targetWeight) {
   const proposal = chatDraft(summary, [{ day_number: 1, exercise: "ZReq Press", target_weight: targetWeight }]);
-  const held = applyProposalWithAutonomy(Number(proposal.id), { requested_tier: "ask" });
+  // Parked under announce_first, which keeps a requested ask (under lead a training
+  // target is decided and announced — v2 wave 1); the caller's posture is restored.
+  const posture = repo.getSettings().lead_mode;
+  repo.setSettings({ lead_mode: "announce_first" });
+  let held;
+  try {
+    held = applyProposalWithAutonomy(Number(proposal.id), { requested_tier: "ask" });
+  } finally {
+    repo.setSettings({ lead_mode: posture });
+  }
   assert.equal(held.decision.status, "review");
   repo.patchBrainDecision(Number(held.decision.id), {
     context: { ...held.decision.context, explicit_user_request: true, thaw_attempted: true, thaw_pass: 1 },

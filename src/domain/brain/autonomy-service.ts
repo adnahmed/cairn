@@ -1664,8 +1664,9 @@ export function applyProposalWithAutonomy(
 // under 'announce_first' it announces first; under 'review_everything' the layer records
 // an explicit review decision so Today can distinguish a genuine ask from automatic
 // orphan noise. `requested_tier:'quiet_apply'` mirrors the brain-review boundary path
-// (executeBrainReviewAction) and never LOOSENS policy — decideAutonomyTier only ever
-// clamps to a MORE restrictive tier. A designed ok:false (nothing to propose) passes
+// (executeBrainReviewAction) and never LOOSENS policy — a requested quiet_apply is only
+// ever clamped to a MORE restrictive tier (the one easing decideAutonomyTier makes is a
+// requested ask/clinician on a LEAD_DECIDED_KINDS change, to announce, under lead). A designed ok:false (nothing to propose) passes
 // straight through unchanged.
 export function buildProgressionWithAutonomy(
   day: number
@@ -2394,7 +2395,21 @@ function retireHoldsWithEndedSource(): number {
 }
 
 // The thaw's own version: a row stamped by an older pass gets one read by this one.
-const THAW_PASS_VERSION = 2;
+// 3 (v2 wave 1): under lead a training target, rotation or restructure is decided and
+// announced rather than asked (LEAD_DECIDED_KINDS, brain/autonomy.ts), so every ask an
+// older pass left parked is owed one read under that policy — after the dead-premise
+// retirement, never applied blindly, the surprise budget in force.
+const THAW_PASS_VERSION = 3;
+
+// A thaw stamp answers "already read under THIS policy". The posture is part of the
+// policy: a hold re-read under announce_first (and re-held there) is owed a read again
+// once the athlete switches to lead. Stamps written before the posture was recorded
+// carry none, and a pass-version bump already re-reads those.
+function thawAlreadyRead(context: Record<string, any>, leadMode: CairnLeadModeValue): boolean {
+  if (context.thaw_attempted !== true || Number(context.thaw_pass ?? 1) < THAW_PASS_VERSION) return false;
+  const stampedUnder = context.thaw_lead_mode;
+  return stampedUnder == null || stampedUnder === leadMode;
+}
 
 // A held draft past its age ceiling, set aside with the receipt a person can read — and,
 // when it was the athlete's own request, an answer in chat.
@@ -2502,7 +2517,7 @@ export function thawParkedReviewDecisions(
       // stale ask) and so never be read again; this pass has terminal endings for those
       // (the age set-aside, the refused-draft retirement), so every such row is owed ONE
       // more read by it — the built-in re-evaluation of what older passes left parked.
-      if (context.thaw_attempted === true && Number(context.thaw_pass ?? 1) >= THAW_PASS_VERSION) {
+      if (thawAlreadyRead(context, leadMode)) {
         skipped += 1;
         continue;
       }
@@ -2560,6 +2575,7 @@ export function thawParkedReviewDecisions(
             ...context,
             thaw_attempted: true,
             thaw_pass: THAW_PASS_VERSION,
+            thaw_lead_mode: leadMode,
             thaw_attempted_at: new Date().toISOString(),
           },
         }) ?? decision;
@@ -2785,7 +2801,8 @@ export function adoptOrphanedDrafts(opts: { tells?: RequestTellBudget } = {}): {
       // After a recent same-kind veto the system does NOT silently re-apply similar
       // substance: it ANNOUNCES (lands at the natural boundary with a Coach discussion
       // path, no decision demanded). With no veto, normal quiet-apply policy applies. Either way
-      // decideAutonomyTier only ever clamps to a MORE restrictive tier, so an ask-tier
+      // a requested announce/quiet_apply is only ever clamped MORE restrictive (the one
+      // easing, LEAD_DECIDED_KINDS, applies to a requested ask/clinician), so an ask-tier
       // situation (review_everything posture, freshness expiry, a true same-kind budget,
       // goal/clinical) records an explicit review hold and leaves the draft unchanged;
       // a later pass can re-evaluate it when posture or policy inputs change.

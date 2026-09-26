@@ -27,6 +27,8 @@ export const CLIENT_API_CONTRACT_PATHS = [
   "/brain/decisions",
   "/brain/decisions/waiting",
   "/brain/decisions/:id/revert",
+  "/brain/changes",
+  "/brain/changes/seen",
   "/agent-clis/update",
   "/agent-clis/:name/install",
   "/art/manifest",
