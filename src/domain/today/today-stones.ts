@@ -158,7 +158,12 @@ export const TODAY_STONE_LINES = {
 // injury rows belong to what they limit (lifting) and its illness rows to recovery.
 // Life capacity's recovery squeeze (`schedule_pressure`) speaks for Recovery only when
 // nothing else there does; a dated commitment is the calendar's, spoken by the Brief.
+// Two training-dimension rows are not about lifting at all: fuel protection is the
+// fuelling lane's hold (it speaks for Fuel), and generic watch movement is untyped
+// activity the Brief already weighs — neither may name the Strength stone.
 const ENDURANCE_FIELDS = new Set(["run_intensity_discipline", "endurance_hold_directive"]);
+const FUEL_TRAINING_FIELDS = new Set(["fuel_protection"]);
+const NOT_STRENGTH_FIELDS = new Set([...ENDURANCE_FIELDS, ...FUEL_TRAINING_FIELDS, "generic_activity_load"]);
 const STRENGTH_HEALTH_FIELDS = new Set(["active_injury", "joint_pain"]);
 const RECOVERY_HEALTH_FIELDS = new Set(["illness", "active_health_constraint"]);
 
@@ -185,14 +190,17 @@ function freshEvidence(
   );
 }
 
-// The strongest item, ranked exactly as the dimension ranks it: a safety override
-// first, then direction.
+// Advice that holds nothing back ranks UNDER every fresh reading, support and neutral
+// alike. An HRV/RHR caution from before last night is advice-only under the last-night
+// law; ranked by direction alone it would put the night before last in front of last
+// night, which is exactly what that law forbids.
+const leadRank = (item: Evidence): number => (isAdviceOnly(item) ? -1 : DIRECTION_RANK[item.direction]);
+
+// The strongest item: a safety override first, then direction, advice last.
 function strongest(items: Evidence[]): Evidence | null {
   return (
     [...items].sort(
-      (a, b) =>
-        Number(!!b.safety_override) - Number(!!a.safety_override) ||
-        DIRECTION_RANK[b.direction] - DIRECTION_RANK[a.direction]
+      (a, b) => Number(!!b.safety_override) - Number(!!a.safety_override) || leadRank(b) - leadRank(a)
     )[0] ?? null
   );
 }
@@ -200,15 +208,21 @@ function strongest(items: Evidence[]): Evidence | null {
 const isBrake = (item: Evidence): boolean =>
   (item.direction === "caution" || item.direction === "constraint") && !isAdviceOnly(item);
 
+// A caution that brakes nothing (advice-only) never speaks under a calm word: its voice
+// says "ease off", which an ok stone would contradict. Such a lead leaves the line empty.
+const isQuietCaution = (item: Evidence | null): boolean =>
+  !!item && (item.direction === "caution" || item.direction === "constraint") && !isBrake(item);
+
 interface Voiced {
   date: string;
   posture: SignalPosture | null;
 }
 
-// A signal's own athlete voice, or nothing — never the machine `summary`, and never
-// the posture floor dressed up as this stone's evidence.
+// A signal's own athlete voice, or nothing — never the machine `summary`, never the
+// posture floor dressed up as this stone's evidence, and never a non-braking caution's
+// "go easy" under a calm word (see isQuietCaution).
 function voiceLine(item: Evidence | null, ctx: Voiced, key: string = SIGNAL_VOICE_KEYS.protect): string | null {
-  if (!item?.voice) return null;
+  if (!item?.voice || isQuietCaution(item)) return null;
   return spokenSignalVoice(item.voice, ctx.date, key, ctx.posture);
 }
 
@@ -224,12 +238,14 @@ const quietStone = (key: TodayStoneKey) => stone(key, TODAY_STONE_WORDS.quiet, "
 function strengthStone(state: UnifiedSignalState | null, ctx: Voiced): TodayStone {
   const W = TODAY_STONE_WORDS.strength;
   const line = todayStrengthLine(ctx.date);
-  const text = String(line.text ?? "").trim() || null;
+  // "Nothing planned today" is the line's own empty state, not something to read under
+  // a word: with nothing planned the stone speaks its evidence or stays quiet.
+  const text = line.state === "none" ? null : String(line.text ?? "").trim() || null;
   // The log is truth: work done today names the stone whatever the signals say.
   if (line.state === "logged") return stone("strength", W.lifted, "ok", text);
   if (line.state === "in_progress") return stone("strength", W.under_way, "ok", text);
   const items = [
-    ...freshEvidence(state, "training_load_tolerance", (item) => !ENDURANCE_FIELDS.has(item.field)),
+    ...freshEvidence(state, "training_load_tolerance", (item) => !NOT_STRENGTH_FIELDS.has(item.field)),
     ...freshEvidence(state, "health_constraints", (item) => STRENGTH_HEALTH_FIELDS.has(item.field)),
   ];
   const lead = strongest(items);
@@ -241,6 +257,13 @@ function strengthStone(state: UnifiedSignalState | null, ctx: Voiced): TodaySton
   if (line.state === "not_started" && line.suggestion) return stone("strength", W.gently, "watch", line.caveat ?? text);
   if (line.state === "rest_day") return stone("strength", W.rest_day, "ok", text);
   if (line.state === "no_lift") return stone("strength", W.off, "ok", text);
+  if (line.state === "none") {
+    // No plan today: only lifting evidence with a voice of its own may name the stone
+    // (a neutral check-in says nothing about lifting, and "steady" over "Nothing
+    // planned today" would be a word with no subject).
+    const spoken = lead?.direction === "support" ? voiceLine(lead, ctx) : null;
+    return spoken ? stone("strength", W.strong, "ok", spoken) : quietStone("strength");
+  }
   if (lead?.direction === "support") return stone("strength", W.strong, "ok", text ?? voiceLine(lead, ctx));
   if (lead) return stone("strength", W.steady, "ok", text ?? voiceLine(lead, ctx));
   if (line.state === "not_started") return stone("strength", W.planned, "ok", text);
@@ -266,14 +289,13 @@ function enduranceStone(state: UnifiedSignalState | null, ctx: Voiced): TodaySto
     const word = lead.field === "endurance_hold_directive" ? W.holding : W.run_easy;
     return stone("endurance", word, "watch", voiceLine(lead, ctx));
   }
-  // The race build is read, never re-derived: the week's kind is the ladder's own.
+  // The race build is read, never re-derived: the week's kind is the ladder's own. With
+  // no current rung (the engine returned no week) there is no kind to read, so the stone
+  // falls through to the plain running read below rather than inventing one.
   const build = raceBuild(ctx.date);
-  if (build.available && build.race) {
-    const current = build.weeks.find((week) => week.current)?.kind;
-    const kind: RaceWeekKind =
-      current ?? (build.race.days_to_race <= 7 ? "race" : build.race.phase === "taper" ? "taper" : "build");
-    return stone("endurance", W[kind], "ok", pick(TODAY_STONE_LINES.race[kind], ctx.date, `race:${kind}`));
-  }
+  const kind: RaceWeekKind | undefined =
+    build.available && build.race ? build.weeks.find((week) => week.current)?.kind : undefined;
+  if (kind) return stone("endurance", W[kind], "ok", pick(TODAY_STONE_LINES.race[kind], ctx.date, `race:${kind}`));
   if (recentRunCount(ctx.date) > 0 || lead)
     return stone(
       "endurance",
@@ -286,7 +308,10 @@ function enduranceStone(state: UnifiedSignalState | null, ctx: Voiced): TodaySto
 
 function fuelStone(state: UnifiedSignalState | null, ctx: Voiced): TodayStone {
   const W = TODAY_STONE_WORDS.fuel;
-  const lead = strongest(freshEvidence(state, "energy_fueling"));
+  const lead = strongest([
+    ...freshEvidence(state, "energy_fueling"),
+    ...freshEvidence(state, "training_load_tolerance", (item) => FUEL_TRAINING_FIELDS.has(item.field)),
+  ]);
   // A measured fuelling brake is read off closed, credible days — never off today's
   // unfinished log — so it may speak on a partial day. Same key as the conductor's
   // fueling card, so one signal reads as one observation across the two.
@@ -308,7 +333,7 @@ function recoveryStone(state: UnifiedSignalState | null, ctx: Voiced): TodaySton
   ]);
   if (lead) {
     const line = voiceLine(lead, ctx);
-    if (lead && isBrake(lead))
+    if (isBrake(lead))
       return stone("recovery", lead.direction === "constraint" ? W.needs_rest : W.recovering, "watch", line);
     return stone("recovery", lead.direction === "support" ? W.rested : W.steady, "ok", line);
   }
@@ -322,7 +347,8 @@ function recoveryStone(state: UnifiedSignalState | null, ctx: Voiced): TodaySton
 function bodyStone(ctx: Voiced): TodayStone {
   const W = TODAY_STONE_WORDS.body;
   const L = TODAY_STONE_LINES;
-  const pace = goalPace(30);
+  // Read as of the stone's date, so a past date's trend never fits later weigh-ins.
+  const pace = goalPace(30, ctx.date);
   const latest = pace.points.filter((point) => point.date <= ctx.date).at(-1);
   const age = latest ? daysBetweenISO(ctx.date, latest.date) : null;
   if (!latest || age == null || age > BODY_STONE_MAX_AGE_DAYS) return quietStone("body");
@@ -340,6 +366,8 @@ function bodyStone(ctx: Voiced): TodayStone {
   return stone("body", W.away, "watch", pick(L.body_away, ctx.date, "body"));
 }
 
+// The Heart stone is a STANDING read: a directive's status carries no dated history, so
+// a past `date` reads today's findings (marker validity is still aged to that date).
 function heartStone(ctx: Voiced): TodayStone {
   const W = TODAY_STONE_WORDS.heart;
   // A finding the athlete has not yet acknowledged is the one thing worth a look;

@@ -26,6 +26,7 @@ import {
   todayStones,
 } from "../dist/domain/today/today-stones.js";
 import { violatesReadingGrammar } from "../dist/repo/day-read-grammar.js";
+import { dayPlanningSignalState } from "../dist/repo/day-read.js";
 import { raceBuild } from "../dist/repo/race-build.js";
 import { localDateISO } from "../dist/repo/shared.js";
 import { todayRouter } from "../dist/routes/today.js";
@@ -110,6 +111,60 @@ test("a short night last night reads as recovery to watch, in the athlete voice"
   assert.doesNotMatch(recovery.line, /\bthe athlete\b/i, "never the machine register");
 });
 
+// The last-night law at the stones layer: an HRV/RHR caution from before last night is
+// advice-only, and it may neither outrank last night's own sleep nor speak its "ease
+// off" under a calm word.
+test("a stale HRV/RHR caution never outranks last night's good sleep", () => {
+  for (let d = 25; d >= 3; d--)
+    repo.recordDailyMetrics("apple", localDaysAgo(d), { sleep_min: 470, hrv_ms: 70, resting_hr: 50 });
+  for (const d of [2, 1])
+    repo.recordDailyMetrics("apple", localDaysAgo(d), { sleep_min: 470, hrv_ms: 35, resting_hr: 64 });
+  const hrv = dayPlanningSignalState(localDateISO()).dimensions.recovery_capacity.evidence.filter((item) =>
+    /hrv|resting/i.test(item.field)
+  );
+  assert.ok(
+    hrv.some((item) => item.direction === "caution" && item.advice_only),
+    "fixture: the old excursion rides as advice"
+  );
+
+  // Before last night syncs: the advice alone reads calm and silent, never "ease off".
+  let recovery = byKey(todayStones()).recovery;
+  assert.equal(recovery.tone, "ok");
+  assert.equal(recovery.line, null, "a non-braking caution never speaks under a calm word");
+
+  repo.recordDailyMetrics("apple", localDateISO(), { sleep_min: 480 });
+  recovery = byKey(todayStones()).recovery;
+  assert.equal(recovery.word, TODAY_STONE_WORDS.recovery.rested, "last night leads");
+  assert.equal(recovery.tone, "ok");
+  assert.doesNotMatch(recovery.line ?? "", /variability|heart rate/i);
+});
+
+// A deliberate read: with no night dated today, the multi-night WINDOW (≤2 days old)
+// may still speak — as a window claim, never in last night's words.
+test("no night last night: a short recent window reads as a window, a normal one stays quiet", () => {
+  seedSleep(localDaysAgo(1), 470);
+  seedSleep(localDaysAgo(2), 460);
+  assert.equal(byKey(todayStones()).recovery.word, "quiet", "a normal window says nothing about today");
+
+  seedSleep(localDaysAgo(1), 300);
+  seedSleep(localDaysAgo(2), 290);
+  const recovery = byKey(todayStones()).recovery;
+  assert.equal(recovery.word, TODAY_STONE_WORDS.recovery.recovering);
+  assert.equal(recovery.tone, "watch");
+  assert.ok(recovery.line);
+  assert.doesNotMatch(recovery.line, /last night|one short night/i, "never last night's words");
+});
+
+test("Strength with nothing planned never claims a word over an empty plan", () => {
+  repo.addCheckin(localDateISO(), { energy: 3, soreness: 2 });
+  // A neutral soreness check-in is training-dimension evidence, but it says nothing
+  // about lifting on a day with no plan.
+  const strength = byKey(todayStones()).strength;
+  assert.equal(strength.word, "quiet");
+  assert.equal(strength.tone, "quiet");
+  assert.equal(strength.line, null);
+});
+
 test("a partial intake day is in progress, never low; a complete day reads fueled", () => {
   seedIntake(0, 450, {}, { eatenAt: "08:00" });
   let fuel = byKey(todayStones()).fuel;
@@ -140,6 +195,23 @@ test("Body reads the weight trend against the goal, and a stale weigh-in is quie
   assert.equal(body.word, TODAY_STONE_WORDS.body.toward);
   assert.equal(body.tone, "ok");
   assert.doesNotMatch(body.line, /\d/, "no number in the line");
+});
+
+test("Body read for a past date never fits weigh-ins logged after it", () => {
+  repo.setProfile({ age: 35, sex: "male", height_cm: 180, weight_lb: 184, goal_weight_lb: 170 });
+  for (const [daysAgo, lb] of [
+    [40, 186],
+    [36, 185],
+    [32, 184],
+    [30, 183],
+    // After the read date: the scale climbs back.
+    [20, 186],
+    [10, 188],
+    [2, 190],
+  ])
+    seedWeight(localDaysAgo(daysAgo), lb);
+  assert.equal(byKey(todayStones()).body.word, TODAY_STONE_WORDS.body.away, "today the trend drifts");
+  assert.equal(byKey(todayStones(localDaysAgo(30))).body.word, TODAY_STONE_WORDS.body.toward, "as of then, on course");
 });
 
 test("Heart: a waiting lab finding is worth a look; an in-date panel is steady; none is quiet", () => {
