@@ -68,7 +68,8 @@
   function talkPrefill(rows: unknown, id: unknown): string {
     const ask = askModels(rows).find((row) => row.id === Number(id));
     if (!ask) return "";
-    return `Can we talk this through? ${ask.explanation}`;
+    const text = String(ask.explanation ?? "").trim();
+    return /\?$/.test(text) ? text : `Can we talk this through? ${text}`;
   }
 
   const CAIRN_ASK_CARD = {

@@ -105,7 +105,7 @@ test("attention state machine goes active -> confirming -> surveillance -> relea
     tier: "released",
     next_due: null,
     last_checked: "2026-07-22",
-    reason: "This signal is stable and clean with no active lever, so it goes quiet until new data or symptoms bring it back.",
+    reason: "This has been steady with nothing working on it, so it goes quiet until new data or symptoms bring it back.",
     release_condition: policy.release_condition,
     clean_checks: 3,
     confirming_checks: 2,
