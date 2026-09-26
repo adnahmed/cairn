@@ -43,7 +43,10 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
   60%{opacity:1;translate:0 1px;rotate:1deg}
   100%{opacity:1;translate:none;rotate:none}
 }
-/* The base stone lands first, then each one above it: the cairn is built, not dropped. */
+/* The base stone lands first, then each one above it: the cairn is built, not dropped.
+   An SVG <g> rotates about the viewBox origin unless told otherwise; pin the settle
+   to each stone's own centre so it tips in place instead of sliding sideways. */
+.cairn-stack-rock{transform-box:fill-box;transform-origin:center}
 .cairn-stack.is-entering .cairn-stack-rock{animation:cairn-stack-settle var(--dur-3) var(--ease) both;
   animation-delay:calc((var(--n,6) - 1 - var(--i,0)) * 70ms)}
 .cairn-stack.is-entering .cairn-stack-item{animation:settlein var(--dur-3) var(--ease) both;

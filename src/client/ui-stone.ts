@@ -66,6 +66,9 @@
    * A cairn: `stones` top → base, the base widest. Each entry's `attrs`/`cls` ride on
    * that stone's <g> (a hook for the caller's own click handling), and `--i` carries
    * its position for CSS (entrance order, drift phase).
+   *
+   * The <g>s are EMITTED base-first: SVG paints in document order, so each upper
+   * stone must come after the one it rests on to sit in front of its belly.
    */
   function cairnSvg(
     stones: ReadonlyArray<{ key: string; flag?: boolean; cls?: string; attrs?: Attrs }>,
@@ -88,6 +91,7 @@
           attrs: stone.attrs,
         });
       })
+      .reverse()
       .join("");
     const labelled = opts.label ? ` role="img" aria-label="${escAttr(opts.label)}"` : ` aria-hidden="true"`;
     return `<svg class="stone-svg stone-cairn${opts.cls ? ` ${escAttr(opts.cls)}` : ""}" viewBox="0 0 ${fx(layout.width)} ${fx(

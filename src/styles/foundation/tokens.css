@@ -18,7 +18,11 @@
   /* ground → surface → ink: the neutrals */
   --ground:   #ebe7de;   /* page */
   --surface:  #f7f4ee;   /* cards, sheets, the tab bar */
-  --surface2: #ece7dd;   /* inset wells, tracks, quiet chips */
+  --surface2: #ece7dd;   /* quiet chips and fills that sit on a surface */
+  /* a well that reads on BOTH ground and surface: tracks, bars, inset wells.
+     surface2 alone is ~1:1 against ground, so anything painted straight onto
+     the page (a read-band track, a volume bar) takes this instead. */
+  --well:     color-mix(in srgb, var(--surface2) 55%, var(--line));
   --line:     #d5cec0;   /* hairlines */
   --line-strong: #c3bbab;/* a firmer hairline: input borders, dividers that must read */
   --ink:      #191d20;   /* primary text */
@@ -48,7 +52,7 @@
   /* ---- v1 aliases (kept so nothing ripples; new CSS uses the v2 names) ---- */
   --paper:   var(--ground);
   --card:    var(--surface);
-  --card-2:  var(--surface2);
+  --card-2:  var(--well);  /* v1 painted card-2 on the page ground too */
   --ink-2:   var(--ink2);
   --line-2:  var(--line-strong);
   --faint:   var(--faint-ink);

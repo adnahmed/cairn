@@ -12,7 +12,7 @@
 @keyframes sugspin{to{transform:rotate(360deg)}}
 .aspin-sm{--asz:13px}
 .aspin-xs{--asz:11px;border-width:1.5px}
-.aspin-ghost{border-color:rgba(255,253,248,.45);border-top-color:var(--on-accent)}
+.aspin-ghost{border-color:color-mix(in srgb,var(--on-accent) 45%,transparent);border-top-color:var(--on-accent)}
 
 /* indeterminate filament — a thin sweep of warm light along the top edge of a
    surface mid-generation (ideally overflow-clipped) */

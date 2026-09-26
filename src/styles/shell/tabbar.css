@@ -9,7 +9,7 @@
   bottom:calc(60px + max(env(safe-area-inset-bottom),6px) + var(--vvb,0px));
   width:min(440px,calc(100% - 28px));
   background:var(--ink);
-  border:1px solid rgba(255,253,248,.1);border-radius:var(--radius-pill);
+  border:1px solid color-mix(in srgb,var(--on-ink) 10%,transparent);border-radius:var(--radius-pill);
   box-shadow:var(--shadow-lg);
   opacity:0;transform:translate(-50%,calc(100% + 84px)) scale(.97);
   transition:transform var(--dur-2) var(--ease),opacity var(--dur-2) var(--ease),
@@ -23,8 +23,8 @@
   animation:savedot 2.2s var(--ease) infinite}
 @keyframes savedot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.7);opacity:.55}}
 .savebar-msg{flex:1;min-width:0;font-family:var(--font-ui);font-size:.84rem;font-weight:600;
-  color:rgba(248,243,234,.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.savebar-discard{background:transparent;border:none;color:rgba(248,243,234,.6);flex:0 0 auto;
+  color:color-mix(in srgb,var(--on-ink) 92%,transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.savebar-discard{background:transparent;border:none;color:color-mix(in srgb,var(--on-ink) 62%,transparent);flex:0 0 auto;
   font-size:.8rem;font-weight:600;padding:8px 10px;border-radius:var(--radius-pill);
   transition:color var(--dur-1) ease,opacity var(--dur-1) ease}
 .savebar-save{background:var(--accent);border:none;color:var(--on-accent);flex:0 0 auto;
@@ -45,7 +45,7 @@
 }
 .savebar-done svg{width:18px;height:18px}
 .savebar-tick{stroke-dasharray:26;stroke-dashoffset:26}
-.savebar.saved{background:rgba(238,240,230,.96);border-color:color-mix(in srgb,var(--sage) 40%,transparent)}
+.savebar.saved{background:var(--sage-bg);border-color:color-mix(in srgb,var(--sage) 40%,transparent)}
 .savebar.saved .savebar-row{opacity:0;pointer-events:none}
 .savebar.saved .savebar-done{opacity:1;transform:scale(1)}
 .savebar.saved .savebar-tick{animation:tickdraw var(--dur-3) var(--ease) .08s forwards}

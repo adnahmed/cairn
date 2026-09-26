@@ -42,13 +42,20 @@
    Hairlines and small status dots are deliberately soft in the Atelier
    theme; users asking for more contrast get firmer hairlines (darken
    --line/--line-2 toward ink) and stronger-edged dots/markers so data
-   never reads as color-on-color-only. Light theme only; no palette flip.
+   never reads as color-on-color-only. The light values sit on :root; the
+   dark palette gets its own firmer pair below (same specificity as the dark
+   token blocks, and later, so it wins there).
    ------------------------------------------------------------------- */
 @media (prefers-contrast: more){
   :root{
-    --line:#c9bfa9;     /* was #e7dfd2 — firmer hairline */
-    --line-2:#b3a78c;   /* was #d8cfbd — firmer stronger hairline */
-    --muted:#5c5544;    /* lift tertiary text a touch for legibility */
+    --line:#c9bfa9;        /* firmer hairline */
+    --line-strong:#b3a78c; /* firmer stronger hairline (--line-2 follows) */
+    --muted:#5c5544;       /* lift tertiary text a touch for legibility */
+  }
+  :root[data-theme="dark"]{
+    --line:#46515a;
+    --line-strong:#5a666f;
+    --muted:#9aa19a;
   }
   /* small status / completion / level dots get a defining ring so they read
      even where the fill is close to its surround */
@@ -67,5 +74,12 @@
      distinguishable beyond color alone */
   .cal-day.cal-has{
     border:1px solid color-mix(in srgb,var(--ink) 35%,transparent);
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --line:#46515a;
+    --line-strong:#5a666f;
+    --muted:#9aa19a;
   }
 }

@@ -113,7 +113,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 /* per-message clock time on the last bubble of a run (subtle, side-aligned) */
 .bubble-time{display:block;margin-top:5px;font-family:var(--font-ui);font-size:.58rem;
   font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.bubble.user .bubble-time{text-align:right;color:#b8a78f}
+.bubble.user .bubble-time{text-align:right;color:color-mix(in srgb,var(--on-ink) 66%,var(--ink))}
 
 /* copy affordance on coach replies — hover-revealed on desktop, long-press on touch */
 .bubble-copy{position:absolute;top:6px;right:6px;width:26px;height:26px;display:flex;
@@ -158,7 +158,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   color:var(--sage);border-radius:var(--radius-pill);padding:3px 9px;
   font-family:var(--font-ui);font-size:.58rem;font-weight:700;letter-spacing:.1em;
   text-transform:uppercase;white-space:nowrap}
-.bubble.user .bubble-meta .bubble-tag{background:rgba(255,253,248,.14);color:#d8c9b2}
+.bubble.user .bubble-meta .bubble-tag{background:color-mix(in srgb,var(--on-ink) 14%,transparent);color:color-mix(in srgb,var(--on-ink) 84%,var(--ink))}
 /* A capture food log: the enriched chip carries a readable meal + macros, so drop
    the all-caps pill treatment; while it fills in, a calm muted state + spinner dot. */
 .bubble-tag.capture-food{text-transform:none;letter-spacing:.01em;font-weight:650}
@@ -195,7 +195,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .agentcheck-dot{width:7px;height:7px;border-radius:var(--radius-pill);background:var(--rust);flex:0 0 auto}
 
 .bubble.user .draftbtn.applied{
-  border-color:rgba(255,253,248,.22);background:rgba(255,253,248,.14);color:#d8c9b2;
+  border-color:color-mix(in srgb,var(--on-ink) 22%,transparent);background:color-mix(in srgb,var(--on-ink) 14%,transparent);color:color-mix(in srgb,var(--on-ink) 84%,var(--ink));
 }
 
 /* photo attached to a chat turn (plate shots) */

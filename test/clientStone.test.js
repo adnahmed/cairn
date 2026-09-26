@@ -42,7 +42,6 @@ test("a stone's geometry: contact shadow under it, under-curve across it", () =>
   assert.ok(g.shadow.cy > 20 && g.shadow.cy < 20 + 12, "the shadow sits under the stone's belly");
   assert.ok(g.shadow.rx < 30 && g.shadow.ry < 12);
   assert.match(g.under, /^M[\d.,-]+ Q[\d.,-]+ [\d.,-]+$/);
-  assert.deepEqual(plain(g.bounds), { x: 10, y: 8, width: 60, height: 24 });
 });
 
 test("the cairn: top first, the base widest, each stone resting on the one below", () => {
@@ -105,7 +104,7 @@ test("state is a dawn dot, never a fill; an unknown key is a plain stone", () =>
   assert.equal(win.CairnStone.hueClass('"><script>'), "stone-plain");
 });
 
-test("the cairn svg: one stone per entry, top first, hooks on each stone, drift optional, text escaped", () => {
+test("the cairn svg: one stone per entry, painted base-first so each upper stone sits in front, hooks on each stone, drift optional, text escaped", () => {
   const win = load();
   const html = win.CairnStone.cairnSvg(
     [
@@ -117,10 +116,12 @@ test("the cairn svg: one stone per entry, top first, hooks on each stone, drift 
   const host = renderHtml(html, { document: win.document });
   const stones = host.querySelectorAll("g.stone");
   assert.equal(stones.length, 2);
-  assert.ok(stones[0].classList.contains("stone-strength"));
-  assert.ok(stones[1].classList.contains("stone-heart") && stones[1].classList.contains("extra"));
-  assert.equal(stones[1].getAttribute("data-go"), '"><b>x</b>');
-  assert.equal(stones[1].getAttribute("bad name"), null);
+  // Document order is paint order: the base (heart, the last entry) comes first.
+  assert.ok(stones[0].classList.contains("stone-heart") && stones[0].classList.contains("extra"));
+  assert.ok(stones[1].classList.contains("stone-strength"));
+  assert.equal(stones[1].getAttribute("style"), "--i:0", "--i stays the caller's top-first position");
+  assert.equal(stones[0].getAttribute("data-go"), '"><b>x</b>');
+  assert.equal(stones[0].getAttribute("bad name"), null);
   assert.equal(host.querySelector("b"), null, "hostile attribute text stays text");
   assert.equal(host.querySelectorAll(".stone-drift").length, 2);
   assert.equal(host.querySelector("svg").getAttribute("aria-label"), "Your <cairn>");

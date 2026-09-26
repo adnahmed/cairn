@@ -20,7 +20,11 @@
   /* ground → surface → ink: the neutrals */
   --ground:   #ebe7de;   /* page */
   --surface:  #f7f4ee;   /* cards, sheets, the tab bar */
-  --surface2: #ece7dd;   /* inset wells, tracks, quiet chips */
+  --surface2: #ece7dd;   /* quiet chips and fills that sit on a surface */
+  /* a well that reads on BOTH ground and surface: tracks, bars, inset wells.
+     surface2 alone is ~1:1 against ground, so anything painted straight onto
+     the page (a read-band track, a volume bar) takes this instead. */
+  --well:     color-mix(in srgb, var(--surface2) 55%, var(--line));
   --line:     #d5cec0;   /* hairlines */
   --line-strong: #c3bbab;/* a firmer hairline: input borders, dividers that must read */
   --ink:      #191d20;   /* primary text */
@@ -50,7 +54,7 @@
   /* ---- v1 aliases (kept so nothing ripples; new CSS uses the v2 names) ---- */
   --paper:   var(--ground);
   --card:    var(--surface);
-  --card-2:  var(--surface2);
+  --card-2:  var(--well);  /* v1 painted card-2 on the page ground too */
   --ink-2:   var(--ink2);
   --line-2:  var(--line-strong);
   --faint:   var(--faint-ink);
@@ -1823,7 +1827,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 /* per-message clock time on the last bubble of a run (subtle, side-aligned) */
 .bubble-time{display:block;margin-top:5px;font-family:var(--font-ui);font-size:.58rem;
   font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.bubble.user .bubble-time{text-align:right;color:#b8a78f}
+.bubble.user .bubble-time{text-align:right;color:color-mix(in srgb,var(--on-ink) 66%,var(--ink))}
 
 /* copy affordance on coach replies — hover-revealed on desktop, long-press on touch */
 .bubble-copy{position:absolute;top:6px;right:6px;width:26px;height:26px;display:flex;
@@ -1868,7 +1872,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   color:var(--sage);border-radius:var(--radius-pill);padding:3px 9px;
   font-family:var(--font-ui);font-size:.58rem;font-weight:700;letter-spacing:.1em;
   text-transform:uppercase;white-space:nowrap}
-.bubble.user .bubble-meta .bubble-tag{background:rgba(255,253,248,.14);color:#d8c9b2}
+.bubble.user .bubble-meta .bubble-tag{background:color-mix(in srgb,var(--on-ink) 14%,transparent);color:color-mix(in srgb,var(--on-ink) 84%,var(--ink))}
 /* A capture food log: the enriched chip carries a readable meal + macros, so drop
    the all-caps pill treatment; while it fills in, a calm muted state + spinner dot. */
 .bubble-tag.capture-food{text-transform:none;letter-spacing:.01em;font-weight:650}
@@ -1905,7 +1909,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .agentcheck-dot{width:7px;height:7px;border-radius:var(--radius-pill);background:var(--rust);flex:0 0 auto}
 
 .bubble.user .draftbtn.applied{
-  border-color:rgba(255,253,248,.22);background:rgba(255,253,248,.14);color:#d8c9b2;
+  border-color:color-mix(in srgb,var(--on-ink) 22%,transparent);background:color-mix(in srgb,var(--on-ink) 14%,transparent);color:color-mix(in srgb,var(--on-ink) 84%,var(--ink));
 }
 
 /* photo attached to a chat turn (plate shots) */
@@ -2639,7 +2643,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   bottom:calc(60px + max(env(safe-area-inset-bottom),6px) + var(--vvb,0px));
   width:min(440px,calc(100% - 28px));
   background:var(--ink);
-  border:1px solid rgba(255,253,248,.1);border-radius:var(--radius-pill);
+  border:1px solid color-mix(in srgb,var(--on-ink) 10%,transparent);border-radius:var(--radius-pill);
   box-shadow:var(--shadow-lg);
   opacity:0;transform:translate(-50%,calc(100% + 84px)) scale(.97);
   transition:transform var(--dur-2) var(--ease),opacity var(--dur-2) var(--ease),
@@ -2653,8 +2657,8 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   animation:savedot 2.2s var(--ease) infinite}
 @keyframes savedot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.7);opacity:.55}}
 .savebar-msg{flex:1;min-width:0;font-family:var(--font-ui);font-size:.84rem;font-weight:600;
-  color:rgba(248,243,234,.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.savebar-discard{background:transparent;border:none;color:rgba(248,243,234,.6);flex:0 0 auto;
+  color:color-mix(in srgb,var(--on-ink) 92%,transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.savebar-discard{background:transparent;border:none;color:color-mix(in srgb,var(--on-ink) 62%,transparent);flex:0 0 auto;
   font-size:.8rem;font-weight:600;padding:8px 10px;border-radius:var(--radius-pill);
   transition:color var(--dur-1) ease,opacity var(--dur-1) ease}
 .savebar-save{background:var(--accent);border:none;color:var(--on-accent);flex:0 0 auto;
@@ -2675,7 +2679,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 }
 .savebar-done svg{width:18px;height:18px}
 .savebar-tick{stroke-dasharray:26;stroke-dashoffset:26}
-.savebar.saved{background:rgba(238,240,230,.96);border-color:color-mix(in srgb,var(--sage) 40%,transparent)}
+.savebar.saved{background:var(--sage-bg);border-color:color-mix(in srgb,var(--sage) 40%,transparent)}
 .savebar.saved .savebar-row{opacity:0;pointer-events:none}
 .savebar.saved .savebar-done{opacity:1;transform:scale(1)}
 .savebar.saved .savebar-tick{animation:tickdraw var(--dur-3) var(--ease) .08s forwards}
@@ -3647,7 +3651,7 @@ body.sheet-open{overflow:hidden}
 @keyframes sugspin{to{transform:rotate(360deg)}}
 .aspin-sm{--asz:13px}
 .aspin-xs{--asz:11px;border-width:1.5px}
-.aspin-ghost{border-color:rgba(255,253,248,.45);border-top-color:var(--on-accent)}
+.aspin-ghost{border-color:color-mix(in srgb,var(--on-accent) 45%,transparent);border-top-color:var(--on-accent)}
 
 /* indeterminate filament — a thin sweep of warm light along the top edge of a
    surface mid-generation (ideally overflow-clipped) */
@@ -4791,7 +4795,7 @@ body[data-tab="me"] .segwrap:not(.hsegwrap):not(.prog-subwrap){display:none}
 
 /* busy / skeleton shimmer */
 .hshimmer{height:13px;border-radius:7px;margin:12px 0 0;
-  background:linear-gradient(90deg,var(--card-2) 30%,#efe7d6 45%,var(--card-2) 60%);
+  background:linear-gradient(90deg,var(--card-2) 30%,var(--surface) 45%,var(--card-2) 60%);
   background-size:300% 100%}
 .hshimmer-lg{height:22px;width:72%;margin-top:14px}
 .hshimmer-sm{width:46%}
@@ -5702,13 +5706,20 @@ button.hmk-row:active{background:var(--card-2)}
    Hairlines and small status dots are deliberately soft in the Atelier
    theme; users asking for more contrast get firmer hairlines (darken
    --line/--line-2 toward ink) and stronger-edged dots/markers so data
-   never reads as color-on-color-only. Light theme only; no palette flip.
+   never reads as color-on-color-only. The light values sit on :root; the
+   dark palette gets its own firmer pair below (same specificity as the dark
+   token blocks, and later, so it wins there).
    ------------------------------------------------------------------- */
 @media (prefers-contrast: more){
   :root{
-    --line:#c9bfa9;     /* was #e7dfd2 — firmer hairline */
-    --line-2:#b3a78c;   /* was #d8cfbd — firmer stronger hairline */
-    --muted:#5c5544;    /* lift tertiary text a touch for legibility */
+    --line:#c9bfa9;        /* firmer hairline */
+    --line-strong:#b3a78c; /* firmer stronger hairline (--line-2 follows) */
+    --muted:#5c5544;       /* lift tertiary text a touch for legibility */
+  }
+  :root[data-theme="dark"]{
+    --line:#46515a;
+    --line-strong:#5a666f;
+    --muted:#9aa19a;
   }
   /* small status / completion / level dots get a defining ring so they read
      even where the fill is close to its surround */
@@ -5727,6 +5738,13 @@ button.hmk-row:active{background:var(--card-2)}
      distinguishable beyond color alone */
   .cal-day.cal-has{
     border:1px solid color-mix(in srgb,var(--ink) 35%,transparent);
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --line:#46515a;
+    --line-strong:#5a666f;
+    --muted:#9aa19a;
   }
 }
 /* -------------------------------------------------------------------
@@ -7471,7 +7489,10 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
   60%{opacity:1;translate:0 1px;rotate:1deg}
   100%{opacity:1;translate:none;rotate:none}
 }
-/* The base stone lands first, then each one above it: the cairn is built, not dropped. */
+/* The base stone lands first, then each one above it: the cairn is built, not dropped.
+   An SVG <g> rotates about the viewBox origin unless told otherwise; pin the settle
+   to each stone's own centre so it tips in place instead of sliding sideways. */
+.cairn-stack-rock{transform-box:fill-box;transform-origin:center}
 .cairn-stack.is-entering .cairn-stack-rock{animation:cairn-stack-settle var(--dur-3) var(--ease) both;
   animation-delay:calc((var(--n,6) - 1 - var(--i,0)) * 70ms)}
 .cairn-stack.is-entering .cairn-stack-item{animation:settlein var(--dur-3) var(--ease) both;

@@ -132,12 +132,12 @@ test("the stack: a six-stone pile the base widest, and one row per stone with it
   assert.equal(rocks.length, 6);
   assert.deepEqual(
     rocks.map((r) => r.getAttribute("style")),
-    ["--i:0", "--i:1", "--i:2", "--i:3", "--i:4", "--i:5"],
-    "position drives the width, so Heart is the base"
+    ["--i:5", "--i:4", "--i:3", "--i:2", "--i:1", "--i:0"],
+    "painted base-first so each upper stone sits in front; --i keeps the top-first position, so Heart is the base"
   );
   assert.deepEqual(
     rocks.map((r) => ["ok", "watch", "quiet"].find((t) => r.classList.contains(`cairn-stack-${t}`))),
-    ["ok", "ok", "quiet", "quiet", "ok", "watch"]
+    ["watch", "ok", "quiet", "quiet", "ok", "ok"]
   );
   assert.equal(host.querySelector(".cairn-stack").classList.contains("is-entering"), true);
   const rows = host.querySelectorAll("a.cairn-stack-row");

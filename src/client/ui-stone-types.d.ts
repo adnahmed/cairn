@@ -12,7 +12,6 @@ type ClientStoneGeometry = {
   shadow: { cx: number; cy: number; rx: number; ry: number };
   /** The faint under-curve across the stone's lower half. */
   under: string;
-  bounds: { x: number; y: number; width: number; height: number };
 };
 
 type ClientCairnLayout = { stones: ClientStoneSpec[]; width: number; height: number };

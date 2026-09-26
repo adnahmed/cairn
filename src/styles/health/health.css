@@ -488,7 +488,7 @@ body[data-tab="me"] .segwrap:not(.hsegwrap):not(.prog-subwrap){display:none}
 
 /* busy / skeleton shimmer */
 .hshimmer{height:13px;border-radius:7px;margin:12px 0 0;
-  background:linear-gradient(90deg,var(--card-2) 30%,#efe7d6 45%,var(--card-2) 60%);
+  background:linear-gradient(90deg,var(--card-2) 30%,var(--surface) 45%,var(--card-2) 60%);
   background-size:300% 100%}
 .hshimmer-lg{height:22px;width:72%;margin-top:14px}
 .hshimmer-sm{width:46%}

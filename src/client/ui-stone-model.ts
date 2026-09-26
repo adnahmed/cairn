@@ -91,7 +91,6 @@
       path: stonePath(cx, cy, rx, ry, spec.seed),
       shadow: { cx: cx + rx * 0.05, cy: cy + ry * 0.8, rx: rx * 0.9, ry: ry * 0.26 },
       under: `M${fx(cx - rx * 0.66)},${fx(cy + ry * 0.12)} Q${fx(cx)},${fx(cy + ry * 0.5)} ${fx(cx + rx * 0.7)},${fx(cy)}`,
-      bounds: { x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2 },
     };
   }
 
