@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import vm from "node:vm";
+import { createDocument, createHost, loadClientModule } from "./_dom.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -23,123 +24,110 @@ function loadPlanEnduranceClient() {
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/format-utils.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/plan-endurance-model.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/plan-endurance-briefing-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/plan-endurance-client.js"), "utf8"), context);
-  return context.CairnPlanEndurance;
+  return { ...context.CairnPlanEndurance, ...context.CairnPlanEnduranceBriefing };
 }
 
-// A minimal fake element good enough to drive paintPlanEndurance(): innerHTML
-// stores/returns the painted string, querySelector/querySelectorAll are inert
-// (the module's post-paint wiring null-checks or forEach()s over them).
-class FakePaintElement {
-  constructor() {
-    this._html = "";
-  }
-
-  set innerHTML(value) {
-    this._html = value;
-  }
-
-  get innerHTML() {
-    return this._html;
-  }
-
-  querySelector() {
-    return null;
-  }
-
-  querySelectorAll() {
-    return [];
-  }
+// Loads the real module (model + briefing + screen) on the shared DOM harness, with
+// every other global paintPlanEndurance touches, so the painted #endPlanBody can be
+// queried the way the renderer actually emitted it. The race view controller is a
+// recording stub: the screen only decides whether to mount it and with what.
+function loadPlanEnduranceForPaint({ raceController = true } = {}) {
+  const document = createDocument();
+  const view = createHost(document, { html: `<div id="endPlanBody"></div>` });
+  const mounts = [];
+  const win = loadClientModule(
+    ["html-utils", "plan-endurance-model", "plan-endurance-briefing-client", "plan-endurance-client"],
+    {
+      document,
+      globals: {
+        view,
+        stagger: (index) => `--i:${index}`,
+        humanDate: (iso) => String(iso || ""),
+        fmtKm: (km) => String(km),
+        fmtDist: (km, units) => (units === "mi" ? `${Number(km) / 1.609344} mi` : `${km} km`),
+        enduranceGoalCard: (goal) => `<div class="end-goal">${String(goal?.event || "")}</div>`,
+        runComplianceLine: () => "",
+        api: async () => null,
+        ...(raceController
+          ? {
+              CairnRaceViewController: {
+                mount: (host, deps) => {
+                  mounts.push({ host, deps });
+                  return () => {};
+                },
+              },
+            }
+          : {}),
+      },
+    }
+  );
+  return { win, body: view.querySelector("#endPlanBody"), mounts };
 }
 
-// Loads the real module (model + client) plus every other global
-// paintPlanEndurance touches, so `paintPlanEndurance` can be invoked directly
-// against a fake #endPlanBody and its painted HTML inspected.
-function loadPlanEnduranceForPaint({ raceBuildCard } = {}) {
-  const body = new FakePaintElement();
-  const view = { querySelector: (selector) => (selector === "#endPlanBody" ? body : null) };
-  const context = {
-    Array,
-    Object,
-    String,
-    Number,
-    Date,
-    Math,
-    view,
-    stagger: (index) => `--i:${index}`,
-    humanDate: (iso) => String(iso || ""),
-    fmtKm: (km) => String(km),
-    fmtDist: (km, units) => (units === "mi" ? `${Number(km) / 1.609344} mi` : `${km} km`),
-    enduranceGoalCard: (goal) => `<div class="end-goal">${String(goal?.event || "")}</div>`,
-    trainingAgendaCard: () => "",
-    runComplianceLine: () => "",
-    cardioSyncLine: undefined,
-    wireCardioSync: undefined,
-    loadPlanUpcomingNote: undefined,
-    ...(raceBuildCard !== undefined ? { raceBuildCard } : {}),
-  };
-  context.window = context;
-  vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
-  vm.runInNewContext(readFileSync(join(root, "public/js/plan-endurance-model.js"), "utf8"), context);
-  vm.runInNewContext(readFileSync(join(root, "public/js/plan-endurance-client.js"), "utf8"), context);
-  return { context, body };
-}
+const RACE_GOAL = { mode: "race", phase: "build", event: "Fall Half", weeks_to_race: 4 };
+const BUILD = { available: true, race: { weeks_to_race: 4, phase: "build", date: "2026-11-01" }, weeks: [] };
 
-const RACE_GOAL = { mode: "race", phase: "build", event: "Fall 10K", weeks_to_race: 4 };
+test("plan endurance mounts the race view as the race surface, in place of the goal card, ramp and compact card", () => {
+  const { win, body, mounts } = loadPlanEnduranceForPaint();
 
-test("plan endurance paints the race build card and drops the generic ramp when a build is available", () => {
-  const calls = [];
-  const { context, body } = loadPlanEnduranceForPaint({
-    raceBuildCard: (build, opts) => {
-      calls.push(opts);
-      return build?.available !== false && build?.race ? '<div data-race-build class="wrun-card rbuild"></div>' : "";
-    },
-  });
+  win.paintPlanEndurance(RACE_GOAL, null, null, {}, BUILD);
 
-  context.paintPlanEndurance(RACE_GOAL, null, null, {}, { available: true, race: { weeks_to_race: 4, phase: "build" } });
-
-  assert.match(body.innerHTML, /data-race-build/);
-  assert.doesNotMatch(body.innerHTML, /class="end-ramp reveal"/);
-  // The goal card directly above this one already states the countdown +
-  // phase — Plan must ask for the card's short head, not the full one.
-  // The stub records opts born in the module's own realm, so compare by value.
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0]?.underGoal, true);
-  assert.equal(calls[0]?.compact, true);
+  const slot = body.querySelector("#endRaceSlot");
+  assert.ok(slot, "the race view has its slot");
+  assert.equal(mounts.length, 1);
+  assert.equal(mounts[0].host, slot);
+  assert.equal(mounts[0].deps.initial, BUILD, "the build already read is painted at once, not fetched twice");
+  assert.equal(mounts[0].deps.units, "km");
+  assert.equal(typeof mounts[0].deps.load, "function");
+  // One race surface: no generic ramp, no goal card repeating the countdown, no
+  // compact race-build card with its "rest of the program" fold.
+  assert.equal(body.querySelector(".end-ramp"), null);
+  assert.equal(body.querySelector(".end-goal"), null);
+  assert.equal(body.querySelector(".rbuild-more"), null);
+  assert.equal(body.querySelector("[data-race-build]"), null);
 });
 
-test("plan endurance keeps today's ramp when the race build is unavailable or the fetch failed", () => {
-  const { context, body } = loadPlanEnduranceForPaint({
-    raceBuildCard: (build) => (build?.available !== false && build?.race ? '<div data-race-build></div>' : ""),
-  });
+test("plan endurance keeps the goal card and ramp when the build is unavailable", () => {
+  const { win, body, mounts } = loadPlanEnduranceForPaint();
 
-  context.paintPlanEndurance(RACE_GOAL, null, null, {}, { available: false });
+  win.paintPlanEndurance(RACE_GOAL, null, null, {}, { available: false, reason: "The race has no distance yet." });
 
-  assert.doesNotMatch(body.innerHTML, /data-race-build/);
-  assert.match(body.innerHTML, /class="end-ramp reveal"/);
+  assert.equal(body.querySelector("#endRaceSlot"), null);
+  assert.equal(mounts.length, 0);
+  assert.ok(body.querySelector(".end-ramp"));
+  assert.equal(body.querySelector(".end-goal").textContent, "Fall Half");
 });
 
-test("plan endurance keeps today's ramp when the race-build fetch rejected (raceBuild is null)", () => {
-  const { context, body } = loadPlanEnduranceForPaint({
-    raceBuildCard: (build) => (build?.available !== false && build?.race ? '<div data-race-build></div>' : ""),
-  });
+test("a failed race-build read still mounts the race view for a race goal, so it can offer to try again", () => {
+  const { win, body, mounts } = loadPlanEnduranceForPaint();
 
-  context.paintPlanEndurance(RACE_GOAL, null, null, {}, null);
+  win.paintPlanEndurance(RACE_GOAL, null, null, {}, null);
 
-  assert.doesNotMatch(body.innerHTML, /data-race-build/);
-  assert.match(body.innerHTML, /class="end-ramp reveal"/);
+  assert.ok(body.querySelector("#endRaceSlot"));
+  assert.equal(mounts.length, 1);
+  assert.equal(mounts[0].deps.initial, null, "nothing in hand: the view loads (and says so if it fails)");
+  assert.equal(body.querySelector(".end-ramp"), null);
 });
 
-test("plan endurance never crashes when raceBuildCard is not yet loaded (a different bundle)", () => {
-  // raceBuildCard is defined in progress-run-plan-client.ts, a different
-  // bundle — plan-endurance-client.ts must guard with typeof, never assume
-  // the global exists.
-  const { context, body } = loadPlanEnduranceForPaint();
+test("a standing goal never mounts the race view", () => {
+  const { win, body, mounts } = loadPlanEnduranceForPaint();
 
-  context.paintPlanEndurance(RACE_GOAL, null, null, {}, { available: true, race: { weeks_to_race: 4, phase: "build" } });
+  win.paintPlanEndurance({ mode: "standing", label: "10K-ready", weekly_km: 25 }, null, null, {}, null);
 
-  assert.doesNotMatch(body.innerHTML, /data-race-build/);
-  assert.match(body.innerHTML, /class="end-ramp reveal"/);
+  assert.equal(body.querySelector("#endRaceSlot"), null);
+  assert.equal(mounts.length, 0);
+  assert.ok(body.querySelector(".end-ramp-note"));
+});
+
+test("plan endurance never crashes when the race view controller is not loaded", () => {
+  const { win, body } = loadPlanEnduranceForPaint({ raceController: false });
+
+  win.paintPlanEndurance(RACE_GOAL, null, null, {}, BUILD);
+
+  assert.ok(body.querySelector("#endRaceSlot"));
+  assert.equal(body.querySelector("#endRaceSlot").innerHTML, "");
 });
 
 test("plan endurance helper renders the current race phase ramp", () => {
@@ -198,7 +186,6 @@ test("plan endurance orchestration fetches the live run plan and faces next week
   assert.match(source, /api\("\/run-plan"\)/);
   assert.match(source, /enduranceModel\(\)\.nextMonday\(today\)/);
   assert.match(source, /enduranceModel\(\)\.buildBriefing/);
-  assert.match(source, /compact: true/);
   assert.match(source, /end-shape-fold/);
   assert.match(source, /end-week-fold/);
   assert.match(source, /laterMonday/);
@@ -211,7 +198,8 @@ test("plan endurance orchestration fetches the live run plan and faces next week
 test("plan endurance fetches the race build alongside the rest of the segment's reads", () => {
   const source = readFileSync(join(root, "src/client/plan-endurance-client.ts"), "utf8");
   assert.match(source, /api\("\/race-build"\)\.catch\(\(\) => null\)/);
-  assert.match(source, /typeof raceBuildCard === "function"/);
+  assert.match(source, /CairnRaceViewController\.mount\(raceSlot/);
+  assert.doesNotMatch(source, /raceBuildCard|compact: true/);
   // The one home for runs reads them only from the run endpoints: the lift plan
   // is never fetched or scanned, and there is no "edit runs in Training" door.
   assert.doesNotMatch(source, /api\("\/plan"\)/);

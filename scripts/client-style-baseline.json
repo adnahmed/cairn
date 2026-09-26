@@ -4,7 +4,7 @@
     "hex": 221,
     "style": 354,
     "over400": 29,
-    "over600": 13
+    "over600": 12
   },
   "files": {
     "src/client/agent-login-modal-client.ts": {
@@ -118,7 +118,7 @@
       "style": 1
     },
     "src/client/plan-endurance-model.ts": {
-      "lines": 635,
+      "lines": 575,
       "style": 4
     },
     "src/client/progress-chart-drawing-client.ts": {
