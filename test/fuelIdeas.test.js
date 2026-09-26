@@ -128,6 +128,27 @@ test("today's partial day reads in progress, and a food already eaten today is n
   assert.ok(!out.ideas.some((i) => i.title === "Greek yogurt bowl"));
 });
 
+test("a meal still being estimated is not a zero: no protein still to go and no energy room off a partial sum", () => {
+  seedStaples();
+  seedBand();
+  repo.addFoodNote("breakfast", "", { summary: "Greek yogurt bowl", ...STAPLES["Greek yogurt bowl"] });
+  const known = fuelIdeas();
+  assert.equal(known.room.protein_g, known.protein_anchor.protein_g - 30);
+  assert.notEqual(known.room.energy_kcal, null, "the band sizes the room while every meal has numbers");
+
+  repo.addFoodNote("lunch", "", { summary: "Something from the cafe" });
+  const out = fuelIdeas();
+  assert.equal(out.today_so_far.state, "in progress");
+  assert.equal(out.room.protein_g, null);
+  assert.equal(out.room.energy_kcal, null);
+  assert.ok(out.ideas.length > 0);
+  for (const idea of out.ideas) {
+    assert.doesNotMatch(idea.why, /still to go|kcal/, "no claim measured off a sum that is only a floor");
+    assert.equal(idea.fits_band, null);
+    assert.equal(idea.portion, 1, "never sized up into room the unknown meal may have used");
+  }
+});
+
 test("no staples yet: no ideas, said in words", () => {
   const out = fuelIdeas();
   assert.deepEqual(out.ideas, []);

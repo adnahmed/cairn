@@ -275,7 +275,12 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
       ? "complete"
       : "in progress";
 
-  const proteinNeed = anchor ? Math.max(0, anchor.protein_g - totals.protein_g) : null;
+  // A meal still being estimated (or whose estimate never landed) has no numbers, so
+  // today's sum is only a floor: no "still to go" and no energy room is claimed off it,
+  // never a zero standing in for the unknown meal.
+  const proteinKnown = !day.count || day.known?.protein_g === true;
+  const kcalKnown = !day.count || day.known?.kcal === true;
+  const proteinNeed = anchor && proteinKnown ? Math.max(0, anchor.protein_g - totals.protein_g) : null;
   let target: ReturnType<typeof dayIntakeTarget> = null;
   try {
     target = dayIntakeTarget(goal);
@@ -283,7 +288,7 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
     target = null;
   }
   const bound = fuelEnergyBound(band, target);
-  const energyRoom = bound.kcal != null ? Math.round(bound.kcal - totals.kcal) : null;
+  const energyRoom = bound.kcal != null && kcalKnown ? Math.round(bound.kcal - totals.kcal) : null;
 
   const excluded = new Set((opts.exclude ?? []).map((k) => String(k).split("@")[0]));
   const eatenToday = new Set(day.entries.map((e: any) => frequentFoodKey(String(e.summary ?? ""))));
