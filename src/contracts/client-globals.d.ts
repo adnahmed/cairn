@@ -5289,6 +5289,7 @@ declare global {
     gramsFromAmount(amount: unknown): number | null;
     parseGramsInput(value: unknown): number | null;
     formatGrams(grams: number | null): string;
+    portionWords(amount: unknown): string;
     mealCardModel(note: unknown): ClientMealCardModel;
     mealCardRows(note: unknown): ClientMealCardRow[];
     storedTotals(note: unknown): ClientMealCardTotals;
@@ -5309,7 +5310,9 @@ declare global {
   interface Window {
     CairnMealCardModel: CairnMealCardModelApi;
     CairnMealCard: {
-      mealCardHtml(model: ClientMealCardModel, opts?: { totals?: boolean }): string;
+      mealCardHtml(model: ClientMealCardModel, opts?: { totals?: boolean; editing?: boolean }): string;
+      readRowHtml(row: ClientMealCardRow): string;
+      rowKcalText(row: ClientMealCardRow): string;
       rowHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
       rowMainHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
       rowNutriText(row: ClientMealCardRow): string;

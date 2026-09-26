@@ -82,9 +82,12 @@ function recorder(respond) {
   return { calls, toasts, motion, totals, saved, deps };
 }
 
-function mount(win, note, deps) {
+// The card mounts read-only (approximate by default); the editing tests tap its
+// Edit first, the way a person does. `{ edit: false }` leaves it at rest.
+function mount(win, note, deps, opts = {}) {
   const host = createHost(win.document);
   const teardown = win.CairnMealCardController.mount(host, { note, ...deps });
+  if (opts.edit !== false) host.querySelector("[data-meal-card-edit]").click();
   return { host, teardown };
 }
 
@@ -98,7 +101,7 @@ async function typeGrams(host, index, value) {
 test("a pasted 7-item meal renders one row per item, grams as decimal fields, provenance in words", () => {
   const win = load();
   const model = win.CairnMealCardModel.mealCardModel(pastedNote());
-  const host = renderHtml(win.CairnMealCard.mealCardHtml(model), { document: win.document });
+  const host = renderHtml(win.CairnMealCard.mealCardHtml(model, { editing: true }), { document: win.document });
   const rows = host.querySelectorAll(".meal-card-row");
   assert.equal(rows.length, 7);
   const grams = host.querySelectorAll("[data-meal-card-grams]");
@@ -132,13 +135,111 @@ test("a pasted 7-item meal renders one row per item, grams as decimal fields, pr
 test("hostile item text is escaped, never markup", () => {
   const win = load();
   const note = pastedNote({ ingredients: [{ item: `<b>x</b>"`, amount: "<i>2</i>", kcal: 10 }] });
+  const host = renderHtml(
+    win.CairnMealCard.mealCardHtml(win.CairnMealCardModel.mealCardModel(note), { editing: true }),
+    { document: win.document }
+  );
+  assert.equal(host.querySelector("b"), null);
+  assert.equal(host.querySelector("i"), null);
+  assert.equal(host.querySelector(".meal-card-item").textContent, `<b>x</b>"`);
+  assert.equal(host.querySelector("[data-meal-card-remove]").getAttribute("aria-label"), `Remove <b>x</b>"`);
+});
+
+// Approximate by default: nobody weighed it, so the card at rest READS — one line per
+// item, its portion in words, a muted ~kcal — and only an explicit Edit opens fields.
+test("at rest the card reads: portions in words, a muted kcal, no fields until Edit", () => {
+  const win = load();
+  const note = pastedNote({
+    ingredients: [
+      { item: "Trail mix", amount: "1 handful (~30 g)", kcal: 150, protein_g: 4 },
+      { item: "Greek yogurt", amount: "170 g", kcal: 100, protein_g: 17 },
+      { item: "Honey", amount: "1 tsp", fiber_g: 0 },
+    ],
+  });
+  const { calls, deps } = recorder();
+  const { host } = mount(win, note, deps, { edit: false });
+  const rows = host.querySelectorAll(".meal-card-row");
+  assert.equal(rows.length, 3);
+  assert.deepEqual(
+    [...rows].map((row) => [
+      row.querySelector(".meal-card-item")?.textContent,
+      row.querySelector(".meal-card-amount")?.textContent ?? null,
+      row.querySelector(".meal-card-nutri")?.textContent ?? null,
+    ]),
+    [
+      ["Trail mix", "1 handful", "~150 kcal"],
+      ["Greek yogurt", "170 g", "~100 kcal"],
+      ["Honey", "1 tsp", null],
+    ],
+    "the estimator's bracketed weight is not a portion; a row with no kcal stays quiet"
+  );
+  for (const selector of [
+    "input",
+    "[data-meal-card-remove]",
+    "[data-meal-card-add]",
+    "[data-meal-card-save]",
+    ".meal-card-totals",
+    ".meal-card-basis",
+  ]) {
+    assert.equal(host.querySelector(selector), null, `no ${selector} at rest`);
+  }
+  const edit = host.querySelector("[data-meal-card-edit]");
+  assert.equal(edit.getAttribute("type"), "button");
+  assert.equal(edit.textContent.trim(), "Edit");
+  assert.equal(host.querySelector(".meal-card-prov").textContent, "Estimated from usual servings · medium confidence");
+  assert.equal(calls.length, 0);
+});
+
+test("Edit opens the fields; Cancel puts an unsaved edit back and sends nothing; Done closes", async () => {
+  const win = load();
+  const { calls, totals, deps } = recorder();
+  const { host } = mount(win, pastedNote(), deps, { edit: false });
+
+  host.querySelector("[data-meal-card-edit]").click();
+  assert.equal(host.querySelectorAll("[data-meal-card-grams]").length, 7, "the gram fields appear");
+  assert.equal(host.ownerDocument.activeElement, host.querySelector("[data-meal-card-grams]"), "focus lands on the first");
+  assert.equal(host.querySelector("[data-meal-card-edit]"), null);
+  const done = host.querySelector("[data-meal-card-done]");
+  assert.equal(done.textContent, "Done");
+
+  await typeGrams(host, 0, "300");
+  assert.equal(host.querySelector("[data-meal-card-done]").textContent, "Cancel", "closing now discards, so it says so");
+  host.querySelector("[data-meal-card-done]").click();
+
+  assert.equal(host.querySelector("input"), null, "back at rest");
+  assert.equal(host.querySelector(".meal-card-row .meal-card-nutri").textContent, "~330 kcal", "the stored row, not the edit");
+  assert.deepEqual(plain(totals.at(-1)), {
+    value: { kcal: 1000, protein_g: 91, carbs_g: 95, fat_g: 28, fiber_g: 13 },
+    meta: { saved: true, unsaved: false },
+  });
+  assert.equal(host.ownerDocument.activeElement, host.querySelector("[data-meal-card-edit]"));
+  assert.equal(calls.length, 0, "nothing was written");
+
+  host.querySelector("[data-meal-card-edit]").click();
+  assert.equal(host.querySelectorAll("[data-meal-card-grams]")[0].value, "200", "reopening starts from what is stored");
+});
+
+test("hostile text is escaped at rest too", () => {
+  const win = load();
+  const note = pastedNote({ ingredients: [{ item: `<b>x</b>"`, amount: "<i>2</i> (~30 g)", kcal: 10 }] });
   const host = renderHtml(win.CairnMealCard.mealCardHtml(win.CairnMealCardModel.mealCardModel(note)), {
     document: win.document,
   });
   assert.equal(host.querySelector("b"), null);
   assert.equal(host.querySelector("i"), null);
   assert.equal(host.querySelector(".meal-card-item").textContent, `<b>x</b>"`);
-  assert.equal(host.querySelector("[data-meal-card-remove]").getAttribute("aria-label"), `Remove <b>x</b>"`);
+  assert.equal(host.querySelector(".meal-card-amount").textContent, "<i>2</i>");
+});
+
+test("model: a portion reads in words; a stated weight stays", () => {
+  const M = load().CairnMealCardModel;
+  assert.equal(M.portionWords("1 handful (~30 g)"), "1 handful");
+  assert.equal(M.portionWords("2 slices (about 60g)"), "2 slices");
+  assert.equal(M.portionWords("1 cup (240 ml)"), "1 cup");
+  assert.equal(M.portionWords("40 g"), "40 g");
+  assert.equal(M.portionWords("(~30 g)"), "(~30 g)", "a weight alone is still the portion");
+  assert.equal(M.portionWords("a bowl (large)"), "a bowl (large)", "only a bracketed weight goes");
+  assert.equal(M.portionWords(null), "");
 });
 
 test("model: weights read the way the server reads them, rows rescale, totals follow rule 4", () => {
@@ -364,6 +465,7 @@ test("mounting twice on one host still saves once per tap; teardown removes the 
   const host = createHost(win.document);
   win.CairnMealCardController.mount(host, { note: pastedNote(), ...deps });
   const teardown = win.CairnMealCardController.mount(host, { note: pastedNote(), ...deps });
+  host.querySelector("[data-meal-card-edit]").click();
   await typeGrams(host, 0, "250");
   await host.querySelector("[data-meal-card-save]").click();
   await flush();

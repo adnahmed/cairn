@@ -1,8 +1,13 @@
 // @ts-check
 // The meal card's controller (docs/V2-PLAN.md wave 2, stream B). `mountMealCard(host,
-// deps)` paints a logged meal into `host` as editable rows and wires them through
-// one delegated listener per event type (CairnUiActions.mount, so mounting again on
-// the same host never doubles a save).
+// deps)` paints a logged meal into `host` and wires it through one delegated
+// listener per event type (CairnUiActions.mount, so mounting again on the same host
+// never doubles a save).
+//
+// Approximate by default: the card mounts READ-ONLY (portions in words, no fields).
+// Edit opens the editable rows; Done closes them again (Cancel, while an edit is
+// unsaved, puts the rows back as stored). A save keeps the editors open with "Saved"
+// in the live region, so a person mid-correction never loses their place.
 //
 // Editing a row's grams moves the totals at once — the server's own arithmetic,
 // previewed (meal-card-model.ts) — and Save sends every row, in the foodCapture.ts
@@ -92,6 +97,7 @@
     let busy = false;
     let added = 0;
     let alive = true;
+    let editing = false;
 
     const q = <T extends Element = HTMLElement>(selector: string): T | null => host.querySelector<T>(selector);
     const rowByKey = (key: string | undefined): Row | undefined => rows.find((row) => row.key === key);
@@ -105,7 +111,7 @@
       const focusField = active instanceof HTMLElement && active.hasAttribute("data-meal-card-name") ? "name" : "grams";
       host.innerHTML = view().mealCardHtml(
         { id, rows, totals: stored, basis: mealBasis, provenance },
-        { totals: deps.totals }
+        { totals: deps.totals, editing }
       );
       if (focusKey) {
         const li = host.querySelector(`[data-meal-card-row="${focusKey}"]`);
@@ -163,6 +169,9 @@
       }
       const save = q<HTMLButtonElement>("[data-meal-card-save]");
       if (save) save.disabled = busy || !changed;
+      // Closing with an unsaved edit puts the rows back, so it says so.
+      const done = q("[data-meal-card-done]");
+      if (done) done.textContent = changed ? "Cancel" : "Done";
       q(".meal-card-rows")?.classList.toggle("is-single", rows.length === 1);
       deps.onTotals?.(totals, { saved: !!opts.saved, unsaved: changed });
     }
@@ -247,6 +256,26 @@
       sync();
     }
 
+    /** Open the editors: the gram fields, remove and add. */
+    function onEdit(): void {
+      if (editing) return;
+      editing = true;
+      paint();
+      sync();
+      host.querySelector<HTMLElement>("[data-meal-card-grams]")?.focus();
+    }
+
+    /** Close the editors. An unsaved edit is put back as stored; nothing is sent. */
+    function onDone(): void {
+      if (!editing || busy) return;
+      editing = false;
+      rows = original.map(copyRow);
+      revision++;
+      paint();
+      sync({ saved: true });
+      q<HTMLElement>("[data-meal-card-edit]")?.focus();
+    }
+
     async function onSave(): Promise<void> {
       if (busy || id == null || !dirty()) return;
       busy = true;
@@ -325,6 +354,8 @@
         "meal-card-add": () => onAdd(),
         "meal-card-remove": (el) => onRemove(el),
         "meal-card-save": () => void onSave(),
+        "meal-card-edit": () => onEdit(),
+        "meal-card-done": () => onDone(),
       });
       delegate("keydown", {
         "meal-card-grams": (_el, event) => {

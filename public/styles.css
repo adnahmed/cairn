@@ -6803,10 +6803,21 @@ body[data-tab="session"] .tabbar{display:none}
 .detail-kcal[hidden],.detail-ctx[hidden],.detail-macros[hidden]{display:none}
 .fdet-meal{text-align:left}
 .fdet-note{color:var(--muted)}
-/* In a chat bubble the capture review becomes the card, a step tighter; targets stay 44px. */
-.capture-review-card .meal-card{gap:var(--space-3)}
-.capture-review-card .meal-card-row{gap:var(--space-3);padding:var(--space-2) 0;font-size:var(--text-sm)}
-.capture-review-card .meal-card-grams-input{width:4em;padding:0 var(--space-3)}
+/* Approximate by default: the card opens READ-ONLY — one line per item, its portion
+   in words and a muted ~kcal — and the gram fields, remove and add appear only after
+   an explicit Edit. */
+.meal-card-edit{order:2;min-height:44px;margin:-12px 0;display:inline-flex;align-items:center;font-size:var(--text-sm);margin-left:auto}
+.meal-card.is-read .meal-card-prov{order:3;flex:1 1 100%}
+.meal-card.is-read .meal-card-head{row-gap:var(--space-1)}
+.meal-card-rows.is-read{border-top:none}
+.meal-card-row.is-read{display:flex;align-items:baseline;gap:var(--space-2);min-height:0;
+  padding:var(--space-2) 0;border-bottom:none;font-size:var(--text-sm)}
+.meal-card-row.is-read .meal-card-item{flex:0 1 auto;min-width:0;font-weight:500}
+.meal-card-row.is-read .meal-card-amount{flex:0 1 auto;min-width:0}
+.meal-card-row.is-read .meal-card-amount::before{content:"· "}
+.meal-card-row.is-read .meal-card-nutri{flex:0 0 auto;margin-left:auto;white-space:nowrap;
+  font-variant-numeric:lining-nums tabular-nums}
+.meal-card-done{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
 
 /* -------------------------------------------------------------------
    43 · Fuel — Plan → Food (.fuel-today-*, .fuel-log-*, .fuel-meal-*, .idea-card-*)

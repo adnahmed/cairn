@@ -983,7 +983,7 @@ in each row.
 | Screen snapshots | `today-screen.ts:162` (HTML), `stand-screen.ts:1243` (JSON) | SWR |
 
 **Components v2 adds** (sequenced in `docs/V2-PLAN.md`): `changes-line`, `changes-feed`,
-`decision-undo`, `meal-card` (editable rows), `food-composer` (shared by Fuel and chat),
+`decision-undo`, `meal-card` (read-only portions in words; an explicit Edit opens the gram rows), `food-composer` (shared by Fuel and chat),
 `fuel-today`, `idea-card`, `records-search`, `packet-builder`, `visit-questions`, `race-ladder`,
 `pebble-strip`, `cairn-stack`, `app-readd` (the one-time iOS re-add note) and `app-id` (Settings →
 Data's "This app" block: server build, this app's shell, Copy token), both from

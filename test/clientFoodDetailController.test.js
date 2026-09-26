@@ -245,6 +245,8 @@ test("correcting grams in the sheet: the hero follows at once, one PUT, then the
   const el = harness.mounted;
   assert.equal(el.querySelectorAll(".meal-card-row").length, 2);
   assert.equal(el.querySelector(".meal-card-totals"), null, "the sheet's hero carries the totals");
+  assert.equal(el.querySelector("[data-meal-card-grams]"), null, "approximate by default: no gram fields at rest");
+  await el.querySelector("[data-meal-card-edit]").click();
   assert.equal(el.querySelector(".detail-items"), null, "the card replaces the comma list");
 
   const grams = el.querySelector("[data-meal-card-grams]");
@@ -321,6 +323,7 @@ test("a saved correction lands in the Me log's note cache, so the entry reopens 
   const before = chickenNote();
   harness.deps.state._notesById = { 42: before, 7: { id: 7 } };
   await context.CairnFoodDetailController.openFoodDetail(harness.deps.state._notesById["42"], null, harness.deps);
+  await harness.mounted.querySelector("[data-meal-card-edit]").click();
   const grams = harness.mounted.querySelector("[data-meal-card-grams]");
   grams.value = "300";
   await fire(grams, "input");
@@ -333,6 +336,8 @@ test("a saved correction lands in the Me log's note cache, so the entry reopens 
 
   // Tapping the (reprinted) entry again opens the sheet from the cache: saved grams.
   await context.CairnFoodDetailController.openFoodDetail(cached, null, harness.deps);
+  assert.equal(harness.mounted.querySelector(".meal-card-amount").textContent, "300 g", "at rest, in words");
+  await harness.mounted.querySelector("[data-meal-card-edit]").click();
   assert.equal(harness.mounted.querySelector("[data-meal-card-grams]").value, "300");
   assert.equal(harness.mounted.querySelector(".detail-num").dataset.cu, "690");
 });
@@ -346,6 +351,7 @@ test("an edit during the opening count-up is never overwritten by its last frame
   assert.equal(harness.countUps.length, 1, "the hero counts up as the sheet opens");
   assert.equal(counting.isConnected, true, "mounting the card does not cut the opening count-up");
 
+  await el.querySelector("[data-meal-card-edit]").click();
   const grams = el.querySelector("[data-meal-card-grams]");
   grams.value = "300";
   await fire(grams, "input");
