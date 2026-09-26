@@ -236,89 +236,43 @@ function markerTrendTone(marker: HealthMarkersRow | null | undefined): "toward" 
   return markerOutOfRange(marker) ? "away" : "stable";
 }
 
-// Richer inline progress chart: hand-built SVG, no library. Shades the optimal-zone
-// band, draws a Catmull-Rom curve, and labels endpoint dates. Values go into numeric
-// attributes; text is escaped through the same global helpers as the legacy screen.
+// The marker's trend chart: its readings on the shared line chart, shading the
+// optimal band when there is one (else the lab reference range, so a rangeless
+// marker still gets its "normal" band). A lab-flagged reading's dot reads watch.
 function markerChartSvg(marker: HealthMarkersRow | null | undefined): string {
   const raw = markerPoints(marker).filter((point) => point && Number.isFinite(Number(point.value)));
   if (raw.length < 2) return "";
-  const W = 300, H = 108, L = 14, R = 14, T = 14, B = 26;
-  const vals = raw.map((point) => Number(point.value));
-  let min = Math.min(...vals), max = Math.max(...vals);
-  // Shade the optimal band when we have one, else the lab reference range — so a
-  // rangeless marker still gets its "normal" band drawn once the lab range is known.
-  const optimal = effectiveBand(marker);
-  if (optimal) {
-    min = Math.min(min, Number(optimal.low));
-    max = Math.max(max, Number(optimal.high));
-  }
-  if (max === min) { max += 1; min -= 1; }
-  const pad = (max - min) * 0.08; min -= pad; max += pad;
-  const x = (index: number) => L + (index * (W - L - R)) / (raw.length - 1);
-  const y = (value: number) => T + (1 - (value - min) / (max - min)) * (H - T - B);
-  const points = raw.map((point, index) => [x(index), y(Number(point.value))] as const);
-  let band = "";
-  if (optimal) {
-    const yHi = Math.max(T, y(Number(optimal.high))), yLo = Math.min(H - B, y(Number(optimal.low)));
-    band = `<rect class="hchart-band" x="${L}" y="${yHi.toFixed(1)}" width="${(W - L - R).toFixed(1)}" height="${Math.max(1, yLo - yHi).toFixed(1)}" rx="3"/>`;
-  }
-  let d = `M${points[0][0].toFixed(1)} ${points[0][1].toFixed(1)}`;
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[Math.max(0, i - 1)], p1 = points[i], p2 = points[i + 1], p3 = points[Math.min(points.length - 1, i + 2)];
-    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
-    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
-    d += ` C${c1[0].toFixed(1)} ${c1[1].toFixed(1)} ${c2[0].toFixed(1)} ${c2[1].toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
-  }
-  const dots = points.map(([px, py], index) => {
-    const f = String(raw[index].flag || "").toLowerCase();
-    const flagged = f === "low" || f === "high" || f === "abnormal" || f === "critical";
-    return `<circle class="hchart-dot" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${index === points.length - 1 ? 4 : 2.8}" fill="${flagged ? "#b3402e" : "#6e7f5c"}"/>`;
-  }).join("");
+  const band = effectiveBand(marker);
   const unit = marker?.unit ? ` ${String(marker.unit)}` : "";
-  const tipData: HealthMarkersChartPoint[] = raw.map((point, index) => ({
-    x: Number(points[index][0].toFixed(1)),
-    y: Number(points[index][1].toFixed(1)),
-    t: `${formatMarkerNumber(point.value)}${unit} · ${sparkDateLabel(point.date)}`,
-  }));
-  return `<svg class="hchart" viewBox="0 0 ${W} ${H}" data-pts="${escAttr(JSON.stringify(tipData))}" aria-hidden="true">
-      ${band}
-      <path class="hchart-line" d="${d}" fill="none" stroke="#211d17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      ${dots}
-      <text class="hchart-txt" x="${L}" y="${H - 7}" text-anchor="start">${escHtml(sparkDateLabel(raw[0].date))}</text>
-      <text class="hchart-txt" x="${W - R}" y="${H - 7}" text-anchor="end">${escHtml(sparkDateLabel(raw[raw.length - 1].date))}</text>
-      <line class="hchart-guide" x1="0" y1="${T}" x2="0" y2="${H - B}"/>
-      <circle class="hchart-cursor" cx="0" cy="0" r="4.2"/>
-      <g class="hchart-tip" transform="translate(0,0)"><rect rx="9" x="0" y="0" width="0" height="18"/><text x="8" y="13"></text></g>
-    </svg>`;
+  return CairnUiChart.lineChartSvg({
+    band: band ? { low: Number(band.low), high: Number(band.high) } : null,
+    points: raw.map((point) => ({
+      value: Number(point.value),
+      label: sparkDateLabel(point.date),
+      tip: `${formatMarkerNumber(point.value)}${unit} · ${sparkDateLabel(point.date)}`,
+      tone: flaggedByLab(point.flag) ? "watch" : "ok",
+    })),
+  });
 }
 
 // Single-reading gauge: no history to chart yet, so show WHERE the one value
-// sits against the optimal band — shaded zone on a track, a dot for the
-// reading, band-edge labels (only the edge that matters for one-sided zones).
+// sits against the optimal band, with only the band edge that matters labelled
+// for a one-sided zone.
 function markerBandSvg(marker: HealthMarkersRow | null | undefined): string {
   const band = effectiveBand(marker);
   const low = Number(band?.low);
   const high = Number(band?.high);
   const value = Number(marker?.latest?.value);
   if (!band || !Number.isFinite(low) || !Number.isFinite(high) || !Number.isFinite(value)) return "";
-  const W = 300, H = 46, L = 14, R = 14, y = 18;
-  let min = Math.min(low, value), max = Math.max(high, value);
-  if (max === min) { max += 1; min -= 1; }
-  const pad = (max - min) * 0.1; min -= pad; max += pad;
-  const x = (v: number) => L + ((v - min) / (max - min)) * (W - L - R);
-  const flagged = flaggedByLab(marker?.latest?.flag) || value < low || value > high;
-  const bx = x(low), bw = Math.max(1, x(high) - x(low));
   const dir = String(band.dir || "");
-  const labels = [
-    dir !== "high" ? `<text class="hchart-txt" x="${bx.toFixed(1)}" y="${H - 6}" text-anchor="middle">${escHtml(formatMarkerNumber(low))}</text>` : "",
-    dir !== "low" ? `<text class="hchart-txt" x="${(bx + bw).toFixed(1)}" y="${H - 6}" text-anchor="middle">${escHtml(formatMarkerNumber(high))}</text>` : "",
-  ].join("");
-  return `<svg class="hchart hgauge" viewBox="0 0 ${W} ${H}" aria-hidden="true">
-      <line class="hgauge-track" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"/>
-      <rect class="hchart-band" x="${bx.toFixed(1)}" y="${y - 7}" width="${bw.toFixed(1)}" height="14" rx="4"/>
-      <circle class="hchart-dot" cx="${x(value).toFixed(1)}" cy="${y}" r="5" fill="${flagged ? "#b3402e" : "#6e7f5c"}"/>
-      ${labels}
-    </svg>`;
+  return CairnUiChart.gaugeSvg({
+    value,
+    low,
+    high,
+    tone: flaggedByLab(marker?.latest?.flag) || value < low || value > high ? "watch" : "ok",
+    lowLabel: dir !== "high" ? formatMarkerNumber(low) : "",
+    highLabel: dir !== "low" ? formatMarkerNumber(high) : "",
+  });
 }
 
 // Wire pointer scrubbing onto a marker chart SVG. Idempotent per element.

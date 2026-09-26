@@ -617,12 +617,13 @@ position-vs-optimal and direction only.
   - `.hchart-band` — the optimal-zone band shaded (sage @ ~14%), folded into the y-domain so it's
     always on-screen even when every reading sits outside it.
   - `.hchart-line` — a Catmull-Rom ink curve that draws on open (`sparkdraw`, reduced-motion-gated).
-  - `.hchart-dot` — every numeric reading as a flag-tinted dot (warn `#b3402e` / sage `#6e7f5c`).
-  - `.hchart-txt` — date labels at the axis ends (`sparkDateLabel`).
+  - `.hchart-dot` — every numeric reading as a flag-tinted dot: `.hchart-dot-watch` (warn) for a
+    lab-flagged reading, `.hchart-dot-ok` (sage) otherwise. Drawn by `CairnUiChart.lineChartSvg`.
+  - `.hchart-txt` — date labels at the axis ends (`CairnUiChart.dateLabel`).
   - `.hchart-latest` — the latest value + relAge recency callout above the chart.
   - `.hchart-cap` — sentence-case caption (NOT `.lbl`) under the chart: optimal band + the trend in
     plain words ("optimal 40–80 mg/dL · rising over ~14 mo") from the server `trend` (`markerTrendWord`).
-- The Health → Read view's "what matters now" list (`.hb-mk`) keeps the compact generic `sparklineSvg()`;
+- The Health → Read view's "what matters now" list (`.hb-mk`) keeps the compact generic `CairnUiChart.sparkSvg()`;
   the richer `.hchart` is the detailed Markers-tab view. The two are intentionally distinct surfaces.
 
 ## Health sharing (Stand → Share)
@@ -847,9 +848,9 @@ The tokens and vocabulary are in **Motion tokens** above. Rules for anything new
   (`detail-art`, `seg-thumb`, `tabbar`); register any new one here before using it.
 - **Height changes** use `collapseEl`/`expandEl` (`ui-motion-client.ts`) or the `grid-template-rows`
   0fr→1fr pattern (`.hmk-panel`). Never hand-animate `height:auto`.
-- **Reduced motion:** JS checks one predicate, `reducedMotion()` (`ui-feedback-client.ts:12`).
-  `motionReduced` (`ui-motion-client.ts:12`) is a duplicate and gets folded into it. Every new
-  keyframe is either silenced by §30 or deliberately restored there as functional.
+- **Reduced motion:** JS checks one predicate, `reducedMotion()` (`ui-feedback-client.ts`), and
+  never its own `matchMedia` (`test/uiReducedMotion.test.js` holds that). Every new keyframe is
+  either silenced by §30 or deliberately restored there as functional.
 - **Budget:** only one thing moves for attention at a time. Reading surfaces get no looping
   decoration, and the only celebration is the gold PR moment.
 
@@ -869,7 +870,7 @@ The tokens and vocabulary are in **Motion tokens** above. Rules for anything new
 | Network failure | `tabErrorState` (`ui-feedback-client.ts:136`) for a tab; `toast` for an action, keeping what was typed; while offline, the outbox and "Saved — will sync" | Plain, recoverable |
 
 About 21 files still build their own `*-empty` markup; move them to `emptyStateHtml` when you touch
-them.
+them. Progress's `emptyStateHtml(svg, line)` is a thin entry point onto the same primitive.
 
 ### Accessibility minimums
 
@@ -885,9 +886,12 @@ them.
   visible phrase.
 - Async status uses `role="status"` with `aria-live="polite"` (`loadingStateHtml`,
   `jobCaptionHtml`). Never assertive.
-- **Overlays share one primitive:** `role="dialog"`, `aria-modal="true"`, a label, focus moved in and
-  returned to the opener on close, Escape and backdrop both close, and the background is inert.
-  There are six hand-rolled overlays today (see the inventory).
+- **Overlays share one primitive,** `CairnUiSheet.open` (`ui-sheet.ts`): `role="dialog"`,
+  `aria-modal="true"`, a label, focus moved in and returned to the opener on close, Escape and
+  backdrop both close (unless the sheet is deliberately not dismissible, like the token sheet and
+  first-run onboarding), Tab stays inside, and the background is inert. The meal sheet, BP sheet,
+  onboarding, token sheet, outbox review and agent sign-in all run on it; `.detail` stays the
+  full-screen item overlay.
 - `prefers-reduced-motion` (§30) and `prefers-contrast: more` (§39) are honored. A number always
   carries its unit, and dates read the way a person says them (**Hard rules**).
 
@@ -933,31 +937,35 @@ module is touched).
 | Primitive | Module | Notes |
 |---|---|---|
 | `escHtml` / `escAttr` | `html-utils.ts` | The only escapers |
-| `CairnUi` (attrs, action button, text chip, loading state, segmented nav, job caption, sheet chip, empty state) | `ui-components.ts` | Pure renderers; the model for new primitives |
+| `CairnUi` (attrs, action button, text chip, loading state, segmented control `segmentedHtml` + `segmentedNavHtml`, job caption, sheet chip, empty state) | `ui-components.ts` | Pure renderers; the model for new primitives |
 | `CairnUiReads` (baseline band, contributor rows, level chip, trend lead, strength line) | `ui-reads.ts` | The reading grammar |
 | Feedback: `btnBusy`, `countUp`/`runCountUps`, `loadingState`, `thinkingCaption`, `tabErrorState`, skeletons | `ui-feedback-client.ts` | |
 | `showToast` (with an action) + `armDestructiveAction` | `ui-actions-client.ts` | `toast`/`armDelete` in `ui-shell.ts:33/37` are thin wrappers |
 | View transitions: `withViewTransition`, `tabSwap`, `viewHydrate` | `ui-view-transitions-client.ts` (re-exported in `ui-shell.ts`) | |
 | `collapseEl` / `expandEl` | `ui-motion-client.ts` | |
 | Segments: `segBar` / `wireSeg` / `fitSeg` | `ui-segments-client.ts` | |
-| Detail overlay: `openDetailFrom` / `closeDetail` | `detail-overlay-client.ts` | |
+| Detail overlay: `openDetailFrom` / `closeDetail` | `detail-overlay-client.ts` | Full-screen items only |
+| Sheet / dialog: `CairnUiSheet.open` → `{overlay, sheet, close, isOpen}` | `ui-sheet.ts` | The one overlay primitive; new sheets take `.ui-sheet-ov` / `.ui-sheet` (§21), existing ones pass their own classes |
+| Charts: `CairnUiChart` (`sparkSvg`, `lineChartSvg`, `gaugeSvg`, `zoneBarSvg`, `linearScale`, `domain`, `dateLabel`) | `ui-chart.ts` | One scale and one date label; tone by class, no hex |
+| Decision Undo: `CairnDecisionUndo.buttonHtml` + `CairnDecisionUndoController` (`revert`, `mount`, `offer`) | `decision-undo-client.ts`, `decision-undo-controller.ts` | Server-owned label; one busy state and one calm refusal |
 | Save bar | `save-bar.ts` | |
 | SWR, jobs, API + outbox | `swr-cache.ts`, `agent-job-client.ts`, `api-client.ts` | |
 | Art: `artImg`, `CairnArt`, `CairnBodyFigure` | `art-controller.ts`, `public/art.js`, `cairn-body-figure.ts` | |
-| `sparklineSvg` | `ui-shell.ts:192` | Moves into a chart module |
 | Markdown, dates, formats | `markdown-client.ts`, `date-utils.ts`, `format-utils.ts` | |
 
-**Duplicates to consolidate** (v2 foundation):
+**Duplicates to consolidate** (v2 foundation). F3 folded the segmented control, overlay, chart,
+decision-undo, reduced-motion and escaping rows into the primitives above; what remains is noted
+in each row.
 
 | Pattern | Copies today | Target |
 |---|---|---|
-| Segmented control | `CairnUi.segmentedNavHtml` (`ui-components.ts:95`), `ui-segments-client.ts:125/139`, hand-built in `me-health-tabs-controller.ts:25`, plain `.seg` groups in `me-profile-form-client.ts:329–395` and `stand-screen.ts:761` | One `segmentedHtml({items, active, label, variant: 'sliding'\|'plain'\|'leaf'})` + `wireSeg` |
-| Overlay / sheet / modal | `.detail` (`detail-overlay-client.ts`), meal sheet (`meal-recipe-controller.ts`), `.bpsheet` (`health-standing-controller.ts`), onboarding `.modal-card`, token sheet with its own injected `<style>` plus the outbox review (`api-client.ts`), agent-login modal | One `ui-sheet` (bottom sheet on mobile, dialog on desktop) meeting the overlay rules above; `.detail` stays for full-screen items |
-| Charts | `sparklineSvg` (`ui-shell.ts:192`), `markerChartSvg`/`markerBandSvg` (`health-markers-client.ts:242/298`), `zoneBarSvg` (`body-metrics-client.ts:1199`), `tovLoadBandHtml` (`progress-overview-client.ts:422`), `progress-chart-*` (4 files), `baselineBandHtml` (`ui-reads.ts:73`) | One `ui-chart` module (spark/line, band, zone bar) sharing scales and date labels; no hex |
-| Decision Undo | Four revert call sites: `today-screen.ts:191`, `today-rail-controller.ts:235/261`, `coach-meals-screen.ts:164` | One `decision-undo` component (button + toast action + busy state + error) |
+| Segmented control | Done: `CairnUi.segmentedHtml` builds the section bar, the Progress group/leaf bars, the Health sub-tabs, the Profile choice groups and the Stand clinical flags. Onboarding's two `.seg` groups are still hand-built | One `segmentedHtml({items, active, label, variant: 'sliding'\|'plain'\|'leaf'})` + `wireSeg` |
+| Overlay / sheet / modal | Done: every sheet runs on `ui-sheet`. The token sheet and agent sign-in still inject their own `<style>` (F4 moves the token sheet's into `styles.css`) | One `ui-sheet` (bottom sheet on mobile, dialog on desktop) meeting the overlay rules above; `.detail` stays for full-screen items |
+| Charts | Done for the SVG charts: sparkline, marker line chart and gauge, body-metrics zone bar, and the date labels (`sparkDateLabel`, `fmtShortDate`) all come from `ui-chart`. `baselineBandHtml` stays in `CairnUiReads` (a frozen reading-grammar primitive, HTML not SVG; `tovLoadBandHtml` composes it). The canvas `progress-chart-*` shares the date label but keeps its canvas palette (with hex fallbacks) | One `ui-chart` module (spark/line, band, zone bar) sharing scales and date labels; no hex |
+| Decision Undo | Done: the exercise Undo, the rail's Hold/Undo and the meal Hold/Undo all revert through `CairnDecisionUndoController` | One `decision-undo` component (button + toast action + busy state + error) |
 | Empty state | `emptyStateHtml` alongside about 21 hand-rolled `*-empty` blocks | `emptyStateHtml` |
-| Reduced-motion check | `reducedMotion` and `motionReduced` | `reducedMotion` |
-| HTML escaping | `escapeOutboxHtml` (`api-client.ts:1436`) | `escHtml` |
+| Reduced-motion check | Done: `motionReduced` and the inline `matchMedia` checks are gone | `reducedMotion` |
+| HTML escaping | Done: `escapeOutboxHtml` is gone | `escHtml` |
 | Screen snapshots | `today-screen.ts:162` (HTML), `stand-screen.ts:1243` (JSON) | SWR |
 
 **Components v2 adds** (sequenced in `docs/V2-PLAN.md`): `changes-line`, `changes-feed`,

@@ -1280,7 +1280,6 @@ declare global {
     band: { slow_sec_per_km?: unknown; fast_sec_per_km?: unknown; text?: unknown } | null | undefined,
     units?: unknown
   ): string;
-  declare function sparklineSvg(vals: unknown, w?: number, h?: number): string;
   declare function fmtSpeedKmh(kmh: unknown): string;
   declare function prDistLabel(km: unknown): string;
   declare function joinList(items: string[]): string;
@@ -2445,6 +2444,18 @@ declare global {
       }): string;
       loadingStateHtml(options: { label: unknown; className?: string; live?: boolean }): string;
       segmentedNavHtml(options: { active: unknown; items: ReadonlyArray<readonly [unknown, unknown]> }): string;
+      segmentedHtml(options: {
+        items: ReadonlyArray<readonly [unknown, unknown]>;
+        active: unknown;
+        label: unknown;
+        variant?: "sliding" | "plain" | "leaf";
+        attr?: string;
+        className?: string;
+        wrapClass?: string;
+        id?: string;
+        attrs?: Record<string, unknown>;
+        pressed?: boolean;
+      }): string;
       jobCaptionHtml(options?: {
         text?: unknown;
         className?: string;
@@ -2527,6 +2538,68 @@ declare global {
           delegate(type: string, actions: Record<string, (el: HTMLElement, event: Event) => unknown>): void;
         }) => unknown,
       ): () => void;
+    };
+
+    CairnUiSheet: {
+      open(options: {
+        html: string;
+        label?: unknown;
+        labelledBy?: string;
+        describedBy?: string;
+        overlayClass?: string;
+        sheetClass?: string;
+        sheetTag?: "div" | "section";
+        id?: string;
+        attrs?: Record<string, unknown>;
+        dismissible?: boolean;
+        closeSelector?: string;
+        initialFocus?: string;
+        focusDelayMs?: number;
+        openClass?: string;
+        exitMs?: number;
+        bodyClass?: string;
+        onClose?(reason: "escape" | "backdrop" | "button" | "api"): void;
+      }): ClientUiSheetHandle;
+      sheetFor(el: Element | null | undefined): ClientUiSheetHandle | null;
+      top(): ClientUiSheetHandle | null;
+    };
+
+    CairnUiChart: {
+      linearScale(d0: number, d1: number, r0: number, r1: number): (value: number) => number;
+      domain(values: ReadonlyArray<number>, pad: number, include?: ReadonlyArray<number>): { min: number; max: number };
+      dateLabel(value: unknown, options?: { year?: boolean }): string;
+      sparkSvg(values: unknown, width?: number, height?: number): string;
+      lineChartSvg(options: {
+        points: ReadonlyArray<{ value: number; label?: unknown; tip?: unknown; tone?: "ok" | "watch" }>;
+        band?: { low: number; high: number } | null;
+      }): string;
+      gaugeSvg(options: {
+        value: number;
+        low: number;
+        high: number;
+        tone?: "ok" | "watch";
+        lowLabel?: unknown;
+        highLabel?: unknown;
+      }): string;
+      zoneBarSvg(options: {
+        min: number;
+        max: number;
+        bands: ReadonlyArray<{ from: number; to: number; tone: string }>;
+        optimal: { from: number; to: number };
+        value: number | null;
+        projected: number | null;
+        label: unknown;
+      }): string;
+    };
+
+    CairnDecisionUndo: {
+      buttonHtml(options: { id: unknown; label?: unknown; attr?: string; className?: string }): string;
+    };
+
+    CairnDecisionUndoController: {
+      revert(button: HTMLElement | null, id: unknown, deps: ClientDecisionUndoDeps, copy: ClientDecisionUndoCopy): Promise<boolean>;
+      mount(host: Element, deps: ClientDecisionUndoDeps, actions: Record<string, ClientDecisionUndoCopy>, name?: string): () => void;
+      offer(message: string, id: unknown, label: unknown, deps: ClientDecisionUndoDeps, copy: ClientDecisionUndoCopy): void;
     };
 
     CairnUiHeader: {
@@ -4823,6 +4896,27 @@ declare global {
   declare const CairnUiReads: Window["CairnUiReads"];
   declare const CairnUiFeedback: Window["CairnUiFeedback"];
   declare const CairnUiActions: Window["CairnUiActions"];
+  declare const CairnUiSheet: Window["CairnUiSheet"];
+  declare const CairnUiChart: Window["CairnUiChart"];
+  declare const CairnDecisionUndo: Window["CairnDecisionUndo"];
+  declare const CairnDecisionUndoController: Window["CairnDecisionUndoController"];
+  type ClientDecisionUndoDeps = {
+    api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+    toast(message: string, options?: { action?: string; onAction?: () => void }): void;
+  };
+  type ClientDecisionUndoCopy = {
+    reason: string;
+    success: string;
+    stale: string;
+    failed: string;
+    after?(): unknown;
+  };
+  type ClientUiSheetHandle = {
+    overlay: HTMLElement;
+    sheet: HTMLElement;
+    close(options?: { instant?: boolean; reason?: "escape" | "backdrop" | "button" | "api" }): void;
+    isOpen(): boolean;
+  };
   declare const CairnUiHeader: Window["CairnUiHeader"];
   declare const CairnUiViewTransitions: Window["CairnUiViewTransitions"];
   declare const CairnDetailOverlay: Window["CairnDetailOverlay"];

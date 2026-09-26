@@ -20,7 +20,6 @@ type AgentLoginStatusKey =
 
 type AgentLoginOverlay = HTMLDivElement & {
   _failed?: boolean;
-  _onKey?: (event: KeyboardEvent) => void;
   _onResize?: () => void;
   _term?: { dispose?: () => void };
   _ws?: WebSocket;

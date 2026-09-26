@@ -31,6 +31,7 @@ function loadHealthMarkers() {
     "public/js/html-utils.js",
     "public/js/ui-components.js",
     "public/js/ui-reads.js",
+    "public/js/ui-chart.js",
     "public/js/health-evidence-client.js",
     "public/js/health-marker-order-client.js",
     "public/js/health-client.js",
@@ -64,7 +65,7 @@ test("health marker chart SVG escapes marker text and carries scrub data", () =>
   assert.match(svg, /class="hchart"/);
   assert.match(svg, /class="hchart-band"/);
   assert.match(svg, /class="hchart-line"/);
-  assert.match(svg, /fill="#b3402e"/);
+  assert.match(svg, /class="hchart-dot hchart-dot-watch"/); // the lab-flagged reading reads watch (warn fill)
   assert.match(svg, /data-pts="/);
   assert.match(svg, /mg\/dL &lt;unit&gt;/);
   assert.doesNotMatch(svg, /<unit>|<bad>/);
@@ -107,7 +108,7 @@ test("single-reading marker with an optimal band expands to a gauge with the tar
   assert.match(html, /single reading/);
   assert.match(html, /optimal ≤ 80 mg\/dL/); // dir-aware target phrase
   assert.match(html, /above optimal/);
-  assert.match(html, /fill="#b3402e"/); // out-of-band dot reads warn
+  assert.match(html, /hchart-dot-watch/); // out-of-band dot reads watch (warn fill)
   // dir 'high': only the edge that matters gets a label (no "0" noise).
   const gauge = html.slice(html.indexOf("<svg"));
   assert.doesNotMatch(gauge, />0</);

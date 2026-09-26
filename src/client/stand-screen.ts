@@ -638,7 +638,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       onSharpen: () => {
         const el = view.querySelector<HTMLElement>("#hClinicalInputs");
         if (!el) return;
-        const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const reduce = reducedMotion();
         el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
         el.querySelector<HTMLElement>(".segbtn")?.focus?.();
       },
@@ -754,16 +754,10 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   ];
 
   function clinicalFlagRowHtml(field: string, label: string, value: number | null): string {
-    const opt = (val: string, text: string, active: boolean) =>
-      `<button type="button" class="segbtn${active ? " active" : ""}" data-triflag="${val}">${text}</button>`;
-    return `<div class="prof-clin-row">
-      <span class="prof-clin-q">${escHtml(label)}</span>
-      <div class="seg" data-clinflag="${escAttr(field)}" role="group" aria-label="${escAttr(label)}">
-        ${opt("", "Not set", value == null)}
-        ${opt("0", "No", value === 0)}
-        ${opt("1", "Yes", value === 1)}
-      </div>
-    </div>`;
+    const items = [["", "Not set"], ["0", "No"], ["1", "Yes"]] as const;
+    const active = value == null ? "" : String(value);
+    const group = CairnUi.segmentedHtml({ variant: "plain", label, attr: "triflag", attrs: { "data-clinflag": field }, active, items });
+    return `<div class="prof-clin-row"><span class="prof-clin-q">${escHtml(label)}</span>${group}</div>`;
   }
 
   async function paintClinicalInputs(token: number): Promise<void> {
@@ -981,7 +975,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     state.pendingHealthScroll = null;
     const el = view.querySelector<HTMLElement>("#standRead");
     if (!el) return;
-    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = reducedMotion();
     el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }
   function showOverview(): void {

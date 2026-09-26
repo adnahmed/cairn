@@ -25,6 +25,10 @@ function loadSegments() {
   const context = { Object, Promise, String };
   context.globalThis = context;
   context.window = context;
+  // The Progress bars are built by the shared segmented control (CairnUi.segmentedHtml).
+  for (const file of ["public/js/html-utils.js", "public/js/ui-components.js"]) {
+    vm.runInNewContext(readFileSync(join(root, file), "utf8"), context);
+  }
   const source = readFileSync(join(root, "src/client/ui-segments-client.ts"), "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: {

@@ -466,7 +466,7 @@ function cfocusSettleIfThere(tab: string, seg?: string | null): boolean {
           : true));
   if (!here) return false;
   const card = document.querySelector(".cfocus, .cfocus-compact");
-  const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduced = reducedMotion();
   card?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
   return true;
 }

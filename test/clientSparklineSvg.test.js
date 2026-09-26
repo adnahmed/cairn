@@ -1,37 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import vm from "node:vm";
+import { loadClientModule } from "./_dom.mjs";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-// sparklineSvg lives in the shared-global ui-shell.ts file (compiled to public/js/02-ui.js),
-// which pulls in far too many app globals to load whole. It's pure (Array/Math/Number only),
-// so pull just its source via a balanced-brace scan and run it standalone.
-function extractFunction(source, name) {
-  const sig = source.match(new RegExp(`function ${name}\\([^)]*\\)\\s*\\{`));
-  assert.ok(sig, `${name} not found in compiled output`);
-  const braceStart = source.indexOf("{", sig.index);
-  let depth = 0;
-  for (let i = braceStart; i < source.length; i++) {
-    if (source[i] === "{") depth++;
-    else if (source[i] === "}") {
-      depth--;
-      if (depth === 0) return source.slice(sig.index, i + 1);
-    }
-  }
-  throw new Error(`unterminated function ${name}`);
-}
-
+// The sparkline is the chart module's (ui-chart.ts, CairnUiChart.sparkSvg): a pure
+// string renderer, so the built module runs on its own.
 function loadSparklineSvg() {
-  const compiled = readFileSync(join(root, "public/js/02-ui.js"), "utf8");
-  const fnSrc = extractFunction(compiled, "sparklineSvg");
-  const context = { Array, Math, Number };
-  vm.createContext(context);
-  vm.runInContext(fnSrc, context);
-  return context.sparklineSvg;
+  const win = loadClientModule(["html-utils", "ui-chart"]);
+  return (values, w, h) => win.CairnUiChart.sparkSvg(values, w, h);
 }
 
 function points(svg) {

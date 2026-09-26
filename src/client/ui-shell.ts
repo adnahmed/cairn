@@ -57,7 +57,7 @@ function exerciseDetailDeps(): ExerciseDetailControllerDeps {
     postExerciseMode,
     renderToday,
     runCountUps,
-    sparklineSvg,
+    sparklineSvg: CairnUiChart.sparkSvg,
     toast,
     wireDetailCommon,
   };
@@ -188,30 +188,6 @@ const isHybrid = (): boolean => uiSegmentsApi().isHybrid();
 function setEnduranceGoalSet(present: unknown): boolean { return uiSegmentsApi().setEnduranceGoalSet(present); }
 const showEnduranceTab = (): boolean => uiSegmentsApi().showEnduranceTab();
 
-// tiny inline sparkline (numbers only — safe for innerHTML)
-function sparklineSvg(vals: unknown, w = 132, h = 30): string {
-  const v = (Array.isArray(vals) ? vals : []).map(Number).filter((x: number) => !Number.isNaN(x));
-  if (v.length < 2) return "";
-  const min = Math.min(...v), max = Math.max(...v);
-  const mid = (max + min) / 2;
-  // Floor the y-span so a near-flat series (e.g. bodyweight 70.0/70.1/69.9) doesn't
-  // stretch tiny noise into a dramatic full-height zigzag. A wide-range series is
-  // unaffected — its raw span already exceeds the floor, and centering a full-span
-  // band on the data's own midpoint reduces exactly to [min, max]. The tiny absolute
-  // fallback keeps an all-zero/near-zero series from hitting a zero span.
-  const floor = Math.max(0.04 * Math.max(Math.abs(max), Math.abs(min)), 1e-6);
-  const span = Math.max(max - min, floor);
-  const lo = mid - span / 2, hi = mid + span / 2;
-  const x = (i: number) => 2 + (i * (w - 4)) / (v.length - 1);
-  const y = (n: number) => h - 3 - ((n - lo) / (hi - lo)) * (h - 6);
-  const pts = v.map((n: number, i: number) => `${x(i).toFixed(1)},${y(n).toFixed(1)}`).join(" ");
-  const last = v[v.length - 1];
-  return `<svg class="spark" viewBox="0 0 ${w} ${h}" aria-hidden="true">
-      <polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${x(v.length - 1).toFixed(1)}" cy="${y(last).toFixed(1)}" r="3" fill="currentColor"/>
-    </svg>`;
-}
-
 // ---------- background enrichment (poll a row until its status settles) ----------
 // pollToken is bumped on every full re-render so in-flight polls can detect a stale tab and bail.
 let pollToken: number = 0;
@@ -340,7 +316,6 @@ const CAIRN_UI_SHELL_GLOBALS = {
   isHybrid,
   setEnduranceGoalSet,
   showEnduranceTab,
-  sparklineSvg,
   setPollTokenForClassicScripts,
   enrichmentActive,
   pollEnrichment,

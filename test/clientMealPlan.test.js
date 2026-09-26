@@ -34,6 +34,8 @@ function loadMealPlan() {
   };
   context.window = context;
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/ui-components.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/decision-undo-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/meal-row-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/meal-plan-client.js"), "utf8"), context);
   return context.CairnMealPlan;

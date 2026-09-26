@@ -1658,17 +1658,6 @@ test("outbox hidden-state CSS does not force disabled bars visible", () => {
   assert.doesNotMatch(styles, /\.outbox-bar:disabled\s*\{[^}]*opacity:1/);
 });
 
-test("outbox review rerenders restore focus to a remaining dialog control", () => {
-  const client = readFileSync(join(root, "public/js/api-client.js"), "utf8");
-  assert.match(client, /function focusOutboxReviewControl\(overlay\)/);
-  assert.match(client, /querySelector\("\[data-outbox-retry\]"\)/);
-  assert.equal(
-    (client.match(/renderOutboxReview\(\{\s*focusControl:\s*true\s*\}\)/g) || []).length,
-    2,
-    "both discard and retry rerenders request an in-dialog focus target"
-  );
-});
-
 test("capture enqueue classifier treats network, timeout, and retryable HTTP as transient only", () => {
   const loaded = loadApiClient();
   const { ApiError, isTransientApiFailure } = loaded.context.CairnApiCache;

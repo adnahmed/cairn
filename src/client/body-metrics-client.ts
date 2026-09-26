@@ -105,14 +105,8 @@ interface BmSummary {
 }
 
 (() => {
-// Fills (band segments) vs text (band words): gold is a fill, too light for
-// text; sage needs its darker text token at small sizes (see docs/DESIGN.md).
-const BM_TONE_COLOR: Record<BmTone, string> = {
-  ok: "var(--sage, #6e7f5c)",
-  watch: "var(--gold, #c9a86a)",
-  warn: "var(--warn, #b3402e)",
-  info: "var(--muted, #746c5c)",
-};
+// Band words' text tones (the zone bar's fills are CSS, .zonebar-seg-*): gold is
+// a fill, too light for text; sage needs its darker text token at small sizes.
 const BM_TONE_TEXT: Record<BmTone, string> = {
   ok: "var(--sage-text, #5f6e4f)",
   watch: "var(--gold-deep, #8a6d2e)",
@@ -1197,32 +1191,8 @@ function bmWireStandHero(mount: HTMLElement, data: BmSummary, unit: BmUnit): voi
 // stronger, a solid dot marks today, a dashed hollow dot marks where the current
 // pace lands in ~12 weeks. Words and position, never a score.
 function zoneBarSvg(s: BmScale): string {
-  const W = 300;
-  const H = 26;
-  const PAD = 8;
-  const barY = 6;
-  const barH = 8;
-  const span = s.max - s.min || 1;
-  const x = (v: number) => PAD + ((Math.min(s.max, Math.max(s.min, v)) - s.min) / span) * (W - PAD * 2);
-  const segs = s.bands
-    .map((b) => {
-      const color = BM_TONE_COLOR[b.tone] || BM_TONE_COLOR.info;
-      const isOpt = b.from >= s.optimal.from && b.to <= s.optimal.to;
-      return `<rect x="${x(b.from)}" y="${barY}" width="${Math.max(1, x(b.to) - x(b.from))}" height="${barH}" rx="2" fill="${color}" opacity="${isOpt ? "0.55" : "0.22"}"/>`;
-    })
-    .join("");
-  const optMid = x((s.optimal.from + s.optimal.to) / 2);
-  const optLabel = `<text x="${optMid}" y="${barY + barH + 11}" text-anchor="middle" font-size="9" fill="${BM_TONE_TEXT.ok}" font-weight="600">optimal</text>`;
-  let proj = "";
-  if (s.projected != null && s.value != null && Math.abs(s.projected - s.value) > span / 100) {
-    const x1 = x(s.value);
-    const x2 = x(s.projected);
-    proj = `<line x1="${x1}" y1="${barY + barH / 2}" x2="${x2}" y2="${barY + barH / 2}" stroke="var(--ink,#211d17)" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.55"/>
-      <circle cx="${x2}" cy="${barY + barH / 2}" r="4" fill="var(--card,#fffdf8)" stroke="var(--ink,#211d17)" stroke-width="1.4" stroke-dasharray="2 2"/>`;
-  }
-  const cur = s.value != null ? `<circle cx="${x(s.value)}" cy="${barY + barH / 2}" r="4.5" fill="var(--ink,#211d17)"/>` : "";
   const aria = `${s.label}: ${s.value != null ? `${s.value}${s.unit || ""}` : "not measured"}${s.projected != null ? `, heading to about ${s.projected}${s.unit || ""} in ${s.horizon_weeks} weeks at the current pace` : ""}`;
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${escAttr(aria)}" style="display:block">${segs}${optLabel}${proj}${cur}</svg>`;
+  return CairnUiChart.zoneBarSvg({ ...s, label: aria });
 }
 
 function zoneRow(s: BmScale, ind: BmIndicator | undefined, i: number): string {
@@ -1380,7 +1350,7 @@ function goalMovement(weight: BmTrend, profile: BmSummary["profile"]): string {
 }
 
 function trendRow(t: BmTrend, extra = ""): string {
-  const spark = t.points.length >= 2 ? `<span class="bm-trend-spark">${sparklineSvg(t.points)}</span>` : "";
+  const spark = t.points.length >= 2 ? `<span class="bm-trend-spark">${CairnUiChart.sparkSvg(t.points)}</span>` : "";
   const latest = t.latest != null ? `${escHtml(String(t.latest))} ${escHtml(t.unit)}` : "—";
   const arrow = t.direction === "down" ? "↓" : t.direction === "up" ? "↑" : t.direction === "steady" ? "→" : "";
   return `<div class="sess-line bm-trend-row" data-trend="${escAttr(t.key)}" style="display:flex;align-items:center;gap:10px;padding:6px 0">
@@ -1591,7 +1561,7 @@ function wire(mount: HTMLElement, unit: BmUnit, data?: BmSummary): void {
   const jumpToTrend = (site: string) => {
     const row = mount.querySelector(`.bm-trend-row[data-trend="${site}"]`) as HTMLElement | null;
     if (!row) return;
-    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = reducedMotion();
     row.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
     row.style.transition = "background-color .5s ease";
     row.style.borderRadius = "8px";
@@ -1639,7 +1609,7 @@ function wire(mount: HTMLElement, unit: BmUnit, data?: BmSummary): void {
           return a != null && b != null && Math.abs(b - a) >= 0.05;
         })
       : [];
-    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = reducedMotion();
     if (from && to && moving.length && !reduce && typeof requestAnimationFrame === "function") {
       const finalHtml = slot.innerHTML;
       const dur = 1200;

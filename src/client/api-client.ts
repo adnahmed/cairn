@@ -87,9 +87,10 @@ function ensureTokenSheetStyles(): void {
 }
 
 function openTokenSheet(): void {
-  if (typeof document === "undefined") {
-    // Non-DOM context (should not happen in the browser) — degrade to a reload so
-    // the app-shell guard has a chance to run again once a token exists.
+  if (typeof document === "undefined" || typeof CairnUiSheet === "undefined") {
+    // Non-DOM context, or a shell without the overlay primitive (should not happen
+    // in the browser) — degrade to a reload so the app-shell guard has a chance to
+    // run again once a token exists.
     try {
       location.reload();
     } catch {}
@@ -97,19 +98,24 @@ function openTokenSheet(): void {
   }
   if (document.querySelector(".token-sheet-ov")) return;
   ensureTokenSheetStyles();
-  const overlay = document.createElement("div");
-  overlay.className = "token-sheet-ov";
-  overlay.innerHTML = `<div class="token-sheet" role="dialog" aria-modal="true" aria-labelledby="tokenSheetTitle" aria-describedby="tokenSheetBody">
-    <h2 class="token-sheet-h" id="tokenSheetTitle">Enter your access token</h2>
+  // The app is unusable without the token, so this sheet is deliberately not
+  // dismissible: no Escape, no backdrop close. CairnUiSheet keeps Tab inside it.
+  const sheet = CairnUiSheet.open({
+    overlayClass: "token-sheet-ov",
+    sheetClass: "token-sheet",
+    labelledBy: "tokenSheetTitle",
+    describedBy: "tokenSheetBody",
+    dismissible: false,
+    initialFocus: ".token-sheet-in",
+    html: `<h2 class="token-sheet-h" id="tokenSheetTitle">Enter your access token</h2>
     <p class="token-sheet-p" id="tokenSheetBody">This Cairn is protected by a shared access token. Paste it to continue — it's stored only on this device.</p>
     <input class="token-sheet-in" type="password" inputmode="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Access token" placeholder="Access token">
     <div class="token-sheet-err" role="alert" aria-live="assertive" hidden></div>
-    <div class="token-sheet-ft"><button class="token-sheet-btn" type="button" data-token-save>Connect</button></div>
-  </div>`;
-  document.body.appendChild(overlay);
+    <div class="token-sheet-ft"><button class="token-sheet-btn" type="button" data-token-save>Connect</button></div>`,
+  });
 
-  const input = overlay.querySelector<HTMLInputElement>(".token-sheet-in");
-  const errEl = overlay.querySelector<HTMLElement>(".token-sheet-err");
+  const input = sheet.sheet.querySelector<HTMLInputElement>(".token-sheet-in");
+  const errEl = sheet.sheet.querySelector<HTMLElement>(".token-sheet-err");
   const save = (): void => {
     const value = (input?.value || "").trim();
     if (!value) {
@@ -125,31 +131,10 @@ function openTokenSheet(): void {
     } catch {}
     location.reload();
   };
-  overlay.querySelector("[data-token-save]")?.addEventListener("click", save);
+  sheet.sheet.querySelector("[data-token-save]")?.addEventListener("click", save);
   input?.addEventListener("keydown", (event: KeyboardEvent) => {
     if (event.key === "Enter") save();
   });
-
-  // Contain focus inside the sheet — the app is unusable without the token, so
-  // there is deliberately no dismiss; Tab wraps between the input and Connect.
-  overlay.addEventListener("keydown", (event: KeyboardEvent) => {
-    if (event.key !== "Tab") return;
-    const focusable = [...overlay.querySelectorAll<HTMLElement>("input,button")].filter(
-      (el) => el.offsetParent !== null || el === document.activeElement
-    );
-    if (focusable.length < 2) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  });
-  if (typeof setTimeout === "function") setTimeout(() => input?.focus(), 0);
-  else input?.focus();
 }
 
 function handleUnauthorized(): void {
@@ -1433,15 +1418,6 @@ function scheduleOutboxClaimRetry(blockedUntil: number | undefined): void {
   }, delay);
 }
 
-function escapeOutboxHtml(value: unknown): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function boundedOutboxText(value: unknown, max = 140): string {
   const text = String(value ?? "")
     .replace(/\s+/g, " ")
@@ -1528,7 +1504,7 @@ function outboxItemTime(item: OutboxItem): string {
   }
 }
 
-let outboxReviewReturnFocus: HTMLElement | null = null;
+let outboxReviewSheet: ClientUiSheetHandle | null = null;
 
 function stagedCachePair(date: string): {
   session: Record<string, unknown>;
@@ -1570,14 +1546,9 @@ function clearMatchingStagedCachePair(date: string, prepareId: string): boolean 
 }
 
 function closeOutboxReview(): void {
-  if (typeof document === "undefined") return;
-  const overlay = document.querySelector<HTMLElement>(".outbox-review-ov");
-  if (!overlay) return;
-  overlay.remove();
-  try {
-    outboxReviewReturnFocus?.focus();
-  } catch {}
-  outboxReviewReturnFocus = null;
+  const open = outboxReviewSheet;
+  outboxReviewSheet = null;
+  open?.close();
 }
 
 async function retryOutboxItem(id: string): Promise<boolean> {
@@ -1630,20 +1601,16 @@ async function discardOutboxItem(id: string): Promise<boolean> {
   return true;
 }
 
-function focusOutboxReviewControl(overlay: HTMLElement): void {
+function focusOutboxReviewControl(sheet: HTMLElement): void {
   const control =
-    overlay.querySelector<HTMLElement>("[data-outbox-retry]") ||
-    overlay.querySelector<HTMLElement>("[data-outbox-close]");
+    sheet.querySelector<HTMLElement>("[data-outbox-retry]") || sheet.querySelector<HTMLElement>("[data-outbox-close]");
   try {
     control?.focus();
   } catch {}
 }
 
 function renderOutboxReview(options: { focusControl?: boolean } = {}): void {
-  if (typeof document === "undefined") return;
-  const overlay = document.querySelector<HTMLElement>(".outbox-review-ov");
-  if (!overlay) return;
-  const sheet = overlay.querySelector<HTMLElement>(".outbox-review");
+  const sheet = outboxReviewSheet?.isOpen() ? outboxReviewSheet.sheet : null;
   if (!sheet) return;
   const review = outbox().review();
   if (!review.length) {
@@ -1670,11 +1637,11 @@ function renderOutboxReview(options: { focusControl?: boolean } = {}): void {
           : item.failure_status != null
             ? `Cairn couldn't accept this log (${item.failure_status}).`
             : "Cairn couldn't accept this log.";
-      return `<li class="outbox-review-item" data-outbox-id="${escapeOutboxHtml(item.id)}">
+      return `<li class="outbox-review-item" data-outbox-id="${escHtml(item.id)}">
       <div class="outbox-review-copy">
-        <div class="outbox-review-meta"><strong>${escapeOutboxHtml(outboxKindLabel(item.kind))}</strong><time>${escapeOutboxHtml(outboxItemTime(item))}</time></div>
-        <p>${escapeOutboxHtml(outboxItemSummary(item))}</p>
-        <small>${escapeOutboxHtml(status)}</small>
+        <div class="outbox-review-meta"><strong>${escHtml(outboxKindLabel(item.kind))}</strong><time>${escHtml(outboxItemTime(item))}</time></div>
+        <p>${escHtml(outboxItemSummary(item))}</p>
+        <small>${escHtml(status)}</small>
       </div>
       <div class="outbox-review-actions">
         ${isBlocked ? "" : `<button type="button" data-outbox-retry>${isPrepare ? "Use saved session" : "Retry"}</button>`}
@@ -1689,7 +1656,7 @@ function renderOutboxReview(options: { focusControl?: boolean } = {}): void {
     </div>
     <p class="outbox-review-intro" id="outboxReviewIntro">Resolve the earliest saved workout item, or discard blocked changes one at a time. A session setup can be discarded only after every dependent log is gone.</p>
     <ul class="outbox-review-list">${rows}</ul>`;
-  if (options.focusControl) focusOutboxReviewControl(overlay);
+  if (options.focusControl) focusOutboxReviewControl(sheet);
 }
 
 function openOutboxReview(): void {
@@ -1700,21 +1667,26 @@ function openOutboxReview(): void {
       .some((item) => item.state === "needs_attention")
   )
     return;
-  const existing = document.querySelector<HTMLElement>(".outbox-review-ov");
-  if (existing) {
-    existing.querySelector<HTMLElement>("[data-outbox-close]")?.focus();
+  if (outboxReviewSheet?.isOpen()) {
+    outboxReviewSheet.sheet.querySelector<HTMLElement>("[data-outbox-close]")?.focus();
     return;
   }
-  outboxReviewReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  const overlay = document.createElement("div");
-  overlay.className = "outbox-review-ov";
-  overlay.innerHTML = `<section class="outbox-review" role="dialog" aria-modal="true" aria-labelledby="outboxReviewTitle" aria-describedby="outboxReviewIntro"></section>`;
-  overlay.addEventListener("click", (event) => {
+  const opened = CairnUiSheet.open({
+    overlayClass: "outbox-review-ov",
+    sheetClass: "outbox-review",
+    sheetTag: "section",
+    labelledBy: "outboxReviewTitle",
+    describedBy: "outboxReviewIntro",
+    closeSelector: "[data-outbox-close]",
+    initialFocus: "[data-outbox-close]",
+    html: "",
+    onClose: () => {
+      if (outboxReviewSheet === opened) outboxReviewSheet = null;
+    },
+  });
+  outboxReviewSheet = opened;
+  opened.sheet.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
-    if (target === overlay || target.closest("[data-outbox-close]")) {
-      closeOutboxReview();
-      return;
-    }
     const row = target.closest<HTMLElement>("[data-outbox-id]");
     const id = row?.dataset.outboxId;
     if (!id) return;
@@ -1736,30 +1708,7 @@ function openOutboxReview(): void {
       void retryOutboxItem(id).finally(() => renderOutboxReview({ focusControl: true }));
     }
   });
-  overlay.addEventListener("keydown", (event: KeyboardEvent) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeOutboxReview();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    const focusable = [...overlay.querySelectorAll<HTMLElement>("button:not(:disabled)")];
-    if (!focusable.length) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  });
-  document.body.appendChild(overlay);
   renderOutboxReview();
-  if (typeof setTimeout === "function")
-    setTimeout(() => overlay.querySelector<HTMLElement>("[data-outbox-close]")?.focus(), 0);
-  else overlay.querySelector<HTMLElement>("[data-outbox-close]")?.focus();
 }
 
 function renderOutboxBar(): void {

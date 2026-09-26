@@ -65,8 +65,9 @@
     try { overlay._ws?.close(); } catch {}
     try { overlay._term?.dispose?.(); } catch {}
     try { if (overlay._onResize) window.removeEventListener("resize", overlay._onResize); } catch {}
-    try { if (overlay._onKey) document.removeEventListener("keydown", overlay._onKey); } catch {}
-    overlay.remove();
+    const sheet = CairnUiSheet.sheetFor(overlay);
+    if (sheet) sheet.close();
+    else overlay.remove();
   }
 
   function createAgentLoginModal(name: string, retryLogin: AgentLoginRetry): AgentLoginModalHandle | null {
@@ -77,10 +78,16 @@
     // just works, so the box only appears on touch devices.
     const touchPaste = (typeof navigator !== "undefined" && (navigator.maxTouchPoints || 0) > 0) ||
       (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches);
-    const overlay = document.createElement("div") as AgentLoginOverlay;
-    overlay.className = "agent-login-ov";
-    overlay.innerHTML = `
-    <div class="agent-login" role="dialog" aria-modal="true" aria-label="Connect ${escAttr(name)}">
+    // Escape, a backdrop tap, the ✕ and Cancel all close through the sheet, and
+    // every path runs the same socket/terminal teardown (onClose).
+    let overlayRef: AgentLoginOverlay | null = null;
+    const sheet = CairnUiSheet.open({
+      overlayClass: "agent-login-ov",
+      sheetClass: "agent-login",
+      label: `Connect ${name}`,
+      closeSelector: ".agent-login-x, .agent-login-ft [data-close]",
+      onClose: () => closeAgentLoginModal(overlayRef),
+      html: `
       <div class="agent-login-hd">
         <h2>Connect ${escHtml(name)}</h2>
         <button class="agent-login-x" type="button" aria-label="Close">&times;</button>
@@ -105,9 +112,10 @@
         <div class="agent-login-ft">
           <button class="agent-login-btn" type="button" data-close>Cancel</button>
         </div>
-      </div>
-    </div>`;
-    document.body.appendChild(overlay);
+      </div>`,
+    });
+    const overlay = sheet.overlay as AgentLoginOverlay;
+    overlayRef = overlay;
 
     const statusEl = overlay.querySelector<HTMLElement>(".agent-login-status");
     const termHost = overlay.querySelector<HTMLElement>(".agent-login-term");
@@ -119,7 +127,7 @@
     const linkOpen = overlay.querySelector<HTMLAnchorElement>(".agent-login-link-open");
     const copyBtn = overlay.querySelector<HTMLButtonElement>("[data-copy-link]");
     if (!statusEl || !termHost || !pasteInput || !pasteSend || !closeBtn || !footer || !linkRow || !linkOpen || !copyBtn) {
-      overlay.remove();
+      closeAgentLoginModal(overlay);
       return null;
     }
 
@@ -166,31 +174,6 @@
         footer.insertBefore(retry, closeBtn);
       }
     };
-
-    overlay._onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") {
-        closeAgentLoginModal(overlay);
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const focusable = [...overlay.querySelectorAll<HTMLElement>("button, input")]
-        .filter((el) => el.offsetParent !== null);
-      if (focusable.length < 2) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      if (!first || !last) return;
-      if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", overlay._onKey);
-    overlay.querySelector(".agent-login-x")?.addEventListener("click", () => closeAgentLoginModal(overlay));
-    closeBtn.addEventListener("click", () => closeAgentLoginModal(overlay));
 
     return {
       overlay,

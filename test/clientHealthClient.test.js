@@ -27,6 +27,7 @@ function loadHealthClient() {
   };
   context.window = context;
   vm.runInNewContext(readFileSync(join(root, "public/js/ui-components.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/ui-chart.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/health-evidence-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/health-marker-order-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/health-client.js"), "utf8"), context);

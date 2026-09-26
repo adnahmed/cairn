@@ -226,52 +226,26 @@ type TodayRailDeps = {
           // Deterministic one-tap cancel: the server revert path flips the
           // announced decision to canceled (and supersedes its draft); no agent
           // turn is involved, so a held change never waits on a reachable coach.
-          const decisionId = Number(payload);
-          if (!Number.isFinite(decisionId) || button.dataset.busy === "1") return;
-          button.dataset.busy = "1";
-          button.setAttribute("aria-busy", "true");
-          void (async () => {
-            try {
-              const result = (await deps.api(`/brain/decisions/${decisionId}/revert`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reason: "hold on — keep my current plan" }),
-              })) as { ok?: boolean; error?: string } | null;
-              if (!result?.ok) throw new Error(result?.error || "That change can no longer be held.");
-              deps.toast("Held — your current plan stays");
-              await deps.refreshToday({ soft: true });
-            } catch (error) {
-              deps.toast(error instanceof Error ? error.message : "Could not hold that change");
-              button.dataset.busy = "";
-              button.removeAttribute("aria-busy");
-            }
-          })();
+          void CairnDecisionUndoController.revert(button, payload, deps, {
+            reason: "hold on — keep my current plan",
+            success: "Held — your current plan stays",
+            stale: "That change can no longer be held.",
+            failed: "Could not hold that change",
+            after: () => deps.refreshToday({ soft: true }),
+          });
           return;
         }
         if (kind === "undo-decision") {
           // Same server revert path as "hold-decision", but for a change that
           // ALREADY landed quietly (e.g. a Garmin reconcile) rather than one still
           // waiting at its natural boundary — same one tap, different wording.
-          const decisionId = Number(payload);
-          if (!Number.isFinite(decisionId) || button.dataset.busy === "1") return;
-          button.dataset.busy = "1";
-          button.setAttribute("aria-busy", "true");
-          void (async () => {
-            try {
-              const result = (await deps.api(`/brain/decisions/${decisionId}/revert`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reason: "undo — put it back" }),
-              })) as { ok?: boolean; error?: string } | null;
-              if (!result?.ok) throw new Error(result?.error || "That change could not be undone.");
-              deps.toast("Undone");
-              await deps.refreshToday({ soft: true });
-            } catch (error) {
-              deps.toast(error instanceof Error ? error.message : "Could not undo that change");
-              button.dataset.busy = "";
-              button.removeAttribute("aria-busy");
-            }
-          })();
+          void CairnDecisionUndoController.revert(button, payload, deps, {
+            reason: "undo — put it back",
+            success: "Undone",
+            stale: "That change could not be undone.",
+            failed: "Could not undo that change",
+            after: () => deps.refreshToday({ soft: true }),
+          });
           return;
         }
         if (kind.startsWith("chat")) {

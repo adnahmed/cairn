@@ -1,8 +1,8 @@
 {
   "note": "Ratchet for scripts/check-client-style.mjs. Numbers may only go down; run it with --update after one does.",
   "totals": {
-    "hex": 247,
-    "style": 386,
+    "hex": 234,
+    "style": 384,
     "over400": 30,
     "over600": 14
   },
@@ -14,16 +14,16 @@
       "hex": 12
     },
     "src/client/api-client.ts": {
-      "lines": 2418,
+      "lines": 2367,
       "hex": 13
     },
     "src/client/app/onboarding.ts": {
       "style": 3
     },
     "src/client/body-metrics-client.ts": {
-      "lines": 1760,
-      "hex": 118,
-      "style": 112
+      "lines": 1730,
+      "hex": 110,
+      "style": 111
     },
     "src/client/capture-read-cards-client.ts": {
       "lines": 419
@@ -77,8 +77,7 @@
       "style": 6
     },
     "src/client/health-markers-client.ts": {
-      "lines": 511,
-      "hex": 5
+      "lines": 465
     },
     "src/client/health-read-controller.ts": {
       "style": 1
@@ -112,7 +111,7 @@
       "style": 3
     },
     "src/client/me-profile-form-client.ts": {
-      "lines": 467,
+      "lines": 450,
       "style": 40
     },
     "src/client/meal-plan-client.ts": {
@@ -181,7 +180,7 @@
       "style": 37
     },
     "src/client/stand-screen.ts": {
-      "lines": 1393,
+      "lines": 1387,
       "style": 3
     },
     "src/client/today-add-exercise-controller.ts": {
@@ -210,7 +209,7 @@
       "lines": 417
     },
     "src/client/today-screen.ts": {
-      "lines": 1653
+      "lines": 1640
     },
     "src/client/today-session-set-actions.ts": {
       "lines": 671
@@ -225,7 +224,7 @@
       "style": 1
     },
     "src/client/ui-components.ts": {
-      "style": 2
+      "style": 1
     },
     "src/client/ui-feedback-client.ts": {
       "style": 3

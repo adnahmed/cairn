@@ -2199,6 +2199,19 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   font-size:.6rem;font-weight:600;color:var(--muted);margin-bottom:6px}
 .modal-body{font-size:.9rem;color:var(--ink-2);line-height:1.55}
 .modal .draftbtn{margin-top:18px}
+/* The shared overlay primitive (CairnUiSheet, ui-sheet.ts): a bottom sheet on
+   phones, a centred dialog from 640px. Existing overlays keep their own classes;
+   a new surface takes these. The primitive marks the page behind it inert. */
+.ui-sheet-ov{position:fixed;inset:0;z-index:var(--z-dialog);display:flex;align-items:flex-end;justify-content:center;
+  padding:var(--space-9) var(--space-7) max(env(safe-area-inset-bottom),var(--space-7));
+  background:color-mix(in srgb,var(--ink) 45%,transparent);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+  animation:uiSheetFade var(--dur-2) var(--ease) both}
+.ui-sheet{width:min(560px,100%);max-height:min(86vh,720px);overflow-y:auto;overscroll-behavior:contain;
+  padding:var(--space-10) var(--space-9) var(--space-9);background:var(--card);color:var(--ink);
+  border-radius:var(--radius);box-shadow:var(--shadow-lg);animation:sheetup var(--dur-2) var(--ease) both}
+.ui-sheet:focus{outline:none}
+@keyframes uiSheetFade{from{opacity:0}to{opacity:1}}
+@media (min-width:640px){ .ui-sheet-ov{align-items:center} }
 
 /* -------------------------------------------------------------------
    22 · Onboarding
@@ -4811,6 +4824,21 @@ button.hmk-row:active{background:var(--card-2)}
 .hgauge{cursor:default}
 .hgauge-track{stroke:var(--line-2);stroke-width:2;stroke-linecap:round}
 .hchart-band{fill:color-mix(in srgb,var(--sage) 14%,transparent)}
+/* line, dots and zone bar are toned here, never by a colour in TS (CairnUiChart) */
+.hchart-line{stroke:var(--ink)}
+.hchart-dot-ok{fill:var(--sage)}
+.hchart-dot-watch{fill:var(--warn)}
+.zonebar{display:block}
+.zonebar-seg{opacity:.22}
+.zonebar-seg.is-optimal{opacity:.55}
+.zonebar-seg-ok{fill:var(--sage)}
+.zonebar-seg-watch{fill:var(--gold)}
+.zonebar-seg-warn{fill:var(--warn)}
+.zonebar-seg-info{fill:var(--muted)}
+.zonebar-optimal{font-size:9px;font-weight:600;fill:var(--sage-text)}
+.zonebar-pace{stroke:var(--ink);stroke-width:1.2;stroke-dasharray:3 3;opacity:.55}
+.zonebar-ahead{fill:var(--card);stroke:var(--ink);stroke-width:1.4;stroke-dasharray:2 2}
+.zonebar-now{fill:var(--ink)}
 .hchart-txt{font-family:var(--font-ui);font-size:9px;letter-spacing:.08em;fill:var(--muted)}
 .hchart-cap{margin:0 0 12px;color:var(--muted);letter-spacing:.01em;font-size:.72rem;line-height:1.4}
 /* scrub overlay (hover/drag a marker chart to read past values) — hidden until active */

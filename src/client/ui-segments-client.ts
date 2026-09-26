@@ -111,32 +111,28 @@ function uiProgressGroupDefaultLeaf(group: string): string {
   return uiProgressVisibleLeaves(group, "")[0] || "sessions";
 }
 
-// Top group bar — mirrors segmentedNavHtml's markup (sliding thumb, aria-pressed)
-// but the buttons carry data-proggroup, wired to their group's default leaf.
+// Top group bar — the sliding segmented control, but the buttons carry
+// data-proggroup, wired to their group's default leaf.
 function uiProgressGroupBar(activeGroup: string): string {
-  const gi = Math.max(
-    0,
-    UI_PROGRESS_GROUPS.findIndex(([k]) => k === activeGroup)
-  );
-  const buttons = UI_PROGRESS_GROUPS.map(([k, l]) => {
-    const on = k === activeGroup;
-    return `<button class="segbtn${on ? " active" : ""}" type="button" data-proggroup="${k}" aria-pressed="${on ? "true" : "false"}">${l}</button>`;
-  }).join("");
-  return `<div class="segwrap"><div class="seg seg-sliding" role="group" aria-label="Progress sections" style="--segn:${UI_PROGRESS_GROUPS.length};--segi:${gi}"><span class="seg-thumb" aria-hidden="true"></span>${buttons}</div></div>`;
+  return CairnUi.segmentedHtml({
+    items: UI_PROGRESS_GROUPS,
+    active: activeGroup,
+    label: "Progress sections",
+    attr: "proggroup",
+  });
 }
 // Sub-bar of the active group's leaves (leaf buttons keep data-seg so the existing
-// wireSeg handler map drives them). Omitted for a single-view group.
+// wireSeg handler map drives them). The leaf variant omits a single-view group.
 function uiProgressSubBar(group: string, activeLeaf: string): string {
   const leaves = uiProgressVisibleLeaves(group, activeLeaf);
-  if (leaves.length < 2) return "";
-  const li = Math.max(0, leaves.indexOf(activeLeaf));
-  const buttons = leaves
-    .map((k) => {
-      const on = k === activeLeaf;
-      return `<button class="segbtn${on ? " active" : ""}" type="button" data-seg="${k}" aria-pressed="${on ? "true" : "false"}">${uiProgressLeafLabel(k)}</button>`;
-    })
-    .join("");
-  return `<div class="segwrap prog-subwrap"><div class="seg seg-sliding prog-subseg" role="group" aria-label="Progress view" style="--segn:${leaves.length};--segi:${li}"><span class="seg-thumb" aria-hidden="true"></span>${buttons}</div></div>`;
+  return CairnUi.segmentedHtml({
+    items: leaves.map((leaf) => [leaf, uiProgressLeafLabel(leaf)] as const),
+    active: activeLeaf,
+    label: "Progress view",
+    variant: "leaf",
+    className: "prog-subseg",
+    wrapClass: "prog-subwrap",
+  });
 }
 function uiProgressNav(activeLeaf: string): string {
   const group = uiProgressGroupOf(activeLeaf);
