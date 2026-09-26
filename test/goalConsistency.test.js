@@ -8,6 +8,7 @@ import express from "express";
 import { db, repo, resetTables } from "./_seed.js";
 import { journeyRouter } from "../dist/routes/journey.js";
 import { registerJourneyTools } from "../dist/surfaces/mcp/journey.js";
+import { projectCoachContext } from "../dist/prompt/context-projection.js";
 
 beforeEach(() => {
   resetTables("journey_phases", "body_measurements", "bodyweight_log", "garmin_daily_metrics", "profile", "app_state");
@@ -170,6 +171,79 @@ test("a goal date moved on the profile is reported against the phase, not copied
     ["goal_date"]
   );
   assert.equal(repo.getJourneyPhase(phase.id).end_date, "2026-12-01", "the phase is not silently rewritten");
+});
+
+test("a goal edit never settles an existing disagreement: an explicit phase target stands and is reported", () => {
+  seedProfile({ goal_weight_lb: 154 });
+  const phase = repo.activateJourneyPhase(
+    repo.createJourneyPhase({ kind: "cut", target_weight_lb: 160, end_date: "2026-12-01", source: "test" }).id
+  );
+  assert.deepEqual(
+    repo.goalConsistencyRead().disagreements.map((d) => d.field),
+    ["goal_weight"]
+  );
+
+  repo.setProfile({ goal_weight_lb: 150 });
+  assert.equal(repo.getJourneyPhase(phase.id).target_weight_lb, 160, "the phase is not silently rewritten");
+  const read = repo.goalConsistencyRead();
+  assert.deepEqual(
+    read.disagreements.map((d) => [d.field, d.profile_value, d.phase_value]),
+    [["goal_weight", 150, 160]]
+  );
+});
+
+test("a goal edit carries a cut that was following the goal, and never a diet break's holding weight", () => {
+  seedProfile({ goal_weight_lb: 154, goal_bodyfat_pct: 15 });
+  const following = repo.activateJourneyPhase(
+    repo.createJourneyPhase({ kind: "cut", end_date: "2026-12-01", source: "test" }).id
+  );
+  assert.equal(following.target_weight_lb, 154);
+  repo.setProfile({ goal_weight_lb: 150 });
+  assert.equal(repo.getJourneyPhase(following.id).target_weight_lb, 150, "a phase following the goal moves with it");
+  assert.equal(repo.getJourneyPhase(following.id).target_bodyfat_pct, 15, "an unchanged body-fat goal is left alone");
+  assert.equal(repo.goalConsistencyRead().consistent, true);
+
+  const pause = repo.activateJourneyPhase(
+    repo.createJourneyPhase({ kind: "diet_break", target_weight_lb: 170, end_date: "2026-10-10", source: "test" }).id
+  );
+  repo.setProfile({ goal_weight_lb: 148, goal_bodyfat_pct: 12 });
+  assert.equal(
+    repo.getJourneyPhase(pause.id).target_weight_lb,
+    170,
+    "a diet break's holding weight is never rewritten"
+  );
+  assert.equal(repo.getJourneyPhase(pause.id).target_bodyfat_pct, 15);
+  assert.equal(repo.goalConsistencyRead().consistent, true, "a stop on the way is not a second goal");
+});
+
+test("the report reaches the coach context and the prompt DATA that carries the journey", () => {
+  seedProfile({ goal_weight_lb: 154 });
+  repo.activateJourneyPhase(repo.createJourneyPhase({ kind: "cut", target_weight_lb: 160, source: "test" }).id);
+
+  const ctx = repo.getCoachContext();
+  assert.ok(ctx.journey.goal_consistency.disagreements.length > 0, "getCoachContext().journey carries the report");
+  assert.equal(ctx.journey.goal_consistency.disagreements[0].field, "goal_weight");
+  for (const site of ["meal_plan", "chat"]) {
+    const projected = projectCoachContext(ctx, site);
+    assert.deepEqual(
+      projected.journey?.goal_consistency?.disagreements?.map((d) => d.field),
+      ["goal_weight"],
+      `${site} prompt DATA carries journey.goal_consistency`
+    );
+  }
+});
+
+test("re-activating an older phase never ends the completed one before its own start", () => {
+  seedProfile();
+  const older = repo.createJourneyPhase({ kind: "cut", start_date: "2026-03-01", source: "test" });
+  const newer = repo.activateJourneyPhase(
+    repo.createJourneyPhase({ kind: "maintenance", start_date: "2026-06-01", source: "test" }).id
+  );
+  repo.activateJourneyPhase(older.id);
+  const done = repo.getJourneyPhase(newer.id);
+  assert.equal(done.status, "completed");
+  assert.equal(done.end_date, "2026-06-01", "ends no earlier than it started");
+  assert.deepEqual(activeIds(), [older.id]);
 });
 
 test("half a pound either way is the same goal", () => {

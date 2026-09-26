@@ -20,8 +20,11 @@ import { finite, round1 } from "../lib/numbers.js";
 import { getProfile } from "./profile.js";
 
 export const WEIGHT_TOLERANCE_LB = 0.5;
+/** Body-fat targets within this many percentage points are the same goal. */
+export const BODYFAT_TOLERANCE_PCT = 0.5;
 
-const GOAL_DIRECTED_KINDS = new Set(["cut", "gain"]);
+/** A cut or a gain heads to the goal; every other phase kind is a stop on the way. */
+export const GOAL_DIRECTED_PHASE_KINDS: ReadonlySet<string> = new Set(["cut", "gain"]);
 
 export type GoalDisagreementField = "goal_weight" | "goal_date" | "active_phases";
 
@@ -105,7 +108,7 @@ export function goalConsistencyRead(inputs: GoalConsistencyInputs = {}): GoalCon
         kind,
         target_weight_lb: weight(top.target_weight_lb),
         end_date: isoDate(isoDay(top.end_date)),
-        heads_to_goal: GOAL_DIRECTED_KINDS.has(kind),
+        heads_to_goal: GOAL_DIRECTED_PHASE_KINDS.has(kind),
       }
     : null;
 

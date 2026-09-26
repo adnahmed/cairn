@@ -1,6 +1,7 @@
 import { db } from "../db.js";
 import { computeGoalCheck, currentBodyFatEstimate, effectiveGoalMode, getProfile, leanGainRate, leannessAwareLossRates, projectGoalPace } from "./profile.js";
 import { localDateISO } from "./shared.js";
+import { withSqliteSavepoint } from "./sqlite-savepoint.js";
 import { dailyManualWeighIns } from "./bodyweight.js";
 import { mayProposeEaseFromCut } from "./cut-target.js";
 import { recompositionRead } from "./recomposition.js";
@@ -132,34 +133,38 @@ export function createJourneyPhase(input: JourneyPhaseInput) {
         : kind === "gain"
           ? leanGainRate(Number(profile.weight_lb) || 0)
           : 0;
-  const info = db
-    .prepare(
-      `INSERT INTO journey_phases
+  // Insert and (for an active create) activation commit as one unit, so a failed
+  // activation never leaves an orphaned proposed row behind.
+  return withSqliteSavepoint("create_journey_phase", () => {
+    const info = db
+      .prepare(
+        `INSERT INTO journey_phases
        (kind, start_date, end_date, start_weight_lb, target_weight_lb, start_bodyfat_pct, target_bodyfat_pct, planned_rate_lb_wk, status, reason, source)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      kind,
-      iso(input.start_date) ?? localDateISO(),
-      iso(input.end_date),
-      input.start_weight_lb !== undefined ? num(input.start_weight_lb, 50, 700) : num(profile.weight_lb, 50, 700),
-      input.target_weight_lb !== undefined
-        ? num(input.target_weight_lb, 50, 700)
-        : num(profile.goal_weight_lb, 50, 700),
-      input.start_bodyfat_pct !== undefined ? num(input.start_bodyfat_pct, 3, 70) : (bodyFat?.body_fat_pct ?? null),
-      input.target_bodyfat_pct !== undefined
-        ? num(input.target_bodyfat_pct, 3, 70)
-        : num(profile.goal_bodyfat_pct, 3, 70),
-      planned,
-      // A phase created already active goes through the one-active rule like any
-      // other activation: it lands as proposed and is activated just below, so a
-      // create can never leave two phases active side by side.
-      status === "active" ? "proposed" : status,
-      input.reason == null ? null : String(input.reason).trim().slice(0, 400) || null,
-      input.source == null ? "manual" : String(input.source).trim().slice(0, 80) || "manual"
-    );
-  const id = Number(info.lastInsertRowid);
-  return status === "active" ? activateJourneyPhase(id) : getJourneyPhase(id);
+      )
+      .run(
+        kind,
+        iso(input.start_date) ?? localDateISO(),
+        iso(input.end_date),
+        input.start_weight_lb !== undefined ? num(input.start_weight_lb, 50, 700) : num(profile.weight_lb, 50, 700),
+        input.target_weight_lb !== undefined
+          ? num(input.target_weight_lb, 50, 700)
+          : num(profile.goal_weight_lb, 50, 700),
+        input.start_bodyfat_pct !== undefined ? num(input.start_bodyfat_pct, 3, 70) : (bodyFat?.body_fat_pct ?? null),
+        input.target_bodyfat_pct !== undefined
+          ? num(input.target_bodyfat_pct, 3, 70)
+          : num(profile.goal_bodyfat_pct, 3, 70),
+        planned,
+        // A phase created already active goes through the one-active rule like any
+        // other activation: it lands as proposed and is activated just below, so a
+        // create can never leave two phases active side by side.
+        status === "active" ? "proposed" : status,
+        input.reason == null ? null : String(input.reason).trim().slice(0, 400) || null,
+        input.source == null ? "manual" : String(input.source).trim().slice(0, 80) || "manual"
+      );
+    const id = Number(info.lastInsertRowid);
+    return status === "active" ? activateJourneyPhase(id) : getJourneyPhase(id);
+  });
 }
 
 // ONE active phase. Activating completes every other phase still marked active (as
@@ -171,17 +176,16 @@ export function createJourneyPhase(input: JourneyPhaseInput) {
 export function activateJourneyPhase(id: number) {
   const row = getJourneyPhase(id);
   if (!row) throw new Error(`No journey phase ${id}`);
-  db.exec("BEGIN");
-  try {
+  const start = row.start_date ?? localDateISO();
+  withSqliteSavepoint("activate_journey_phase", () => {
+    // An open stale phase ends where the new one starts, but never before its own
+    // start (re-activating an older phase must not give the completed one an end
+    // date earlier than its start date).
     db.prepare(
-      `UPDATE journey_phases SET status = 'completed', end_date = COALESCE(end_date, ?), updated_at = datetime('now') WHERE status = 'active' AND id != ?`
-    ).run(row.start_date ?? localDateISO(), id);
+      `UPDATE journey_phases SET status = 'completed', end_date = COALESCE(end_date, MAX(?, COALESCE(start_date, ?))), updated_at = datetime('now') WHERE status = 'active' AND id != ?`
+    ).run(start, start, id);
     db.prepare(`UPDATE journey_phases SET status = 'active', updated_at = datetime('now') WHERE id = ?`).run(id);
-    db.exec("COMMIT");
-  } catch (e) {
-    db.exec("ROLLBACK");
-    throw e;
-  }
+  });
   return getJourneyPhase(id);
 }
 
