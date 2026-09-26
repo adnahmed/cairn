@@ -6,6 +6,15 @@ header{position:relative}
   -webkit-user-select:none;user-select:none}
 .hdr-chev{display:inline-block;font-size:.85rem;color:var(--muted);margin-left:9px;
   vertical-align:6px;transition:transform var(--dur-2) var(--ease)}
+/* Atelier v2: Today's header is the mono date eyebrow over the Brief's voice —
+   small, tracked, muted; the whole line stays the date-picker tap target. */
+body[data-tab="today"] header #header-title{
+  font-family:var(--font-mono);font-weight:400;font-size:.7rem;letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--ink2);line-height:1.6;margin:0;display:inline-flex;align-items:center;
+  min-height:32px;
+}
+body[data-tab="today"] header #header-title .hdr-chev{font-size:.7rem;margin-left:6px;vertical-align:0}
+body[data-tab="today"] header{padding-bottom:0}
 
 /* Today: the date control stays reachable — the header pins to the top of the
    scroll. At rest it's the full editorial header; once the page scrolls it
@@ -24,10 +33,10 @@ body[data-tab="today"] header::after{
 }
 body[data-tab="today"] header #header-title{transition:font-size var(--dur-2) var(--ease)}
 body[data-tab="today"] header.condensed{
-  padding-top:calc(env(safe-area-inset-top) + 11px);padding-bottom:11px;
+  padding-top:calc(env(safe-area-inset-top) + 6px);padding-bottom:4px;
 }
 body[data-tab="today"] header.condensed::after{opacity:1}
-body[data-tab="today"] header.condensed #header-title{font-size:1.5rem}
+body[data-tab="today"] header.condensed #header-title{font-size:.7rem}
 /* full-size transparent overlay over the title — a real tap target that opens the
    native date picker reliably (a genuine pointer event on a real input). */
 .hdr-datepick{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;

@@ -37,3 +37,49 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
   .pebble-strip.is-entering .pebble-strip-stone{animation:none}
 }
 
+
+/* =====================================================================
+   Today column rhythm (Atelier v2). Today-only components whose base rules
+   still live in older partials (the block thread and agenda cards in
+   train/strength.css, the context tags in ask/capture.css) take the v2 look
+   here, scoped to `.today-wrap` and late in the cascade, so no other surface
+   moves. Hairline cards, no coloured spines, mono keys, small pills.
+   ===================================================================== */
+/* the block thread: a hairline row card, the mono key in the strength hue */
+.today-wrap .cfocus-thread{background:var(--surface);border:1px solid var(--line);border-left:1px solid var(--line);
+  border-radius:var(--radius-md);box-shadow:none;padding:10px 12px;margin:0 0 var(--space-6)}
+.today-wrap .cfocus-thread:hover{background:var(--surface);border-color:var(--line-strong)}
+.today-wrap .cfocus-thread:active{transform:var(--press-lg)}
+.today-wrap .cfocus-thread-arrow{color:var(--d-strength);font-weight:400}
+.today-wrap .cfocus-thread-lbl{color:var(--d-strength)}
+.today-wrap .cfocus-thread-txt{font-size:var(--text-md);font-weight:600}
+.today-wrap .cfocus-thread-why{font-size:var(--text-xs)}
+
+/* today's run: the same hairline card, a mono key led by the endurance dot */
+.today-run-line .wrun-row{background:var(--surface);border:1px solid var(--line);border-left:1px solid var(--line);
+  border-radius:var(--radius-md);padding:11px 13px}
+.today-run-line .wrun-kind{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);
+  letter-spacing:var(--tracking-mono);color:var(--d-endurance);display:inline-flex;align-items:center;gap:6px}
+.today-run-line .wrun-kind::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--s-endurance)}
+.today-run-line .wrun-quality .wrun-kind{color:var(--dawn-deep)}
+.today-run-line .wrun-quality .wrun-kind::before{background:var(--dawn)}
+.today-run-line .wrun-label{font-size:var(--text-md)}
+.today-run-line .wrun-note{font-size:var(--text-sm);color:var(--ink2)}
+.today-run-line .wrun-note .linkbtn{color:var(--ink2);font-size:var(--text-xs);text-decoration:underline;
+  text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+
+/* capture: the bodyweight chip and the context tags share one quiet wrapping row */
+.today-wrap .capture-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 var(--space-7)}
+.today-wrap .capture-row .tags-slot,.today-wrap .capture-row .tags-chips{display:contents}
+.today-wrap .wt-inline:not([hidden]){display:flex;gap:6px;flex:1 1 100%}
+.today-wrap .wt-mini{height:32px;padding:0 12px;background:var(--surface);font-size:var(--text-md)}
+.today-wrap .tag-chip{padding:5px 11px;font-size:var(--text-xs);color:var(--ink2);min-height:32px}
+.today-wrap .tag-chip-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+
+/* the rail's ranked reads: hairline cards (no spine), small pill actions */
+.today-wrap .well-accent,.today-wrap .agenda-card{border:1px solid var(--line);border-left:1px solid var(--line);
+  box-shadow:none;border-radius:var(--radius-md);background:var(--surface)}
+.today-wrap .agenda-act{background:var(--ink);color:var(--on-ink);border-radius:var(--radius-pill);
+  padding:7px 14px;font-size:.84rem}
+.today-wrap .agenda-act:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
+.today-wrap .rail-mast-mark{color:var(--dawn)}

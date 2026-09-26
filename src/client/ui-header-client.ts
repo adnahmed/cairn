@@ -28,9 +28,24 @@ type UiHeaderClientApi = {
 (() => {
   let scrollInstalled = false;
 
+  // Atelier v2: on Today the header is a mono date eyebrow ("Sat 26 Sep"), so the
+  // Brief's voice line is the page's one focal point. A past day keeps its relative
+  // word ahead of the date ("Yesterday · Fri 25 Sep") so it never reads as today.
+  function headerDateText(deps: UiHeaderDeps): string {
+    const iso = deps.state.logDate || deps.localISO();
+    const [yr, mo, da] = iso.split("-").map(Number);
+    const when = new Date(yr, (mo || 1) - 1, da || 1);
+    const date = Number.isNaN(when.getTime())
+      ? iso
+      : `${when.toLocaleDateString(undefined, { weekday: "short" })} ${when.getDate()} ${when.toLocaleDateString(undefined, { month: "short" })}`;
+    const rel = deps.dateLabel(iso);
+    if (rel === "Today") return date;
+    return rel === "Yesterday" ? `Yesterday · ${date}` : date;
+  }
+
   function setTodayHeaderTitle(deps: UiHeaderDeps): void {
     deps.headerTitle.innerHTML =
-      `${deps.escapeHtml(deps.dateLabel(deps.state.logDate || deps.localISO()))}<span class="hdr-chev" aria-hidden="true">▾</span>` +
+      `<span class="hdr-date">${deps.escapeHtml(headerDateText(deps))}</span><span class="hdr-chev" aria-hidden="true">▾</span>` +
       `<input type="date" class="hdr-datepick" aria-label="Choose a date to view or log a past workout">`;
     deps.headerTitle.classList.add("hdr-tappable");
     const inp = deps.headerTitle.querySelector<HTMLInputElement>(".hdr-datepick");

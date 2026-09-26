@@ -76,15 +76,18 @@
 .logdate-today{margin-top:0;flex:0 0 auto;padding:9px 13px;border-style:solid;
   border-color:var(--accent);color:var(--accent)}
 
-/* active life-context banner */
+/* active life-context banner — Atelier v2: a quiet line under the read, not a
+   card above it. A small dawn-free dot leads; the events run inline, muted. */
+#ctxEvents:empty,#ctxHealth:empty{display:none}
 .ctxbanner{
-  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
-  background:var(--card);border:none;box-shadow:var(--shadow-sm);
-  border-left:3px solid var(--gold);
-  border-radius:var(--radius-sm);padding:10px 14px;margin:2px 0 12px;
-  font-size:.84rem;color:var(--ink-2);line-height:1.45;
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;
+  background:none;border:0;box-shadow:none;border-radius:0;
+  padding:var(--space-4) 0;margin:0 0 var(--space-6);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  font-size:var(--text-sm);color:var(--ink2);line-height:1.5;
 }
-.ctxbanner-sep{color:var(--line-2)}
+.ctxbanner-sep{color:var(--muted)}
+#ctxEvents + #ctxHealth .ctxbanner{margin-top:calc(-1 * var(--space-6));border-top:0}
 
 /* near-term goal anchor under the Brief — calm, score-free; taps into Progress.
    The nearer-term arc (recomp by the goal date) Today should keep in view. */

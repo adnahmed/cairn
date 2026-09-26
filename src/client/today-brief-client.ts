@@ -466,6 +466,44 @@ type TodayBriefHtmlOptions = {
     return html ? `<div class="brief-strength">${html}</div>` : "";
   }
 
+  // Stone tokens in the why (Atelier v2): the first word in the read's own prose
+  // that names one of the six stones — "slept", "deadlift", "long run", "protein" —
+  // is set in ink with that stone's hue as its underline, so the sentence shows
+  // which parts of the picture it leans on. Words only: the tone never colours it,
+  // at most one token per stone and three in all, and a why that names none of
+  // them stays plain prose. Runs over the ESCAPED text, so nothing the model wrote
+  // can open markup; the vocabulary is plain letters that no entity contains.
+  const BRIEF_WHY_TOKENS: Array<[string, RegExp]> = [
+    ["recovery", /\b(slept|sleep|HRV|recovered|recovery|readiness|resting heart rate)\b/i],
+    ["strength", /\b(deadlifts?|squats?|bench(?: press)?|lifts?|lifting|strength|back work|top sets?)\b/i],
+    ["endurance", /\b(long run|easy run|runs?|running|aerobic|ride|km)\b/i],
+    ["fuel", /\b(fuel|protein|calories|eating|meals?|carbs)\b/i],
+    ["body", /\b(bodyweight|body weight|weight|waist|lean mass)\b/i],
+    ["heart", /\b(lipids?|ApoB|cholesterol|blood pressure|cardiovascular)\b/i],
+  ];
+
+  function todayBriefWhyHtml(escaped: string): string {
+    if (!escaped) return "";
+    type Hit = { start: number; end: number; key: string };
+    const hits: Hit[] = [];
+    for (const [key, pattern] of BRIEF_WHY_TOKENS) {
+      const match = pattern.exec(escaped);
+      if (!match) continue;
+      const start = match.index;
+      const end = start + match[0].length;
+      if (hits.some((hit) => start < hit.end && end > hit.start)) continue;
+      hits.push({ start, end, key });
+    }
+    const kept = hits.sort((a, b) => a.start - b.start).slice(0, 3);
+    let out = "";
+    let at = 0;
+    for (const hit of kept) {
+      out += `${escaped.slice(at, hit.start)}<span class="brief-tok stone-${hit.key}">${escaped.slice(hit.start, hit.end)}</span>`;
+      at = hit.end;
+    }
+    return out + escaped.slice(at);
+  }
+
   function todayBriefHtml(read: TodayBriefRead | null | undefined, options: TodayBriefHtmlOptions = {}): string {
     const kind = todayBriefKind(read);
     const meta = todayBriefMeta(read);
@@ -473,7 +511,7 @@ type TodayBriefHtmlOptions = {
       read?.est_minutes != null && Number(read.est_minutes) > 0 ? Math.round(Number(read.est_minutes)) : null;
     const est = estMinutes != null ? `${estMinutes} min` : "";
     const headline = escHtml(read?.headline || meta.lead);
-    const why = read?.why ? escHtml(read.why) : "";
+    const why = read?.why ? todayBriefWhyHtml(escHtml(read.why)) : "";
     const recovery = todayBriefRecoveryHtml(read, kind);
     const weekWins = todayBriefWeekHtml(read, kind);
     // The forward line rides on train days AND done days — after the work is in,
@@ -594,25 +632,37 @@ type TodayBriefHtmlOptions = {
     const yields = todayBriefYieldsLead(read);
     const quiet = yields ? " brief-quiet" : "";
     const band = todayBriefAttentionPrimary(read) ? ` data-attention="${yields ? "supporting" : "lead"}"` : "";
+    // Atelier v2 order: the read (voice, why, its reason), then what to do about it
+    // (today's lift over the one start, the steer), then the week around it folded
+    // behind one quiet tap (the forward look, the block clock, the plan's arc and the
+    // finding this day honours) — secondary context, never a wall on first view. The
+    // offline note is a footnote now, never the first line above the voice.
+    const forwardHtml = forward
+      ? `<button class="brief-forward" data-redirect="view-week" title="See your week"><span class="brief-forward-arrow" aria-hidden="true">↗</span><span class="brief-forward-txt">${forward}</span></button>`
+      : "";
+    const arcHtml = arc
+      ? `<button class="brief-forward brief-arc" data-redirect="view-program" title="See your plan's arc"><span class="brief-forward-arrow" aria-hidden="true">◷</span><span class="brief-forward-txt">${arc}</span></button>`
+      : "";
+    const provenance = `<div id="briefProvenance" class="prov-slot"></div>`;
+    const context = forwardHtml || periodization || arcHtml
+      ? `<details class="brief-around"><summary class="brief-around-sum"><span class="lbl">Around today</span><span class="brief-around-chev" aria-hidden="true">▾</span></summary><div class="brief-around-body">${forwardHtml}${periodization}${arcHtml}${provenance}</div></details>`
+      : provenance;
     return `<section class="brief brief-${kind}${morph}${enter}${thinking}${quiet}" style="--i:0" aria-live="polite"${busy}${band}>
-      ${offline}
       ${lookBack}
       <div class="brief-kicker lbl"><span class="brief-glyph" aria-hidden="true">${meta.glyph}</span> ${escHtml(meta.kicker ? meta.kicker.toUpperCase() : `${meta.word.toUpperCase()} DAY`)}${est ? ` · ${escHtml(est)}` : ""}</div>
       <h2 class="brief-headline">${headline}</h2>
       ${focus && kind === "train" ? `<div class="brief-focus">${focus}</div>` : ""}
       ${why ? `<p class="brief-why">${why}</p>` : ""}
       ${reason}
-      ${strengthLine}
       ${checkinSlot}
       ${weekWins}
       ${recovery}
-      ${forward ? `<button class="brief-forward" data-redirect="view-week" title="See your week"><span class="brief-forward-arrow" aria-hidden="true">↗</span><span class="brief-forward-txt">${forward}</span></button>` : ""}
-      ${periodization}
-      ${arc ? `<button class="brief-forward brief-arc" data-redirect="view-program" title="See your plan's arc"><span class="brief-forward-arrow" aria-hidden="true">◷</span><span class="brief-forward-txt">${arc}</span></button>` : ""}
-      <div id="briefProvenance" class="prov-slot"></div>
+      ${strengthLine}
       ${sessionFold}
       ${actions.length ? `<div class="brief-launch">${actions.join("")}</div>` : ""}
       ${steer}
+      ${context}
+      ${offline}
       ${updated}
       <button class="brief-why-more" data-briefwhy hidden>tap to see why</button>
     </section>`;
@@ -796,6 +846,7 @@ type TodayBriefHtmlOptions = {
     decisiveReason: todayBriefDecisiveReason,
     recoveryHtml: todayBriefRecoveryHtml,
     lookBackHtml: todayBriefLookBackHtml,
+    whyHtml: todayBriefWhyHtml,
   };
 
   Object.assign(globalThis, { CairnTodayBrief: CAIRN_TODAY_BRIEF });

@@ -62,7 +62,8 @@ test("Today Brief renders calm launch and steer controls safely", () => {
   assert.match(html, /TRAIN DAY · 45 min/);
   assert.match(html, /Push &lt;today&gt;/);
   assert.match(html, /Upper &lt;body&gt;/);
-  assert.match(html, /recovered &amp; ready/);
+  // The why names the recovery stone, so that word carries the stone's underline.
+  assert.match(html, /<span class="brief-tok stone-recovery">recovered<\/span> &amp; ready/);
   assert.match(html, /data-redirect="start-session"/);
   assert.match(html, /data-redirect="ask-session"/);
   assert.match(html, /data-override="rough night"/);
@@ -1185,4 +1186,16 @@ test("Today Brief carries the today strength line and names the open lift", () =
   assert.doesNotMatch(rest, /strength-line-caveat/);
   // No line → nothing new rendered.
   assert.doesNotMatch(brief.briefHtml({ kind: "train", headline: "x" }, { isToday: true }), /brief-strength/);
+});
+
+test("the why marks at most one word per stone, escaped first, and leaves plain prose alone", () => {
+  const brief = loadTodayBrief();
+  assert.equal(brief.whyHtml("Keep the dose light."), "Keep the dose light.");
+  const html = brief.whyHtml("You slept well, deadlift climbs, and sleep holds; protein matters");
+  assert.match(html, /<span class="brief-tok stone-recovery">slept<\/span>/);
+  assert.match(html, /<span class="brief-tok stone-strength">deadlift<\/span>/);
+  assert.equal((html.match(/stone-recovery/g) || []).length, 1, "one token per stone");
+  // The helper takes ESCAPED text; the Brief escapes before it runs.
+  const painted = brief.briefHtml({ kind: "train", headline: "Pull", why: "Sleep <script>", signals: {} }, { isToday: true });
+  assert.match(painted, /<span class="brief-tok stone-recovery">Sleep<\/span> &lt;script&gt;/);
 });

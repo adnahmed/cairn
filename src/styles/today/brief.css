@@ -4,10 +4,13 @@
 /* The day's judgment is the hero, in plain language — no score, no gauge. The
    surface tone shifts with kind: restful for rest, light for easy, warm for
    train. A calm card, generous whitespace, Atelier editorial. */
+/* Atelier v2: the Brief is the page's VOICE, not a card. It sits straight on the
+   ground — a mono eyebrow, a big Young Serif headline, ink2 prose — so the day's
+   read is the one focal point of Today. No border, no wash, no shadow: the kind
+   (rest / easy / train / done) speaks in the eyebrow's glyph colour only. */
 .brief{
-  background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
-  padding:24px 22px 20px;margin:6px 0 14px;position:relative;overflow:hidden;
-  border-left:3px solid var(--accent);
+  background:none;box-shadow:none;border:0;border-radius:0;
+  padding:2px 0 0;margin:0 0 var(--space-9);position:relative;
 }
 /* shared element for the override-chip reshape: the hero morphs, never pops.
    The name is applied dynamically (JS) only for that moment, so ordinary tab
@@ -17,36 +20,14 @@
    it's an in-place element swap), so the real read doesn't pop the filament off */
 .brief.brief-settle{animation:briefsettle var(--dur-3) var(--ease) both}
 @keyframes briefsettle{from{opacity:.55}to{opacity:1}}
-/* a soft warm wash bleeds in from the accent edge — kind-tinted, very quiet.
-   On an override reshape the whole hero (incl. this wash) morphs via the
-   brief-hero view transition, so no per-property transition is needed here. */
-.brief::before{content:"";position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--accent) 5%,transparent), transparent 62%);}
-.brief-rest{border-left-color:var(--sage)}
-.brief-rest::before{background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--sage) 7%,transparent), transparent 62%)}
-.brief-easy{border-left-color:var(--gold)}
-.brief-easy::before{background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--gold) 8%,transparent), transparent 62%)}
-.brief-train{border-left-color:var(--accent)}
-.brief-done{border-left-color:var(--sage)}
-.brief-done::before{background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--sage) 8%,transparent), transparent 62%)}
 
 /* The QUIET band. The server's lead arbitration (src/domain/brain/today-attention.ts)
    handed today's position of prominence to another surface, because this read is
-   repeating yesterday's. The Brief recedes by ELEVATION, SURFACE and AREA — it stops
-   floating (no shadow), settles onto the inset surface, drops the hero wash, thins its
-   spine and steps one rung down the display scale.
-   It never recedes by DIMMING. No opacity, no greying, no desaturation: ink, controls,
-   the steer chips and the kind spine-colour all keep full strength, because the read is
-   still a suggestion the athlete can act on — a faded Brief would read as switched off,
-   which it never is. `--muted` is specified to clear WCAG AA on `--card-2`, so every
-   line inside stays as legible here as on the raised card. */
-.brief.brief-quiet{
-  background:var(--card-2);box-shadow:none;border-left-width:2px;
-  padding:18px 20px 16px;
-}
-.brief.brief-quiet::before{background:none}
-.brief-quiet .brief-headline{font-size:1.5rem}
-
+   repeating yesterday's. The Brief recedes by AREA only — one rung down the display
+   scale and a tighter rhythm. It never recedes by DIMMING: no opacity, no greying,
+   because the read is still a suggestion the athlete can act on. */
+.brief.brief-quiet{padding:0;margin-bottom:var(--space-7)}
+.brief-quiet .brief-headline{font-size:var(--text-xl)}
 /* the morning wake-up review (W4.7) — a quiet past-tense passage ABOVE the
    day's suggestion, set apart with its own hairline so it never reads as part
    of today's read. Absent entirely when the server sent nothing. */
@@ -54,26 +35,39 @@
 .brief-lookback-lbl{color:var(--muted);margin-bottom:5px}
 .brief-lookback-txt{font-size:.85rem;color:var(--ink-2);line-height:1.5;margin:0;font-style:italic}
 
-.brief-kicker{display:flex;align-items:center;gap:7px;color:var(--muted);margin-bottom:9px}
-.brief-glyph{font-size:.72rem;line-height:1}
-.brief-rest .brief-glyph{color:var(--sage)}
-.brief-easy .brief-glyph{color:var(--gold)}
-.brief-train .brief-glyph{color:var(--accent)}
-.brief-done .brief-glyph{color:var(--sage)}
+.brief-kicker{display:flex;align-items:baseline;gap:7px;color:var(--muted);margin-bottom:var(--space-3)}
+.brief-glyph{font-size:.62rem;line-height:1}
+.brief-rest .brief-glyph{color:var(--d-recovery)}
+.brief-easy .brief-glyph{color:var(--d-endurance)}
+.brief-train .brief-glyph{color:var(--dawn)}
+.brief-done .brief-glyph{color:var(--d-endurance)}
 
+/* the voice line — the one focal point of Today */
 .brief-headline{
-  font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 100;
-  font-size:1.95rem;line-height:1.1;letter-spacing:-.012em;color:var(--ink);margin:0;
+  font-family:var(--font-display);font-weight:400;
+  font-size:clamp(1.8rem,8.2vw,2.2rem);line-height:1.06;letter-spacing:-.014em;color:var(--ink);
+  margin:0;text-wrap:balance;
 }
-.brief-rest .brief-headline{font-style:italic;font-weight:480}
+.brief-rest .brief-headline{font-style:normal}
+/* the day's focus under the voice: a quiet sans line, never a second headline */
 .brief-focus{
-  font-family:var(--font-display);font-style:italic;font-weight:480;
-  font-variation-settings:"opsz" 50;font-size:1.05rem;color:var(--accent);margin-top:5px;
+  font-family:var(--font-ui);font-style:normal;font-weight:500;
+  font-size:var(--text-md);color:var(--ink2);margin-top:var(--space-3);letter-spacing:.005em;
 }
-.brief-why{font-size:.92rem;color:var(--ink-2);line-height:1.5;margin:11px 0 0;max-width:46ch}
+.brief-why{font-size:var(--text-base);color:var(--ink2);line-height:1.6;margin:var(--space-5) 0 0;max-width:48ch;
+  text-wrap:pretty}
+/* a stone the read leans on, named in the why: ink word, the stone's own hue as
+   its underline. Words only — the tone never recolours it. */
+.brief-tok{color:var(--ink);text-decoration:none;border-bottom:2px solid color-mix(in srgb,var(--c) 85%,transparent);
+  padding-bottom:0;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 /* the rest/easy read's specific reason — a quieter second line under the why */
-.brief-reason{font-size:.82rem;color:var(--muted);line-height:1.45;margin:6px 0 0;max-width:46ch}
-.brief-strength{margin-top:13px;padding-top:11px;border-top:1px solid var(--line);max-width:46ch}
+.brief-reason{font-size:var(--text-sm);color:var(--muted);line-height:1.5;margin:var(--space-3) 0 0;max-width:48ch}
+/* today's lift: a hairline row, mono key on the left, the line on the right */
+.brief-strength{margin-top:var(--space-7);padding-top:var(--space-5);border-top:1px solid var(--line);max-width:none}
+.brief-strength .strength-line{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;align-items:baseline}
+.brief-strength .strength-line-k{grid-column:1;white-space:nowrap}
+.brief-strength .strength-line-t{grid-column:2;font-size:var(--text-md);font-weight:600;color:var(--ink);line-height:1.4}
+.brief-strength .strength-line-caveat,.brief-strength .strength-line-orig{grid-column:2;font-size:var(--text-xs);color:var(--muted)}
 
 /* the week-wins reassurance on a rest/easy Brief — same sentence + rules as the
    done card's week footnote (.done-week), just repositioned here. */
@@ -117,6 +111,27 @@
 }
 .brief-clock-row:hover{color:var(--ink-2)}
 .brief-clock-mark{color:var(--sage);font-size:.75rem}
+/* "Around today" — the week around the read (forward look, block clock, the
+   plan's arc, the finding the day honours), folded behind one quiet tap so the
+   first view is the read and its one action. A hairline row, mono label. */
+.brief-around{margin-top:var(--space-7);border-top:1px solid var(--line)}
+.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;
+  list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.brief-around-sum::-webkit-details-marker{display:none}
+.brief-around-chev{color:var(--muted);font-size:.7rem;transition:transform var(--dur-2) var(--ease)}
+.brief-around[open] .brief-around-chev{transform:rotate(180deg)}
+.brief-around-body{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-4);padding:0 0 var(--space-4)}
+.brief-around-body .brief-forward,.brief-around-body .brief-clocks{margin-top:0;padding-top:0;border-top:0}
+.brief-around-body .prov-slot:empty{display:none}
+.brief-around[open] .brief-around-body{animation:in var(--dur-in) var(--ease)}
+/* the offline note is a footnote under the read: no well, a small dot, muted */
+.brief > .agent-offline{margin:var(--space-6) 0 0;background:none;border:0;border-radius:0;padding:0;
+  font-size:var(--text-xs);color:var(--muted)}
+.brief > .agent-offline .agent-offline-dot{width:6px;height:6px}
+@media (prefers-reduced-motion:reduce){
+  .brief-around-chev{transition:none}
+  .brief-around[open] .brief-around-body{animation:none}
+}
 /* provenance (sync / read clock) lives inside the "tap to see why" disclosure,
    in the tracked muted label (.lbl); hidden until that disclosure opens */
 .brief-updated{margin-top:10px;line-height:1.6}
@@ -192,31 +207,33 @@
 /* the other options freeze while we think */
 .brief-steer-opt:disabled,.brief-steer-reset:disabled{opacity:.45;cursor:default;text-decoration-color:transparent}
 
-/* launchpad redirects — the heart of "you drive": always present, quiet */
-.brief-launch{display:flex;flex-wrap:wrap;gap:9px;margin-top:17px}
+/* launchpad redirects — the heart of "you drive": always present, quiet. Small
+   rounded buttons; the one primary is solid ink (the v2 solid), never a shout. */
+.brief-launch{display:flex;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-8)}
 /* the launch card's facts, folded above the Brief's one start button when the
    Brief carries it ("1 of 5 logged · ~60 min") — quiet, never a second card */
-.brief-session{margin-top:15px;font-family:var(--font-ui);font-size:.78rem;line-height:1.45;color:var(--muted);max-width:46ch}
-.brief-session + .brief-launch{margin-top:9px}
-.brief-session-meta{color:var(--ink-2);font-weight:600;letter-spacing:.01em}
+.brief-session{margin-top:var(--space-7);font-family:var(--font-ui);font-size:var(--text-xs);line-height:1.5;color:var(--muted);max-width:48ch}
+.brief-session + .brief-launch{margin-top:var(--space-5)}
+.brief-session-meta{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--ink2)}
 .brief-session-line{margin-top:2px}
 .brief-redirect{
-  background:transparent;border:1px solid var(--line-2);color:var(--ink-2);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  background:var(--surface);border:1px solid var(--line);color:var(--ink);
   border-radius:var(--radius-pill);padding:9px 16px;font-family:var(--font-ui);font-weight:600;
-  font-size:.78rem;letter-spacing:.02em;cursor:pointer;
-  transition:border-color var(--dur-1),color var(--dur-1),background var(--dur-1),box-shadow var(--dur-1),transform var(--dur-1);
+  font-size:.84rem;letter-spacing:0;cursor:pointer;
+  transition:border-color var(--dur-1),color var(--dur-1),background var(--dur-1),transform var(--dur-1) var(--ease);
 }
-.brief-redirect:hover{border-color:var(--ink);color:var(--ink)}
+.brief-redirect:hover{border-color:var(--line-strong);color:var(--ink)}
 .brief-redirect:active{transform:var(--press)}
-.brief-redirect-primary{
-  background:var(--accent);border-color:var(--accent);color:var(--on-accent);box-shadow:var(--shadow-sm);
-}
-.brief-redirect-primary:hover{background:var(--accent-deep);border-color:var(--accent-deep);color:var(--on-accent)}
+.brief-redirect-primary,
 .brief-rest .brief-redirect-primary,.brief-easy .brief-redirect-primary{
-  background:var(--ink);border-color:var(--ink);color:var(--paper);
+  background:var(--ink);border-color:var(--ink);color:var(--on-ink);box-shadow:none;padding-inline:20px;
 }
+.brief-redirect-primary:hover,
 .brief-rest .brief-redirect-primary:hover,.brief-easy .brief-redirect-primary:hover{
-  background:var(--ink);border-color:var(--ink);color:var(--paper);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  background:color-mix(in srgb,var(--ink) 86%,var(--ground));border-color:transparent;color:var(--on-ink);
+  box-shadow:none;transform:none}
 
 /* always-on bodyweight quick action — quiet, there until you want it */
 .capture-row{margin:0 0 12px}
