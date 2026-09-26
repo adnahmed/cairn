@@ -99,6 +99,28 @@ function markerOutOfRange(marker: HealthMarkersRow | null | undefined): boolean 
   return flaggedByLab(marker?.latest?.flag) || marker?.in_optimal === false;
 }
 
+// The LAB FLAG as one word ("high", "low", "abnormal", "critical"): the lab's own
+// flag, else a value outside the lab's printed range (the same rule markerStatus
+// reads warn on). "" when the lab has no complaint. Never the optimal band.
+function labFlagWord(marker: HealthMarkersRow | null | undefined): string {
+  const flag = String(marker?.latest?.flag || "").toLowerCase();
+  if (flaggedByLab(flag)) return flag;
+  const v = Number(marker?.latest?.value);
+  const ref = marker?.reference;
+  if (!ref || marker?.latest?.value == null || marker.latest.value === "" || !Number.isFinite(v)) return "";
+  if (ref.high != null && Number.isFinite(Number(ref.high)) && v > Number(ref.high)) return "high";
+  if (ref.low != null && Number.isFinite(Number(ref.low)) && v < Number(ref.low)) return "low";
+  return "";
+}
+
+// The OPTIMAL phrase when the latest reading sits outside its optimal band: the side
+// ("above optimal") when the band and value say which, else "outside optimal". ""
+// inside the band or when no band judged it. Never the lab flag.
+function offOptimalWord(marker: HealthMarkersRow | null | undefined): string {
+  if (marker?.in_optimal !== false) return "";
+  return optimalSideWord(marker) || "outside optimal";
+}
+
 // A specific, ready-to-send question about this marker for the "ask the coach"
 // deep-link — grounded in the actual reading so the coach gets real context.
 function markerAskQuestion(marker: HealthMarkersRow | null | undefined): string {
@@ -358,12 +380,11 @@ function markerPanelHtml(marker: HealthMarkersRow | null | undefined): string {
   if (!chart && !gauge) return "";
   // The reference, already labeled ("optimal 50–150" / "range 65–175" / "in range").
   const band = markerReferenceSub(marker);
-  const side = optimalSideWord(marker);
   // The row header now LEADS with the trajectory (trend-lead), so the panel caption
   // no longer repeats it for a multi-reading marker; a single reading still says so.
   const single = chart ? "" : "single reading";
   const weeklyNote = marker?.status_basis === "week" && marker?.status_note ? escHtml(String(marker.status_note)) : "";
-  const caption = [band ? escHtml(band) : "", side, single, weeklyNote].filter(Boolean).join(" · ");
+  const caption = [band ? escHtml(band) : "", single, weeklyNote].filter(Boolean).join(" · ");
   const latestValue = latest.value != null && latest.value !== "" ? formatMarkerNumber(latest.value) : "";
   const age = latest.date ? relAge(String(latest.date)) : "";
   const latestLine = latestValue
@@ -376,65 +397,10 @@ function markerPanelHtml(marker: HealthMarkersRow | null | undefined): string {
   return `${latestLine}${chart || gauge}${caption ? `<div class="hchart-cap">${caption}</div>` : ""}${ask}`;
 }
 
+// The `.hmk` row lives in marker-row-client.ts (CairnMarkerRow); this name stays so the
+// older Health tab and the Body view keep one entry point.
 function hmkRowHtml(marker: HealthMarkersRow | null | undefined, index = 0): string {
-  const latest = marker?.latest || {};
-  const panel = markerPanelHtml(marker);
-  const exp = !!panel;
-  const lv = Number(latest.value), pv = marker?.prev ? Number(marker.prev.value) : NaN;
-  let delta = "";
-  if (Number.isFinite(lv) && Number.isFinite(pv) && lv !== pv) {
-    const df = lv - pv;
-    delta = `<span class="hmk-delta">${df > 0 ? "▲" : "▼"} ${escHtml(formatMarkerNumber(Math.abs(df)))}</span>`;
-  }
-  const age = latest.date ? relAge(String(latest.date)) : "";
-  // Every row shows the NUMBER it's compared to (optimal band, else lab range) —
-  // never a written-out "in range". The status colour, not prose, says good/off/out.
-  const ref = markerReferenceSub(marker);
-  // A wearable recovery marker (HRV / Resting HR) whose status came from the week names
-  // that plainly — never a number-as-grade, and never for a lab reading (status_basis
-  // is 'single' there, so this stays empty).
-  const weeklyNote = marker?.status_basis === "week" && marker?.status_note ? String(marker.status_note) : "";
-  const sub = [age, ref, weeklyNote].filter(Boolean).join(" · ");
-  const when = sub
-    ? `<span class="hmk-when"${latest.date ? ` title="${escAttr(absDate(String(latest.date)))}"` : ""}>${escHtml(sub)}</span>`
-    : "";
-  const unit = marker?.unit ? `<span class="hmk-unit">${escHtml(marker.unit)}</span>` : "";
-  // Traffic-light status colours the dot AND the value, so what needs attention
-  // (amber/red) pops while a good reading stays calm ink with a green dot.
-  const st = markerStatus(marker);
-  const valClass = st === "watch" ? " mst-watch" : st === "warn" ? " mst-warn" : "";
-  // Trend-first: the row leads with what the marker is DOING (name + directional
-  // phrase, toned toward/away/stable), and the latest value + range read as the
-  // supporting detail (the figure on the right, the reference on the line below).
-  const trendLead = CairnUiReads.trendLeadHtml({
-    name: marker?.name || marker?.key || "",
-    phrase: markerTrendWord(marker),
-    tone: markerTrendTone(marker),
-  });
-  const rowInner = `<span class="hdot hdot-${st}"></span>
-      <div class="hmk-id">
-        ${trendLead}
-        ${when}
-      </div>
-      <span class="hmk-right">
-        ${delta}
-        <span class="hmk-val${valClass}">${escHtml(formatMarkerNumber(latest.value))}${unit}</span>
-        <span class="hmk-chev${exp ? "" : " hmk-chev-ghost"}" aria-hidden="true">${exp ? "▾" : ""}</span>
-      </span>`;
-  // A marker currently shaping training/meals/watch says so in one quiet line,
-  // in the directive's OWN athlete-facing words (never re-derived here) — tap
-  // to see it managed in place on Connections.
-  const directiveText = String(marker?.active_directive || "").trim();
-  const directiveLine = directiveText
-    ? `<button type="button" class="hmk-directive" data-directive-link>${escHtml(directiveText)}<span class="hmk-directive-arw" aria-hidden="true"> →</span></button>`
-    : "";
-  return `<div class="hmk reveal${exp ? " hmk-x" : ""}" style="${stagger(index)}" data-mkey="${escAttr(marker?.key || "")}">
-    ${exp
-      ? `<button class="hmk-row" aria-expanded="false">${rowInner}</button>
-        <div class="hmk-panel"><div class="hmk-panel-in">${panel}</div></div>`
-      : `<div class="hmk-row">${rowInner}</div>`}
-    ${directiveLine}
-  </div>`;
+  return CairnMarkerRow.rowHtml(marker, index);
 }
 
 const CAIRN_HEALTH_MARKERS = {
@@ -455,6 +421,8 @@ const CAIRN_HEALTH_MARKERS = {
   wireMarkerChart,
   markerPanelHtml,
   hmkRowHtml,
+  labFlagWord,
+  offOptimalWord,
 };
 
 Object.assign(globalThis, { CairnHealthMarkers: CAIRN_HEALTH_MARKERS });

@@ -6912,3 +6912,50 @@ body[data-tab="session"] .tabbar{display:none}
 .mp-why{display:inline-block;margin:0 var(--space-3)}
 .mp-hero-unit{display:block;margin-top:var(--space-1)}
 .meals-redraft-btn{width:100%;text-align:center;padding:var(--space-5)}
+/* =====================================================================
+   Records (Wave 3): records-search, marker-row marks, evidence-wanted, the
+   records slots. The search + grouping controls sit above the marker catalog;
+   the lab flag and the optimal phrase are two separate marks, never one word.
+   ===================================================================== */
+.records-controls{display:grid;gap:var(--space-5);margin:0 0 var(--space-6)}
+.records-search{flex:none;min-width:0}
+.records-search .hmk-search-in{height:44px}
+.records-segwrap{position:static;margin:0;padding:0;background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.records-seg{margin:0}
+.records-seg .segbtn{min-height:44px}
+.records-status{margin:0 var(--space-1) var(--space-5);font-size:var(--text-xs);color:var(--muted)}
+.records-status:empty{display:none}
+.records-skel{padding:var(--space-2) var(--space-8) var(--space-8)}
+.records-empty{padding:var(--space-10) var(--space-2)}
+.records-other:empty{display:none}
+.records-other{margin-top:var(--space-10)}
+.records-other-note{margin:0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
+.records-hits{list-style:none;margin:0;padding:0;background:var(--card);box-shadow:var(--shadow-sm);
+  border-radius:var(--radius);overflow:hidden}
+.records-hit-li + .records-hit-li{border-top:1px solid var(--line)}
+.records-hit{display:grid;grid-template-columns:auto 1fr;gap:var(--space-1) var(--space-5);align-items:baseline;
+  width:100%;min-height:44px;padding:var(--space-6) var(--space-8);background:none;border:none;
+  text-align:left;color:inherit;font:inherit;cursor:pointer;transition:background var(--dur-1) var(--ease)}
+.records-hit:hover{background:var(--card-2)}
+.records-hit:active{transform:var(--press-lg)}
+.records-hit-kind{grid-row:span 2;font-size:var(--text-2xs);font-weight:650;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}
+.records-hit-title{font-size:var(--text-md);font-weight:500;color:var(--ink);min-width:0;overflow-wrap:anywhere}
+.records-hit-meta{font-size:var(--text-xs);color:var(--muted);min-width:0;overflow-wrap:anywhere}
+/* marker-row: the lab flag and the optimal phrase, side by side, never merged. */
+.hmk-marks{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);margin:var(--space-1) 0}
+.hmk-flag,.hmk-opt{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--text-xs);
+  line-height:1.3;border-radius:var(--radius-pill);padding:0 var(--space-4)}
+.hmk-flag{color:var(--warn);background:var(--warn-bg);font-weight:650}
+.hmk-flag-src{font-size:var(--text-2xs);letter-spacing:.08em;text-transform:uppercase}
+.hmk-opt{color:var(--gold-deep);border:1px solid var(--line-2)}
+/* evidence-wanted: one calm line, never a badge. */
+.records-evw-slot:empty,.records-slot:empty{display:none}
+.records-evw-slot{margin:0 0 var(--space-6)}
+.evw{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-5);margin:0;
+  font-size:var(--text-sm);color:var(--ink-2);line-height:1.45}
+.evw-text{flex:1 1 220px;min-width:0}
+.evw-acts{display:inline-flex;gap:var(--space-5)}
+.evw-act{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
+.records-slot{margin:0 0 var(--space-card)}
+@media (prefers-reduced-motion:reduce){.records-hit{transition:none}}

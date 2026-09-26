@@ -2814,6 +2814,8 @@ declare global {
       wireMarkerChart(svg: SVGElement | null | undefined): void;
       markerPanelHtml(marker: Record<string, unknown> | null | undefined): string;
       hmkRowHtml(marker: Record<string, unknown> | null | undefined, index?: number): string;
+      labFlagWord(marker: Record<string, unknown> | null | undefined): string;
+      offOptimalWord(marker: Record<string, unknown> | null | undefined): string;
     };
 
     CairnHealthMarkersController: {
@@ -5566,4 +5568,124 @@ declare global {
   declare const CairnIdeaCard: Window["CairnIdeaCard"];
   declare const CairnIdeaCardController: Window["CairnIdeaCardController"];
   declare const CairnFuelDeps: Window["CairnFuelDeps"];
+  // ---- Wave 3 stream B: records-search, marker-row, evidence-wanted, records slot ----
+  type ClientRecordsMode = "outrange" | "panel" | "newest";
+  type ClientRecordsMarker = Record<string, unknown> & {
+    key?: unknown;
+    name?: unknown;
+    group?: unknown;
+    group_label?: unknown;
+    latest?: { value?: unknown; date?: unknown; flag?: unknown } | null;
+    in_optimal?: unknown;
+  };
+  type ClientRecordsSection = {
+    key: string;
+    /** Panel label, a lead-section label, or (kind "date") the ISO draw date ("" undated). */
+    label: string;
+    kind: "flagged" | "optimal" | "panel" | "date";
+    /** The MARKER_GROUPS key for a panel section, else null. */
+    group: string | null;
+    markers: ClientRecordsMarker[];
+    /** How many of `markers` the lab flagged. */
+    flagged: number;
+  };
+  type ClientRecordsModel = { sections: ClientRecordsSection[]; total: number; shown: number };
+  type ClientRecordsOtherItem = { kind: "document" | "note" | "body"; id: string; title: string; date: string; detail: string };
+  type ClientRecordsOtherState = { status: "idle" | "loading" | "error" | "done"; items: ClientRecordsOtherItem[] };
+  type ClientRecordsSearchDeps = {
+    api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+    cachedApi(path: string, options?: CachedApiOptions<unknown>): Promise<unknown>;
+    peekCached<T = unknown>(key: string, freshFor?: number): SwrPeek<T> | null;
+    /** Per-viewer grouping preference; every access is try/caught. */
+    storage?: Pick<Storage, "getItem" | "setItem"> | null;
+    /** A warm catalog the screen already holds ({markers, groups}), painted first. */
+    seed?: { markers: unknown; groups: unknown } | null;
+    /** MARKER_GROUPS keys to keep (a Stand domain); null/absent = every marker. */
+    scope?: readonly string[] | null;
+    mode?: ClientRecordsMode;
+    searchable?: boolean;
+    /** Also ask GET /api/records/search for documents, visit notes and body readings. */
+    searchRecords?: boolean;
+    placeholder?: string;
+    timers?: { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout };
+    askCoach(question: string): void;
+    onDirective?(): void;
+    onOpenRecord?(item: { kind: string; id: string }): void;
+    onAdd?(): void;
+  };
+  type ClientEvidenceWanted = { key: string; label: string; when: string; kind: "lab" | "dexa" };
+  type ClientEvidenceWantedDeps = {
+    /** The GET /api/health/next-checkup read the screen already holds. */
+    checkup: unknown;
+    storage?: Pick<Storage, "getItem" | "setItem"> | null;
+    onOpen?(): void;
+  };
+  type ClientRecordsSlotName = "packet";
+  /** What the Share view hands the packet slot: the share deps plus two hand-offs. */
+  type ClientRecordsPacketDeps = ClientHealthShareControllerDeps & {
+    reducedMotion(): boolean;
+    openCheckup(): void;
+  };
+  type ClientRecordsSlotMount = (host: Element, deps: ClientRecordsPacketDeps) => (() => void) | undefined;
+  interface Window {
+    CairnMarkerRow: {
+      rowHtml(marker: Record<string, unknown> | null | undefined, index?: number): string;
+      labFlagHtml(marker: Record<string, unknown> | null | undefined): string;
+      optimalHtml(marker: Record<string, unknown> | null | undefined): string;
+      marksHtml(marker: Record<string, unknown> | null | undefined): string;
+    };
+    CairnRecordsSearchModel: {
+      MODES: ReadonlyArray<readonly [ClientRecordsMode, string]>;
+      SERVER_GROUP: Record<ClientRecordsMode, string>;
+      isMode(value: unknown): value is ClientRecordsMode;
+      normalizeQuery(value: unknown): string;
+      matchesQuery(marker: ClientRecordsMarker, q: string): boolean;
+      groupsFor(groups: unknown, markers: readonly ClientRecordsMarker[]): Array<{ key: string; label: string }>;
+      sectionsModel(input: {
+        markers: unknown;
+        groups: unknown;
+        mode: ClientRecordsMode;
+        q?: string;
+        scope?: readonly string[] | null;
+      }): ClientRecordsModel;
+      searchPath(q: string, mode: ClientRecordsMode): string;
+      otherItems(response: unknown): ClientRecordsOtherItem[] | null;
+    };
+    CairnRecordsSearch: {
+      shellHtml(opts: { mode: ClientRecordsMode; searchable: boolean; placeholder?: string }): string;
+      skeletonHtml(): string;
+      resultsHtml(model: ClientRecordsModel, opts?: { q?: string; canAdd?: boolean }): string;
+      sectionHtml(section: ClientRecordsSection, index: number, rowIndex: { value: number }): string;
+      otherHtml(state: ClientRecordsOtherState): string;
+      errorHtml(): string;
+      statusText(model: ClientRecordsModel, q: string): string;
+    };
+    CairnRecordsSearchController: {
+      KEY: string;
+      MODE_KEY: string;
+      DEBOUNCE_MS: number;
+      mount(host: Element, deps: ClientRecordsSearchDeps): () => void;
+    };
+    CairnEvidenceWanted: {
+      model(checkup: unknown): ClientEvidenceWanted | null;
+      text(model: ClientEvidenceWanted): string;
+      lineHtml(model: ClientEvidenceWanted | null, opts?: { canOpen?: boolean }): string;
+    };
+    CairnEvidenceWantedController: {
+      DISMISS_KEY: string;
+      mount(host: Element, deps: ClientEvidenceWantedDeps): () => void;
+    };
+    CairnRecordsSlot: {
+      register(name: ClientRecordsSlotName, mount: ClientRecordsSlotMount): void;
+      has(name: ClientRecordsSlotName): boolean;
+      mount(name: ClientRecordsSlotName, host: Element | null, deps: ClientRecordsPacketDeps): () => void;
+    };
+  }
+  declare const CairnMarkerRow: Window["CairnMarkerRow"];
+  declare const CairnRecordsSearchModel: Window["CairnRecordsSearchModel"];
+  declare const CairnRecordsSearch: Window["CairnRecordsSearch"];
+  declare const CairnRecordsSearchController: Window["CairnRecordsSearchController"];
+  declare const CairnEvidenceWanted: Window["CairnEvidenceWanted"];
+  declare const CairnEvidenceWantedController: Window["CairnEvidenceWantedController"];
+  declare const CairnRecordsSlot: Window["CairnRecordsSlot"];
 }
