@@ -1553,7 +1553,7 @@ const isAdvisoryBrake = (item: { direction: string; advisory_brake?: boolean }):
 
 // Advice that rides as a caveat (see `advice_only`). Guarded by isAdvisoryBrake so the
 // exemption can never reach a constraint.
-const isAdviceOnly = (item: { direction: string; advisory_brake?: boolean; advice_only?: boolean }): boolean =>
+export const isAdviceOnly = (item: { direction: string; advisory_brake?: boolean; advice_only?: boolean }): boolean =>
   item.advice_only === true && isAdvisoryBrake(item);
 
 /** A dimension at `watch` whose every fresh brake is advice only: it speaks as a caveat. */

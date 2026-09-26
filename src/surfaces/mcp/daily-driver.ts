@@ -9,6 +9,7 @@ import {
 } from "../../domain/brain/index.js";
 import { allGuidelines, guidelineFor } from "../../domain/health/index.js";
 import { addMemory } from "../../domain/person/index.js";
+import { todayStones } from "../../domain/today/index.js";
 import { deriveInsightIntentKey, splitInsightIntentKey } from "../../repo/insight-intent.js";
 import { recordDismissal } from "../../repo/surface-dismissals.js";
 import { asText, type McpToolRegistrar } from "./shared.js";
@@ -22,6 +23,13 @@ export function registerDailyDriverTools(server: McpToolRegistrar) {
     // Read-only w.r.t. the surprise budget: an agent's tool call must never spend
     // the day's introduction allowance on a card no human saw.
     async ({ date }) => asText(todayAgenda(date, { markIntroduced: false }))
+  );
+
+  server.tool(
+    "get_today_stones",
+    "The six stones on Today (Strength, Endurance, Fuel, Recovery, Body, Heart) → { date, stones:[{key,label,word,tone,line,target:{tab,section}}] }, always six in that order. Each `word` is one or two plain words the server projects from the five signal dimensions and the domain reads (today's lift, the race build, today's intake, the weight trend, the lab read); `tone` is ok | watch | quiet; `line` is one athlete-facing sentence or null. A stone with no fresh signal reads \"quiet\" — never low; a partial intake day reads \"in progress\". No scores. Pure read, mirrors GET /api/today/stones. Pass `date` (YYYY-MM-DD; defaults to today).",
+    { date: z.string().optional() },
+    async ({ date }) => asText(todayStones(date))
   );
 
   server.tool(

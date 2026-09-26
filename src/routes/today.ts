@@ -15,7 +15,7 @@ import {
   selectedPlanDayForDate,
   todayStrengthLine,
 } from "../domain/training/index.js";
-import { markTodayAgendaSeen, todayAggregate, todayDateParam } from "../domain/today/index.js";
+import { markTodayAgendaSeen, todayAggregate, todayDateParam, todayStones } from "../domain/today/index.js";
 import { recordDismissal } from "../repo/surface-dismissals.js";
 
 export const todayRouter = Router();
@@ -90,6 +90,14 @@ todayRouter.get("/today-plan-day", (req, res) => {
 // verbatim; the Brief and the aggregate carry the same object.
 todayRouter.get("/today-strength-line", (req, res) => {
   res.json(todayStrengthLine(todayDateParam(req.query.date)));
+});
+
+// The six stones (v2 wave 4): Strength, Endurance, Fuel, Recovery, Body, Heart — one
+// plain word and a reading-layer tone each, projected on the server from the signal
+// state and the domain reads (src/domain/today/today-stones.ts). A part of the picture
+// with nothing fresh reads "quiet", never low; no score. A pure read.
+todayRouter.get("/today/stones", (req, res) => {
+  res.json(todayStones(req.query.date));
 });
 
 // The Today salience arbiter: ONE ranking + budget pass over the whole Today

@@ -18,6 +18,7 @@ import type {
   ISODateString,
 } from "./client.js";
 import type { ClientFuelIdeas, ClientIntakeBand } from "./fuel.js";
+import type { TodayStonesRead } from "./today-stones.js";
 import type {
   ClientEvidenceWantedRead,
   ClientHealthReportJson,
@@ -3545,6 +3546,7 @@ export interface ClientApiResponses {
   "/api/today-agenda": ClientTodayAgenda;
   "/api/today-agenda/ack": ClientTodayAgendaAckResponse;
   "/api/today-agenda/dismiss": ClientTodayAgendaDismissResponse;
+  "/api/today/stones": TodayStonesRead;
   "/api/learned-timeline": ClientLearnedTimeline;
   "/api/beliefs": ClientBeliefsView;
   "/api/team-week": ClientTeamWeek;
