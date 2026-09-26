@@ -187,10 +187,15 @@ in `src/client/app-identity-model.ts`. Never edit the suffix by hand:
 
 1. Replace the icon bytes in `public/icons/`, keeping the current `.vN` file names.
 2. Run `node scripts/bump-icons.mjs` (add `--theme-color "#rrggbb"` and/or `--short-name "Name"`
-   when those change; `--dry-run` shows what would move, `--check` only verifies the places
+   when those change alongside the icon; `--dry-run` shows what would move, `--check` only verifies the places
    agree). The long `name`/`description` in the manifest and `index.html` are edited by hand in the
    same commit.
 3. `npm run build`, then commit the renamed icons together with the four rewritten files.
+
+A theme-color change with no new icon bytes does not run `bump-icons`: its version bump asks iOS
+installs to re-add for nothing. Edit the manifest's `theme_color`/`background_color` and the light
+`theme-color` meta in `public/index.html` together by hand (the dark meta is the dark `--ground`),
+then confirm with `node scripts/bump-icons.mjs --check`. `docs/DESIGN.md` "Dark" has the rule.
 
 The manifest's `id`, `scope` and `start_url` never change, and neither do the `localStorage`
 keys; `test/pwaInstallIdentity.test.js` pins all of it. Chrome and Android refresh the icon on

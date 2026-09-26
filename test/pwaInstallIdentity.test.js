@@ -114,7 +114,10 @@ test("the bump refuses to start from places that already disagree", () => {
     index,
     fs
       .readFileSync(index, "utf8")
-      .replace(/content="#[0-9a-f]{6}">\n<meta name="color-scheme"/i, 'content="#000000">\n<meta name="color-scheme"')
+      .replace(
+        /(<meta name="theme-color" media="\(prefers-color-scheme: light\)" content=")#[0-9a-f]{6}"/i,
+        '$1#000000"'
+      )
   );
   assert.ok(checkIdentity(dir).errors.some((e) => /theme_color/.test(e)));
   assert.throws(() => bumpIdentity(dir), /disagree/);
