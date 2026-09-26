@@ -6,13 +6,15 @@
 // likely move, one plain line of why, and how sure the team is, in words.
 //
 // Served by `POST /api/what-if` (MCP `what_if`) as a durable agent job; "Do it" is
-// `POST /api/what-if/do` (MCP `what_if_do`), which hands the change to the team as a
-// DRAFT through the server's autonomy policy. The what-if itself never changes
+// `POST /api/what-if/do` (MCP `what_if_do`) with that job's id: the server reads the
+// question and the change from its OWN stored answer (never a client echo) and hands
+// the change to the team as a DRAFT through the server's autonomy policy. The what-if itself never changes
 // anything, and "Do it" never applies a change on its own authority.
 //
-// No score anywhere: a direction is a word, a confidence is a word, and `before` is the
+// No score anywhere: a direction is a word, a confidence is a word, `before` is the
 // stone's own server-owned word and tone from the same stones projection the pebble
-// strip prints. Self-contained apart from the stone vocabulary, so src/client/** can
+// strip prints, and `after` is the server's word and tone for where it would likely
+// sit — a renderer prints both and never works one out itself. Self-contained apart from the stone vocabulary, so src/client/** can
 // read these types through `import("../contracts/what-if.js")`.
 import type { TodayStoneKey, TodayStoneTone } from "./today-stones.js";
 
@@ -83,6 +85,11 @@ export interface WhatIfRippleEffect {
   confidence: WhatIfConfidence;
   /** Where the stone stands today — the server's own word and tone. */
   before: { word: string; tone: TodayStoneTone };
+  /**
+   * Where it would likely sit after the change — the server's own word and tone. A
+   * steady stone keeps its `before`; an unsure move stays a quiet tone.
+   */
+  after: { word: string; tone: TodayStoneTone };
 }
 
 export interface WhatIfResult {
@@ -92,6 +99,11 @@ export interface WhatIfResult {
   change: WhatIfChange;
   /** Always all six stones, in stone order. */
   ripple: WhatIfRippleEffect[];
+  /**
+   * Opaque server stamp of the plan this answer read (training changes only). "Do it"
+   * holds the draft for the athlete when the plan has moved since.
+   */
+  plan_basis: string | null;
   /** "agent" for a team read, "deterministic" for the offline floor. */
   source: "agent" | "deterministic";
   agent: string | null;

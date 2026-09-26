@@ -320,22 +320,19 @@ dayCoachRouter.get("/week-ahead", (req, res) => {
 // stones. It is agentic, so it always queues a durable job (a user-facing request
 // never waits on a coaching CLI): the body is {ok:true, job}, and the job's result is
 // {ok, date, question, change, ripple[], source, agent, tried} — or the designed
-// {ok:false, error, tried}. The read NEVER changes anything. Optional `hint`
-// {area, direction} is a structured nudge; the words still decide.
+// {ok:false, error, tried}. The read NEVER changes anything and always reads today.
+// Optional `hint` {area, direction} is a structured nudge; the words still decide.
 dayCoachRouter.post("/what-if", (req, res) => {
   const b = req.body ?? {};
   const text = typeof b.text === "string" ? b.text.trim() : "";
   if (!text) return res.status(400).json({ ok: false, error: "text required", tried: [] });
-  const input = {
-    text,
-    hint: b.hint && typeof b.hint === "object" ? b.hint : null,
-    date: b.date != null ? String(b.date) : localDateISO(),
-  };
+  const input = { text, hint: b.hint && typeof b.hint === "object" ? b.hint : null };
   backgroundOp(res, "what_if", input, b.agent);
 });
 
-// "Do it": hand the what-if's change to the team as a DRAFT. The server re-reads the
-// change (never trusting the echo), writes it as a plan proposal and routes it through
+// "Do it": hand the what-if's change to the team as a DRAFT. The body is {job_id} — the
+// server reads the question and the change from that job's own stored answer (never a
+// client echo, so the clinical mark cannot be dropped), writes a plan proposal and routes it through
 // the ONE autonomy policy — anything clinical is held clinician-directed, a calorie
 // target always waits on the athlete, and a goal is never drafted (it is theirs to
 // name, in chat). Never applies on its own authority. {ok:false, error, tried:[]} at
@@ -343,7 +340,7 @@ dayCoachRouter.post("/what-if", (req, res) => {
 dayCoachRouter.post("/what-if/do", (req, res, next) => {
   try {
     const b = req.body ?? {};
-    res.json(whatIfDo({ change: b.change, text: b.text }));
+    res.json(whatIfDo({ job_id: b.job_id }));
   } catch (e) {
     next(e);
   }

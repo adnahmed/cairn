@@ -15,7 +15,7 @@ import {
 } from "../../repo.js";
 import { localDateISO } from "../../repo/shared.js";
 import { whatIfDo } from "../../coachOps.js";
-import { WHAT_IF_CHANGE_KINDS, WHAT_IF_HINT_AREAS } from "../../contracts/what-if.js";
+import { WHAT_IF_HINT_AREAS } from "../../contracts/what-if.js";
 import { asText, type McpToolRegistrar } from "./shared.js";
 import { queueMcpAgentJob } from "./background.js";
 
@@ -226,9 +226,9 @@ export function registerDayCoachTools(server: McpToolRegistrar) {
 
   server.tool(
     "what_if",
-    "Queue a what-if: the athlete's hypothetical in their own words ('what if I ran four days a week?'). The team answers with ONE proposed change and its ripple across the six stones (strength, endurance, fuel, recovery, body, heart) — each a direction word, one plain line of why, and a confidence word; never a score. Returns a job immediately; poll get_agent_job for {ok, change, ripple[]}. A READ: it never changes anything. Hand the change over with what_if_do.",
+    "Queue a what-if: the athlete's hypothetical in their own words ('what if I ran four days a week?'). The team answers with ONE proposed change and its ripple across the six stones (strength, endurance, fuel, recovery, body, heart) — each a direction word, one plain line of why, and a confidence word; never a score. Reads today. Returns a job immediately; poll get_agent_job for {ok, change, ripple[]}. A READ: it never changes anything. Hand the change over with what_if_do and that job's id.",
     {
-      text: z.string().min(1).describe("the hypothetical, in the athlete's own words"),
+      text: z.string().trim().min(1).describe("the hypothetical, in the athlete's own words"),
       hint: z
         .object({
           area: z.enum(WHAT_IF_HINT_AREAS).optional(),
@@ -236,26 +236,15 @@ export function registerDayCoachTools(server: McpToolRegistrar) {
         })
         .optional()
         .describe("optional structured nudge; the words still decide"),
-      date: z.string().optional().describe("YYYY-MM-DD; defaults to today"),
       agent: z.string().optional().describe("omit or 'auto' to use the configured rotation; 'stub' answers offline"),
     },
-    async ({ text, hint, date, agent }) =>
-      asText(queueMcpAgentJob("what_if", { text, hint: hint ?? null, date: date ?? localDateISO() }, agent))
+    async ({ text, hint, agent }) => asText(queueMcpAgentJob("what_if", { text, hint: hint ?? null }, agent))
   );
 
   server.tool(
     "what_if_do",
-    "'Do it' for a what-if: hand its change to the team as a DRAFT plan proposal, routed through the server's autonomy policy (never applied on its own authority). The server re-reads the change; anything clinical is held clinician-directed, a calorie target always waits on the athlete, and a goal is never drafted (the athlete names it in chat). ok:false with the reason when there is nothing concrete to hand over.",
-    {
-      change: z
-        .object({
-          kind: z.enum(WHAT_IF_CHANGE_KINDS),
-          summary: z.string(),
-        })
-        .passthrough()
-        .describe("the `change` object a what_if answer returned"),
-      text: z.string().optional().describe("the original question, read for clinical signals alongside the change"),
-    },
-    async ({ change, text }) => asText(whatIfDo({ change, text }))
+    "'Do it' for a what-if: hand its change to the team as a DRAFT plan proposal, routed through the server's autonomy policy (never applied on its own authority). The server reads the question and change from the done what_if job's own stored answer (never an echo); anything clinical is held clinician-directed, a calorie target always waits on the athlete, and a goal is never drafted (the athlete names it in chat). ok:false with the reason when there is nothing concrete to hand over.",
+    { job_id: z.number().int().positive().describe("the id of the done what_if job whose answer to hand over") },
+    async ({ job_id }) => asText(whatIfDo({ job_id }))
   );
 }

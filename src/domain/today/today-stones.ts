@@ -62,7 +62,8 @@ export const TODAY_STONE_ORDER: readonly TodayStoneKey[] = [
   "heart",
 ];
 
-const LABELS: Record<TodayStoneKey, string> = {
+/** Each stone's name. Exported so a surface that names a stone (the what-if ripple) never keeps its own copy. */
+export const TODAY_STONE_LABELS: Readonly<Record<TodayStoneKey, string>> = {
   strength: "Strength",
   endurance: "Endurance",
   fuel: "Fuel",
@@ -240,7 +241,7 @@ const pick = (variants: readonly string[], date: string, key: string) =>
   pickDayVariant(variants, date, `today_stones:${key}`);
 
 function stone(key: TodayStoneKey, word: string, tone: TodayStoneTone, line: string | null = null): TodayStone {
-  return { key, label: LABELS[key], word, tone, line, target: TARGETS[key] };
+  return { key, label: TODAY_STONE_LABELS[key], word, tone, line, target: TARGETS[key] };
 }
 
 const quietStone = (key: TodayStoneKey) => stone(key, TODAY_STONE_WORDS.quiet, "quiet");

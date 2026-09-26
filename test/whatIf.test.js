@@ -5,9 +5,11 @@
 //     offline `stub` floor;
 //   - the enforced schema names every field the op reads, with closed word vocabularies;
 //   - a dead rotation is the designed {ok:false, error, tried};
-//   - "Do it" writes a DRAFT and routes it by the autonomy tier: a bounded training
-//     edit follows lead mode, a clinical one is held clinician-directed, a calorie
-//     target waits on the athlete, and a goal is never drafted;
+//   - "Do it" takes the what_if job and reads the change from its stored answer, writes
+//     a DRAFT and routes it by the autonomy tier: a bounded training edit follows lead
+//     mode, a clinical one is held clinician-directed, a calorie target waits on the
+//     athlete (and can always be approved), a moved plan waits too, a goal is never
+//     drafted, and a null count never removes a lift;
 //   - REST and MCP are mirrors: same job kind and input, same do-it answer.
 //
 // Synthetic fixtures only.
@@ -220,10 +222,23 @@ test("no question and a dead rotation are the designed ok:false at 200", async (
   assert.deepEqual(tableCounts(), before);
 });
 
-test("Do it drafts a bounded training edit and lead mode routes it through the autonomy policy", () => {
+// "Do it" takes a what_if JOB: the answer is the server's own stored one. Asked
+// through the canned agent (the real read path), then stored as the worker would.
+async function answeredJob(text, parsed) {
+  const answer = await whatIf("auto", { text }, undefined, { run: cannedRun(parsed) });
+  assert.equal(answer.ok, true, "the canned answer reads");
+  const job = repo.createAgentJob({ kind: "what_if", input: { text, hint: null } });
+  repo.finishAgentJob(job.id, { result: answer, chosen_agent: answer.agent });
+  return job.id;
+}
+
+const decisionFor = (proposalId) =>
+  repo.listBrainDecisions({ limit: 20 }).find((d) => d.source_ref_key === String(proposalId));
+
+test("Do it drafts a bounded training edit and lead mode routes it through the autonomy policy", async () => {
   seedPlan();
-  const change = normalizeWhatIfChange(AGENT_ANSWER.change, "What if I added a bench set?");
-  const out = whatIfDo({ change, text: "What if I added a bench set?" });
+  const jobId = await answeredJob("What if I added a bench set?", AGENT_ANSWER);
+  const out = whatIfDo({ job_id: jobId });
   assert.equal(out.ok, true);
   const proposal = repo.getProposal(out.proposal_id);
   assert.equal(proposal.agent, "what-if");
@@ -234,64 +249,218 @@ test("Do it drafts a bounded training edit and lead mode routes it through the a
     ["quiet_apply", "announce"].includes(decisions[0].autonomy_tier),
     `lead tier: ${decisions[0].autonomy_tier}`
   );
+  const again = whatIfDo({ job_id: jobId });
+  assert.equal(again.ok, true);
+  assert.equal(again.already, true, "a second tap finds the first draft");
+  assert.equal(again.proposal_id, out.proposal_id);
 });
 
-test("Do it under review_everything holds the draft for the athlete", () => {
+test("a null sets means unchanged, never remove: Do it on a load nudge keeps the lift", async () => {
+  seedPlan();
+  repo.savePlanDay(1, "Push", "Chest", [
+    { exercise: "Barbell Bench Press", sets: 3, rep_low: 6, rep_high: 8, target_weight: 115 },
+    { exercise: "Overhead Press", sets: 3, rep_low: 6, rep_high: 8, target_weight: 75 },
+  ]);
+  const nudge = {
+    kind: "training",
+    summary: "Nudge the bench up five pounds.",
+    changes: [
+      { day_number: 1, exercise: "Barbell Bench Press", sets: null, rep_low: null, rep_high: null, target_weight: 120 },
+    ],
+  };
+  const normalized = normalizeWhatIfChange(nudge);
+  assert.ok(!Object.hasOwn(normalized.changes[0], "sets"), "a null count is dropped, not kept");
+  assert.ok(!normalized.changes[0].remove);
+  for (const bad of [null, -1, 0.4, "x", true]) {
+    const c = normalizeWhatIfChange({
+      ...nudge,
+      changes: [{ day_number: 1, exercise: "Barbell Bench Press", sets: bad }],
+    });
+    assert.ok(!c.changes[0].remove && !Object.hasOwn(c.changes[0], "sets"), `sets:${bad} never removes`);
+  }
+  const zero = normalizeWhatIfChange({ ...nudge, changes: [{ day_number: 1, exercise: "Overhead Press", sets: 0 }] });
+  assert.equal(zero.changes[0].remove, true, "only an explicit zero (or remove:true) removes");
+
+  const out = whatIfDo({
+    job_id: await answeredJob("What if I pushed the bench a bit?", { ...AGENT_ANSWER, change: nudge }),
+  });
+  assert.equal(out.ok, true);
+  const names = repo.getPlanDay(1).items.map((i) => i.exercise ?? i.name ?? i.ex_name);
+  assert.equal(repo.getPlanDay(1).items.length, 2, `both lifts stay on the day: ${names}`);
+});
+
+test("Do it under review_everything holds the draft for the athlete", async () => {
   seedPlan();
   repo.setSettings({ lead_mode: "review_everything" });
-  const out = whatIfDo({ change: AGENT_ANSWER.change, text: "What if I added a bench set?" });
+  const out = whatIfDo({ job_id: await answeredJob("What if I added a bench set?", AGENT_ANSWER) });
   assert.equal(out.ok, true);
   assert.equal(repo.getProposal(out.proposal_id).status, "draft", "nothing applied");
   assert.equal(repo.getPlanDay(1).items[0].sets, 3);
-  const decision = repo.listBrainDecisions({ limit: 20 }).find((d) => d.source_ref_key === String(out.proposal_id));
+  const decision = decisionFor(out.proposal_id);
   assert.equal(decision.autonomy_tier, "ask");
   assert.equal(decision.status, "review");
 });
 
-test("Do it on anything clinical is held clinician-directed, whatever lead mode says", () => {
+test("Do it on anything clinical is held clinician-directed, whatever lead mode says", async () => {
   seedPlan();
   const text = "What if I added a bench set now that my doctor cleared the shoulder injury?";
-  const out = whatIfDo({ change: AGENT_ANSWER.change, text });
+  // The agent's summary carries no clinical word: the mark comes from the stored question.
+  const out = whatIfDo({ job_id: await answeredJob(text, AGENT_ANSWER) });
   assert.equal(out.change.clinical, true);
   assert.equal(repo.getProposal(out.proposal_id).status, "draft");
   assert.equal(repo.getPlanDay(1).items[0].sets, 3, "a clinical draft never lands on its own");
-  const decision = repo.listBrainDecisions({ limit: 20 }).find((d) => d.source_ref_key === String(out.proposal_id));
-  assert.equal(decision.autonomy_tier, "clinician");
+  assert.equal(decisionFor(out.proposal_id).autonomy_tier, "clinician");
   const stored = repo.getProposal(out.proposal_id).parsed;
   assert.equal(stored.clinical_provenance.source, "what_if_clinical_detection");
 });
 
-test("Do it on a calorie target always waits on the athlete", () => {
+test("Do it takes no client echo: a change without a job drafts nothing", () => {
+  seedPlan();
+  const before = tableCounts();
+  const echo = whatIfDo({ change: { ...AGENT_ANSWER.change, clinical: false }, text: "" });
+  assert.equal(echo.ok, false);
+  assert.deepEqual(echo.tried, []);
+  const unknown = whatIfDo({ job_id: 99999 });
+  assert.equal(unknown.ok, false);
+  const queued = repo.createAgentJob({ kind: "what_if", input: { text: "What if?" } });
+  const pending = whatIfDo({ job_id: queued.id });
+  assert.equal(pending.ok, false, "an unanswered what-if has nothing to hand over");
+  assert.equal(repo.listProposals(50).length, 0, "no proposal written");
+  assert.equal(tableCounts().brain_decisions, before.brain_decisions, "no ledger row");
+});
+
+test("Do it on an answer whose plan has moved since waits on the athlete", async () => {
+  seedPlan();
+  const jobId = await answeredJob("What if I added a bench set?", AGENT_ANSWER);
+  // The plan moves after the answer was read.
+  repo.savePlanDay(1, "Push", "Chest", [
+    { exercise: "Barbell Bench Press", sets: 3, rep_low: 6, rep_high: 8, target_weight: 120 },
+  ]);
+  const out = whatIfDo({ job_id: jobId });
+  assert.equal(out.ok, true);
+  assert.equal(out.plan_moved, true);
+  assert.notEqual(decisionFor(out.proposal_id).autonomy_tier, "quiet_apply", "never lands quietly");
+
+  // Outside lead mode the policy keeps the requested ask: held for the athlete.
+  repo.setSettings({ lead_mode: "announce_first" });
+  const staleJob = await answeredJob("What if I added a bench set?", AGENT_ANSWER);
+  repo.savePlanDay(1, "Push", "Chest", [
+    { exercise: "Barbell Bench Press", sets: 3, rep_low: 6, rep_high: 8, target_weight: 125 },
+  ]);
+  const held = whatIfDo({ job_id: staleJob });
+  assert.equal(held.ok, true);
+  assert.equal(held.plan_moved, true);
+  assert.equal(repo.getProposal(held.proposal_id).status, "draft", "held, not applied");
+  assert.equal(decisionFor(held.proposal_id).autonomy_tier, "ask");
+  assert.equal(repo.getPlanDay(1).items[0].sets, 3);
+});
+
+test("Do it on a calorie target always waits on the athlete", async () => {
   const out = whatIfDo({
-    change: {
-      kind: "nutrition",
-      summary: "Eat a little more on lifting days.",
-      nutrition: { target_kcal: 2300, protein_g: 170 },
-    },
-    text: "What if I ate more?",
+    job_id: await answeredJob("What if I ate more?", {
+      change: {
+        kind: "nutrition",
+        summary: "Eat a little more on lifting days.",
+        nutrition: { target_kcal: 2300, protein_g: 170 },
+      },
+      ripple: [],
+    }),
   });
   assert.equal(out.ok, true);
   const proposal = repo.getProposal(out.proposal_id);
   assert.equal(proposal.parsed.kind, "nutrition_target");
   assert.equal(proposal.status, "draft");
-  const decision = repo.listBrainDecisions({ limit: 20 }).find((d) => d.source_ref_key === String(out.proposal_id));
-  assert.equal(decision.autonomy_tier, "ask");
+  assert.equal(decisionFor(out.proposal_id).autonomy_tier, "ask");
 });
 
-test("Do it never drafts a goal or a words-only change", () => {
+test("a protein-only target is completed from the active target, and the athlete can approve it", async () => {
+  repo.setNutritionTarget({ target_kcal: 2100, protein_g: 150, source: "manual" });
+  const ask = {
+    change: { kind: "nutrition", summary: "More protein each day.", nutrition: { protein_g: 180 } },
+    ripple: [],
+  };
+  const out = whatIfDo({ job_id: await answeredJob("What if I ate more protein?", ask) });
+  assert.equal(out.ok, true);
+  assert.deepEqual(out.change.nutrition, { target_kcal: 2100, protein_g: 180 }, "calories carried at their target");
+  const proposal = repo.getProposal(out.proposal_id);
+  assert.equal(proposal.status, "draft");
+  assert.equal(proposal.parsed.nutrition.target_kcal, 2100);
+  repo.applyProposal(out.proposal_id);
+  const active = repo.getActiveNutritionTarget();
+  assert.equal(active.protein_g, 180);
+  assert.equal(active.target_kcal, 2100);
+});
+
+test("a half-target with no active target to complete it is talked through, not drafted", async () => {
   const before = tableCounts();
+  const ask = {
+    change: { kind: "nutrition", summary: "More protein each day.", nutrition: { protein_g: 180 } },
+    ripple: [],
+  };
+  const jobId = await answeredJob("What if I ate more protein?", ask);
+  const out = whatIfDo({ job_id: jobId });
+  assert.equal(out.ok, false);
+  assert.deepEqual(out.tried, []);
+  assert.equal(tableCounts().plan_proposals, before.plan_proposals);
+});
+
+test("Do it never drafts a goal or a words-only change", async () => {
   const goal = whatIfDo({
-    change: { kind: "goal", summary: "Aim for a lower goal weight." },
-    text: "What if I aimed lower?",
+    job_id: await answeredJob("What if I aimed lower?", {
+      change: { kind: "goal", summary: "Aim for a lower goal weight." },
+      ripple: [],
+    }),
+  });
+  const other = whatIfDo({
+    job_id: await answeredJob("What if I ran on Sundays?", {
+      change: { kind: "other", summary: "Run on Sundays instead." },
+      ripple: [],
+    }),
+  });
+  const forged = whatIfDo({
+    job_id: await answeredJob("What if?", {
+      change: { kind: "training", summary: "Lift more.", changes: [], doable: true },
+      ripple: [],
+    }),
   });
   assert.equal(goal.ok, false);
   assert.deepEqual(goal.tried, []);
   assert.match(goal.error, /goal/);
-  const other = whatIfDo({ change: { kind: "other", summary: "Run on Sundays instead." } });
   assert.equal(other.ok, false);
-  const forged = whatIfDo({ change: { kind: "training", summary: "x", changes: [], doable: true } });
-  assert.equal(forged.ok, false, "a client's doable:true is never trusted");
-  assert.deepEqual(tableCounts(), before, "no proposal, no ledger row");
+  assert.equal(forged.ok, false, "a stored doable:true is never trusted");
+  assert.equal(repo.listProposals(50).length, 0, "no proposal");
+});
+
+test("a refused apply keeps the designed {ok:false, error, tried} shape", async () => {
+  seedPlan();
+  const offPlan = {
+    ...AGENT_ANSWER,
+    change: {
+      kind: "training",
+      summary: "Add a set on day nine.",
+      changes: [{ day_number: 9, exercise: "Barbell Bench Press", sets: 4 }],
+    },
+  };
+  const out = whatIfDo({ job_id: await answeredJob("What if I added a day-nine set?", offPlan) });
+  assert.equal(out.ok, false, "a day the plan does not have cannot be applied");
+  assert.equal(typeof out.error, "string");
+  assert.deepEqual(out.tried, []);
+  assert.equal(repo.getProposal(out.proposal_id).status, "draft", "nothing landed");
+});
+
+test("the ripple carries the server's own before AND after, words and tones", async () => {
+  seedPlan();
+  const out = await whatIf("auto", { text: "What if I added a bench set?" }, undefined, {
+    run: cannedRun(AGENT_ANSWER),
+  });
+  for (const r of out.ripple) {
+    assert.equal(typeof r.after.word, "string");
+    assert.ok(["ok", "watch", "quiet"].includes(r.after.tone));
+    if (r.direction === "steady") assert.deepEqual(r.after, r.before, "steady keeps where it stands");
+  }
+  assert.deepEqual(out.ripple.find((r) => r.stone === "strength").after, { word: "better", tone: "ok" });
+  assert.equal(out.ripple.find((r) => r.stone === "recovery").after.tone, "watch");
+  assert.equal(typeof out.plan_basis, "string", "a training answer stamps the plan it read");
 });
 
 // ---- the two surfaces ----
@@ -348,7 +517,7 @@ async function settled(id) {
 }
 
 test("REST and MCP queue the same what_if job, and it answers from the offline floor", async () => {
-  const input = { text: "What if I rested more?", hint: { area: "recovery", direction: "more" }, date: "2026-03-02" };
+  const input = { text: "What if I rested more?", hint: { area: "recovery", direction: "more" } };
   const rest = callRoute("/what-if", { ...input, agent: "stub" });
   assert.equal(rest.status, 200);
   assert.equal(rest.payload.ok, true);
@@ -371,16 +540,21 @@ test("REST and MCP queue the same what_if job, and it answers from the offline f
 });
 
 test("REST and MCP Do it are mirrors", async () => {
-  const goal = { change: { kind: "goal", summary: "Aim for a lower goal weight." }, text: "What if I aimed lower?" };
-  const rest = callRoute("/what-if/do", goal);
-  const mcp = await callTool("what_if_do", goal);
+  const goalJob = await answeredJob("What if I aimed lower?", {
+    change: { kind: "goal", summary: "Aim for a lower goal weight." },
+    ripple: [],
+  });
+  const rest = callRoute("/what-if/do", { job_id: goalJob });
+  const mcp = await callTool("what_if_do", { job_id: goalJob });
   assert.deepEqual(mcp, rest.payload);
   assert.equal(rest.payload.ok, false);
 
   seedPlan();
   repo.setSettings({ lead_mode: "review_everything" });
-  const viaRest = callRoute("/what-if/do", { change: AGENT_ANSWER.change, text: "What if I added a bench set?" });
-  const viaMcp = await callTool("what_if_do", { change: AGENT_ANSWER.change, text: "What if I added a bench set?" });
+  const viaRest = callRoute("/what-if/do", { job_id: await answeredJob("What if I added a bench set?", AGENT_ANSWER) });
+  const viaMcp = await callTool("what_if_do", {
+    job_id: await answeredJob("What if I added a bench set?", AGENT_ANSWER),
+  });
   for (const out of [viaRest.payload, viaMcp]) {
     assert.equal(out.ok, true);
     assert.equal(repo.getProposal(out.proposal_id).status, "draft");

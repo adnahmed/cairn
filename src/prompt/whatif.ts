@@ -77,7 +77,10 @@ THE CHANGE:
 - kind "training": a concrete edit to lifts ALREADY on their plan (DATA.plan), as changes[] with the
   plan's own day_number. Plan days hold strength only — never put a run in changes[]; a run-volume
   question is kind "other" (runs follow their stated run days and the run engine).
-- kind "nutrition": a calorie and/or protein target in nutrition{}. Protein comes first; never trade
+  Name only the fields you change and leave the rest out — never null to mean "unchanged". To take a
+  lift off the day, use "remove": true.
+- kind "nutrition": a calorie and protein target in nutrition{} (name both; if only one moves, carry
+  the other at its current target). Protein comes first; never trade
   protein away to fit calories, and never propose a surplus during a cut.
 - kind "goal": the question changes WHAT they are aiming at (a goal weight, a race). Summarize it; no
   changes[] — a goal is theirs to name.

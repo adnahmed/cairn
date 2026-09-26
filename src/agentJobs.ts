@@ -643,7 +643,7 @@ async function processAgentJob(id: number): Promise<void> {
       case "what_if": {
         // A READ: the op persists nothing, so there is no ref row — the job's own
         // result snapshot is the answer the Ask ripple card renders.
-        result = await whatIf(agent, { text: input.text, hint: input.hint, date: input.date }, hooks);
+        result = await whatIf(agent, { text: input.text, hint: input.hint }, hooks);
         chosen = result?.agent ?? null;
         break;
       }

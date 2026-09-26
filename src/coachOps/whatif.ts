@@ -7,16 +7,22 @@
 //                `what_if` prompt site) under an enforced schema, and returns
 //                {ok, change, ripple[]}. It NEVER writes: no proposal, no ledger row, no
 //                cache entry. A dead rotation is the designed {ok:false, error, tried}.
-//   whatIfDo() — the "Do it" hand-off. It re-validates the change server-side (never
-//                trusting the client's echo), writes it as a DRAFT plan proposal, and
-//                routes that draft through the ONE autonomy policy
+//   whatIfDo() — the "Do it" hand-off. It takes the what-if JOB's id and reads the
+//                question and the change from the server's own stored answer (a client
+//                never supplies the change, so it can never drop the clinical mark),
+//                re-validates it, writes it as a DRAFT plan proposal, and routes that
+//                draft through the ONE autonomy policy
 //                (applyProposalWithAutonomy → decideAutonomyTier). It never applies on
 //                its own authority: the policy decides the tier, and
 //                  - anything clinical is held clinician-directed (the chat detector, now
 //                    shared, reads the athlete's words and the change itself);
 //                  - a calorie/protein target always waits on the athlete — the what-if
 //                    did not run the check-in's protective caps, so the team never lands
-//                    that number on its own;
+//                    that number on its own (a half-target is completed from the active
+//                    target, so the draft is always one the athlete can approve);
+//                  - a training edit read against a plan that has moved since is
+//                    requested at `ask`, never landed quietly: the policy then holds it
+//                    (or, under lead mode, announces it with the one-tap Undo);
 //                  - a goal (or anything without a concrete edit) is never drafted at
 //                    all — a goal is the athlete's to name, in their own words.
 //
@@ -38,16 +44,20 @@ import {
   type WhatIfResult,
   type WhatIfRippleEffect,
 } from "../contracts/what-if.js";
-import type { TodayStone, TodayStoneKey } from "../contracts/today-stones.js";
+import type { TodayStone, TodayStoneKey, TodayStoneTone } from "../contracts/today-stones.js";
 import { applyProposalWithAutonomy } from "../domain/brain/autonomy-service.js";
 import { clinicalPlanProvenance } from "../domain/brain/clinical-provenance.js";
-import { TODAY_STONE_ORDER, todayStones } from "../domain/today/today-stones.js";
+import { TODAY_STONE_LABELS, TODAY_STONE_ORDER, todayStones } from "../domain/today/today-stones.js";
 import { buildWhatIfPrompt } from "../prompt/whatif.js";
 import { violatesReadingGrammar } from "../repo/day-read-grammar.js";
 import { clampNutritionFloors } from "../repo/nutrition-safety.js";
+import { getAgentJob, linkAgentJobRef } from "../repo/chat.js";
+import { getActiveNutritionTarget } from "../repo/nutrition.js";
 import { computeGoalCheck } from "../repo/profile.js";
+import { captureProposalEvidence } from "../repo/proposal-truth.js";
 import { createProposal, getProposal } from "../repo/proposals.js";
 import { interactiveTimeoutForOp } from "../repo/settings.js";
+import { localDateISO } from "../repo/shared.js";
 import { runChosen } from "../runChosen.js";
 import { agentFailure, agentStatusFor, type OpHooks } from "./shared.js";
 
@@ -61,10 +71,11 @@ const SUMMARY_MAX = 240;
 const WHY_MAX = 200;
 const CHANGES_MAX = 12;
 
+// The what-if always reads TODAY: its prompt is today's coach context, so the stones
+// it hands the model (and prints as `before`) are today's too — one picture, never two.
 export interface WhatIfInput {
   text?: unknown;
   hint?: unknown;
-  date?: unknown;
 }
 
 /** Test seam: the one agent call, injectable so the agentic path runs offline. */
@@ -106,9 +117,13 @@ function finiteOrNull(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function intOrNull(value: unknown): number | null {
-  const n = finiteOrNull(value);
-  return n == null ? null : Math.max(0, Math.round(n));
+// A positive whole count, or nothing. null, a fraction, a negative or a non-number
+// never reaches the plan: the applier reads sets:0 as REMOVE, and Number(null) === 0,
+// so a model writing null to mean "unchanged" would otherwise delete the lift.
+function positiveIntOrUndefined(value: unknown): number | undefined {
+  if (value == null || value === "" || typeof value === "boolean") return undefined;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 1 ? n : undefined;
 }
 
 // A run is never a plan item (migration 110): runs follow the stated run days and the
@@ -133,12 +148,20 @@ function normalizePlanChange(raw: unknown): WhatIfPlanChange | null {
   const out: WhatIfPlanChange = { day_number: day };
   if (exercise) out.exercise = exercise;
   if (validSwap) out.swap = validSwap;
-  if (c.remove === true) out.remove = true;
-  for (const field of ["sets", "rep_low", "rep_high"] as const) {
-    if (Object.hasOwn(c, field)) out[field] = intOrNull(c[field]);
-  }
-  for (const field of ["target_weight", "target_seconds"] as const) {
-    if (Object.hasOwn(c, field)) out[field] = finiteOrNull(c[field]);
+  // Only an explicit remove, or an explicit integer zero sets, removes a lift.
+  const explicitZeroSets = c.sets === 0 || c.sets === "0";
+  if (c.remove === true || explicitZeroSets) {
+    out.remove = true;
+  } else {
+    for (const field of ["sets", "rep_low", "rep_high"] as const) {
+      const n = positiveIntOrUndefined(c[field]);
+      if (n !== undefined) out[field] = n;
+    }
+    // target_weight null is meaningful (bodyweight) and the applier reads it as
+    // "unchanged", so it may ride; a hold's seconds must be a positive number.
+    if (Object.hasOwn(c, "target_weight")) out.target_weight = finiteOrNull(c.target_weight);
+    const seconds = finiteOrNull(c.target_seconds);
+    if (seconds != null && seconds > 0) out.target_seconds = seconds;
   }
   const reason = cleanText(c.reason, 200);
   if (reason) out.reason = reason;
@@ -155,6 +178,26 @@ function normalizeNutrition(raw: unknown): { target_kcal: number | null; protein
   return target_kcal == null && protein_g == null ? null : { target_kcal, protein_g };
 }
 
+// A half-target ("more protein") is completed from the athlete's active target, so the
+// draft names both numbers and can always be approved; with no active target to fill
+// from, only a full target is doable.
+function completeNutrition(
+  n: { target_kcal: number | null; protein_g: number | null } | null
+): { target_kcal: number; protein_g: number } | null {
+  if (!n) return null;
+  let active: { target_kcal: number | null; protein_g: number | null } | null = null;
+  if (n.target_kcal == null || n.protein_g == null) {
+    try {
+      active = getActiveNutritionTarget();
+    } catch {
+      active = null;
+    }
+  }
+  const kcal = n.target_kcal ?? (Number(active?.target_kcal) > 0 ? Math.round(Number(active?.target_kcal)) : null);
+  const protein = n.protein_g ?? (Number(active?.protein_g) > 0 ? Math.round(Number(active?.protein_g)) : null);
+  return kcal != null && protein != null ? { target_kcal: kcal, protein_g: protein } : null;
+}
+
 function clinicalFor(question: string, change: { summary: string; changes?: unknown; nutrition?: unknown }): boolean {
   return (
     clinicalPlanProvenance({
@@ -167,9 +210,9 @@ function clinicalFor(question: string, change: { summary: string; changes?: unkn
 }
 
 /**
- * The change, re-read on the server. Used on the agent's answer AND on the client's
- * echo at "Do it" — whichever side it came from, only a concrete strength edit or a
- * positive nutrition target is ever doable, and the clinical mark is the server's.
+ * The change, re-read on the server. Used on the agent's answer AND again on the stored
+ * answer at "Do it" — only a concrete strength edit or a complete positive nutrition
+ * target is ever doable, and the clinical mark is the server's.
  */
 export function normalizeWhatIfChange(raw: unknown, question = ""): WhatIfChange | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -188,8 +231,9 @@ export function normalizeWhatIfChange(raw: unknown, question = ""): WhatIfChange
     change.changes = changes;
     change.doable = changes.length > 0;
   } else if (kind === "nutrition") {
-    const nutrition = normalizeNutrition(c.nutrition);
-    if (nutrition) change.nutrition = nutrition;
+    const asked = normalizeNutrition(c.nutrition);
+    const nutrition = completeNutrition(asked);
+    if (nutrition ?? asked) change.nutrition = nutrition ?? asked ?? undefined;
     change.doable = nutrition !== null;
   }
   change.clinical = clinicalFor(question, change);
@@ -205,14 +249,23 @@ function stoneBefore(stones: readonly TodayStone[], key: TodayStoneKey): TodaySt
   return stones.find((s) => s.key === key) ?? null;
 }
 
-const STONE_LABELS: Record<TodayStoneKey, string> = {
-  strength: "Strength",
-  endurance: "Endurance",
-  fuel: "Fuel",
-  recovery: "Recovery",
-  body: "Body",
-  heart: "Heart",
+// Where a stone would likely sit, in the server's words — the renderer never works an
+// "after" out itself. Steady keeps where it stands; an unsure move keeps a quiet tone.
+const AFTER_WORDS: Record<Exclude<WhatIfDirection, "steady">, { word: string; tone: TodayStoneTone }> = {
+  helps: { word: "better", tone: "ok" },
+  costs: { word: "asks more", tone: "watch" },
+  mixed: { word: "mixed", tone: "watch" },
 };
+
+function stoneAfter(
+  before: { word: string; tone: TodayStoneTone },
+  direction: WhatIfDirection,
+  confidence: WhatIfConfidence
+): { word: string; tone: TodayStoneTone } {
+  if (direction === "steady") return { ...before };
+  const after = AFTER_WORDS[direction];
+  return confidence === "unsure" ? { word: after.word, tone: "quiet" } : { ...after };
+}
 
 function normalizeRipple(raw: unknown, stones: readonly TodayStone[]): WhatIfRippleEffect[] {
   const named = new Map<TodayStoneKey, { direction: WhatIfDirection; why: string; confidence: WhatIfConfidence }>();
@@ -238,11 +291,13 @@ function normalizeRipple(raw: unknown, stones: readonly TodayStone[]): WhatIfRip
       why: UNTOUCHED_WHY,
       confidence: "unsure" as const,
     };
+    const before = { word: stone?.word ?? "quiet", tone: stone?.tone ?? ("quiet" as const) };
     return {
       stone: key,
-      label: stone?.label ?? STONE_LABELS[key],
+      label: stone?.label ?? TODAY_STONE_LABELS[key],
       ...effect,
-      before: { word: stone?.word ?? "quiet", tone: stone?.tone ?? "quiet" },
+      before,
+      after: stoneAfter(before, effect.direction, effect.confidence),
     };
   });
 }
@@ -326,12 +381,21 @@ export function whatIfFloor(question: string, hint: WhatIfHint | null, stones: r
 
 // ---------- whatIf: the read ----------
 
-function readStones(date: string | undefined): { date: string; stones: TodayStone[] } {
+function readStones(): { date: string; stones: TodayStone[] } {
   try {
-    const read = todayStones(date);
+    const read = todayStones();
     return { date: read.date, stones: read.stones };
   } catch {
-    return { date: date ?? "", stones: [] };
+    return { date: localDateISO(), stones: [] };
+  }
+}
+
+// The plan this answer read, stamped so "Do it" can tell when it has moved since.
+function planBasis(): string | null {
+  try {
+    return captureProposalEvidence().plan_fingerprint || null;
+  } catch {
+    return null;
   }
 }
 
@@ -348,12 +412,20 @@ export async function whatIf(
   const question = cleanText(input?.text, QUESTION_MAX);
   if (!question) return { ok: false, error: "a what-if needs a question in words", tried: [] };
   const hint = normalizeHint(input?.hint);
-  const dateArg = typeof input?.date === "string" && input.date ? input.date : undefined;
-  const { date, stones } = readStones(dateArg);
+  const { date, stones } = readStones();
 
   if (agent === "stub") {
     const floor = whatIfFloor(question, hint, stones);
-    return { ok: true, date, question, ...floor, source: "deterministic", agent: "stub", tried: [] };
+    return {
+      ok: true,
+      date,
+      question,
+      ...floor,
+      plan_basis: null,
+      source: "deterministic",
+      agent: "stub",
+      tried: [],
+    };
   }
 
   hooks?.onPhase?.("talking it through with the team");
@@ -399,6 +471,7 @@ export async function whatIf(
     question,
     change,
     ripple: normalizeRipple(p.ripple, stones),
+    plan_basis: change.kind === "training" && change.doable ? planBasis() : null,
     source: "agent",
     agent: chosen,
     tried,
@@ -408,30 +481,58 @@ export async function whatIf(
 // ---------- whatIfDo: "Do it" ----------
 
 export interface WhatIfDoInput {
-  change?: unknown;
-  /** The athlete's original question — read for clinical signals alongside the change. */
-  text?: unknown;
+  /** The what_if agent job whose stored answer is handed over. */
+  job_id?: unknown;
 }
+
+const nothing = (error: string, extra: Record<string, unknown> = {}) => ({
+  ok: false as const,
+  error,
+  ...extra,
+  tried: [],
+});
 
 /**
  * Hand a what-if's change to the team as a DRAFT, routed by the autonomy policy.
- * Never applies on its own authority; `{ok:false, error, tried:[]}` when there is
- * nothing concrete to draft.
+ * The question and the change come from the server's own stored answer (the done
+ * `what_if` job), never from a client echo. Never applies on its own authority;
+ * `{ok:false, error, tried:[]}` when there is nothing concrete to draft. A second tap
+ * on the same answer returns the first draft rather than writing another.
  */
 export function whatIfDo(input: WhatIfDoInput): any {
-  const question = cleanText(input?.text, QUESTION_MAX);
-  const change = normalizeWhatIfChange(input?.change, question);
-  if (!change) return { ok: false, error: "there's no change here to hand over", tried: [] };
+  const jobId = Number(input?.job_id);
+  if (!Number.isInteger(jobId) || jobId < 1) return nothing("a what-if answer is needed to hand over");
+  const job = getAgentJob(jobId) as any;
+  if (!job || job.kind !== WHAT_IF_OP) return nothing("there's no what-if answer here to hand over");
+  if (job.status !== "done" || job.result?.ok !== true)
+    return nothing("this what-if hasn't been answered yet", { job_status: job.status ?? null });
+  const answer = job.result as WhatIfResult;
+  const question = cleanText(answer.question ?? job.input?.text, QUESTION_MAX);
+  const change = normalizeWhatIfChange(answer.change, question);
+  if (!change) return nothing("there's no change here to hand over");
+  if (job.ref_table === "plan_proposals" && Number(job.ref_id) > 0) {
+    const existing = getProposal(Number(job.ref_id)) as any;
+    if (existing) {
+      return {
+        ok: true,
+        already: true,
+        proposal_id: Number(existing.id),
+        proposal_status: existing.status ?? null,
+        change,
+        tier: null,
+        tried: [],
+      };
+    }
+  }
   if (!change.doable) {
-    return {
-      ok: false,
-      error:
-        change.kind === "goal"
-          ? "a goal is yours to name — say it in chat and the team will take it from there"
+    return nothing(
+      change.kind === "goal"
+        ? "a goal is yours to name — say it in chat and the team will take it from there"
+        : change.kind === "nutrition"
+          ? "this needs both a calorie and a protein number — ask the team in chat"
           : "this one is talked through rather than drafted — ask the team in chat",
-      kind: change.kind,
-      tried: [],
-    };
+      { kind: change.kind }
+    );
   }
   const provenance = clinicalPlanProvenance({
     message: question,
@@ -439,6 +540,12 @@ export function whatIfDo(input: WhatIfDoInput): any {
     imageAloneIsClinical: false,
     source: "what_if_clinical_detection",
   });
+  // The stored answer's own clinical mark is the server's; it can only tighten.
+  const clinical = provenance !== null || answer.change?.clinical === true;
+  // A training answer read against a plan that has since moved: the premise may be
+  // gone (the applier upserts, so a lift removed since would silently return). It is
+  // requested at `ask`, so it never lands quietly; the policy decides the rest.
+  const planMoved = change.kind === "training" && (!answer.plan_basis || answer.plan_basis !== planBasis());
   const instruction = `${WHAT_IF_INSTRUCTION_PREFIX} ${change.summary}`.slice(0, 500);
   let payload: Record<string, unknown>;
   if (change.kind === "nutrition" && change.nutrition) {
@@ -453,24 +560,30 @@ export function whatIfDo(input: WhatIfDoInput): any {
   }
   if (provenance) payload.clinical_provenance = provenance;
   const proposal = createProposal(WHAT_IF_PROPOSAL_AGENT, instruction, "", payload) as any;
+  linkAgentJobRef(jobId, "plan_proposals", Number(proposal.id));
+  const holdForAthlete = change.kind === "nutrition" || planMoved;
   const routed = applyProposalWithAutonomy(Number(proposal.id), {
     // The athlete asked for this change and tapped "Do it": their decision, not a
     // coach surprise. Every floor still applies on top.
     explicit_user_request: true,
     // A calorie target from a what-if always waits on the athlete: the check-in's
-    // protective caps did not produce it, so the team never lands it on its own.
-    ...(change.kind === "nutrition" ? { requested_tier: "ask" as const } : {}),
-    clinical: provenance !== null,
+    // protective caps did not produce it, so the team never lands it on its own. A
+    // training answer whose plan has moved since is requested at ask too.
+    ...(holdForAthlete ? { requested_tier: "ask" as const } : {}),
+    clinical,
     clinical_provenance: provenance ?? undefined,
   }) as any;
   const stored = getProposal(Number(proposal.id)) as any;
+  const refused = routed?.ok === false;
   return {
     ...routed,
-    ok: routed?.ok !== false,
+    ok: !refused,
     proposal_id: Number(proposal.id),
     proposal_status: stored?.status ?? null,
     change,
+    ...(planMoved ? { plan_moved: true } : {}),
     tier: routed?.tier ?? routed?.decision?.autonomy_tier ?? null,
+    ...(refused ? { error: String(routed?.error ?? "the team couldn't take this change"), tried: [] } : {}),
   };
 }
 
