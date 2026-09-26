@@ -414,25 +414,28 @@ Principles encoded:
 
 ### Information architecture
 
-Six tabs — **Today / Train / Stand / Plan / Coach / Settings**. Still six, but not the six this
-document first named: health outgrew a sub-view and took a tab, and *Me* gave one up.
-- **Today** is day intelligence (above) — the read, and the one or two things that genuinely matter,
-  ranked by the salience arbiter (§12 item 1).
-- **Train** is the trajectory tier: history, 1RM, volume, endurance, calendar, the program's blocks,
-  and a Body group for weight and measurements. Where you go to see whether it's working.
-- **Stand** is the whole-health home — where you stand across labs, body, recovery, supplements, and
-  the long view of aging, each marker's trend there when you look for it. Every health surface is
-  first-class here rather than nested inside a profile tab, because this is where the connected brain
-  shows its work.
-- **Plan** is the program and the food plan, editable directly.
-- **Coach** is the buddy you talk to: every "ask about this" deep-links into it with the question
-  pre-written (`gotoChatWith` / `state.chatPrefill`).
-- **Settings → You** is where understanding lives: Profile, Memory, Life, **Family**, plus the richer,
-  progressively-filled "About me."
+Five homes: **Today / Train / Horizon / Ask / You** (v2 wave 5). Eight views became five tab-bar
+buttons, and nothing was removed, only re-homed: each place answers one question.
+- **Today** is day intelligence (above): the read, and the one or two things that genuinely matter,
+  ranked by the salience arbiter (§12 item 1). Session and **Fuel** open from here, because logging
+  a set or a meal is a same-day act.
+- **Train** is the trajectory tier: history, 1RM, volume, endurance, calendar, a Body group for
+  weight and measurements, and a **Program** group holding the plan you run (the editor) and the
+  program's blocks. Where you go to see whether it's working.
+- **Horizon** is what is ahead, on one timeline: the race build, the goal line, and the next labs and
+  scans.
+- **Ask** is the team you talk to: every "ask about this" deep-links into it with the question
+  pre-written (`gotoChatWith` / `state.chatPrefill`), and the record of what the team changed
+  (Changes, with Undo) lives beside the conversation.
+- **You** is the whole cairn: the stones, then **Health** (where you stand across labs, body,
+  recovery, supplements and the long view of aging, every health surface first-class because this is
+  where the connected brain shows its work), **About you** (Profile, Memory, Life, Family and the
+  progressively-filled "About me") and Settings.
 
-**Me was demoted out of the tab bar, not deleted** — it is a place you visit rarely and on purpose, so
-it no longer spends one of six permanent slots. Old `me/health/*` and `me/standing` links hard-redirect
-into Stand (`src/client/app/router.ts`), so nothing anyone bookmarked breaks.
+**Old links never break.** Every earlier address (`/app/plan/food`, `/app/stand/records`,
+`/app/me/health/*`, `/?tab=chat`, ...) still lands on the same surface and is rewritten in place to
+its five-home form (`src/client/route-state.ts`); a device that knew the old tabs gets one quiet,
+dismissible line per home naming what moved there, once.
 
 ---
 

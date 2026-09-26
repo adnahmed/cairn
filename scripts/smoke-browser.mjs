@@ -19,32 +19,51 @@ const NAV_TIMEOUT_MS = 20000;
 const SETTLE_MS = 600;
 const WORKFLOW_COUNT = 13;
 
+// Five homes (v2 wave 5): Today / Train / Horizon / Ask / You. `tab` is the VIEW
+// (window.state.tab); `home` is the lit tab-bar button. Every v1 path is rewritten
+// in place (replaceState) to its v2 form: `expectedHref`.
 const routes = [
-  { path: "/", tab: "today" },
-  { path: "/app/today", tab: "today" },
-  { path: "/app/plan/food", tab: "plan", expectedState: { planSeg: "food" } },
-  // Plan → Meals redirects into Fuel (Plan → Food) with the meal-plan journal open.
-  { path: "/app/plan/meals", tab: "plan", expectedHref: "/app/plan/food", expectedState: { planSeg: "food" } },
-  { path: "/app/plan/coach", tab: "plan", expectedState: { planSeg: "coach" } },
-  { path: "/app/progress/energy", tab: "progress", expectedState: { progressSeg: "energy" } },
+  { path: "/", tab: "today", home: "today" },
+  { path: "/app/today", tab: "today", home: "today" },
+  // The v2 grammar, /app/<home>/<section>.
+  { path: "/app/today/fuel", tab: "plan", home: "today", expectedState: { planSeg: "food" } },
+  { path: "/app/train/energy", tab: "progress", home: "train", expectedState: { progressSeg: "energy" } },
   // Program hosts the multi-anchor strength card (GET /api/strength-journeys).
-  { path: "/app/progress/program", tab: "progress", expectedState: { progressSeg: "program" } },
-  { path: "/app/stand", tab: "stand", expectedState: { standSeg: null } },
-  { path: "/app/stand/age", tab: "stand", expectedState: { standSeg: "age" } },
-  { path: "/app/stand/records", tab: "stand", expectedState: { standSeg: "records" } },
-  { path: "/app/stand/markers", tab: "stand", expectedState: { standSeg: "markers" } },
+  { path: "/app/train/program", tab: "progress", home: "train", expectedState: { progressSeg: "program" } },
+  { path: "/app/train/plan", tab: "plan", home: "train", expectedState: { planSeg: "edit" } },
+  { path: "/app/horizon", tab: "horizon", home: "horizon" },
+  { path: "/app/horizon/race", tab: "plan", home: "horizon", expectedState: { planSeg: "endurance" } },
+  { path: "/app/ask", tab: "chat", home: "ask" },
+  { path: "/app/ask/changes", tab: "plan", home: "ask", expectedState: { planSeg: "coach" } },
+  { path: "/app/you", tab: "you", home: "you" },
+  { path: "/app/you/health", tab: "stand", home: "you", expectedState: { standSeg: null } },
+  { path: "/app/you/age", tab: "stand", home: "you", expectedState: { standSeg: "age" } },
+  { path: "/app/you/records", tab: "stand", home: "you", expectedState: { standSeg: "records" } },
+  { path: "/app/you/markers", tab: "stand", home: "you", expectedState: { standSeg: "markers" } },
   // The marker-domain drill-in is a real route carrying its domain key in ?id=.
-  { path: "/app/stand/domain?id=heart", tab: "stand", expectedState: { standSeg: "domain" } },
-  // A domain URL with no key is not an error — Stand falls back to the overview.
-  { path: "/app/stand/domain", tab: "stand", expectedHref: "/app/stand", expectedState: { standSeg: null } },
-  { path: "/app/me/standing", tab: "stand", expectedHref: "/app/stand/age", expectedState: { standSeg: "age" } },
-  { path: "/app/me/health/read", tab: "stand", expectedHref: "/app/stand", expectedState: { standSeg: null } },
-  { path: "/app/me/health/records", tab: "stand", expectedHref: "/app/stand/records", expectedState: { standSeg: "records" } },
-  { path: "/app/me/memory", tab: "me", expectedState: { meSeg: "memory" } },
-  { path: "/app/me/family", tab: "me", expectedState: { meSeg: "family" } },
-  { path: "/app/chat", tab: "chat" },
-  { path: "/app/settings/data", tab: "settings", expectedState: { setSeg: "data" } },
-  { path: "/app/settings/agents", tab: "settings", expectedState: { setSeg: "agents" } },
+  { path: "/app/you/domain?id=heart", tab: "stand", home: "you", expectedState: { standSeg: "domain" } },
+  { path: "/app/you/memory", tab: "me", home: "you", expectedState: { meSeg: "memory" } },
+  { path: "/app/you/family", tab: "me", home: "you", expectedState: { meSeg: "family" } },
+  { path: "/app/you/settings/data", tab: "settings", home: "you", expectedState: { setSeg: "data" } },
+  { path: "/app/you/settings/agents", tab: "settings", home: "you", expectedState: { setSeg: "agents" } },
+  // v1 paths land on the same surface and are rewritten to v2.
+  { path: "/app/plan/food", tab: "plan", home: "today", expectedHref: "/app/today/fuel", expectedState: { planSeg: "food" } },
+  // Plan → Meals redirects into Fuel with the meal-plan journal open.
+  { path: "/app/plan/meals", tab: "plan", home: "today", expectedHref: "/app/today/fuel", expectedState: { planSeg: "food" } },
+  { path: "/app/plan/coach", tab: "plan", home: "ask", expectedHref: "/app/ask/changes", expectedState: { planSeg: "coach" } },
+  { path: "/app/plan/edit", tab: "plan", home: "train", expectedHref: "/app/train/plan", expectedState: { planSeg: "edit" } },
+  { path: "/app/progress/program", tab: "progress", home: "train", expectedHref: "/app/train/program", expectedState: { progressSeg: "program" } },
+  { path: "/app/stand", tab: "stand", home: "you", expectedHref: "/app/you/health", expectedState: { standSeg: null } },
+  { path: "/app/stand/records", tab: "stand", home: "you", expectedHref: "/app/you/records", expectedState: { standSeg: "records" } },
+  // A domain URL with no key is not an error — Health falls back to the overview.
+  { path: "/app/stand/domain", tab: "stand", home: "you", expectedHref: "/app/you/health", expectedState: { standSeg: null } },
+  { path: "/app/me/standing", tab: "stand", home: "you", expectedHref: "/app/you/age", expectedState: { standSeg: "age" } },
+  { path: "/app/me/health/read", tab: "stand", home: "you", expectedHref: "/app/you/health", expectedState: { standSeg: null } },
+  { path: "/app/me/health/records", tab: "stand", home: "you", expectedHref: "/app/you/records", expectedState: { standSeg: "records" } },
+  { path: "/app/me/memory", tab: "me", home: "you", expectedHref: "/app/you/memory", expectedState: { meSeg: "memory" } },
+  { path: "/app/chat", tab: "chat", home: "ask", expectedHref: "/app/ask" },
+  { path: "/app/settings", tab: "you", home: "you", expectedHref: "/app/you" },
+  { path: "/app/settings/data", tab: "settings", home: "you", expectedHref: "/app/you/settings/data", expectedState: { setSeg: "data" } },
 ];
 
 const requiredGlobals = {
@@ -497,6 +516,8 @@ async function smokeRoute(cdp, base, route) {
         meSeg: window.state && window.state.meSeg,
         healthSeg: window.state && window.state.healthSeg,
         setSeg: window.state && window.state.setSeg,
+        home: document.querySelector(".tab.active")?.dataset.tab || null,
+        tabCount: document.querySelectorAll(".tabbar .tab").length,
         viewTextLength: view ? view.textContent.trim().length : 0,
         scripts: document.scripts.length
       };
@@ -504,6 +525,8 @@ async function smokeRoute(cdp, base, route) {
     const expectedHref = route.expectedHref || route.path;
     ok(state.href === expectedHref, `${route.path} lands on ${expectedHref} after hydration`, JSON.stringify(state));
     ok(state.tab === route.tab, `${route.path} active tab is ${route.tab}`, JSON.stringify(state));
+    ok(state.home === route.home, `${route.path} lights the ${route.home} home`, JSON.stringify(state));
+    ok(state.tabCount === 5, `${route.path} shows the five-home tab bar`, JSON.stringify(state));
     for (const [key, value] of Object.entries(route.expectedState || {})) {
       ok(state[key] === value, `${route.path} preserves ${key}=${value}`, JSON.stringify(state));
     }
@@ -634,7 +657,7 @@ async function smokeTodayAddExercise(cdp, base) {
 async function smokeChatAttachmentFocus(cdp, base) {
   const { failures, off } = collectFailures(cdp, base);
   try {
-    await navigateAndHydrate(cdp, base, "/app/chat", "chat");
+    await navigateAndHydrate(cdp, base, "/app/ask", "chat");
     await assertGlobals(cdp);
     const result = await evaluate(cdp, `(() => new Promise((resolve) => {
       const input = document.querySelector("#chatInput");
@@ -709,7 +732,7 @@ async function smokeChatAttachmentFocus(cdp, base) {
       }, 120);
     }))()`);
     ok(result?.ok === true, "Chat attachment focus recovery globals/events work", JSON.stringify(result));
-    ok(failures.length === 0, "/app/chat attachment workflow has no browser runtime/load errors", failures.join("\n"));
+    ok(failures.length === 0, "/app/ask attachment workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
   }
@@ -720,7 +743,7 @@ async function smokeChatSendStreamReconnect(cdp, base) {
   const message = `Smoke stream check ${Date.now()}`;
   const messageJson = JSON.stringify(message);
   try {
-    await navigateAndHydrate(cdp, base, "/app/chat", "chat");
+    await navigateAndHydrate(cdp, base, "/app/ask", "chat");
     await assertGlobals(cdp);
     await waitForCondition(cdp, "Chat composer hydrates before send", `(() => {
       const input = document.querySelector("#chatInput");
@@ -751,7 +774,7 @@ async function smokeChatSendStreamReconnect(cdp, base) {
       const userBubble = [...document.querySelectorAll(".bubble.user .bubble-text")]
         .find((el) => el.textContent?.includes(message));
       return {
-        ok: Boolean(userBubble && location.pathname === "/app/chat" && window.state?.tab === "chat"),
+        ok: Boolean(userBubble && location.pathname === "/app/ask" && window.state?.tab === "chat"),
         found: Boolean(userBubble),
         href: location.pathname + location.search,
         tab: window.state && window.state.tab
@@ -792,7 +815,7 @@ async function smokeChatSendStreamReconnect(cdp, base) {
           Array.isArray(turns) &&
           turns.length === 0 &&
           live.length === 0 &&
-          location.pathname === "/app/chat" &&
+          location.pathname === "/app/ask" &&
           window.state?.tab === "chat"
         ),
         final: final || "",
@@ -802,7 +825,7 @@ async function smokeChatSendStreamReconnect(cdp, base) {
         tab: window.state && window.state.tab
       };
     })()`, 30000);
-    ok(failures.length === 0, "/app/chat send/stream/reconnect workflow has no browser runtime/load errors", failures.join("\n"));
+    ok(failures.length === 0, "/app/ask send/stream/reconnect workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
   }
@@ -811,7 +834,7 @@ async function smokeChatSendStreamReconnect(cdp, base) {
 async function smokeSettingsDataControls(cdp, base) {
   const { failures, off } = collectFailures(cdp, base);
   try {
-    await navigateAndHydrate(cdp, base, "/app/settings/data", "settings");
+    await navigateAndHydrate(cdp, base, "/app/you/settings/data", "settings");
     await assertGlobals(cdp);
     const initial = await evaluate(cdp, `(() => {
       const updateCard = document.querySelector("#updateCard");
@@ -878,13 +901,13 @@ async function smokeSettingsDataControls(cdp, base) {
     })()`);
 
     const finalState = await evaluate(cdp, `(() => ({
-      ok: location.pathname === "/app/settings/data" && window.state?.tab === "settings" && window.state?.setSeg === "data",
+      ok: location.pathname === "/app/you/settings/data" && window.state?.tab === "settings" && window.state?.setSeg === "data",
       href: location.pathname + location.search,
       tab: window.state && window.state.tab,
       setSeg: window.state && window.state.setSeg
     }))()`);
     ok(finalState?.ok === true, "Settings Data controls preserve the routed Data slice", JSON.stringify(finalState));
-    ok(failures.length === 0, "/app/settings/data workflow has no browser runtime/load errors", failures.join("\n"));
+    ok(failures.length === 0, "/app/you/settings/data workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
   }
@@ -893,23 +916,23 @@ async function smokeSettingsDataControls(cdp, base) {
 async function smokeProgressSegmentNavigation(cdp, base) {
   const { failures, off } = collectFailures(cdp, base);
   try {
-    await navigateAndHydrate(cdp, base, "/app/progress/energy", "progress");
+    await navigateAndHydrate(cdp, base, "/app/train/energy", "progress");
     await assertGlobals(cdp);
     await evaluate(cdp, `(() => {
-      const btn = document.querySelector('.segbtn[data-proggroup="performance"], .segbtn[data-seg="program"]');
-      if (!btn) throw new Error("missing Progress Program segment");
+      const btn = document.querySelector('.segbtn[data-proggroup="program"]');
+      if (!btn) throw new Error("missing Train Program group");
       btn.click();
       return true;
     })()`);
-    await waitForCondition(cdp, "Progress segment click routes to Program", `(() => {
-      const active = document.querySelector('.segbtn.active[data-proggroup="performance"], .segbtn.active[data-seg="program"]');
+    await waitForCondition(cdp, "Train's Program group opens the Program read", `(() => {
+      const active = document.querySelector('.segbtn.active[data-seg="program"]');
       const view = document.querySelector("#view");
       return {
         ok: Boolean(
           active &&
           window.state?.tab === "progress" &&
           window.state?.progressSeg === "program" &&
-          location.pathname === "/app/progress/program" &&
+          location.pathname === "/app/train/program" &&
           view &&
           view.textContent.trim().length > 0
         ),
@@ -921,15 +944,15 @@ async function smokeProgressSegmentNavigation(cdp, base) {
 
     await evaluate(cdp, `(() => {
       const btn = document.querySelector('.segbtn[data-proggroup="fuel"]');
-      if (!btn) throw new Error("missing Progress Fuel segment");
+      if (!btn) throw new Error("missing Train Fuel group");
       btn.click();
       return true;
     })()`);
-    await waitForCondition(cdp, "Progress Fuel click opens Intake", `(() => {
+    await waitForCondition(cdp, "Train's Fuel group opens Intake", `(() => {
       const activeGroup = document.querySelector('.segbtn.active[data-proggroup="fuel"]');
       const activeLeaf = document.querySelector('.segbtn.active[data-seg="intake"]');
       return {
-        ok: Boolean(activeGroup && activeLeaf && window.state?.progressSeg === "intake" && location.pathname === "/app/progress/intake"),
+        ok: Boolean(activeGroup && activeLeaf && window.state?.progressSeg === "intake" && location.pathname === "/app/train/intake"),
         href: location.pathname,
         progressSeg: window.state && window.state.progressSeg,
         activeGroup: activeGroup ? activeGroup.textContent.trim() : "",
@@ -938,89 +961,96 @@ async function smokeProgressSegmentNavigation(cdp, base) {
     })()`);
     await evaluate(cdp, `(() => {
       const btn = document.querySelector('.segbtn[data-seg="energy"]');
-      if (!btn) throw new Error("missing Progress Energy leaf segment");
+      if (!btn) throw new Error("missing Train Energy leaf");
       btn.click();
       return true;
     })()`);
-    await waitForCondition(cdp, "Progress Energy leaf click opens Energy", `(() => {
+    await waitForCondition(cdp, "Train's Energy leaf opens Energy", `(() => {
       const active = document.querySelector('.segbtn.active[data-seg="energy"]');
       return {
-        ok: Boolean(active && window.state?.progressSeg === "energy" && location.pathname === "/app/progress/energy" && document.querySelector("#energyCard")),
+        ok: Boolean(active && window.state?.progressSeg === "energy" && location.pathname === "/app/train/energy" && document.querySelector("#energyCard")),
         href: location.pathname,
         progressSeg: window.state && window.state.progressSeg,
         active: active ? active.textContent.trim() : "",
         hasEnergyCard: Boolean(document.querySelector("#energyCard"))
       };
     })()`);
-    ok(failures.length === 0, "/app/progress segment workflow has no browser runtime/load errors", failures.join("\n"));
+    ok(failures.length === 0, "/app/train segment workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
   }
 }
 
+// The Plan view split across three homes (v2 wave 5): Fuel is Today's, Changes is
+// Ask's and the editor is Train's (Program → Plan). None wears the old Plan bar;
+// Fuel and Changes step back to their home, and the editor rides Train's nav.
 async function smokePlanSegmentNavigation(cdp, base) {
   const { failures, off } = collectFailures(cdp, base);
+  const lit = `document.querySelector(".tab.active")?.dataset.tab`;
   try {
-    await navigateAndHydrate(cdp, base, "/app/plan/food", "plan");
+    await navigateAndHydrate(cdp, base, "/app/today/fuel", "plan");
     await assertGlobals(cdp);
-    // Meals is no longer a segment: its weekly journal is history in Food's fold.
-    await waitForCondition(cdp, "Plan Food carries the meal-plan history fold and no Meals pill", `(() => {
-      const pill = document.querySelector('.segbtn[data-seg="meals"]');
+    await waitForCondition(cdp, "Fuel lives under Today: history fold, no Plan bar, a way back", `(() => {
       const fold = document.querySelector("#fuelHistory");
-      return { ok: Boolean(!pill && fold), hasPill: Boolean(pill), hasFold: Boolean(fold) };
+      const planBar = document.querySelector('.segbtn[data-seg="food"], .segbtn[data-seg="coach"]');
+      const back = document.querySelector('[data-home-back="today"]');
+      return {
+        ok: Boolean(fold && !planBar && back && ${lit} === "today" && document.querySelector("#dayFuelSlot")),
+        hasFold: Boolean(fold), hasPlanBar: Boolean(planBar), hasBack: Boolean(back), lit: ${lit}
+      };
     })()`, 15000);
-
-    await evaluate(cdp, `(() => {
-      const btn = document.querySelector('.segbtn[data-seg="food"]');
-      if (!btn) throw new Error("missing Plan Food segment");
-      btn.click();
-      return true;
-    })()`);
-    await waitForCondition(cdp, "Plan segment click returns to Food journal", `(() => {
-      const active = document.querySelector('.segbtn.active[data-seg="food"]');
-      return {
-        ok: Boolean(active && window.state?.planSeg === "food" && location.pathname === "/app/plan/food" && document.querySelector("#dayFuelSlot") && document.querySelector("#energyCard")),
-        href: location.pathname,
-        planSeg: window.state && window.state.planSeg,
-        hasDayFuel: Boolean(document.querySelector("#dayFuelSlot")),
-        hasEnergyCard: Boolean(document.querySelector("#energyCard"))
-      };
-    })()`);
-    // Changes (/app/plan/coach) is a first-class Plan segment: reachable from the
-    // bar, and it paints its own active pill instead of being a dead-end drill-in.
-    await evaluate(cdp, `(() => {
-      const btn = document.querySelector('.segbtn[data-seg="coach"]');
-      if (!btn) throw new Error("missing Plan Changes segment");
-      btn.click();
-      return true;
-    })()`);
-    await waitForCondition(cdp, "Plan bar reaches the Changes record and lights its pill", `(() => {
-      const active = document.querySelector('.segbtn.active[data-seg="coach"]');
-      return {
-        ok: Boolean(
-          active &&
-          active.textContent.trim() === "Changes" &&
-          window.state?.planSeg === "coach" &&
-          location.pathname === "/app/plan/coach" &&
-          document.querySelector("#proplist")
-        ),
-        href: location.pathname,
-        planSeg: window.state && window.state.planSeg,
-        active: active ? active.textContent.trim() : ""
-      };
-    })()`);
-    await evaluate(cdp, `(() => {
-      const btn = document.querySelector('.segbtn[data-seg="edit"]');
-      if (!btn) throw new Error("missing Plan Training segment");
-      btn.click();
-      return true;
-    })()`);
-    await waitForCondition(cdp, "the Changes segment routes back to Training through the bar", `(() => ({
-      ok: Boolean(window.state?.planSeg === "edit" && location.pathname === "/app/plan/edit" && document.querySelector("#planedit")),
-      href: location.pathname,
-      planSeg: window.state && window.state.planSeg
+    await evaluate(cdp, `(() => { document.querySelector('[data-home-back="today"]').click(); return true; })()`);
+    await waitForCondition(cdp, "Fuel's back link returns to Today", `(() => ({
+      ok: Boolean(window.state?.tab === "today" && location.pathname === "/app/today" && ${lit} === "today"),
+      href: location.pathname, tab: window.state && window.state.tab
     }))()`);
-    ok(failures.length === 0, "/app/plan segment workflow has no browser runtime/load errors", failures.join("\n"));
+
+    await navigateAndHydrate(cdp, base, "/app/ask/changes", "plan");
+    await waitForCondition(cdp, "Changes lives under Ask with a way back", `(() => ({
+      ok: Boolean(
+        window.state?.planSeg === "coach" &&
+        document.querySelector("#proplist") &&
+        document.querySelector('[data-home-back="ask"]') &&
+        !document.querySelector('.segbtn[data-seg="coach"]') &&
+        ${lit} === "ask"
+      ),
+      href: location.pathname, planSeg: window.state && window.state.planSeg, lit: ${lit}
+    }))()`);
+    await evaluate(cdp, `(() => { document.querySelector('[data-home-back="ask"]').click(); return true; })()`);
+    await waitForCondition(cdp, "Changes' back link returns to Ask", `(() => ({
+      ok: Boolean(window.state?.tab === "chat" && location.pathname === "/app/ask" && ${lit} === "ask"),
+      href: location.pathname, tab: window.state && window.state.tab
+    }))()`);
+
+    await navigateAndHydrate(cdp, base, "/app/train/program", "progress");
+    await evaluate(cdp, `(() => {
+      const btn = document.querySelector('.segbtn[data-seg="plan"]');
+      if (!btn) throw new Error("missing Train Program → Plan leaf");
+      btn.click();
+      return true;
+    })()`);
+    await waitForCondition(cdp, "Program → Plan opens the editor under Train", `(() => ({
+      ok: Boolean(
+        window.state?.tab === "plan" &&
+        window.state?.planSeg === "edit" &&
+        location.pathname === "/app/train/plan" &&
+        document.querySelector("#planedit") &&
+        document.querySelector('.segbtn.active[data-seg="plan"]') &&
+        ${lit} === "train"
+      ),
+      href: location.pathname, planSeg: window.state && window.state.planSeg, lit: ${lit}
+    }))()`);
+    await evaluate(cdp, `(() => {
+      const btn = document.querySelector('.segbtn[data-seg="program"]');
+      if (!btn) throw new Error("missing the editor's Program leaf");
+      btn.click();
+      return true;
+    })()`);
+    await waitForCondition(cdp, "the editor's Train nav returns to the Program read", `(() => ({
+      ok: Boolean(window.state?.tab === "progress" && window.state?.progressSeg === "program" && location.pathname === "/app/train/program"),
+      href: location.pathname, tab: window.state && window.state.tab
+    }))()`);
+    ok(failures.length === 0, "/app Fuel/Changes/Plan home workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
   }
@@ -1029,7 +1059,7 @@ async function smokePlanSegmentNavigation(cdp, base) {
 async function smokeHealthInnerNavigation(cdp, base) {
   const { failures, off } = collectFailures(cdp, base);
   try {
-    await navigateAndHydrate(cdp, base, "/app/stand", "stand");
+    await navigateAndHydrate(cdp, base, "/app/you/health", "stand");
     await assertGlobals(cdp);
     await evaluate(cdp, `(() => {
       const btn = document.querySelector("[data-allmarkers]");
@@ -1043,7 +1073,7 @@ async function smokeHealthInnerNavigation(cdp, base) {
         ok: Boolean(
           window.state?.tab === "stand" &&
           window.state?.standSeg === "markers" &&
-          location.pathname === "/app/stand/markers" &&
+          location.pathname === "/app/you/markers" &&
           content &&
           content.textContent.trim().length > 0
         ),
@@ -1053,10 +1083,10 @@ async function smokeHealthInnerNavigation(cdp, base) {
       };
     })()`);
 
-    await navigateAndHydrate(cdp, base, "/app/stand/records", "stand");
+    await navigateAndHydrate(cdp, base, "/app/you/records", "stand");
     await waitForCondition(cdp, "Stand records route renders upload", `(() => {
       return {
-        ok: Boolean(window.state?.standSeg === "records" && location.pathname === "/app/stand/records" && document.querySelector("#hUploadBox") && document.querySelector("#hUpload")),
+        ok: Boolean(window.state?.standSeg === "records" && location.pathname === "/app/you/records" && document.querySelector("#hUploadBox") && document.querySelector("#hUpload")),
         href: location.pathname,
         standSeg: window.state && window.state.standSeg,
         hasUploadBox: Boolean(document.querySelector("#hUploadBox")),
@@ -1065,7 +1095,7 @@ async function smokeHealthInnerNavigation(cdp, base) {
     })()`);
     // The domain drill-in must advance history, so browser/OS Back steps back UP
     // to the Stand overview instead of leaving Stand entirely.
-    await navigateAndHydrate(cdp, base, "/app/stand", "stand");
+    await navigateAndHydrate(cdp, base, "/app/you/health", "stand");
     await evaluate(cdp, `(() => {
       const btn = document.querySelector("[data-domain]");
       if (!btn) throw new Error("missing Stand domain tile");
@@ -1075,7 +1105,7 @@ async function smokeHealthInnerNavigation(cdp, base) {
     await waitForCondition(cdp, "Stand domain tile advances to its own route", `(() => ({
       ok: Boolean(
         window.state?.standSeg === "domain" &&
-        location.pathname === "/app/stand/domain" &&
+        location.pathname === "/app/you/domain" &&
         new URLSearchParams(location.search).get("id") &&
         document.querySelector("#standResults")
       ),
@@ -1083,13 +1113,13 @@ async function smokeHealthInnerNavigation(cdp, base) {
       standSeg: window.state && window.state.standSeg
     }))()`);
     await evaluate(cdp, `(() => { history.back(); return true; })()`);
-    await waitForCondition(cdp, "browser Back from a domain returns to the Stand overview", `(() => ({
-      ok: Boolean(window.state?.tab === "stand" && window.state?.standSeg == null && location.pathname === "/app/stand"),
+    await waitForCondition(cdp, "browser Back from a domain returns to the Health overview", `(() => ({
+      ok: Boolean(window.state?.tab === "stand" && window.state?.standSeg == null && location.pathname === "/app/you/health"),
       href: location.pathname + location.search,
       tab: window.state && window.state.tab,
       standSeg: window.state && window.state.standSeg
     }))()`);
-    ok(failures.length === 0, "/app/stand health-tool navigation workflow has no browser runtime/load errors", failures.join("\n"));
+    ok(failures.length === 0, "/app/you Health navigation workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
   }
@@ -1102,7 +1132,7 @@ async function smokeFamilyCrud(cdp, base) {
   const editedNote = `Edited note ${Date.now()}`;
   const editedNoteJson = JSON.stringify(editedNote);
   try {
-    await navigateAndHydrate(cdp, base, "/app/me/family", "me");
+    await navigateAndHydrate(cdp, base, "/app/you/family", "me");
     await assertGlobals(cdp);
 
     await waitForCondition(cdp, "Family renders the seeded roster", `(() => {
@@ -1199,7 +1229,7 @@ async function smokeFamilyCrud(cdp, base) {
       JSON.stringify(afterDelete?.map((m) => m.name)),
     );
 
-    ok(failures.length === 0, "/app/me/family workflow has no browser runtime/load errors", failures.join("\n"));
+    ok(failures.length === 0, "/app/you/family workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
   }
@@ -1210,7 +1240,7 @@ async function smokePlanEditorSaveAndMealRecipe(cdp, base) {
   const NEW_WEIGHT = "199";
   const newWeightJson = JSON.stringify(NEW_WEIGHT);
   try {
-    await navigateAndHydrate(cdp, base, "/app/plan/edit", "plan");
+    await navigateAndHydrate(cdp, base, "/app/train/plan", "plan");
     await assertGlobals(cdp);
 
     await waitForCondition(cdp, "Plan editor renders Day 1 with an Edit-day control", `(() => {
@@ -1316,7 +1346,7 @@ async function smokePlanEditorSaveAndMealRecipe(cdp, base) {
 async function smokeHealthRecordActions(cdp, base) {
   const { failures, off } = collectFailures(cdp, base);
   try {
-    await navigateAndHydrate(cdp, base, "/app/stand/records", "stand");
+    await navigateAndHydrate(cdp, base, "/app/you/records", "stand");
     await assertGlobals(cdp);
 
     await waitForCondition(cdp, "Health Records renders the seeded bloodwork/DEXA documents", `(() => {
@@ -1424,7 +1454,7 @@ async function smokeHealthRecordActions(cdp, base) {
     const savedDoc = await apiJson(base, `/health-docs/${first.id}`);
     ok(savedDoc?.doc_date === newDate, "API reflects the edited result date", JSON.stringify(savedDoc?.doc_date));
 
-    ok(failures.length === 0, "/app/stand/records workflow has no browser runtime/load errors", failures.join("\n"));
+    ok(failures.length === 0, "/app/you/records workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
   }
@@ -1433,7 +1463,7 @@ async function smokeHealthRecordActions(cdp, base) {
 async function smokeSettingsAgentsSourcesAutomation(cdp, base) {
   const { failures, off } = collectFailures(cdp, base);
   try {
-    await navigateAndHydrate(cdp, base, "/app/settings/agents", "settings");
+    await navigateAndHydrate(cdp, base, "/app/you/settings/agents", "settings");
     await assertGlobals(cdp);
 
     const initialSettings = await apiJson(base, "/settings");
@@ -1508,7 +1538,7 @@ async function smokeSettingsAgentsSourcesAutomation(cdp, base) {
         ok: Boolean(
           active &&
           window.state?.setSeg === "sources" &&
-          location.pathname === "/app/settings/sources" &&
+          location.pathname === "/app/you/settings/sources" &&
           document.querySelector("#garminUsername") &&
           status && status.textContent.includes("Never synced")
         ),
@@ -1549,7 +1579,7 @@ async function smokeSettingsAgentsSourcesAutomation(cdp, base) {
         ok: Boolean(
           active &&
           window.state?.setSeg === "automation" &&
-          location.pathname === "/app/settings/automation" &&
+          location.pathname === "/app/you/settings/automation" &&
           document.querySelector("#enrichEnabled") &&
           document.querySelector("#artEnabled") &&
           document.querySelector("#researchEnabled")
@@ -1579,7 +1609,7 @@ async function smokeSettingsAgentsSourcesAutomation(cdp, base) {
       String(savedSettings?.settings?.garmin_last_sync_status),
     );
 
-    ok(failures.length === 0, "/app/settings agents/sources/automation workflow has no browser runtime/load errors", failures.join("\n"));
+    ok(failures.length === 0, "/app/you/settings agents/sources/automation workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
   }

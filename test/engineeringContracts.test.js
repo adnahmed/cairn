@@ -1033,11 +1033,14 @@ test("PWA route literals stay aligned across parser, types, and segment registri
   assert.match(appRouter, /routeDefinitions\(\)\?\.tabs/);
   assert.match(appTabs, /window\.CairnAppRouter\?\.ROUTE_TABS/);
   assertSameMembers(objectKeys(uiSegments, "planHandlers"), plan, "Plan handlers must cover every plan route section");
+  // Train's nav carries every Progress route section plus ONE cross-view leaf:
+  // Program → Plan, the plan editor (the Plan view, living under the Train home).
   assertSameMembers(
     segmentKeys(uiSegments, "UI_PROGRESS_SEGMENTS"),
-    progress,
-    "Progress segments must cover every progress route section"
+    [...progress, "plan"],
+    "Progress segments must cover every progress route section, plus the plan editor leaf"
   );
+  assert.match(uiSegments, /UI_PROGRESS_CROSS_VIEW_LEAVES: ReadonlySet<string> = new Set\(\["plan"\]\)/);
   assert.match(
     uiSegments,
     /routedToEndurance\s*=\s*deps\.state\.planSeg\s*===\s*"endurance"\s*\|\|\s*deps\.state\.planJump\s*===\s*"endurance"/
@@ -1064,8 +1067,12 @@ test("PWA route literals stay aligned across parser, types, and segment registri
   );
   assert.match(meHealth, /const HEALTH_SEG = ME_HEALTH_SCREEN\.HEALTH_SEG/);
   const settingsSegments = segmentKeys(settingsScreen, "SET_SEG");
+  // "you" is the retired Settings landing slice: /app/settings/you redirects to
+  // the You home, so it is a seg-bar key at most, never a Settings route section.
   assertSameMembers(
-    settingsSegments.length ? settingsSegments : segmentKeys(settingsSurface, "SETTINGS_SURFACE_SEGMENTS"),
+    (settingsSegments.length ? settingsSegments : segmentKeys(settingsSurface, "SETTINGS_SURFACE_SEGMENTS")).filter(
+      (key) => key !== "you"
+    ),
     settings,
     "Settings segments must cover every Settings route section"
   );
@@ -1794,9 +1801,12 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(smokeBrowser, /freeDebugPort/);
   assert.match(smokeBrowser, /Page\.navigate/);
   assert.match(smokeBrowser, /expectedState/);
-  assert.match(smokeBrowser, /\/app\/me\/memory/);
+  // v2 wave 5: the smoke walks the five-home grammar, and the v1 paths redirect.
+  assert.match(smokeBrowser, /\/app\/you\/memory/);
+  assert.match(smokeBrowser, /\/app\/me\/memory", tab: "me", home: "you", expectedHref: "\/app\/you\/memory"/);
   assert.match(smokeBrowser, /meSeg: "memory"/);
-  assert.match(smokeBrowser, /\/app\/me\/family/);
+  assert.match(smokeBrowser, /\/app\/you\/family/);
+  assert.match(smokeBrowser, /\.tab\.active"\)\?\.dataset\.tab/);
   assert.match(smokeBrowser, /meSeg: "family"/);
   assert.match(smokeBrowser, /progressSeg: "energy"/);
   assert.match(smokeBrowser, /setSeg: "data"/);
@@ -1813,7 +1823,8 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(smokeBrowser, /#dayFuelSlot/);
   assert.match(smokeBrowser, /async function smokeHealthInnerNavigation/);
   assert.match(smokeBrowser, /\[data-allmarkers\]/);
-  assert.match(smokeBrowser, /\/app\/stand\/records/);
+  assert.match(smokeBrowser, /\/app\/you\/records/);
+  assert.match(smokeBrowser, /\/app\/stand\/records", tab: "stand", home: "you", expectedHref: "\/app\/you\/records"/);
   assert.match(smokeBrowser, /resetFocusAfterNativePicker/);
   assert.match(smokeBrowser, /cairn:keyboard-settle/);
   assert.match(smokeBrowser, /kb-geometry-open/);

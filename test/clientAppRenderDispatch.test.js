@@ -47,6 +47,8 @@ function loadRenderDispatch(options = {}) {
     renderSettings: () => calls.push(["renderSettings"]),
     renderSession: () => calls.push(["renderSession"]),
     renderToday: () => calls.push(["renderToday"]),
+    renderHorizon: () => calls.push(["renderHorizon"]),
+    renderYou: () => calls.push(["renderYou"]),
     showEnduranceTab: () => !!options.showEnduranceTab,
     state: {
       planJump: options.planJump || null,
@@ -163,4 +165,16 @@ test("a failed me-health injection rejects the render instead of throwing blind"
 
   await assert.rejects(Promise.resolve(env.context.renderTab("stand")), /boom/);
   assert.ok(!env.calls.some(([name]) => name === "renderStand"));
+});
+
+// The You and Horizon landings are in EAGER bundles: neither waits on me-health, so
+// You paints as fast as Today and only a tap into Health or About you loads it.
+test("render dispatcher paints the Horizon and You landings without the lazy bundle", () => {
+  for (const [tab, renderer] of [["horizon", "renderHorizon"], ["you", "renderYou"]]) {
+    const env = loadRenderDispatch();
+    env.context.renderTab(tab);
+    assert.equal(env.body.dataset.tab, tab);
+    assert.deepEqual(env.calls.at(-1), [renderer]);
+    assert.equal(env.calls.some(([kind]) => kind === "ensureBundle"), false, `${tab} never awaits me-health`);
+  }
 });

@@ -22,6 +22,18 @@ test("Plan Changes is history-first and keeps manual reviews secondary", () => {
   assert.doesNotMatch(source, /ASK TEAM TO REVIEW PROGRAM|ASK TEAM TO REFRESH MEALS|class="logbtn"/);
 });
 
+test("Changes lives under Ask: no Plan seg bar, one quiet way back to Ask", () => {
+  const coach = source.slice(source.indexOf("async function renderCoach"), source.indexOf("wireHomeBack(view);\n  mountCoachChanges();"));
+  assert.match(coach, /homeBackHtml\("ask", "Ask"\)/);
+  assert.doesNotMatch(coach, /segBar\(|planSeg\(\)/);
+  assert.match(source, /wireHomeBack\(view\)/);
+  // The shared helper lives in the shell and opens the named home's landing view.
+  const shell = readFileSync(join(root, "src/client/ui-shell.ts"), "utf8");
+  assert.match(shell, /function homeBackHtml\(home: ClientHomeName, label: string\): string/);
+  assert.match(shell, /activateTab\(\(e\.currentTarget as HTMLElement \| null\)\?\.dataset\.homeBack \|\| "today"\)/);
+  assert.doesNotMatch(source, /wireSeg\(PLAN_HANDLERS\)/, "neither Fuel nor Changes wears the Plan bar");
+});
+
 test("meal-plan Hold and Undo use the durable decision rollback path", () => {
   // The revert POST itself is the shared decision-undo component's
   // (test/decisionUndo.test.js drives it); this screen mounts it for both actions.

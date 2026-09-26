@@ -250,7 +250,9 @@ test("the strength editor models, draws and saves lift days only, and points run
   assert.match(editor.runsElsewhereHtml(), /your runs live in Endurance/);
   const controller = read("src/client/plan-editor-controller.ts");
   assert.match(controller, /strengthPlanDays\(/);
-  assert.match(controller, /\[data-plan-runs\][\s\S]{0,120}renderPlanEndurance\(\)/);
+  // Runs live on Horizon's race view (the Plan view's endurance section), so the
+  // pointer navigates there rather than repainting the editor's own view.
+  assert.match(controller, /\[data-plan-runs\][\s\S]{0,200}state\.planJump = state\.planSeg = "endurance"; activateTab\("plan"\)/);
   assert.doesNotMatch(controller, /data-addcardio|data-restday|data-pikind|blankCardio/);
 });
 

@@ -1,11 +1,15 @@
 // @ts-check
 // Segmented navigation plus the discipline state that gates Plan's Endurance tab.
+// Train's group/leaf nav also carries one CROSS-VIEW leaf: Program → Plan opens the
+// plan editor (the Plan view, which lives under the Train home), so its handler
+// navigates with activateTab instead of repainting the Progress view in place.
 
 type UiSegmentsSegment = readonly [string, string];
 type UiSegmentsHandlerMap = Record<string, () => unknown>;
 type UiSegmentsDeps = {
   root: ParentNode;
-  state: Pick<ClientAppState, "planSeg" | "planJump">;
+  state: Pick<ClientAppState, "planSeg" | "planJump" | "progressSeg">;
+  activateTab(name: string): unknown;
   segmentedNavHtml(options: { active: unknown; items: ReadonlyArray<UiSegmentsSegment> }): string;
   withViewTransition(fn: () => unknown): Promise<unknown> | unknown;
   viewEnter(): unknown;
@@ -35,6 +39,9 @@ type UiSegmentsController = {
   wireSeg(handlers: UiSegmentsHandlerMap): void;
   fitSeg(seg: Element | null | undefined): void;
   progressHandlers: UiSegmentsHandlerMap;
+  /** Train's nav as painted OUTSIDE the Progress view (the plan editor): every
+   *  Progress leaf navigates there, and Plan repaints the editor in place. */
+  progressLinkHandlers: UiSegmentsHandlerMap;
   planSeg(): readonly UiSegmentsSegment[];
   planHandlers: UiSegmentsHandlerMap;
 };
@@ -63,29 +70,32 @@ const UI_PROGRESS_SEGMENTS: readonly UiSegmentsSegment[] = [
   ["weight", "Weight"],
   ["measurements", "Measurements"],
   ["calendar", "Calendar"],
+  ["plan", "Plan"],
   ["program", "Program"],
   ["intake", "Intake"],
   ["energy", "Energy"],
 ];
 
-// Progress two-level nav: the 8 flat views regroup into 4 top GROUPS, each with an
-// optional sub-bar of leaves. This surfaces the flagship reads — Performance (the
-// athletic standing benchmark) and Fuel (adaptive nutrition) — as their own top
-// slots instead of burying them at the tail of an 8-wide scroll bar, and gives a
-// "Body" home for body-composition reads. The ROUTE stays the leaf
-// (/app/progress/<leaf>), so every deep link is unchanged.
+// Train's two-level nav: the flat views regroup into 4 top GROUPS, each with an
+// optional sub-bar of leaves. Program holds the program you are running — the plan
+// editor (Plan) and the program read (Program) — and Fuel the adaptive-nutrition
+// trends, as their own top slots instead of the tail of a wide scroll bar; "Body"
+// is the home for body-composition reads. The ROUTE stays the leaf
+// (/app/train/<leaf>), so every deep link is unchanged.
 const UI_PROGRESS_GROUPS: readonly UiSegmentsSegment[] = [
   ["train", "Train"],
-  ["performance", "Performance"],
+  ["program", "Program"],
   ["fuel", "Fuel"],
   ["body", "Body"],
 ];
 const UI_PROGRESS_GROUP_LEAVES: Record<string, readonly string[]> = {
   train: ["overview", "sessions", "trend", "volume", "endurance", "calendar"],
-  performance: ["program"],
+  program: ["plan", "program"],
   fuel: ["intake", "energy"],
   body: ["weight", "measurements"],
 };
+// Leaves that open ANOTHER view (the Plan view's editor) rather than a Progress one.
+const UI_PROGRESS_CROSS_VIEW_LEAVES: ReadonlySet<string> = new Set(["plan"]);
 const UI_PROGRESS_LEAF_GROUP: Record<string, string> = (() => {
   const map: Record<string, string> = {};
   for (const group of Object.keys(UI_PROGRESS_GROUP_LEAVES)) {
@@ -107,8 +117,11 @@ function uiProgressVisibleLeaves(group: string, activeLeaf: string): string[] {
   const leaves = UI_PROGRESS_GROUP_LEAVES[group] || [];
   return leaves.filter((leaf) => leaf !== "endurance" || uiSegmentsShowEnduranceTab() || activeLeaf === "endurance");
 }
+// A group tap stays in the view it was tapped from when it can: Program opens the
+// Program read, and the editor stays one leaf away.
 function uiProgressGroupDefaultLeaf(group: string): string {
-  return uiProgressVisibleLeaves(group, "")[0] || "sessions";
+  const leaves = uiProgressVisibleLeaves(group, "");
+  return leaves.find((leaf) => !UI_PROGRESS_CROSS_VIEW_LEAVES.has(leaf)) || leaves[0] || "sessions";
 }
 
 // Top group bar — the sliding segmented control, but the buttons carry
@@ -190,6 +203,14 @@ Object.defineProperty(globalThis, "enduranceGoalSet", {
 
 function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
   let segFitRaf = 0;
+  // Handlers that navigate to another view. They run bare: activateTab owns the
+  // swap, the route sync and the focus, so wrapping them in a second transition
+  // would double-animate.
+  const crossView = new WeakSet<() => unknown>();
+  function navigation(fn: () => unknown): () => unknown {
+    crossView.add(fn);
+    return fn;
+  }
 
   function segBar(active: unknown, items: ReadonlyArray<UiSegmentsSegment>): string {
     // The Progress seg-set renders as a two-level group/leaf nav; every other
@@ -212,6 +233,10 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
 
   function wireSeg(handlers: UiSegmentsHandlerMap): void {
     const drive = (button: HTMLElement, handler: () => unknown): void => {
+      if (crossView.has(handler)) {
+        handler();
+        return;
+      }
       const seg = button.closest(".seg");
       if (seg) {
         const index = [...seg.querySelectorAll<HTMLElement>(".segbtn")].indexOf(button);
@@ -260,8 +285,28 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
     program: () => deps.renderProgram(),
     intake: () => deps.renderIntake(),
     energy: () => deps.renderEnergy(),
+    plan: () => openPlan("edit"),
   };
+  navigation(progressHandlers.plan);
 
+  function openPlan(section: ClientPlanSection): void {
+    deps.state.planSeg = section;
+    deps.state.planJump = section === "edit" ? null : section;
+    deps.activateTab("plan");
+  }
+
+  const progressLinkHandlers: UiSegmentsHandlerMap = { plan: () => deps.renderPlanEditor() };
+  for (const [leaf] of UI_PROGRESS_SEGMENTS) {
+    if (UI_PROGRESS_CROSS_VIEW_LEAVES.has(leaf)) continue;
+    progressLinkHandlers[leaf] = navigation(() => {
+      deps.state.progressSeg = leaf as ClientProgressSection;
+      deps.activateTab("progress");
+    });
+  }
+
+  // The Plan seg bar. Fuel (Today), Changes (Ask) and the editor (Train) no longer
+  // wear it; the race view still does until Horizon takes it over, so each segment
+  // NAVIGATES (activateTab) and the lit home and URL follow the destination.
   // Food is the Fuel surface; the old Meals segment redirects into it (its weekly
   // journal is history in Food's fold), so the bar no longer carries a Meals pill.
   // "Changes" is the /app/plan/coach route — the background-coaching change record.
@@ -288,12 +333,13 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
   }
 
   const planHandlers: UiSegmentsHandlerMap = {
-    edit: () => deps.renderPlanEditor(),
-    endurance: () => deps.renderPlanEndurance(),
-    food: () => deps.renderFoodJournal(),
-    meals: () => deps.renderMeals(),
-    coach: () => deps.renderCoach(),
+    edit: () => openPlan("edit"),
+    endurance: () => openPlan("endurance"),
+    food: () => openPlan("food"),
+    meals: () => openPlan("meals"),
+    coach: () => openPlan("coach"),
   };
+  for (const handler of Object.values(planHandlers)) navigation(handler);
 
   deps.addResizeListener(scheduleFit);
 
@@ -302,6 +348,7 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
     wireSeg,
     fitSeg,
     progressHandlers,
+    progressLinkHandlers,
     planSeg,
     planHandlers,
   };

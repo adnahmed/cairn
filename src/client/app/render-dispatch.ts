@@ -46,6 +46,10 @@
     }
     if (tab === "progress") return (PROGRESS_HANDLERS[defaultProgressSeg()] || renderHistory)();
     if (tab === "chat") return renderChat();
+    // The You and Horizon landings live in EAGER bundles (02 and 06), so neither
+    // waits on me-health; only a tap into Health or About you loads it.
+    if (tab === "horizon") return renderHorizon();
+    if (tab === "you") return renderYou();
     if (tab === "me") return ensureBundle("me-health").then(() => renderMe());
     return renderSettings();
   }

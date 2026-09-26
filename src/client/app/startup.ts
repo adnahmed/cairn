@@ -11,7 +11,9 @@
     const landingParams = new URLSearchParams(location.search);
     const hasRouteState = location.pathname.startsWith("/app") || landingParams.has("tab") || landingParams.has("date");
     const landingTab = hasRouteState ? applyRouteState(landingRoute) : landingParams.get("tab");
-    const canonicalizeLanding = hasRouteState && !location.pathname.startsWith("/app");
+    // A v1 URL (/app/plan/food, /stand/records, ?tab=chat, ...) is rewritten to its
+    // v2 home in place: replaceState, so Back never walks into the old address.
+    const canonicalizeLanding = hasRouteState && (!location.pathname.startsWith("/app") || !!landingRoute?.legacy);
 
     primeDiscipline();
     activateTab(landingTab || "today", { replace: canonicalizeLanding, syncRoute: canonicalizeLanding });
@@ -19,7 +21,8 @@
       const routes = routeApi();
       const route = routes ? routes.parseRoute(location.href) : null;
       const tab = applyRouteState(route);
-      activateTab(tab, { syncRoute: false });
+      // A v1 entry still in the history stack is canonicalised as it is re-entered.
+      activateTab(tab, route?.legacy ? { replace: true } : { syncRoute: false });
     });
 
     maybeOnboard();

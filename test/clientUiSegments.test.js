@@ -81,10 +81,15 @@ function createController(context, overrides = {}) {
     renderFoodJournal: () => calls.push(["renderFoodJournal"]),
     renderMeals: () => calls.push(["renderMeals"]),
     renderCoach: () => calls.push(["renderCoach"]),
+    activateTab: (name) => calls.push(["activateTab", name]),
     ...overrides.deps,
   };
   const controller = context.CairnUiSegments.create(deps);
   return { calls, controller, resizeListeners, state, view };
+}
+
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 async function flush() {
@@ -193,18 +198,65 @@ test("UI segments delegate rendering, click routing, resize fitting, and handler
   assert.ok(calls.some((call) => call[0] === "cancelAnimationFrame"));
   assert.ok(calls.some((call) => call[0] === "raf"));
 
+  // The Plan bar's segments NAVIGATE (a Plan section can live under another
+  // home), so the lit tab and the URL follow the destination.
   controller.planHandlers.endurance();
-  assert.ok(calls.some((call) => call[0] === "renderPlanEndurance"));
+  assert.deepEqual(calls.at(-1), ["activateTab", "plan"]);
 });
 
-test("Progress nav groups the 8 views into 4 top groups with leaf sub-tabs", () => {
+test("Train's Plan leaf and the editor's Progress leaves are cross-view navigations", async () => {
+  const context = loadSegments();
+  const state = { planSeg: "food", planJump: "food", progressSeg: "overview" };
+  const leaf = (key) => ({
+    dataset: { seg: key },
+    listeners: {},
+    addEventListener(type, fn) {
+      this.listeners[type] = fn;
+    },
+    closest() {
+      return null;
+    },
+  });
+  const planBtn = leaf("plan");
+  const historyBtn = leaf("sessions");
+  const view = {
+    querySelectorAll(selector) {
+      return selector === ".segbtn" ? [planBtn, historyBtn] : [];
+    },
+  };
+  const { calls, controller } = createController(context, { view, state });
+
+  // From Train: Program → Plan opens the editor through activateTab, bare (no
+  // second transition, no extra route sync: activateTab owns both).
+  controller.wireSeg(controller.progressHandlers);
+  planBtn.listeners.click();
+  await flush();
+  assert.equal(state.planSeg, "edit");
+  assert.equal(state.planJump, null);
+  assert.deepEqual(plain(calls), [["activateTab", "plan"]]);
+
+  // From the editor: a Progress leaf returns to the Progress view on that leaf.
+  calls.length = 0;
+  controller.wireSeg(controller.progressLinkHandlers);
+  historyBtn.listeners.click();
+  await flush();
+  assert.equal(state.progressSeg, "sessions");
+  assert.deepEqual(plain(calls), [["activateTab", "progress"]]);
+  assert.equal(Object.hasOwn(controller.progressLinkHandlers, "plan"), true);
+});
+
+test("Train nav groups its views into 4 top groups with leaf sub-tabs", () => {
   const context = loadSegments();
   const { controller } = createController(context);
   const PROGRESS_SEG = context.CairnUiSegments.PROGRESS_SEG;
 
-  // Leaf → group mapping surfaces the two flagship reads as their own top slots.
+  // Leaf → group mapping: Program holds the program you run (the plan editor and
+  // the program read); Fuel the nutrition trends.
+  assert.deepEqual(segmentKeys(context.CairnUiSegments.PROGRESS_GROUPS), ["train", "program", "fuel", "body"]);
+  assert.deepEqual(segmentLabels(context.CairnUiSegments.PROGRESS_GROUPS), ["Train", "Program", "Fuel", "Body"]);
   assert.equal(context.CairnUiSegments.progressGroupOf("sessions"), "train");
-  assert.equal(context.CairnUiSegments.progressGroupOf("program"), "performance");
+  assert.equal(context.CairnUiSegments.progressGroupOf("program"), "program");
+  assert.equal(context.CairnUiSegments.progressGroupOf("plan"), "program");
   assert.equal(context.CairnUiSegments.progressGroupOf("energy"), "fuel");
   assert.equal(context.CairnUiSegments.progressGroupOf("intake"), "fuel");
   assert.equal(context.CairnUiSegments.progressGroupOf("weight"), "body");
@@ -228,11 +280,15 @@ test("Progress nav groups the 8 views into 4 top groups with leaf sub-tabs", () 
   assert.match(fuelNav, /data-seg="intake"/);
   assert.match(fuelNav, /data-seg="energy"[^>]*aria-pressed="true"/);
 
-  // A single-view group (Performance → Program) renders the group bar ONLY — the
-  // leaf bar is sub-level chrome that exists only when there is a choice to make.
-  const perfNav = controller.segBar("program", PROGRESS_SEG);
-  assert.match(perfNav, /data-proggroup="performance"[^>]*aria-pressed="true"/);
-  assert.doesNotMatch(perfNav, /prog-subwrap|prog-subseg|data-seg=/);
+  // Program carries two leaves: Plan (the editor) and Program (the read).
+  const programNav = controller.segBar("program", PROGRESS_SEG);
+  assert.match(programNav, /data-proggroup="program"[^>]*aria-pressed="true"/);
+  assert.match(programNav, /data-seg="plan"[^>]*>Plan</);
+  assert.match(programNav, /data-seg="program"[^>]*aria-pressed="true"/);
+  // The editor paints the same nav with its own leaf lit.
+  const editorNav = controller.segBar("plan", PROGRESS_SEG);
+  assert.match(editorNav, /data-proggroup="program"[^>]*aria-pressed="true"/);
+  assert.match(editorNav, /data-seg="plan"[^>]*aria-pressed="true"/);
 
   // A non-Progress seg-set is untouched (still the flat sliding bar).
   assert.equal(controller.segBar("trend", [["trend", "1RM"]]), `<seg data-active="trend" data-items="1"></seg>`);
@@ -270,7 +326,7 @@ test("Progress top-group buttons route to the group's default leaf", async () =>
   const context = loadSegments();
   const groupBtn = {
     classList: classList(),
-    dataset: { proggroup: "performance" },
+    dataset: { proggroup: "program" },
     listeners: {},
     addEventListener(type, fn) {
       this.listeners[type] = fn;
@@ -299,7 +355,7 @@ test("Progress top-group buttons route to the group's default leaf", async () =>
 
   assert.ok(
     calls.some((call) => call[0] === "renderProgram"),
-    "Performance group opens the Program standing read"
+    "the Program group opens the Program read, staying in the view it was tapped from"
   );
   assert.ok(calls.some((call) => call[0] === "syncRouteFromState"));
 });

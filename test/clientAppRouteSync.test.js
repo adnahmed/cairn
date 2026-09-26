@@ -193,3 +193,14 @@ test("route sync wrapper degrades when the route parser is unavailable", () => {
     },
   ]);
 });
+
+// A section change inside a view can move it to another home (Plan's race view is
+// Horizon's, its Fuel is Today's), so every URL sync re-lights the tab bar first.
+test("every route sync re-lights the home the current view lives under", () => {
+  const env = loadRouteSync({ tab: "plan" });
+  const lit = [];
+  env.context.highlightHome = (view) => lit.push(view);
+  env.context.syncRouteFromState();
+  assert.deepEqual(lit, ["plan"]);
+  assert.equal(env.calls.at(-1)[0], "pushState");
+});

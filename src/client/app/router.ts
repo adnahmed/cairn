@@ -52,11 +52,10 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
 
   // ONE default for the Settings landing section, read from the route definitions
   // (src/contracts/client-routes.ts, mirrored in route-state.ts) rather than
-  // repeated as a literal here. The definitions used to say "agents" while both
-  // call sites below fell back to "you" — the literals won, so nothing shipped
-  // wrong, but the contract disagreed with the behaviour it was meant to describe.
+  // repeated as a literal here. Settings opens on Sources: its old "You" slice is
+  // the You home's own landing now.
   function defaultSettingsSection(): ClientSettingsSection {
-    return (routeDefinitions()?.defaults.settingsSection || "you") as ClientSettingsSection;
+    return (routeDefinitions()?.defaults.settingsSection || "sources") as ClientSettingsSection;
   }
 
   // "Today" is a moving target, not a bookmark. Pinning it as an absolute ?date=
@@ -89,8 +88,9 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
     return ROUTE_TABS.includes(s as ClientTabName) ? s as ClientTabName : "today";
   }
 
-  // Legacy me/standing + me/health/* deep links redirect into the Stand tab, where
-  // every health surface now lives first-class. Old bookmarks keep working.
+  // Legacy me/standing + me/health/* routes redirect into Health (the Stand view),
+  // where every health surface lives first-class. parseRoute already maps a v1
+  // URL there; this covers a route object built in code with the old shape.
   const LEGACY_HEALTH_TO_STAND: Record<string, string | null> = {
     read: null, // the overview IS the read
     markers: "markers",
@@ -149,6 +149,13 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
       state.setSeg = routeKey(route.section, options.settingsSections, state.setSeg || defaultSettingsSection()) as ClientSettingsSection;
     } else if (tab === "chat") {
       state.pendingChatSession = route.session || null;
+    } else if (tab === "horizon") {
+      state.horizonSeg = (String(route.section || "") === "goal" ? "goal" : null) as ClientHorizonSection | null;
+    } else if (tab === "you") {
+      // A stone detail carries WHICH stone in ?id=; without one it is the landing.
+      const stone = String(route.section || "") === "stone" && route.id ? route.id : null;
+      state.youSeg = stone ? "stone" : null;
+      state.youStone = stone;
     }
 
     return tab;
@@ -178,6 +185,11 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
       route.section = routeKey(state.setSeg, options.settingsSections, defaultSettingsSection()) as AppRoute["section"];
     } else if (tab === "chat" && state.pendingChatSession) {
       route.session = state.pendingChatSession;
+    } else if (tab === "horizon") {
+      route.section = (state.horizonSeg || null) as AppRoute["section"];
+    } else if (tab === "you" && state.youSeg === "stone" && state.youStone) {
+      route.section = "stone";
+      route.id = state.youStone;
     }
     return route;
   }

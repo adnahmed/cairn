@@ -30,16 +30,16 @@
     },
     {
       "name": "Ask the coach",
-      "short_name": "Chat",
-      "description": "Chat with your coaching agent",
-      "url": "/app/chat?source=shortcut",
+      "short_name": "Ask",
+      "description": "Talk to your coaching team",
+      "url": "/app/ask?source=shortcut",
       "icons": [{ "src": "/icons/icon-192.v2.png", "sizes": "192x192" }]
     },
     {
-      "name": "Progress",
-      "short_name": "Progress",
-      "description": "Volume, PRs and trends",
-      "url": "/app/progress/sessions?source=shortcut",
+      "name": "Train history",
+      "short_name": "Train",
+      "description": "Sessions, PRs and trends",
+      "url": "/app/train/sessions?source=shortcut",
       "icons": [{ "src": "/icons/icon-192.v2.png", "sizes": "192x192" }]
     }
   ],

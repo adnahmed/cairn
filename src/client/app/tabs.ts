@@ -28,9 +28,44 @@ type TabSwitchOptions = {
     return !!err && typeof err === "object" && (err as { name?: unknown }).name === "CairnApiError";
   }
 
+  // A view name is itself; a home name (a tab-bar button: "train", "ask", ...)
+  // opens that home's landing view; anything else lands on Today.
   function normalizeTabName(tab: unknown): ClientTabName {
     const candidate = String(tab || "");
-    return TAB_NAMES.includes(candidate as ClientTabName) ? (candidate as ClientTabName) : "today";
+    if (TAB_NAMES.includes(candidate as ClientTabName)) return candidate as ClientTabName;
+    const routes = window.CairnRoutes;
+    if (routes && typeof routes.viewFor === "function" && routes.homes.includes(candidate as ClientHomeName)) {
+      return routes.viewFor(candidate);
+    }
+    return "today";
+  }
+
+  // The tab-bar home a view lives under. Only Plan needs its section: the editor
+  // is Train's, the race view Horizon's, Fuel Today's and Changes Ask's.
+  function homeOfView(tab: ClientTabName): ClientHomeName {
+    const routes = window.CairnRoutes;
+    const section = tab === "plan" ? state.planJump || state.planSeg || "edit" : null;
+    return routes && typeof routes.homeOf === "function" ? routes.homeOf(tab, section) : (tab as ClientHomeName);
+  }
+
+  // Light the tab-bar button of the home `tab` (default: the current view) lives
+  // under. Called on every switch, and by the route sync, so a section change
+  // inside a view (Plan's Race -> Fuel) moves the lit home with it.
+  function highlightHome(tab: unknown = state.tab): ClientHomeName {
+    const home = homeOfView(normalizeTabName(tab));
+    document.querySelectorAll<HTMLElement>(".tab").forEach((el) => {
+      const isActive = el.dataset.tab === home;
+      el.classList.toggle("active", isActive);
+      // aria-current names the live tab for assistive tech; the active dot (mobile)
+      // / bold label + inset (desktop) carry the non-color affordance in CSS.
+      if (isActive) el.setAttribute("aria-current", "page");
+      else el.removeAttribute("aria-current");
+    });
+    const moved = (globalThis as { CairnMovedNote?: { sync(view: string, home: string): unknown } }).CairnMovedNote;
+    try {
+      moved?.sync(normalizeTabName(tab), home);
+    } catch {}
+    return home;
   }
 
   // The Progress sub-view to land on. Endurance athletes default to the Endurance
@@ -49,19 +84,14 @@ type TabSwitchOptions = {
       return segSkeleton(seg, PROGRESS_SEG, seg === "endurance" ? 2 : 3);
     }
     if (tab === "plan") {
-      const activePlan = state.planJump || state.planSeg;
-      const jump =
-        activePlan === "food"
-          ? "food"
-          : activePlan === "meals"
-            ? "meals"
-            : activePlan === "coach"
-              ? "coach"
-              : activePlan === "endurance"
-                ? "endurance"
-                : "edit";
-      return segSkeleton(jump, planSeg(), 3);
+      // Fuel and Changes carry no seg bar; the editor wears Train's group nav; the
+      // race view keeps its own bar until Horizon takes it over.
+      const activePlan = state.planJump || state.planSeg || "edit";
+      if (activePlan === "food" || activePlan === "meals" || activePlan === "coach") return skelLines(2) + skelLines(3);
+      if (activePlan === "endurance") return segSkeleton("endurance", planSeg(), 3);
+      return segSkeleton("plan", PROGRESS_SEG, 3);
     }
+    if (tab === "horizon" || tab === "you") return skelLines(2) + skelLines(3);
     if (tab === "me") {
       // The skeleton paints BEFORE renderTab awaits the lazy me-health bundle, so
       // ME_SEG (defined by that bundle) may not exist on the very first visit.
@@ -99,7 +129,7 @@ type TabSwitchOptions = {
   // leaves with the focus) and asks for focusVisible:false where supported; a
   // keyboard-driven switch keeps the ring.
   function tabDisplayName(tab: ClientTabName): string {
-    const el = document.querySelector<HTMLElement>(`.tab[data-tab="${tab}"]`);
+    const el = document.querySelector<HTMLElement>(`.tab[data-tab="${homeOfView(tab)}"]`);
     const label = el?.getAttribute("aria-label") || el?.querySelector(".tab-lbl")?.textContent || "";
     return label.trim() || tab;
   }
@@ -194,15 +224,8 @@ type TabSwitchOptions = {
     teardownJobs();
     closeDetail(true);
     closeMealSheet(true);
-    document.querySelectorAll<HTMLElement>(".tab").forEach((el) => {
-      const isActive = el.dataset.tab === next;
-      el.classList.toggle("active", isActive);
-      // aria-current names the live tab for assistive tech; the active dot (mobile)
-      // / bold label + inset (desktop) carry the non-color affordance in CSS.
-      if (isActive) el.setAttribute("aria-current", "page");
-      else el.removeAttribute("aria-current");
-    });
     state.tab = next;
+    highlightHome(next);
     if (opts.syncRoute !== false) syncRouteFromState(opts.replace ? "replace" : "push");
     // Started exactly once — inside the swap when it runs, or after it if the swap
     // itself failed before calling back.
@@ -258,9 +281,8 @@ type TabSwitchOptions = {
   function registerTabBarHandlers(): void {
     document.querySelectorAll<HTMLElement>(".tab").forEach((tab) => {
       tab.addEventListener("click", (event?: MouseEvent) => {
-        // The Plan tab from the tab bar opens on Training. A Food/Meals visit is a
-        // jump someone else asked for (planJump), never a new default for the tab.
-        if (tab.dataset.tab === "plan" && state.tab !== "plan" && !state.planJump) state.planSeg = "edit";
+        // Each button names a HOME (today, train, horizon, ask, you); normalizeTabName
+        // opens that home's landing view.
         // A keyboard-activated button click reports detail 0; a tap or mouse click ≥ 1.
         switchTab(tab.dataset.tab, { focusView: true, focusRing: !!event && event.detail === 0 });
       });
@@ -274,9 +296,11 @@ type TabSwitchOptions = {
   }
 
   Object.assign(globalThis, { activateTab, defaultProgressSeg, registerTabBarHandlers, switchTab });
+  Object.assign(globalThis, { highlightHome });
 
   if (typeof window !== "undefined") {
     window.activateTab = activateTab;
+    window.highlightHome = highlightHome;
     window.defaultProgressSeg = defaultProgressSeg;
     window.registerTabBarHandlers = registerTabBarHandlers;
     window.switchTab = switchTab;

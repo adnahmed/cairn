@@ -19,7 +19,7 @@ function agentName(agent: CoachAgent): string {
   return typeof agent.name === "string" && agent.name ? agent.name : "agent";
 }
 
-// ---------- Changes (Plan → Changes) ----------
+// ---------- Changes (Ask → Changes) ----------
 // A composition only: the shell paints synchronously, then two components mount into
 // their own slots — the calm asks that still need the athlete (ask-card-*.ts) and the
 // history-first Changes feed with Undo (changes-feed-*.ts). The proposal and meal-plan
@@ -65,11 +65,12 @@ async function renderCoach(): Promise<void> {
   headerTitle.textContent = "Changes";
   state.planSeg = "coach";
   const token = ++pollToken;
-  // Changes is a first-class Plan segment, so the bar IS the way back.
+  // Changes lives under Ask (the team), reached from Ask and from Today's
+  // changes-line; the back link returns to the conversation.
   view.innerHTML =
-    segBar("coach", planSeg()) +
+    homeBackHtml("ask", "Ask") +
     `
-    <p class="changes-lede sess-line">Your expert team adapts training and meals in the background, then leaves a clear record here. Most changes need nothing from you: they arrive at the right boundary with a heads-up and Undo. Talk to the team anytime in the <button class="linkbtn linkbtn-plain" id="changesToChat" type="button">Coach</button> tab.</p>
+    <p class="changes-lede sess-line">Your expert team adapts training and meals in the background, then leaves a clear record here. Most changes need nothing from you: they arrive at the right boundary with a heads-up and Undo. Talk to the team anytime in <button class="linkbtn linkbtn-plain" id="changesToChat" type="button">Ask</button>.</p>
     <div id="changesAsksSlot" class="changes-asks"></div>
     <h1 class="lbl changes-h">What the team changed</h1>
     <div id="changesFeedSlot" class="changes-feed-slot"></div>
@@ -102,7 +103,7 @@ async function renderCoach(): Promise<void> {
       <div id="mealstatus" class="changes-status"></div>
     </details>`;
 
-  wireSeg(PLAN_HANDLERS);
+  wireHomeBack(view);
   mountCoachChanges();
   $("#changesToChat")?.addEventListener("click", () => activateTab("chat"));
   $<HTMLSelectElement>("#presetsel")?.addEventListener("change", (e) => {
@@ -229,15 +230,16 @@ function mountFuelSurface(token: number, date: string, today: string): void {
 }
 
 function renderFoodJournal(options: { history?: boolean } = {}): Promise<unknown> {
-  headerTitle.textContent = "Plan";
+  headerTitle.textContent = "Fuel";
   state.planSeg = "food";
   const token = ++pollToken;
   const today = localISO();
   const date = state.logDate || today;
   // Logging and ideas are about the rest of TODAY; another day is read and corrected only.
   const isToday = date === today;
+  // Fuel opens from Today (its Fuel card), so it steps back there.
   view.innerHTML =
-    segBar("food", planSeg()) +
+    homeBackHtml("today", "Today") +
     `<section class="meal-energy food-journal fuel" id="mealEnergy">
       <div id="dayFuelSlot" class="fuel-slot"></div>
       ${isToday ? `<div id="fuelLogSlot" class="fuel-slot"></div>` : ""}
@@ -251,7 +253,7 @@ function renderFoodJournal(options: { history?: boolean } = {}): Promise<unknown
         <div id="fuelHistorySlot" class="fuel-history-body"></div>
       </details>
     </section>`;
-  wireSeg(PLAN_HANDLERS);
+  wireHomeBack(view);
   mountFuelSurface(token, date, today);
   loadMealsEnergy(token);
   const fold = view.querySelector<HTMLDetailsElement>("#fuelHistory");

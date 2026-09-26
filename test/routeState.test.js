@@ -1,3 +1,7 @@
+// The v2 URL contract and the v1 -> v2 redirect table (v2 wave 5 acceptance: "a
+// redirect table test covers every v1 /app/<tab>/<section> path"). Eight v1 tabs
+// became five homes (Today, Train, Horizon, Ask, You); every old address still
+// parses, lands on the same surface, and is rewritten to its v2 form in place.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -15,97 +19,245 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-test("route-state parses canonical deep links", () => {
+// Where a parsed URL lands, then the canonical URL the shell rewrites it to.
+function landing(routes, url) {
+  const r = routes.parseRoute(url);
+  return {
+    view: r.tab,
+    section: r.section,
+    home: r.home,
+    legacy: r.legacy,
+    canonical: routes.routeToUrl(r),
+  };
+}
+
+// ---- The redirect table: one row per v1 path (docs: wave5 design section 2) ----
+// [v1 url, view, section, home, v2 canonical]
+const REDIRECTS = [
+  // Default
+  ["/app", "today", null, "today", "/app/today"],
+  ["/app/nowhere", "today", null, "today", "/app/today"],
+  ["/?tab=bogus", "today", null, "today", "/app/today"],
+  // Session moves under Today
+  ["/app/session", "session", null, "today", "/app/today/session"],
+  ["/app/session?date=2026-06-29", "session", null, "today", "/app/today/session?date=2026-06-29"],
+  // Plan splits across four homes
+  ["/app/plan", "plan", "edit", "train", "/app/train/plan"],
+  ["/app/plan/edit", "plan", "edit", "train", "/app/train/plan"],
+  ["/app/plan/endurance", "plan", "endurance", "horizon", "/app/horizon/race"],
+  ["/app/plan/food", "plan", "food", "today", "/app/today/fuel"],
+  ["/app/plan/food?date=2026-06-28", "plan", "food", "today", "/app/today/fuel?date=2026-06-28"],
+  ["/app/plan/meals", "plan", "meals", "today", "/app/today/fuel"],
+  ["/app/plan/coach", "plan", "coach", "ask", "/app/ask/changes"],
+  ["/app/plan?jump=edit", "plan", "edit", "train", "/app/train/plan"],
+  ["/app/plan?jump=endurance", "plan", "endurance", "horizon", "/app/horizon/race"],
+  ["/app/plan?jump=food", "plan", "food", "today", "/app/today/fuel"],
+  ["/app/plan?jump=meals", "plan", "meals", "today", "/app/today/fuel"],
+  ["/app/plan?jump=coach", "plan", "coach", "ask", "/app/ask/changes"],
+  // Progress is Train, leaf for leaf
+  ["/app/progress", "progress", null, "train", "/app/train"],
+  ...CLIENT_ROUTE_DEFINITIONS.sections.progress.map((leaf) => [
+    `/app/progress/${leaf}`,
+    "progress",
+    leaf,
+    "train",
+    `/app/train/${leaf}`,
+  ]),
+  // Stand is Health, under You
+  ["/app/stand", "stand", null, "you", "/app/you/health"],
+  ...["records", "share", "learned", "connections", "markers", "body", "recovery", "supplements", "age", "checkup"].map(
+    (section) => [`/app/stand/${section}`, "stand", section, "you", `/app/you/${section}`]
+  ),
+  ["/app/stand/records?id=doc_42", "stand", "records", "you", "/app/you/records?id=doc_42"],
+  ["/app/stand/domain?id=heart", "stand", "domain", "you", "/app/you/domain?id=heart"],
+  ["/app/stand/domain", "stand", null, "you", "/app/you/health"],
+  // Me is About you, under You
+  ["/app/me", "me", "profile", "you", "/app/you/profile"],
+  ["/app/me/profile", "me", "profile", "you", "/app/you/profile"],
+  ["/app/me/memory", "me", "memory", "you", "/app/you/memory"],
+  ["/app/me/life", "me", "life", "you", "/app/you/life"],
+  ["/app/me/family", "me", "family", "you", "/app/you/family"],
+  ["/app/me/standing", "stand", "age", "you", "/app/you/age"],
+  ["/app/me/health", "stand", null, "you", "/app/you/health"],
+  ["/app/me/health/read", "stand", null, "you", "/app/you/health"],
+  ["/app/me?health=read", "me", "profile", "you", "/app/you/profile"],
+  ["/app/me/health?health=read", "stand", null, "you", "/app/you/health"],
+  ["/app/me/health/markers", "stand", "markers", "you", "/app/you/markers"],
+  ["/app/me/health/records", "stand", "records", "you", "/app/you/records"],
+  ["/app/me/health/records?id=doc_42", "stand", "records", "you", "/app/you/records?id=doc_42"],
+  ["/app/me/health/share", "stand", "share", "you", "/app/you/share"],
+  ["/app/me/health/learned", "stand", "learned", "you", "/app/you/learned"],
+  ["/app/me/health?health=markers", "stand", "markers", "you", "/app/you/markers"],
+  ["/app/me/health/not-real", "stand", null, "you", "/app/you/health"],
+  // Chat is Ask
+  ["/app/chat", "chat", null, "ask", "/app/ask"],
+  ["/app/chat?session=chat_17", "chat", null, "ask", "/app/ask?session=chat_17"],
+  // Settings lives in You; its old landing slice IS the You landing
+  ["/app/settings", "you", null, "you", "/app/you"],
+  ["/app/settings/you", "you", null, "you", "/app/you"],
+  ...["sources", "automation", "data", "agents", "system"].map((section) => [
+    `/app/settings/${section}`,
+    "settings",
+    section,
+    "you",
+    `/app/you/settings/${section}`,
+  ]),
+  // The bare /<tab>/<section> and ?tab=<tab> forms the v1 parser accepted
+  ["/plan/food", "plan", "food", "today", "/app/today/fuel"],
+  ["/stand/records?id=doc_42", "stand", "records", "you", "/app/you/records?id=doc_42"],
+  ["/progress/program", "progress", "program", "train", "/app/train/program"],
+  ["/?tab=chat", "chat", null, "ask", "/app/ask"],
+  ["/?tab=settings", "you", null, "you", "/app/you"],
+  ["/?tab=session&date=2026-06-29", "session", null, "today", "/app/today/session?date=2026-06-29"],
+];
+
+test("the redirect table: every v1 path lands on its surface and rewrites to v2", () => {
+  const routes = loadRoutes();
+  for (const [url, view, section, home, canonical] of REDIRECTS) {
+    assert.deepEqual(
+      landing(routes, url),
+      { view, section, home, legacy: true, canonical },
+      `v1 ${url}`
+    );
+  }
+});
+
+test("the redirect table covers every v1 tab and every v1 section", () => {
+  const v1 = {
+    plan: ["edit", "endurance", "food", "meals", "coach"],
+    progress: CLIENT_ROUTE_DEFINITIONS.sections.progress,
+    stand: CLIENT_ROUTE_DEFINITIONS.sections.stand,
+    me: ["standing", "profile", "memory", "health", "life", "family"],
+    settings: ["you", "sources", "automation", "data", "agents", "system"],
+  };
+  const paths = new Set(REDIRECTS.map(([url]) => new URL(url, "http://x").pathname));
+  for (const tab of ["session", "plan", "progress", "stand", "me", "chat", "settings"]) {
+    assert.ok(paths.has(`/app/${tab}`), `/app/${tab} has a row`);
+  }
+  for (const [tab, sections] of Object.entries(v1)) {
+    for (const section of sections) assert.ok(paths.has(`/app/${tab}/${section}`), `/app/${tab}/${section} has a row`);
+  }
+});
+
+test("a canonical v2 URL parses to its surface and is never re-redirected", () => {
+  const routes = loadRoutes();
+  const V2 = [
+    ["/app/today", "today", null, "today"],
+    ["/app/today?date=2026-06-29", "today", null, "today"],
+    ["/app/today/session?date=2026-06-29", "session", null, "today"],
+    ["/app/today/fuel?date=2026-06-28", "plan", "food", "today"],
+    ["/app/train", "progress", null, "train"],
+    ...CLIENT_ROUTE_DEFINITIONS.sections.progress.map((leaf) => [`/app/train/${leaf}`, "progress", leaf, "train"]),
+    ["/app/train/plan", "plan", "edit", "train"],
+    ["/app/horizon", "horizon", null, "horizon"],
+    ["/app/horizon/race", "plan", "endurance", "horizon"],
+    ["/app/horizon/goal", "horizon", "goal", "horizon"],
+    ["/app/ask", "chat", null, "ask"],
+    ["/app/ask?session=chat_17", "chat", null, "ask"],
+    ["/app/ask/changes", "plan", "coach", "ask"],
+    ["/app/you", "you", null, "you"],
+    ["/app/you/stone?id=heart", "you", "stone", "you"],
+    ["/app/you/health", "stand", null, "you"],
+    ["/app/you/domain?id=heart", "stand", "domain", "you"],
+    ...["records", "share", "learned", "connections", "markers", "body", "recovery", "supplements", "age", "checkup"].map(
+      (s) => [`/app/you/${s}`, "stand", s, "you"]
+    ),
+    ...["profile", "life", "family", "memory"].map((s) => [`/app/you/${s}`, "me", s, "you"]),
+    ["/app/you/settings", "settings", null, "you"],
+    ...CLIENT_ROUTE_DEFINITIONS.sections.settings.map((s) => [`/app/you/settings/${s}`, "settings", s, "you"]),
+  ];
+  for (const [url, view, section, home] of V2) {
+    assert.deepEqual(landing(routes, url), { view, section, home, legacy: false, canonical: url }, `v2 ${url}`);
+  }
+  // Unrelated query params (a manifest shortcut's ?source=) are not a reason to rewrite.
+  assert.equal(routes.parseRoute("/app/ask?source=shortcut").legacy, false);
+  assert.equal(routes.parseRoute("/app/train/sessions?source=shortcut").legacy, false);
+});
+
+test("a v2 path that names nothing valid lands on its home and is tidied", () => {
+  const routes = loadRoutes();
+  assert.deepEqual(landing(routes, "/app/train/bogus"), {
+    view: "progress", section: null, home: "train", legacy: true, canonical: "/app/train",
+  });
+  assert.deepEqual(landing(routes, "/app/you/domain"), {
+    view: "stand", section: null, home: "you", legacy: true, canonical: "/app/you/health",
+  });
+  assert.deepEqual(landing(routes, "/app/you/settings/you"), {
+    view: "settings", section: null, home: "you", legacy: true, canonical: "/app/you/settings",
+  });
+  assert.deepEqual(landing(routes, "/app/horizon/nope"), {
+    view: "horizon", section: null, home: "horizon", legacy: true, canonical: "/app/horizon",
+  });
+});
+
+test("route-state mirrors the route definitions and parses the full route shape", () => {
   const routes = loadRoutes();
   assert.deepEqual(plain(routes.routeDefinitions), plain(CLIENT_ROUTE_DEFINITIONS));
-  assert.deepEqual(plain(routes.parseRoute("/app/today?date=2026-06-29")), {
-    tab: "today", section: null, healthSection: null, date: "2026-06-29", id: null, session: null, jump: null,
-  });
-  assert.deepEqual(plain(routes.parseRoute("/app/plan/meals?date=2026-06-29")), {
-    tab: "plan", section: "meals", healthSection: null, date: "2026-06-29", id: null, session: null, jump: null,
-  });
-  assert.deepEqual(plain(routes.parseRoute("/app/plan/food?date=2026-06-28")), {
-    tab: "plan", section: "food", healthSection: null, date: "2026-06-28", id: null, session: null, jump: null,
+  assert.deepEqual(plain(routes.parseRoute("/app/today/fuel?date=2026-06-29")), {
+    home: "today", tab: "plan", section: "food", healthSection: null, date: "2026-06-29", id: null, session: null, jump: null, legacy: false,
   });
   assert.deepEqual(plain(routes.parseRoute("/app/me/health/markers?id=42")), {
-    tab: "me", section: "health", healthSection: "markers", date: null, id: "42", session: null, jump: null,
+    home: "you", tab: "stand", section: "markers", healthSection: null, date: null, id: "42", session: null, jump: null, legacy: true,
   });
-  assert.deepEqual(plain(routes.parseRoute("/app/chat?session=chat_17")), {
-    tab: "chat", section: null, healthSection: null, date: null, id: null, session: "chat_17", jump: null,
-  });
-  assert.deepEqual(plain(routes.parseRoute("/app/settings/data")), {
-    tab: "settings", section: "data", healthSection: null, date: null, id: null, session: null, jump: null,
-  });
-  assert.deepEqual(plain(routes.parseRoute("/app/settings/system")), {
-    tab: "settings", section: "system", healthSection: null, date: null, id: null, session: null, jump: null,
-  });
-});
-
-test("route-state serializes stable canonical links", () => {
-  const routes = loadRoutes();
-  assert.equal(routes.routeToUrl({ tab: "progress", section: "program" }), "/app/progress/program");
-  assert.equal(routes.routeToUrl({ tab: "me", section: "health", healthSection: "records", id: 42 }), "/app/me/health/records?id=42");
-  assert.equal(routes.routeToUrl({ tab: "plan", section: "coach" }), "/app/plan/coach");
-  assert.equal(routes.routeToUrl({ tab: "plan", section: "food", date: "2026-06-28" }), "/app/plan/food?date=2026-06-28");
-  assert.equal(routes.routeToUrl({ tab: "today", date: "2026-06-29" }), "/app/today?date=2026-06-29");
-  assert.equal(routes.routeToUrl({ tab: "chat", session: "chat_17" }), "/app/chat?session=chat_17");
-  assert.equal(routes.routeToUrl({ tab: "settings", section: "system" }), "/app/settings/system");
-});
-
-test("route-state normalizes invalid or legacy-ish input safely", () => {
-  const routes = loadRoutes();
   assert.equal(routes.parseRoute("/").tab, "today");
   assert.equal(routes.parseRoute("/not-real").tab, "today");
-  assert.deepEqual(plain(routes.parseRoute("/app/me/health/not-real")), {
-    tab: "me", section: "health", healthSection: "read", date: null, id: null, session: null, jump: null,
-  });
   assert.equal(routes.routeToUrl({ tab: "nope", section: "bad", date: "tomorrow" }), "/app/today");
 });
 
-test("route-state preserves every canonical app route family", () => {
+test("routeToUrl writes view-keyed routes in the v2 grammar only", () => {
   const routes = loadRoutes();
-  const defs = routes.routeDefinitions;
+  const cases = [
+    [{ tab: "today", date: "2026-06-29" }, "/app/today?date=2026-06-29"],
+    [{ tab: "session", date: "2026-06-29" }, "/app/today/session?date=2026-06-29"],
+    [{ tab: "plan", section: "edit" }, "/app/train/plan"],
+    [{ tab: "plan", section: "endurance" }, "/app/horizon/race"],
+    [{ tab: "plan", section: "food", date: "2026-06-28" }, "/app/today/fuel?date=2026-06-28"],
+    [{ tab: "plan", section: "coach" }, "/app/ask/changes"],
+    [{ tab: "plan", jump: "food" }, "/app/today/fuel"],
+    [{ tab: "progress", section: "program" }, "/app/train/program"],
+    [{ tab: "stand" }, "/app/you/health"],
+    [{ tab: "stand", section: "records", id: "doc_42" }, "/app/you/records?id=doc_42"],
+    [{ tab: "stand", section: "domain" }, "/app/you/health"],
+    [{ tab: "me", section: "memory" }, "/app/you/memory"],
+    [{ tab: "me", section: "standing" }, "/app/you/age"],
+    [{ tab: "me", section: "health", healthSection: "records", id: 42 }, "/app/you/records?id=42"],
+    [{ tab: "chat", session: "chat_17" }, "/app/ask?session=chat_17"],
+    [{ tab: "settings", section: "system" }, "/app/you/settings/system"],
+    [{ tab: "settings", section: "you" }, "/app/you"],
+    [{ tab: "horizon", section: "goal" }, "/app/horizon/goal"],
+    [{ tab: "you", section: "stone", id: "fuel" }, "/app/you/stone?id=fuel"],
+    // A home key names its landing view.
+    [{ tab: "train" }, "/app/train"],
+    [{ tab: "ask" }, "/app/ask"],
+  ];
+  for (const [route, url] of cases) assert.equal(routes.routeToUrl(route), url, JSON.stringify(route));
+  // jump never reaches a v2 URL.
+  assert.doesNotMatch(routes.routeToUrl({ tab: "plan", section: "food", jump: "food" }), /jump/);
+});
 
-  assert.equal(routes.parseRoute("/").tab, "today");
-  assert.equal(routes.routeToUrl({ tab: "today", date: "2026-06-30" }), "/app/today?date=2026-06-30");
-
-  for (const section of defs.sections.plan) {
-    const path = `/app/plan/${section}`;
-    assert.equal(routes.parseRoute(path).section, section);
-    assert.equal(routes.routeToUrl({ tab: "plan", section }), path);
-  }
-
-  for (const section of defs.sections.progress) {
-    const path = `/app/progress/${section}`;
-    assert.equal(routes.parseRoute(path).section, section);
-    assert.equal(routes.routeToUrl({ tab: "progress", section }), path);
-  }
-
-  for (const section of defs.sections.me) {
-    const path = `/app/me/${section}`;
-    assert.equal(routes.parseRoute(path).section, section);
-    assert.equal(routes.routeToUrl({ tab: "me", section }), path);
-  }
-
-  for (const healthSection of defs.sections.health) {
-    const path = `/app/me/health/${healthSection}`;
-    assert.deepEqual(plain(routes.parseRoute(`${path}?id=doc_42`)), {
-      tab: "me",
-      section: "health",
-      healthSection,
-      date: null,
-      id: "doc_42",
-      session: null,
-      jump: null,
-    });
-    assert.equal(routes.routeToUrl({ tab: "me", section: "health", healthSection, id: "doc_42" }), `${path}?id=doc_42`);
-  }
-
-  assert.equal(routes.routeToUrl({ tab: "chat", session: "chat_17" }), "/app/chat?session=chat_17");
-
-  for (const section of defs.sections.settings) {
-    const path = `/app/settings/${section}`;
-    assert.equal(routes.parseRoute(path).section, section);
-    assert.equal(routes.routeToUrl({ tab: "settings", section }), path);
-  }
+test("homeOf maps every view (and each Plan section) to its tab-bar home", () => {
+  const routes = loadRoutes();
+  assert.deepEqual(plain(routes.homes), ["today", "train", "horizon", "ask", "you"]);
+  const expected = {
+    today: "today",
+    session: "today",
+    progress: "train",
+    horizon: "horizon",
+    chat: "ask",
+    stand: "you",
+    me: "you",
+    settings: "you",
+    you: "you",
+  };
+  for (const [view, home] of Object.entries(expected)) assert.equal(routes.homeOf(view), home, view);
+  assert.equal(routes.homeOf("plan", "edit"), "train");
+  assert.equal(routes.homeOf("plan", "endurance"), "horizon");
+  assert.equal(routes.homeOf("plan", "food"), "today");
+  assert.equal(routes.homeOf("plan", "meals"), "today");
+  assert.equal(routes.homeOf("plan", "coach"), "ask");
+  assert.equal(routes.homeOf("plan"), "train");
+  for (const home of routes.homes) assert.equal(routes.homeOf(routes.viewFor(home)), home, `${home} round-trips`);
+  assert.equal(routes.viewFor("train"), "progress");
+  assert.equal(routes.viewFor("ask"), "chat");
+  assert.equal(routes.viewFor("bogus"), "today");
 });

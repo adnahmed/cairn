@@ -13,7 +13,7 @@ function loadStartup(options = {}) {
           calls.push(["parseRoute", href]);
           return options.parsedRoute || { tab: "chat" };
         },
-        routeToUrl: () => "/app/chat",
+        routeToUrl: () => "/app/ask",
       }
     : options.routeApi;
   const context = {
@@ -29,8 +29,8 @@ function loadStartup(options = {}) {
     installWakeLockWatcher: () => calls.push(["installWakeLockWatcher"]),
     jobReconnect: () => calls.push(["jobReconnect"]),
     location: {
-      href: options.href || "http://cairn.local/app/chat",
-      pathname: options.pathname || "/app/chat",
+      href: options.href || "http://cairn.local/app/ask",
+      pathname: options.pathname || "/app/ask",
       search: options.search || "",
     },
     maybeOnboard: () => calls.push(["maybeOnboard"]),
@@ -69,7 +69,7 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-test("app startup activates direct app routes without canonicalizing", () => {
+test("app startup activates a canonical v2 route without rewriting it", () => {
   const env = loadStartup();
 
   assert.equal(typeof env.context.startAppShell, "function");
@@ -82,7 +82,7 @@ test("app startup activates direct app routes without canonicalizing", () => {
     ["registerAppJobReconnectors"],
     ["registerTabBarHandlers"],
     ["routeApi"],
-    ["parseRoute", "http://cairn.local/app/chat"],
+    ["parseRoute", "http://cairn.local/app/ask"],
     ["applyRouteState", { tab: "chat" }],
     ["primeDiscipline"],
     ["activateTab", "chat", { replace: false, syncRoute: false }],
@@ -129,8 +129,36 @@ test("app startup routes browser popstate without pushing a new route", () => {
 
   assert.deepEqual(plain(env.calls), [
     ["routeApi"],
-    ["parseRoute", "http://cairn.local/app/chat"],
+    ["parseRoute", "http://cairn.local/app/ask"],
     ["applyRouteState", { tab: "today" }],
     ["activateTab", "today", { syncRoute: false }],
   ]);
+});
+
+test("app startup rewrites a v1 /app path to its v2 home in place", () => {
+  const env = loadStartup({
+    href: "http://cairn.local/app/plan/food?date=2026-06-30",
+    pathname: "/app/plan/food",
+    search: "?date=2026-06-30",
+    parsedRoute: { tab: "plan", section: "food", date: "2026-06-30", legacy: true },
+  });
+
+  env.context.startAppShell();
+
+  // replaceState (replace: true), so Back never walks into the old address.
+  assert.deepEqual(plain(env.calls.find(([kind]) => kind === "activateTab")), [
+    "activateTab",
+    "plan",
+    { replace: true, syncRoute: true },
+  ]);
+});
+
+test("a v1 entry re-entered through history is rewritten in place too", () => {
+  const env = loadStartup({ parsedRoute: { tab: "chat", legacy: true } });
+
+  env.context.startAppShell();
+  env.calls.length = 0;
+  env.listener("popstate")();
+
+  assert.deepEqual(plain(env.calls.at(-1)), ["activateTab", "chat", { replace: true }]);
 });

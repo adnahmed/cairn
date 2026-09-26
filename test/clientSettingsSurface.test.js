@@ -232,17 +232,19 @@ test("Settings opens onto You by default, with Agents & System pushed to the end
   // reads it from there. It used to be a "you" literal repeated at three call
   // sites while the definitions themselves said "agents": the literals won, so
   // nothing shipped wrong, but the contract described behaviour that never ran.
+  // v2 wave 5: the route default is Sources. The old "You" landing slice is the
+  // You home's own landing, and /app/settings/you redirects there.
   const routes = readFileSync(join(root, "src/contracts/client-routes.ts"), "utf8");
-  assert.match(routes, /settingsSection: "you"/);
+  assert.match(routes, /settingsSection: "sources"/);
   const routeStateSrc = readFileSync(join(root, "src/client/route-state.ts"), "utf8");
-  assert.match(routeStateSrc, /settingsSection: "you"/, "route-state.ts mirrors the definitions verbatim");
+  assert.match(routeStateSrc, /settingsSection: "sources"/, "route-state.ts mirrors the definitions verbatim");
 
   const screen = readFileSync(join(root, "src/client/settings-screen.ts"), "utf8");
   assert.match(screen, /if \(!state\.setSeg \|\| !SET_SEG\.some\(\(\[k\]\) => k === state\.setSeg\)\)/);
   assert.match(screen, /routeDefinitions\?\.defaults\.settingsSection \|\| "you"/);
 
   const router = readFileSync(join(root, "src/client/app/router.ts"), "utf8");
-  assert.match(router, /routeDefinitions\(\)\?\.defaults\.settingsSection \|\| "you"/);
+  assert.match(router, /routeDefinitions\(\)\?\.defaults\.settingsSection \|\| "sources"/);
   assert.match(router, /state\.setSeg = routeKey\(route\.section, options\.settingsSections, state\.setSeg \|\| defaultSettingsSection\(\)\)/, "a remembered/deep-linked segment is still honored — only the fallback default changed");
   assert.match(router, /route\.section = routeKey\(state\.setSeg, options\.settingsSections, defaultSettingsSection\(\)\)/);
 });

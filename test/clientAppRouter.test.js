@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
+let lastRoutes = null;
 function loadRouter() {
   const routeStateSrc = readFileSync(new URL("../public/js/route-state.js", import.meta.url), "utf8");
   const src = readFileSync(new URL("../public/js/app-router.js", import.meta.url), "utf8");
   const context = { window: {}, URL, URLSearchParams };
   vm.runInNewContext(routeStateSrc, context, { filename: "route-state.js" });
   vm.runInNewContext(src, context);
+  lastRoutes = context.window.CairnRoutes;
   return context.window.CairnAppRouter;
 }
 
@@ -28,7 +30,58 @@ const deps = {
 
 test("app router derives tab names from the route contract", () => {
   const router = loadRouter();
-  assert.deepEqual(plain(router.ROUTE_TABS), ["today", "session", "stand", "plan", "progress", "chat", "me", "settings"]);
+  // The VIEWS (what renders). The five tab-bar homes are a layer over them.
+  assert.deepEqual(plain(router.ROUTE_TABS), ["today", "session", "stand", "plan", "progress", "chat", "me", "settings", "horizon", "you"]);
+});
+
+test("app router carries Horizon's and You's sub-views through state and back", () => {
+  const router = loadRouter();
+  const state = { tab: "today", day: null, dayPicked: false, plan: [], today: {}, logDate: "2026-06-29" };
+
+  assert.equal(router.applyRouteState({ tab: "horizon", section: "goal" }, { state, ...deps }), "horizon");
+  assert.equal(state.horizonSeg, "goal");
+  assert.deepEqual(plain(router.currentRouteState({ state: { ...state, tab: "horizon" }, ...deps, defaultProgressSection: null })), {
+    tab: "horizon",
+    section: "goal",
+  });
+  assert.equal(router.applyRouteState({ tab: "horizon", section: null }, { state, ...deps }), "horizon");
+  assert.equal(state.horizonSeg, null);
+
+  assert.equal(router.applyRouteState({ tab: "you", section: "stone", id: "heart" }, { state, ...deps }), "you");
+  assert.equal(state.youSeg, "stone");
+  assert.equal(state.youStone, "heart");
+  assert.deepEqual(plain(router.currentRouteState({ state: { ...state, tab: "you" }, ...deps, defaultProgressSection: null })), {
+    tab: "you",
+    section: "stone",
+    id: "heart",
+  });
+  // A stone URL without a key is the landing.
+  assert.equal(router.applyRouteState({ tab: "you", section: "stone", id: null }, { state, ...deps }), "you");
+  assert.equal(state.youSeg, null);
+  assert.equal(state.youStone, null);
+});
+
+test("a parsed v1 URL applies to the same state its v2 twin does", () => {
+  const router = loadRouter();
+  const pairs = [
+    ["/app/train/program", "/app/train/program"],
+    ["/app/you/settings/data", "/app/you/settings/data"],
+    ["/app/plan/food?date=2026-06-30", "/app/today/fuel?date=2026-06-30"],
+    ["/app/me/health/records?id=7", "/app/you/records?id=7"],
+    ["/app/me/standing", "/app/you/age"],
+    ["/app/chat?session=s1", "/app/ask?session=s1"],
+  ];
+  for (const [v1, v2] of pairs) {
+    const a = { tab: "today", logDate: "2026-06-29" };
+    const b = { tab: "today", logDate: "2026-06-29" };
+    const tabA = router.applyRouteState(lastRoutes.parseRoute(v1), { state: a, ...deps, routeApi: lastRoutes });
+    const tabB = router.applyRouteState(lastRoutes.parseRoute(v2), { state: b, ...deps, routeApi: lastRoutes });
+    assert.equal(tabA, tabB, v1);
+    assert.deepEqual(plain(a), plain(b), v1);
+    // And the state writes back as the v2 URL.
+    const url = lastRoutes.routeToUrl(router.currentRouteState({ state: { ...a, tab: tabA }, ...deps, settingsSections: lastRoutes.settingsSections, defaultProgressSection: null }));
+    assert.equal(url, v2, `${v1} canonicalises`);
+  }
 });
 
 test("app router applies canonical route state without rendering", () => {
@@ -234,7 +287,7 @@ test("app router returns a dateless Today route to the measured day", () => {
 test("app router syncs canonical URLs through push and replace history", () => {
   const router = loadRouter();
   const calls = [];
-  const routes = { routeToUrl: (route) => `/app/${route.tab}/${route.section}` };
+  const routes = { routeToUrl: (route) => lastRoutes.routeToUrl(route) };
   const history = {
     pushState(state, title, url) { calls.push(["push", state, title, url]); },
     replaceState(state, title, url) { calls.push(["replace", state, title, url]); },
@@ -247,27 +300,27 @@ test("app router syncs canonical URLs through push and replace history", () => {
       location: { pathname: "/app/today", search: "" },
       history,
     }),
-    "/app/progress/program",
+    "/app/train/program",
   );
-  assert.deepEqual(plain(calls[0]), ["push", { cairn: true }, "", "/app/progress/program"]);
+  assert.deepEqual(plain(calls[0]), ["push", { cairn: true }, "", "/app/train/program"]);
 
   assert.equal(
     router.syncRouteFromState({
       mode: "replace",
       routes,
       route: { tab: "settings", section: "data" },
-      location: { pathname: "/app/progress/program", search: "" },
+      location: { pathname: "/app/train/program", search: "" },
       history,
     }),
-    "/app/settings/data",
+    "/app/you/settings/data",
   );
-  assert.deepEqual(plain(calls[1]), ["replace", { cairn: true }, "", "/app/settings/data"]);
+  assert.deepEqual(plain(calls[1]), ["replace", { cairn: true }, "", "/app/you/settings/data"]);
 
   assert.equal(
     router.syncRouteFromState({
       routes,
       route: { tab: "settings", section: "data" },
-      location: { pathname: "/app/settings/data", search: "" },
+      location: { pathname: "/app/you/settings/data", search: "" },
       history,
     }),
     null,

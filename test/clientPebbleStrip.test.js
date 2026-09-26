@@ -377,7 +377,7 @@ test("Today mounts the strip directly under the Brief, with the app's own route 
   assert.equal(main.children[1].className.split(" ")[0], "brief", "the Brief still leads");
   assert.equal(main.children[2], slot, "the strip sits right under it");
   assert.deepEqual(calls.loads, [{ path: `/today/stones?date=${DATE}`, key: `today:stones:${DATE}` }]);
-  assert.equal(slot.querySelector('[data-pebble-strip-go="recovery"]').getAttribute("href"), "/app/stand/recovery");
+  assert.equal(slot.querySelector('[data-pebble-strip-go="recovery"]').getAttribute("href"), "/app/you/recovery");
 
   // A soft repaint that kept the column reuses the one slot.
   win.CairnPebbleStripController.mountToday(view, deps);

@@ -111,8 +111,15 @@ CairnArt.activity(type)    // → SVG string for cardio/activity types (run, rid
 Shared layout: header is just `#header-title` (on Today it's the tappable date
 control; it pins to the top of the scroll and condenses to a slim blurred band —
 see `body[data-tab="today"] header.condensed` in styles.css).
-Tab bar `.tabbar` / `.tab` / `.tab.active` (markup unchanged; restyled: cream blur bar,
-ink icons, terracotta active with a small dot indicator; desktop ≥960px → left sidebar as today).
+Tab bar `.tabbar` / `.tab` / `.tab.active`: cream blur bar, ink icons, terracotta active with a
+small dot indicator; desktop ≥960px → left sidebar with the brand block leading. Five buttons, one
+per HOME, in this order: Today (calendar-check), Train (trend line), Horizon (a half-sun rising over
+a horizon line), Ask (speech bubble), You (a three-stone cairn). `data-tab` on a button is the home
+key; `body[data-tab]` stays the rendered VIEW, so view-scoped CSS never keys on the home. A sub-view
+reached inside a home (Fuel from Today, Changes from Ask) steps back with one quiet
+`.home-back` link ("‹ Today"; `homeBackHtml`/`wireHomeBack` in `ui-shell.ts`), never a seg bar. The one-time "what moved here" line is
+`.moved-note` in the header: muted `--text-sm` prose with a plain "Got it", settling in on the
+shared `settlein` keyframe, hidden while Today's header is condensed.
 
 New/changed components (CSS must implement, the client JS must emit):
 
