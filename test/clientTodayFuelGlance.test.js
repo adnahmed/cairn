@@ -100,6 +100,7 @@ test("Today mounts the glance under the NOW card's steer line, paints from the w
   const kids = view.querySelector(".brief").children.map((el) => el.id || el.className.split(" ")[0]);
   assert.deepEqual(kids, ["brief-now", "brief-steer", "todayFuelSlot", "brief-around"]);
   const slot = view.querySelector("#todayFuelSlot");
+  assert.equal(slot.getAttribute("aria-live"), "off", "the Brief's live region never announces the card filling in");
   assert.ok(slot.querySelector(".tfuel"), "the warm day paints at once, no shimmer");
   await flush();
   assert.deepEqual(calls.loads.sort(), [`food:day:${DATE}`, `fuel:ideas:${DATE}`], "the Fuel view's own SWR keys");
@@ -107,4 +108,18 @@ test("Today mounts the glance under the NOW card's steer line, paints from the w
   await slot.querySelector(".tfuel-log").click();
   assert.deepEqual(calls.tabs, ["plan"]);
   assert.equal(state.planJump, "food");
+});
+
+test("a day read that fails takes the glance off the page, so the rail keeps its own fuel card", async () => {
+  const win = load({
+    peekCached: () => null,
+    cachedApi: () => Promise.reject(new Error("offline")),
+  });
+  const view = createHost(win.document, {
+    html: `<div class="today-main"><section class="brief"><div class="brief-now"></div><div class="brief-steer"></div></section></div>`,
+  });
+  win.CairnTodayFuelGlance.mountToday(view, { date: DATE, state: {}, activateTab: () => {} });
+  assert.ok(view.querySelector("#todayFuelSlot .tfuel-skel"), "the cold start holds the card's shape");
+  await flush();
+  assert.equal(view.querySelector("#todayFuelSlot"), null);
 });

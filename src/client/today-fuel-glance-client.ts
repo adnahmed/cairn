@@ -178,8 +178,10 @@
         paint();
       })
       .catch(() => {
-        // No read to speak from: the slot folds away rather than shimmering on.
-        if (live && host.isConnected && !isDay(day)) host.innerHTML = "";
+        // No read to speak from: the slot leaves the page rather than shimmering on,
+        // so a rail drawn after this keeps its own fuel card (today-screen strips that
+        // card only while #todayFuelSlot stands).
+        if (live && host.isConnected && !isDay(day)) host.remove();
       });
 
     return () => {
@@ -205,6 +207,8 @@
       slot = brief.ownerDocument.createElement("div");
       slot.id = "todayFuelSlot";
       slot.className = "tfuel-slot";
+      // Inside the Brief's polite live region: a skeleton filling in is not news.
+      slot.setAttribute("aria-live", "off");
     }
     placeGlance(brief, slot);
     if (!fresh) return () => {};

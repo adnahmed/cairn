@@ -114,6 +114,8 @@
       slot = brief.ownerDocument.createElement("div");
       slot.id = "pebbleStripSlot";
       slot.className = "pebble-strip-slot";
+      // It lives inside the Brief's polite live region: stones mounting are not news.
+      slot.setAttribute("aria-live", "off");
     }
     placeStrip(brief, slot);
     return mountPebbleStrip(slot, {

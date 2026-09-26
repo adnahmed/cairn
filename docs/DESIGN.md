@@ -248,13 +248,17 @@ instead. The steer line follows the card; then Fuel today (`#todayFuelSlot`, `.t
 `today-fuel-glance-client.ts`): protein and energy as slim fuel-hue meters beside the day's number
 and ONE idea for later — no meters on an unlogged day (absent, never low), every tap opens Fuel —
 which replaces the rail's `fuel` card on today's column. Both slots are transplanted across the
-Brief's in-place upgrade. Around today reads as hairline ROWS, never cards: `.brief-around` (a
+Brief's in-place upgrade, and both carry `aria-live="off"` so the Brief's polite live region never
+announces them painting in; a failed day read removes the fuel slot, so the rail keeps its own
+`fuel` card. Around today reads as hairline ROWS, never cards: `.brief-around` (a
 `<details>` folding the forward look, block clock and arc), the provenance line, the life-context
 line (`.ctxbanner`, which drops an injury the NOW card already names), the block thread
 (`.cfocus-thread`), the capture row (bodyweight chip + context tags on ONE sideways-scrolling
 line), today's run and the week fold. Housekeeping and one-off reads (the install note, a Garmin
 merge, the ranked agenda reads, the "n more" disclosure) sit in ONE quiet group at the foot,
-`.today-rail` under a single "Worth a look" `.rail-mast`, as hairline rows; a health card whose
+`.today-rail` under a single "Worth a look" `.rail-mast`, as hairline rows (the Garmin reconcile
+note and agenda rows behind "n more" included); the fuller reads there (what changed, the week, the
+week ahead, a connection) keep a hairline card, no spine, no shadow; a health card whose
 subject the block thread already names is left out (`CairnTodayAgenda.threadEchoIds`). Only the
 NOW card and the Fuel card are surfaces on Today. Today-only components whose base rules still
 live in older partials (the block thread, agenda cards, the run line, the context tags) take the v2
