@@ -7,8 +7,9 @@
 // `quiet`, unknown → `quiet`). This module never works a stone's move out, never ranks
 // the stones and never turns a word into a number.
 //
-// `handed()` frames how the team took a "Do it" from the server's own routed result:
-// the autonomy policy decided the tier (src/brain/autonomy.ts); the card only says so.
+// `handed()` frames how the team took a "Do it" from the server's own `state`: the
+// autonomy policy decided the tier (src/brain/autonomy.ts) and whatIfDo named its
+// outcome; the card only says so.
 {
   type BrainChanges = import("../contracts/brain-changes.js").ClientBrainChanges;
   type BrainChange = import("../contracts/brain-changes.js").ClientBrainChange;
@@ -122,23 +123,22 @@
     return said ? `${said.charAt(0).toUpperCase()}${said.slice(1)}` : LINES.refused;
   }
 
-  /** How the team took "Do it", framed from the server's routed result. */
+  const HANDED_STATES: ReadonlySet<string> = new Set(["landed", "lands", "waiting", "clinician", "already"]);
+
+  /**
+   * How the team took "Do it". The server names the state (whatIfDo's WhatIfDoResult);
+   * the card only picks its line. An `ok:false`, or a state it does not know, is refused.
+   */
   function handedModel(result: unknown): ClientRippleHanded {
     const r = record(result) ?? {};
-    const decision = record(r.decision);
-    const decisionId = positiveId(decision?.id);
+    const decisionId = positiveId(r.decision_id);
     const proposalId = positiveId(r.proposal_id);
-    if (r.ok !== true) return { state: "refused", line: refusedLine(r), decisionId: null, proposalId };
-    if (r.already === true) return { state: "already", line: LINES.already, decisionId, proposalId };
-    const tier = text(r.tier) || text(decision?.autonomy_tier);
-    if (tier === "clinician") return { state: "clinician", line: LINES.clinician, decisionId, proposalId };
-    // The immediate-apply path spreads applyProposal's result, whose `applied` is the
-    // ARRAY of items that landed; `true` is kept for any boolean-shaped caller.
-    if (Array.isArray(r.applied) || r.applied === true)
-      return { state: "landed", line: LINES.landed, decisionId, proposalId };
-    if (r.announced === true || r.pending === true)
-      return { state: "lands", line: LINES.lands, decisionId, proposalId };
-    return { state: "waiting", line: r.plan_moved === true ? LINES.moved : LINES.waiting, decisionId, proposalId };
+    const state = String(r.state);
+    if (r.ok !== true || !HANDED_STATES.has(state))
+      return { state: "refused", line: refusedLine(r), decisionId: null, proposalId };
+    const handed = state as Exclude<ClientRippleHanded["state"], "refused">;
+    const line = handed === "waiting" && r.plan_moved === true ? LINES.moved : LINES[handed];
+    return { state: handed, line, decisionId, proposalId };
   }
 
   /** The Changes feed row for this decision (the same row, and Undo, the feed shows), or null. */

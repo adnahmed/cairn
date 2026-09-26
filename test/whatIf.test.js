@@ -249,9 +249,14 @@ test("Do it drafts a bounded training edit and lead mode routes it through the a
     ["quiet_apply", "announce"].includes(decisions[0].autonomy_tier),
     `lead tier: ${decisions[0].autonomy_tier}`
   );
+  assert.ok(["landed", "lands"].includes(out.state), `lead state: ${out.state}`);
+  assert.equal(out.decision_id, decisions[0].id, "the ledger row the card links to");
+  assert.deepEqual(out.tried, [], "tried rides every branch");
+  assert.equal(out.plan_moved, false);
   const again = whatIfDo({ job_id: jobId });
   assert.equal(again.ok, true);
-  assert.equal(again.already, true, "a second tap finds the first draft");
+  assert.equal(again.state, "already", "a second tap finds the first draft");
+  assert.deepEqual(again.tried, []);
   assert.equal(again.proposal_id, out.proposal_id);
 });
 
@@ -299,6 +304,8 @@ test("Do it under review_everything holds the draft for the athlete", async () =
   const decision = decisionFor(out.proposal_id);
   assert.equal(decision.autonomy_tier, "ask");
   assert.equal(decision.status, "review");
+  assert.equal(out.state, "waiting");
+  assert.equal(out.decision_id, decision.id);
 });
 
 test("Do it on anything clinical is held clinician-directed, whatever lead mode says", async () => {
@@ -310,6 +317,7 @@ test("Do it on anything clinical is held clinician-directed, whatever lead mode 
   assert.equal(repo.getProposal(out.proposal_id).status, "draft");
   assert.equal(repo.getPlanDay(1).items[0].sets, 3, "a clinical draft never lands on its own");
   assert.equal(decisionFor(out.proposal_id).autonomy_tier, "clinician");
+  assert.equal(out.state, "clinician");
   const stored = repo.getProposal(out.proposal_id).parsed;
   assert.equal(stored.clinical_provenance.source, "what_if_clinical_detection");
 });
@@ -319,6 +327,7 @@ test("Do it takes no client echo: a change without a job drafts nothing", () => 
   const before = tableCounts();
   const echo = whatIfDo({ change: { ...AGENT_ANSWER.change, clinical: false }, text: "" });
   assert.equal(echo.ok, false);
+  assert.equal(echo.state, "refused");
   assert.deepEqual(echo.tried, []);
   const unknown = whatIfDo({ job_id: 99999 });
   assert.equal(unknown.ok, false);
@@ -350,6 +359,7 @@ test("Do it on an answer whose plan has moved since waits on the athlete", async
   const held = whatIfDo({ job_id: staleJob });
   assert.equal(held.ok, true);
   assert.equal(held.plan_moved, true);
+  assert.equal(held.state, "waiting");
   assert.equal(repo.getProposal(held.proposal_id).status, "draft", "held, not applied");
   assert.equal(decisionFor(held.proposal_id).autonomy_tier, "ask");
   assert.equal(repo.getPlanDay(1).items[0].sets, 3);
@@ -443,6 +453,7 @@ test("a refused apply keeps the designed {ok:false, error, tried} shape", async 
   };
   const out = whatIfDo({ job_id: await answeredJob("What if I added a day-nine set?", offPlan) });
   assert.equal(out.ok, false, "a day the plan does not have cannot be applied");
+  assert.equal(out.state, "refused");
   assert.equal(typeof out.error, "string");
   assert.deepEqual(out.tried, []);
   assert.equal(repo.getProposal(out.proposal_id).status, "draft", "nothing landed");

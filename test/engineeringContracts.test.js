@@ -1032,7 +1032,7 @@ test("PWA route literals stay aligned across parser, types, and segment registri
 
   assert.match(appRouter, /routeDefinitions\(\)\?\.tabs/);
   assert.match(appTabs, /window\.CairnAppRouter\?\.ROUTE_TABS/);
-  assertSameMembers(objectKeys(uiSegments, "planHandlers"), plan, "Plan handlers must cover every plan route section");
+  assert.doesNotMatch(uiSegments, /planHandlers|function planSeg/, "no Plan seg bar: each section wears its home's chrome");
   // Train's nav carries every Progress route section plus ONE cross-view leaf:
   // Program → Plan, the plan editor (the Plan view, living under the Train home).
   assertSameMembers(
@@ -1041,10 +1041,6 @@ test("PWA route literals stay aligned across parser, types, and segment registri
     "Progress segments must cover every progress route section, plus the plan editor leaf"
   );
   assert.match(uiSegments, /UI_PROGRESS_CROSS_VIEW_LEAVES: ReadonlySet<string> = new Set\(\["plan"\]\)/);
-  assert.match(
-    uiSegments,
-    /routedToEndurance\s*=\s*deps\.state\.planSeg\s*===\s*"endurance"\s*\|\|\s*deps\.state\.planJump\s*===\s*"endurance"/
-  );
   assert.match(uiShell, /const PROGRESS_SEG: readonly UiSegment\[\] = uiSegmentsApi\(\)\.PROGRESS_SEG/);
   // Me is the about-you home: standing/health stay parseable route sections (old
   // deep links redirect to the Stand tab) but are no longer Me seg-bar entries.
@@ -1855,7 +1851,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(clientShellGlobals, /declare let pollToken: number/);
   assert.match(clientShellGlobals, /declare const PROGRESS_SEG: readonly ClientSegment\[\]/);
   assert.match(clientShellGlobals, /declare const PROGRESS_HANDLERS: Record<string, \(\) => unknown>/);
-  assert.match(clientShellGlobals, /declare const PLAN_HANDLERS: Record<string, \(\) => unknown>/);
+  assert.doesNotMatch(clientShellGlobals, /PLAN_HANDLERS/);
   assert.match(clientShellGlobals, /declare const art: \(fn: string, \.\.\.args: unknown\[\]\) => string/);
   assert.match(clientShellGlobals, /declare const stagger: \(index\?: number \| null\) => string/);
   assert.match(clientShellGlobals, /declare const reducedMotion: \(\) => boolean/);
@@ -4221,7 +4217,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(uiShellSource, /function wireGuides\(scope\?: ParentNode \| null\): void/);
   assert.match(uiSegmentsSource, /const UI_PROGRESS_SEGMENTS: readonly UiSegmentsSegment\[\]/);
   assert.match(uiSegmentsSource, /const progressHandlers: UiSegmentsHandlerMap = \{/);
-  assert.match(uiSegmentsSource, /const planHandlers: UiSegmentsHandlerMap = \{/);
+  assert.doesNotMatch(uiSegmentsSource, /const planHandlers/);
   assert.match(uiSegmentsSource, /Object\.defineProperty\(globalThis, "primaryDiscipline"/);
   assert.match(uiShellSource, /const PROGRESS_SEG: readonly UiSegment\[\] = uiSegmentsApi\(\)\.PROGRESS_SEG/);
   assert.match(

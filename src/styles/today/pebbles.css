@@ -68,13 +68,8 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 .today-run-line .wrun-note .linkbtn{color:var(--ink2);font-size:var(--text-xs);text-decoration:underline;
   text-underline-offset:3px;text-decoration-color:var(--line-strong)}
 
-/* capture: the bodyweight chip and the context tags share one quiet wrapping row */
-.today-wrap .capture-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 var(--space-7)}
-.today-wrap .capture-row .tags-slot,.today-wrap .capture-row .tags-chips{display:contents}
+/* capture: the row, chip and tags are styled at their base (today/brief.css, ask/capture.css) */
 .today-wrap .wt-inline:not([hidden]){display:flex;gap:6px;flex:1 1 100%}
-.today-wrap .wt-mini{height:32px;padding:0 12px;background:var(--surface);font-size:var(--text-md)}
-.today-wrap .tag-chip{padding:5px 11px;font-size:var(--text-xs);color:var(--ink2);min-height:32px}
-.today-wrap .tag-chip-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
 
 /* the rail's ranked reads: hairline cards (no spine), small pill actions */
 .today-wrap .well-accent,.today-wrap .agenda-card{border:1px solid var(--line);border-left:1px solid var(--line);

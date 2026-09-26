@@ -187,10 +187,15 @@ in `src/client/app-identity-model.ts`. Never edit the suffix by hand:
 
 1. Replace the icon bytes in `public/icons/`, keeping the current `.vN` file names.
 2. Run `node scripts/bump-icons.mjs` (add `--theme-color "#rrggbb"` and/or `--short-name "Name"`
-   when those change; `--dry-run` shows what would move, `--check` only verifies the places
+   when those change alongside the icon; `--dry-run` shows what would move, `--check` only verifies the places
    agree). The long `name`/`description` in the manifest and `index.html` are edited by hand in the
    same commit.
 3. `npm run build`, then commit the renamed icons together with the four rewritten files.
+
+A theme-color change with no new icon bytes does not run `bump-icons`: its version bump asks iOS
+installs to re-add for nothing. Edit the manifest's `theme_color`/`background_color` and the light
+`theme-color` meta in `public/index.html` together by hand (the dark meta is the dark `--ground`),
+then confirm with `node scripts/bump-icons.mjs --check`. `docs/DESIGN.md` "Dark" has the rule.
 
 The manifest's `id`, `scope` and `start_url` never change, and neither do the `localStorage`
 keys; `test/pwaInstallIdentity.test.js` pins all of it. Chrome and Android refresh the icon on
@@ -445,7 +450,7 @@ Every script under `scripts/`, one line each (from its own header comment):
 | `build-client.mjs` | Compiles the dependency-free browser client slices from `src/client` into stable `public/js` filenames (no bundler, no runtime deps). |
 | `backup-example.sh` | Template backup script for a running Cairn instance: pulls a JSON export and a `VACUUM INTO` SQLite snapshot, rotates old copies. Copy and adjust for cron. |
 | `check-action-pins.mjs` | Verifies GitHub Actions workflow steps are pinned to commit SHAs, not moving tags. |
-| `check-bundle-budget.mjs` | Per-bundle byte budget (raw and brotli) against the checked-in `scripts/bundle-budget.json`, run in `npm run verify` after the build; fails with the delta when a bundle grows past it. `--update` re-measures and rewrites the budget for a deliberate raise; `--report` lists each bundle's largest inputs. |
+| `check-bundle-budget.mjs` | Per-bundle byte budget (raw and brotli, `public/styles.css` included) against the checked-in `scripts/bundle-budget.json`, run in `npm run verify` after the build; fails with the delta when a bundle grows past it. `--update` re-measures and rewrites the budget for a deliberate raise; `--report` lists each bundle's largest inputs. |
 | `check-client-build-output.mjs` | Guards that every served `public/js` bundle can be recreated from TypeScript sources in a fresh checkout (generated output is gitignored). |
 | `check-launch-safety.mjs` | Guards the public quickstart docs from regressing to an internet-footgun: copy-paste `docker run` blocks must bind loopback unless deliberately widened. |
 | `check-public-scripts.mjs` | Guards the classic browser app-shell script graph against global-scope hazards (duplicate top-level bindings across `<script>` tags). |

@@ -194,10 +194,6 @@ const PROGRESS_SEG: readonly UiSegment[] = uiSegmentsApi().PROGRESS_SEG;
 const PROGRESS_HANDLERS: Record<string, () => unknown> = uiSegments().progressHandlers;
 // Train's nav as painted by the plan editor: every Progress leaf navigates there.
 const PROGRESS_LINK_HANDLERS: Record<string, () => unknown> = uiSegments().progressLinkHandlers;
-function planSeg(): readonly UiSegment[] {
-  return uiSegments().planSeg();
-}
-const PLAN_HANDLERS: Record<string, () => unknown> = uiSegments().planHandlers;
 
 // ---------- view transition utilities ----------
 const uiViewTransitions = CairnUiViewTransitions.create({ view, reducedMotion });
@@ -336,8 +332,6 @@ const CAIRN_UI_SHELL_GLOBALS = {
   PROGRESS_SEG,
   PROGRESS_HANDLERS,
   PROGRESS_LINK_HANDLERS,
-  planSeg,
-  PLAN_HANDLERS,
   viewEnter,
   withViewTransition,
   skelSwap,

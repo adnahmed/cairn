@@ -1880,7 +1880,6 @@ declare global {
   declare function renderYou(): unknown;
   declare function renderHorizon(): unknown;
   declare function syncRouteFromState(mode?: "push" | "replace"): void;
-  declare function planSeg(): readonly ClientSegment[];
   declare function todaySkeleton(): string;
   declare function segSkeleton(active: string, seg: readonly ClientSegment[], cards?: number): string;
   declare function skelLines(count?: number): string;
@@ -5290,6 +5289,8 @@ declare global {
   type CairnMealCardModelApi = {
     MACRO_KEYS: readonly ClientMealCardMacroKey[];
     gramsFromAmount(amount: unknown): number | null;
+    /** parseFoodQuantity (src/foodCapture.ts) on this side of the PUT. */
+    quantityOf(amount: unknown): { value: number; unit: string } | null;
     parseGramsInput(value: unknown): number | null;
     formatGrams(grams: number | null): string;
     portionWords(amount: unknown): string;

@@ -1,5 +1,5 @@
 // @ts-check
-// Segmented navigation plus the discipline state that gates Plan's Endurance tab.
+// Segmented navigation plus the discipline state that gates Train's Endurance leaf.
 // Train's group/leaf nav also carries one CROSS-VIEW leaf: Program → Plan opens the
 // plan editor (the Plan view, which lives under the Train home), so its handler
 // navigates with activateTab instead of repainting the Progress view in place.
@@ -42,8 +42,6 @@ type UiSegmentsController = {
   /** Train's nav as painted OUTSIDE the Progress view (the plan editor): every
    *  Progress leaf navigates there, and Plan repaints the editor in place. */
   progressLinkHandlers: UiSegmentsHandlerMap;
-  planSeg(): readonly UiSegmentsSegment[];
-  planHandlers: UiSegmentsHandlerMap;
 };
 type UiSegmentsApi = {
   PROGRESS_SEG: readonly UiSegmentsSegment[];
@@ -326,43 +324,6 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
     });
   }
 
-  // The Plan seg bar. Fuel (Today), Changes (Ask) and the editor (Train) no longer
-  // wear it; the race view still does until Horizon takes it over, so each segment
-  // NAVIGATES (activateTab) and the lit home and URL follow the destination.
-  // Food is the Fuel surface; the old Meals segment redirects into it (its weekly
-  // journal is history in Food's fold), so the bar no longer carries a Meals pill.
-  // "Changes" is the /app/plan/coach route — the background-coaching change record.
-  // It rides the bar as its own segment (last, after the things you edit) so the
-  // screen is reachable from the bar and paints its own active pill instead of
-  // being a dead-end drill-in you could only reach from a deep link. The KEY stays
-  // "coach" so every existing route, jump and deep link is unchanged; the LABEL is
-  // "Changes" because the Coach *tab* is chat, and two "Coach" affordances on one
-  // screen would be the same word for two different places.
-  function planSeg(): readonly UiSegmentsSegment[] {
-    const routedToEndurance = deps.state.planSeg === "endurance" || deps.state.planJump === "endurance";
-    return uiSegmentsShowEnduranceTab() || routedToEndurance
-      ? [
-          ["edit", "Training"],
-          ["endurance", "Endurance"],
-          ["food", "Food"],
-          ["coach", "Changes"],
-        ]
-      : [
-          ["edit", "Training"],
-          ["food", "Food"],
-          ["coach", "Changes"],
-        ];
-  }
-
-  const planHandlers: UiSegmentsHandlerMap = {
-    edit: () => openPlan("edit"),
-    endurance: () => openPlan("endurance"),
-    food: () => openPlan("food"),
-    meals: () => openPlan("meals"),
-    coach: () => openPlan("coach"),
-  };
-  for (const handler of Object.values(planHandlers)) navigation(handler);
-
   deps.addResizeListener(scheduleFit);
 
   return {
@@ -371,8 +332,6 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
     fitSeg,
     progressHandlers,
     progressLinkHandlers,
-    planSeg,
-    planHandlers,
   };
 }
 

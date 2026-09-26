@@ -73,7 +73,6 @@ function loadTabs(options = {}) {
       calls.push(["peekCached", key]);
       return options.cachedKeys?.has(key) ? { data: {}, fresh: true } : null;
     },
-    planSeg: () => [["edit", "Training"], ["food", "Food"], ["meals", "Meals"], ["coach", "Coach"], ["endurance", "Endurance"]],
     renderTab: (tab) => calls.push(["renderTab", tab]),
     segSkeleton: (active, seg, cards) => `seg:${active}:${seg.length}:${cards}`,
     showEnduranceTab: () => !!options.showEnduranceTab,
@@ -170,14 +169,14 @@ test("tab controller keeps the Endurance default for endurance athletes", async 
   assert.equal(env.context.defaultProgressSeg(), "endurance");
 });
 
-test("tab controller honors a direct Plan Endurance route even when the tab is normally hidden", async () => {
+test("the race view's skeleton is Horizon's shape, never a dead Plan seg bar", async () => {
   const env = loadTabs({ planSeg: "endurance" });
 
   env.context.switchTab("plan", { syncRoute: false });
   await flush();
 
   assert.equal(env.context.state.tab, "plan");
-  assert.equal(env.view.innerHTML, "seg:endurance:5:3");
+  assert.equal(env.view.innerHTML, "lines:2lines:3");
 });
 
 test("tab controller registers tabbar clicks and normalizes invalid tabs", async () => {

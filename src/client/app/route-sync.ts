@@ -44,11 +44,17 @@ type RouteSyncMode = "push" | "replace";
     return routeSyncApi()?.healthSections || lazySections("HEALTH_SEG");
   }
 
+  // Route matching reads the complete section keys (route-state DEFS), never a
+  // visible bar: a section a bar happens not to show must keep its own URL.
+  function routeSyncPlanSections(): ReadonlyArray<RouteSyncItem> {
+    return routeSyncApi()?.planSections || [];
+  }
+
   function routeSyncApply(route: RouteSyncRoute | null | undefined): ClientTabName {
     return window.CairnAppRouter.applyRouteState(route, {
       state,
       routeApi: routeSyncApi(),
-      planSections: planSeg(),
+      planSections: routeSyncPlanSections(),
       progressSections: PROGRESS_SEG,
       standSections: routeSyncStandSections(),
       meSections: routeSyncMeSections(),
@@ -60,11 +66,7 @@ type RouteSyncMode = "push" | "replace";
   function routeSyncCurrent(): Partial<RouteSyncRoute> {
     return window.CairnAppRouter.currentRouteState({
       state,
-      // Canonical URL state reads the complete route definition rather than the
-      // VISIBLE bar: planSeg() hides Endurance for a strength athlete, and a
-      // section the bar happens not to show must still keep its own URL instead
-      // of being rewritten to Training during the next state sync.
-      planSections: routeSyncApi()?.planSections || planSeg(),
+      planSections: routeSyncPlanSections(),
       progressSections: PROGRESS_SEG,
       standSections: routeSyncStandSections(),
       meSections: routeSyncMeSections(),

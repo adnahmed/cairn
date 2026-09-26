@@ -51,11 +51,6 @@ function loadRouteSync(options = {}) {
       pathname: options.pathname || "/app/today",
       search: options.search || "",
     },
-    planSeg: () => [
-      ["edit", "Training"],
-      ["food", "Food"],
-      ["coach", "Coach"],
-    ],
     state,
     window: {
       CairnAppRouter: {
@@ -121,11 +116,7 @@ test("route sync wrapper exposes route API and applies parsed routes with app se
       "applyRouteState",
       { tab: "plan", section: "food" },
       {
-        planSections: [
-          ["edit", "Training"],
-          ["food", "Food"],
-          ["coach", "Coach"],
-        ],
+        planSections: ["edit", "food", "meals", "coach"],
         progressSections: [
           ["sessions", "History"],
           ["program", "Program"],

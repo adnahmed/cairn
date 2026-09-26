@@ -205,7 +205,6 @@ function loadPlanEditorController(plan) {
     view,
     state: { tab: "plan", plan: [] },
     pollToken: 0,
-    PLAN_HANDLERS: {},
     PROGRESS_SEG: [["plan", "Plan"], ["program", "Program"]],
     PROGRESS_LINK_HANDLERS: {},
     showEnduranceTab: () => false,

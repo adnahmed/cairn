@@ -72,6 +72,16 @@
         "raw": 209920,
         "brotli": 39936
       }
+    },
+    "public/styles.css": {
+      "measured": {
+        "raw": 547698,
+        "brotli": 98525
+      },
+      "budget": {
+        "raw": 559104,
+        "brotli": 101376
+      }
     }
   }
 }

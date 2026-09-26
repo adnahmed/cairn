@@ -7,7 +7,9 @@
 <title>Cairn — your whole-picture health OS</title>
 <meta name="description" content="Self-hosted, connected health OS — reads your whole picture (training, food, labs, sleep, life) and suggests the one thing worth doing today.">
 <meta name="application-name" content="Cairn">
-<meta name="theme-color" content="#f4efe7">
+<!-- theme-color follows the system palette: each scheme's ground. The light one equals the manifest's theme_color (scripts/bump-icons.mjs checks it). Light comes first: a browser that ignores media takes the first. -->
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ebe7de">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121619">
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex, nofollow">
 <meta name="format-detection" content="telephone=no">
@@ -18,7 +20,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
 <!-- Windows tile -->
-<meta name="msapplication-TileColor" content="#f4efe7">
+<meta name="msapplication-TileColor" content="#ebe7de">
 <meta name="msapplication-TileImage" content="/icons/icon-192.v3.png">
 
 <!-- Icons. Filenames carry a version suffix (…vN) so a byte change ships under a

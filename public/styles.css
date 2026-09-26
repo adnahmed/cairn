@@ -29,20 +29,22 @@
   --line-strong: #c3bbab;/* a firmer hairline: input borders, dividers that must read */
   --ink:      #191d20;   /* primary text */
   --ink2:     #454b50;   /* secondary text */
-  --muted:    #626762;   /* tertiary text, labels. The brief's #6c716c nudged to clear AA 4.5:1 on --ground */
+  --muted:    #5d625d;   /* tertiary text, labels. The brief's #6c716c nudged to clear AA 4.5:1 on every neutral, --well included */
   --faint-ink:#a9a79f;   /* dismiss glyphs, ghosted marks, placeholders */
   --on-ink:   var(--ground); /* text on a solid ink fill (the solid button, a selected segment) */
 
   /* one accent: dawn */
-  --dawn:      #b8611a;
-  --dawn-deep: #95490c;
-  --dawn-wash: rgba(184,97,26,.12);
+  /* the brief's #b8611a deepened so dawn clears AA as small text on --ground and
+     under --on-accent as a fill (test/tokenContrast.test.js) */
+  --dawn:      #984b0e;
+  --dawn-deep: #843f0a;   /* the hover and pressed fill, and the firmest dawn word */
+  --dawn-wash: rgba(152,75,14,.12);
 
   /* the six stones — each keeps its OWN hue; tone is never a stone's fill */
-  --s-strength:  #a2b2bf;  --d-strength:  #4f6577;
-  --s-endurance: #97b89f;  --d-endurance: #46735a;
-  --s-recovery:  #aca4cf;  --d-recovery:  #655c96;
-  --s-fuel:      #dbb882;  --d-fuel:      #8e6424;
+  --s-strength:  #a2b2bf;  --d-strength:  #4c6174;
+  --s-endurance: #97b89f;  --d-endurance: #40694f;
+  --s-recovery:  #aca4cf;  --d-recovery:  #615893;
+  --s-fuel:      #dbb882;  --d-fuel:      #83591c;
   --s-body:      #cfa18b;  --d-body:      #8d5238;
   --s-heart:     #dc877b;  --d-heart:     #a53d35;
   --on-stone:    #15191c;  /* a glyph or initial on a stone fill */
@@ -63,7 +65,7 @@
   --accent-wash: var(--dawn-wash);
   --on-accent: #fbf8f2;  /* ink/glyph on a saturated fill (dawn / sage / warn / ink / gold) */
   --sage:    #5b8467;    /* done, completion — marks and borders */
-  --sage-text: var(--d-endurance); /* sage for small text, AA on surface */
+  --sage-text: var(--d-endurance); /* sage for small text, AA on ground, surface and well */
   --sage-deep: #37604a;
   --sage-bg: color-mix(in srgb, var(--s-endurance) 22%, var(--surface));
   --warn:    var(--d-heart);
@@ -173,7 +175,7 @@
     --line-strong: #3d474e;
     --ink:      #ece6da;
     --ink2:     #b0b3ad;
-    --muted:    #80877f;
+    --muted:    #91988f;
     --faint-ink:#5d655f;
     --dawn:      #f0aa62;
     --dawn-deep: #f6c28e;
@@ -211,7 +213,7 @@
   --line-strong: #3d474e;
   --ink:      #ece6da;
   --ink2:     #b0b3ad;
-  --muted:    #80877f;
+  --muted:    #91988f;
   --faint-ink:#5d655f;
   --dawn:      #f0aa62;
   --dawn-deep: #f6c28e;
@@ -2735,7 +2737,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .token-sheet-err{margin-top:8px;font-size:.8rem;color:var(--warn);font-weight:600}
 .token-sheet-ft{display:flex;justify-content:flex-end;margin-top:16px}
 .token-sheet-btn{appearance:none;font-family:inherit;font-size:.92rem;font-weight:600;cursor:pointer;
-  padding:10px 20px;border-radius:var(--radius-pill);border:0;background:var(--accent);color:var(--card);
+  padding:10px 20px;border-radius:var(--radius-pill);border:0;background:var(--accent);color:var(--on-accent);
   transition:transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
 .token-sheet-btn:hover{background:var(--accent-deep)}
 .token-sheet-btn:active{transform:var(--press)}
@@ -3407,11 +3409,13 @@ body.sheet-open{overflow:hidden}
   font-size:.8rem;color:var(--ink-2);font-variant-numeric:lining-nums;
   transition:transform var(--dur-1) var(--ease)}
 .cal-pad,.cal-out{background:transparent}
-.cal-out{color:#c9c0ad}
+.cal-out{color:var(--faint-ink)}
+/* heat levels are dawn washed into the surface, so they follow the theme; the day
+   number on each clears AA in both (ink-2 on the palest, ink above it) */
 .cl0{background:var(--card-2)}
-.cl1{background:#f4e2d5}
-.cl2{background:#eac3a7}
-.cl3{background:#d49270;color:var(--on-accent)}
+.cl1{background:color-mix(in srgb,var(--dawn) 18%,var(--surface))}
+.cl2{background:color-mix(in srgb,var(--dawn) 32%,var(--surface));color:var(--ink)}
+.cl3{background:color-mix(in srgb,var(--dawn) 46%,var(--surface));color:var(--ink)}
 .cl4{background:var(--accent);color:var(--on-accent)}
 .cal-today{outline:2px solid var(--accent);outline-offset:1.5px}
 .cal-has{cursor:pointer}
@@ -3594,7 +3598,7 @@ body.sheet-open{overflow:hidden}
    plan's arc, the finding the day honours), folded behind one quiet tap so the
    first view is the read and its one action. A hairline row, mono label. */
 .brief-around{margin-top:var(--space-7);border-top:1px solid var(--line)}
-.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;
+.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;
   list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .brief-around-sum::-webkit-details-marker{display:none}
 .brief-around-chev{color:var(--muted);font-size:.7rem;transition:transform var(--dur-2) var(--ease)}
@@ -3727,13 +3731,15 @@ body.sheet-open{overflow:hidden}
   background:color-mix(in srgb,var(--ink) 86%,var(--ground));border-color:transparent;color:var(--on-ink);
   box-shadow:none;transform:none}
 
-/* always-on bodyweight quick action — quiet, there until you want it */
-.capture-row{margin:0 0 12px}
+/* always-on bodyweight quick action — quiet, there until you want it. The chip and the
+   context tags share one quiet wrapping row. */
+.capture-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 var(--space-7)}
+.capture-row .tags-slot,.capture-row .tags-chips{display:contents}
 /* bodyweight quick-add chip living above the week fold (display + toggle) */
 .wt-mini{
-  flex:0 0 auto;background:var(--card-2);border:1px solid var(--line);color:var(--ink-2);
-  border-radius:var(--radius-pill);padding:0 13px;height:42px;display:inline-flex;align-items:center;gap:3px;
-  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:1rem;font-weight:560;
+  flex:0 0 auto;background:var(--surface);border:1px solid var(--line);color:var(--ink-2);
+  border-radius:var(--radius-pill);padding:0 12px;height:32px;display:inline-flex;align-items:center;gap:3px;
+  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:var(--text-md);font-weight:560;
   font-variant-numeric:lining-nums;cursor:pointer;
   transition:border-color var(--dur-1),color var(--dur-1),transform var(--dur-1);
 }
@@ -3970,13 +3976,13 @@ body.swr-busy::after{
 .tag-chip{
   display:inline-flex;align-items:center;background:transparent;
   border:1px solid var(--line);border-radius:var(--radius-pill);
-  padding:5px 12px;cursor:pointer;color:var(--muted);font-size:.8rem;
+  padding:5px 11px;min-height:32px;cursor:pointer;color:var(--ink2);font-size:var(--text-xs);
   transition:border-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease),
     background var(--dur-1) var(--ease),transform var(--dur-1) var(--ease);
 }
 .tag-chip:hover{border-color:var(--line-2);color:var(--ink-2)}
 .tag-chip:active{transform:var(--press-xs)}
-.tag-chip-on{background:var(--sage);border-color:var(--sage);color:var(--on-accent)}
+.tag-chip-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
 
 /* fueling follow-through — after a target change, one calm 1-tap read (no numbers) */
 .fueling-slot{margin:0}
@@ -5395,7 +5401,7 @@ button.hmk-row:active{background:var(--card-2)}
 .supp-sub{font-size:.8rem;color:var(--muted);line-height:1.5;margin:7px 0 12px;max-width:46ch}
 .supp-empty{font-size:.83rem;color:var(--muted);margin:0 0 12px}
 .supp-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:13px}
-.supp-chip{display:inline-flex;align-items:center;gap:7px;background:var(--paper,#f3ede1);
+.supp-chip{display:inline-flex;align-items:center;gap:7px;background:var(--paper);
   border:1px solid var(--line,rgba(0,0,0,.08));border-radius:var(--radius-pill);padding:5px 6px 5px 12px}
 .supp-name{font-size:.84rem;font-weight:600;color:var(--ink)}
 .supp-meta{font-size:.72rem;color:var(--muted)}
@@ -5910,13 +5916,19 @@ button.hmk-row:active{background:var(--card-2)}
    overlay below still anchors correctly to the absolutely-positioned button.
    .logbtn is the app-wide primary button (44×42 in the set row; other surfaces override
    its size) and .rest-btn the rest-bar ±15/Skip — both sat under the 44 px hit floor. */
+/* The v2 pills and chips (.pillbtn ≈36px, .pill-sm ≈31px, the stone-detail chips,
+   the Ask header's Changes pill, Today's bodyweight and context chips) and the
+   '‹ You' back link (.home-back, text-height) keep their calm visual size too. */
 .feel-dot,.iconbtn,.delbtn,.ex-skip,.togglebtn,.agent-detail-link,.logbtn,.rest-btn,
-.bpsheet-x,.outbox-review-close,.edset-del{position:relative}
+.bpsheet-x,.outbox-review-close,.edset-del,
+.pillbtn,.home-back,.stone-detail-chip,.hdr-changes,.wt-mini,.tag-chip{position:relative}
 .feel-dot::before,.iconbtn::before,.delbtn::before,
 .ex-skip::before,.togglebtn::before,.agent-detail-link::before,.sheet-x::before,
 .logbtn::before,.rest-btn::before,
 .bpsheet-x::before,.outbox-review-close::before,.edset-del::before,
-.detail-x::before,.chat-jump::before,.qlmic::before{
+.detail-x::before,.chat-jump::before,.qlmic::before,
+.pillbtn::before,.home-back::before,.stone-detail-chip::before,.hdr-changes::before,
+.wt-mini::before,.tag-chip::before{
   content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
   min-width:44px;min-height:44px;width:100%;height:100%;
 }
@@ -5954,7 +5966,7 @@ button.hmk-row:active{background:var(--card-2)}
   :root[data-theme="dark"]{
     --line:#46515a;
     --line-strong:#5a666f;
-    --muted:#9aa19a;
+    --muted:#a3aaa3;
   }
   /* small status / completion / level dots get a defining ring so they read
      even where the fill is close to its surround */
@@ -5979,7 +5991,7 @@ button.hmk-row:active{background:var(--card-2)}
   :root:not([data-theme="light"]){
     --line:#46515a;
     --line-strong:#5a666f;
-    --muted:#9aa19a;
+    --muted:#a3aaa3;
   }
 }
 /* -------------------------------------------------------------------
@@ -6741,7 +6753,7 @@ button.prow-name:hover{color:var(--accent)}
 .agenda-title{font-size:.98rem;line-height:1.4;color:var(--ink)}
 .agenda-body{margin-top:5px;color:var(--ink-2);font-size:.86rem;line-height:1.5}
 .agenda-foot{margin-top:11px;display:flex;gap:8px;flex-wrap:wrap}
-.agenda-act{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);
+.agenda-act{background:var(--accent);color:var(--on-accent);border:none;border-radius:var(--radius-sm);
   padding:8px 14px;font-family:var(--font-ui);font-weight:600;font-size:.88rem;cursor:pointer}
 .agenda-act:hover{background:var(--accent-deep)}
 .agenda-act:active{transform:var(--press)}
@@ -7088,7 +7100,7 @@ body[data-tab="session"] .tabbar{display:none}
 .sess-launch-meta{margin-top:6px;color:var(--ink-2);font-size:.85rem}
 .sess-launch-cta{
   flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;
-  padding:11px 18px;border-radius:var(--radius-pill);background:var(--accent);color:#fff;
+  padding:11px 18px;border-radius:var(--radius-pill);background:var(--accent);color:var(--on-accent);
   font-family:var(--font-ui);font-weight:600;font-size:.9rem;letter-spacing:.01em;
 }
 .sess-launch-arrow{transition:transform var(--dur-1) var(--ease)}
@@ -7350,7 +7362,7 @@ body[data-tab="session"] .tabbar{display:none}
 .chfeed-meta{margin:0;font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
   text-transform:uppercase;color:var(--muted);line-height:1.6}
 .chfeed-conf-k{letter-spacing:inherit}
-.chfeed-undo{align-self:flex-start;min-height:40px;display:inline-flex;align-items:center;
+.chfeed-undo{align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;
   margin:calc(var(--space-4) * -1) 0 calc(var(--space-5) * -1);font-size:var(--text-sm)}
 .chfeed-undo[aria-busy="true"]{opacity:.55;pointer-events:none}
 /* The change the athlete just made settles: its dawn washes in once and fades back
@@ -7555,7 +7567,7 @@ body[data-tab="session"] .tabbar{display:none}
 .idea-card-why{flex:1 1 auto;margin:0;font-size:var(--text-sm);color:var(--ink2);line-height:1.45}
 .idea-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-6);margin-top:var(--space-3)}
 .idea-card-start{padding:7px 13px;font-size:var(--text-sm)}
-.idea-card-start,.idea-card-another{min-height:40px}
+.idea-card-start,.idea-card-another{min-height:44px}
 .idea-card-another{font-size:var(--text-sm)}
 .idea-card-another[disabled]{opacity:.55;cursor:default}
 .idea-card-another[aria-busy="true"]{cursor:wait}
@@ -7944,13 +7956,8 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 .today-run-line .wrun-note .linkbtn{color:var(--ink2);font-size:var(--text-xs);text-decoration:underline;
   text-underline-offset:3px;text-decoration-color:var(--line-strong)}
 
-/* capture: the bodyweight chip and the context tags share one quiet wrapping row */
-.today-wrap .capture-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 var(--space-7)}
-.today-wrap .capture-row .tags-slot,.today-wrap .capture-row .tags-chips{display:contents}
+/* capture: the row, chip and tags are styled at their base (today/brief.css, ask/capture.css) */
 .today-wrap .wt-inline:not([hidden]){display:flex;gap:6px;flex:1 1 100%}
-.today-wrap .wt-mini{height:32px;padding:0 12px;background:var(--surface);font-size:var(--text-md)}
-.today-wrap .tag-chip{padding:5px 11px;font-size:var(--text-xs);color:var(--ink2);min-height:32px}
-.today-wrap .tag-chip-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
 
 /* the rail's ranked reads: hairline cards (no spine), small pill actions */
 .today-wrap .well-accent,.today-wrap .agenda-card{border:1px solid var(--line);border-left:1px solid var(--line);
@@ -8058,7 +8065,9 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
 /* ---- the stone detail: switcher, a head washed in the stone's hue, then its places ---- */
 .stone-detail{padding-bottom:var(--space-10)}
 .stone-detail-chips{position:relative;display:flex;gap:var(--space-3);overflow-x:auto;scrollbar-width:none;
-  margin:var(--space-2) calc(-1 * var(--gutter)) 0;padding:2px var(--gutter)}
+  /* 8px of vertical padding (taken back by the margins) holds each chip's 44px hit
+     overlay (a11y.css) inside the scroller, so it never scrolls vertically */
+  margin:calc(var(--space-2) - 6px) calc(-1 * var(--gutter)) -6px;padding:8px var(--gutter)}
 .stone-detail-chips::-webkit-scrollbar{display:none}
 .stone-detail-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:var(--text-sm);
   padding:5px 12px;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--surface);color:var(--ink2);
@@ -8209,8 +8218,8 @@ header:has(> .hdr-chat-actions) > .moved-note{grid-column:1 / -1;grid-row:2}
 .ripple-caption{font-size:var(--text-sm)}
 .ripple-change{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.3;color:var(--ink);text-wrap:pretty}
 .ripple-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-6);margin-top:var(--space-2)}
-.ripple-actions .pillbtn{min-height:40px;padding:7px 15px}
-.ripple-actions .linkbtn-quiet,.ripple-changes{min-height:40px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
+.ripple-actions .pillbtn{min-height:44px;padding:7px 15px}
+.ripple-actions .linkbtn-quiet,.ripple-changes{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
 .ripple-do{background:var(--dawn);border-color:var(--dawn);color:var(--on-accent)}
 .ripple-do:hover{background:var(--dawn-deep);border-color:var(--dawn-deep);color:var(--on-accent)}
 .ripple-do[aria-busy="true"]{opacity:.55;pointer-events:none}

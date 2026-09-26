@@ -14,9 +14,8 @@ test("logged food opens Fuel under Today, and shortcuts land there", () => {
   const chatFuelContext = file("public/js/chat-fuel-context-client.js");
   const appRenderDispatch = file("public/js/app-render-dispatch.js");
 
-  assert.match(uiSegments, /\["food",\s*"Food"\]/, "the race view's Plan bar still reaches Food");
-  assert.match(uiSegments, /food: \(\) => openPlan\("food"\)/, "the Food segment navigates to Fuel (it lives under Today)");
-  assert.match(ui, /planSeg\(\) \{[\s\S]*uiSegments\(\)\.planSeg\(\)/, "UI shell delegates Plan segments");
+  assert.doesNotMatch(uiSegments, /function planSeg|planHandlers/, "no Plan seg bar survives Horizon's race view");
+  assert.doesNotMatch(ui, /planSeg\(\)|PLAN_HANDLERS/, "the UI shell carries no Plan bar");
   assert.match(meals, /homeBackHtml\("today", "Today"\)/, "Fuel steps back to Today, its home");
   assert.doesNotMatch(meals, /segBar\("food", planSeg\(\)\)/, "Fuel no longer wears the Plan bar");
   assert.match(meals, /class="meal-energy food-journal fuel"/, "Food tab owns the Fuel surface and the energy read");

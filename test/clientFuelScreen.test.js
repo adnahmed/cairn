@@ -42,7 +42,6 @@ function load({ logDate = "" } = {}) {
     segBar: (active) => `<div class="seg" data-active="${active}"></div>`,
     planSeg: () => [],
     wireSeg: () => {},
-    PLAN_HANDLERS: {},
     localISO: () => TODAY,
     loadingState: (label) => `<p>${label}</p>`,
     skelLines: () => `<div class="skel-card"></div>`,

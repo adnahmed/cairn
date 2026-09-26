@@ -189,7 +189,7 @@
 .token-sheet-err{margin-top:8px;font-size:.8rem;color:var(--warn);font-weight:600}
 .token-sheet-ft{display:flex;justify-content:flex-end;margin-top:16px}
 .token-sheet-btn{appearance:none;font-family:inherit;font-size:.92rem;font-weight:600;cursor:pointer;
-  padding:10px 20px;border-radius:var(--radius-pill);border:0;background:var(--accent);color:var(--card);
+  padding:10px 20px;border-radius:var(--radius-pill);border:0;background:var(--accent);color:var(--on-accent);
   transition:transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
 .token-sheet-btn:hover{background:var(--accent-deep)}
 .token-sheet-btn:active{transform:var(--press)}

@@ -105,32 +105,28 @@ function segmentLabels(segments) {
   return Array.from(segments, ([, label]) => label);
 }
 
-test("UI segments expose compatibility globals and Plan endurance visibility", () => {
+test("UI segments expose compatibility globals and the endurance visibility state", () => {
   const context = loadSegments();
-  const { controller, state } = createController(context);
+  const { controller } = createController(context);
 
   assert.equal(context.CairnUiSegments, context.window.CairnUiSegments);
-  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "food", "coach"]);
-  assert.deepEqual(segmentLabels(controller.planSeg()), ["Training", "Food", "Changes"]);
-  assert.equal(
-    Object.hasOwn(controller.planHandlers, "coach"),
-    true,
-    "the change record is reachable from the bar and keeps its own route"
-  );
+  // The Plan seg bar is gone: every Plan section wears its own home's chrome.
+  assert.equal(Object.hasOwn(controller, "planSeg"), false);
+  assert.equal(Object.hasOwn(controller, "planHandlers"), false);
+  assert.equal(context.CairnUiSegments.showEnduranceTab(), false);
 
   context.CairnUiSegments.setDiscipline("hybrid");
   assert.equal(context.primaryDiscipline, "hybrid");
   assert.equal(context.CairnUiSegments.isHybrid(), true);
-  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "endurance", "food", "coach"]);
+  assert.equal(context.CairnUiSegments.showEnduranceTab(), true);
 
   context.CairnUiSegments.setDiscipline("strength");
   context.CairnUiSegments.setEnduranceGoalSet(true);
   assert.equal(context.enduranceGoalSet, true);
-  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "endurance", "food", "coach"]);
+  assert.equal(context.CairnUiSegments.showEnduranceTab(), true);
 
   context.CairnUiSegments.setEnduranceGoalSet(false);
-  state.planJump = "endurance";
-  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "endurance", "food", "coach"]);
+  assert.equal(context.CairnUiSegments.showEnduranceTab(), false);
 
   context.primaryDiscipline = "custom";
   assert.equal(context.primaryDiscipline, "custom");
@@ -197,11 +193,6 @@ test("UI segments delegate rendering, click routing, resize fitting, and handler
   resizeListeners[0]();
   assert.ok(calls.some((call) => call[0] === "cancelAnimationFrame"));
   assert.ok(calls.some((call) => call[0] === "raf"));
-
-  // The Plan bar's segments NAVIGATE (a Plan section can live under another
-  // home), so the lit tab and the URL follow the destination.
-  controller.planHandlers.endurance();
-  assert.deepEqual(calls.at(-1), ["activateTab", "plan"]);
 });
 
 test("Train's Plan leaf and the editor's Progress leaves are cross-view navigations", async () => {

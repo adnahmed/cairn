@@ -115,7 +115,7 @@
    plan's arc, the finding the day honours), folded behind one quiet tap so the
    first view is the read and its one action. A hairline row, mono label. */
 .brief-around{margin-top:var(--space-7);border-top:1px solid var(--line)}
-.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;
+.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;
   list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .brief-around-sum::-webkit-details-marker{display:none}
 .brief-around-chev{color:var(--muted);font-size:.7rem;transition:transform var(--dur-2) var(--ease)}
@@ -248,13 +248,15 @@
   background:color-mix(in srgb,var(--ink) 86%,var(--ground));border-color:transparent;color:var(--on-ink);
   box-shadow:none;transform:none}
 
-/* always-on bodyweight quick action — quiet, there until you want it */
-.capture-row{margin:0 0 12px}
+/* always-on bodyweight quick action — quiet, there until you want it. The chip and the
+   context tags share one quiet wrapping row. */
+.capture-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 var(--space-7)}
+.capture-row .tags-slot,.capture-row .tags-chips{display:contents}
 /* bodyweight quick-add chip living above the week fold (display + toggle) */
 .wt-mini{
-  flex:0 0 auto;background:var(--card-2);border:1px solid var(--line);color:var(--ink-2);
-  border-radius:var(--radius-pill);padding:0 13px;height:42px;display:inline-flex;align-items:center;gap:3px;
-  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:1rem;font-weight:560;
+  flex:0 0 auto;background:var(--surface);border:1px solid var(--line);color:var(--ink-2);
+  border-radius:var(--radius-pill);padding:0 12px;height:32px;display:inline-flex;align-items:center;gap:3px;
+  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:var(--text-md);font-weight:560;
   font-variant-numeric:lining-nums;cursor:pointer;
   transition:border-color var(--dur-1),color var(--dur-1),transform var(--dur-1);
 }

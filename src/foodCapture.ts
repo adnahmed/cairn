@@ -452,7 +452,9 @@ export interface FoodQuantity {
   unit: string;
 }
 
-const MASS_TO_G: Record<string, number> = {
+// Exported for the client-parity test (test/foodQuantityParity.test.js), which
+// reads every key so the client copy in meal-card-model.ts cannot drift.
+export const MASS_TO_G: Record<string, number> = {
   g: 1,
   gr: 1,
   gram: 1,
@@ -468,7 +470,7 @@ const MASS_TO_G: Record<string, number> = {
   pound: 453.592,
   pounds: 453.592,
 };
-const VOLUME_TO_ML: Record<string, number> = {
+export const VOLUME_TO_ML: Record<string, number> = {
   ml: 1,
   milliliter: 1,
   milliliters: 1,

@@ -53,6 +53,21 @@ test("manifest theme_color and the index.html theme-color meta agree", () => {
   assert.equal(identity.metaTheme, identity.themeColor);
 });
 
+// The page follows the system theme, so the browser chrome does too: a theme-color per
+// scheme, each the ground of its palette (src/styles/foundation/tokens.css).
+test("index.html paints the browser chrome in each palette's own ground", () => {
+  const index = read("public/index.html");
+  const tokens = read("src/styles/foundation/tokens.css");
+  const lightGround = /:root\{[\s\S]*?--ground:\s*(#[0-9a-f]{6})/i.exec(tokens)[1];
+  const darkGround = /:root\[data-theme="dark"\]\{[\s\S]*?--ground:\s*(#[0-9a-f]{6})/i.exec(tokens)[1];
+  const meta = (scheme) =>
+    new RegExp(`<meta name="theme-color" media="\\(prefers-color-scheme: ${scheme}\\)" content="([^"]+)">`).exec(index)?.[1];
+  assert.equal(meta("light"), lightGround);
+  assert.equal(meta("dark"), darkGround);
+  assert.doesNotMatch(index, /<meta name="theme-color" content=/, "no unscoped theme-color left to win");
+  assert.equal(readIdentity(root).manifest.background_color, lightGround, "the splash paints the light ground");
+});
+
 function copyIdentity() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cairn-bump-icons-"));
   temps.push(dir);
@@ -99,7 +114,10 @@ test("the bump refuses to start from places that already disagree", () => {
     index,
     fs
       .readFileSync(index, "utf8")
-      .replace(/content="#[0-9a-f]{6}">\n<meta name="color-scheme"/i, 'content="#000000">\n<meta name="color-scheme"')
+      .replace(
+        /(<meta name="theme-color" media="\(prefers-color-scheme: light\)" content=")#[0-9a-f]{6}"/i,
+        '$1#000000"'
+      )
   );
   assert.ok(checkIdentity(dir).errors.some((e) => /theme_color/.test(e)));
   assert.throws(() => bumpIdentity(dir), /disagree/);
