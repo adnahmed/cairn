@@ -131,7 +131,7 @@ type TodayRunLineDeps = Pick<TodayPlanSurfaceDeps, "escapeHtml"> & {
     deps: Pick<TodayPlanSurfaceDeps, "escapeHtml">,
     recovery?: Record<number, { recovering_groups?: string[]; mostly_recovering?: boolean }> | null,
   ): string {
-    let html = `<div class="day-switch">`;
+    let html = `<div class="day-switch rail">`;
     for (const day of plan.filter(isLiftPill)) {
       const dayNumber = Number(day.day_number);
       const read = recovery ? recovery[dayNumber] : null;

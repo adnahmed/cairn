@@ -60,7 +60,8 @@ function fmtDateRange(start: unknown, end: unknown): string {
   const endText = end ? String(end) : "";
   if (startText && endText && startText !== endText) {
     const sameYear = startText.slice(0, 4) === endText.slice(0, 4);
-    const from = sameYear && startText.slice(0, 4) !== localISO().slice(0, 4) ? shortDate(startText).replace(/,? \d{4}$/, "") : shortDate(startText);
+    // one year label per range: a same-year span prints it once, on the end
+    const from = shortDate(startText, { year: !sameYear });
     return `${escHtml(from)} → ${escHtml(shortDate(endText))}`;
   }
   if (startText) return escHtml(shortDate(startText));

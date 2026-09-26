@@ -130,7 +130,7 @@ function chatFrequentChipsHtml(foods: unknown): string {
       </button>`;
   }).join("");
   if (!chips) return "";
-  return `<div class="chat-freq"><span class="freq-head lbl">usual around now</span><div class="freq-chips">${chips}</div></div>`;
+  return `<div class="chat-freq rail"><span class="freq-head lbl">usual around now</span><div class="freq-chips">${chips}</div></div>`;
 }
 
 function chatStarterChipsHtml(starters: readonly unknown[] = CHAT_STARTERS): string {

@@ -60,7 +60,7 @@
       ${all.length ? `<nav class="stone-detail-chips rail rail-bleed" aria-label="The six stones">${all.map((peer) => chipHtml(peer, model.key)).join("")}</nav>` : ""}
       <header class="stone-detail-hero">
         <div class="stone-detail-read">
-          <h2 class="stone-detail-h" id="stoneDetailH">${escHtml(model.name)}</h2>
+          <h2 class="stone-detail-h sr-only" id="stoneDetailH">${escHtml(model.name)}</h2>
           ${readHtml(model, !!opts.loading)}
         </div>
         <span class="stone-detail-rock" aria-hidden="true">${rock}</span>

@@ -821,11 +821,15 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 .rail{--rail-fade:calc(var(--gutter) * 2);display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;
   overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;
   -webkit-mask-image:linear-gradient(to right,transparent,black var(--rail-l),black calc(100% - var(--rail-r)),transparent);
-  mask-image:linear-gradient(to right,transparent,black var(--rail-l),black calc(100% - var(--rail-r)),transparent);
-  animation:rail-edges linear both;animation-timeline:scroll(self inline)}
+  mask-image:linear-gradient(to right,transparent,black var(--rail-l),black calc(100% - var(--rail-r)),transparent)}
 .rail::-webkit-scrollbar{display:none}
 .rail > *{flex:0 0 auto}
 .rail-bleed{margin-inline:calc(-1 * var(--gutter));padding-inline:var(--gutter);scroll-padding-inline:var(--gutter)}
+/* the animation lives ONLY behind support: without a scroll timeline it would run
+   as a 0s time animation filled at 100% and pin the fade to the wrong edge */
+@supports (animation-timeline:scroll()){
+  .rail{animation:rail-edges linear both;animation-timeline:scroll(self inline)}
+}
 @supports not (animation-timeline:scroll()){
   .rail{--rail-r:var(--rail-fade)}
 }
@@ -875,8 +879,7 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 /* -------------------------------------------------------------------
    07 · Today: day switch, date, context banner, quick-log
    ------------------------------------------------------------------- */
-.day-switch{display:flex;gap:7px;overflow-x:auto;padding:6px 0 16px;scrollbar-width:none}
-.day-switch::-webkit-scrollbar{display:none}
+.day-switch{gap:7px;padding:6px 0 16px} /* scroller + edge fade: .rail */
 .daybtn{
   flex:0 0 auto;font-family:var(--font-ui);font-weight:600;font-size:.78rem;
   letter-spacing:.04em;color:var(--ink-2);background:transparent;
@@ -3931,9 +3934,8 @@ body.swr-busy::after{
    PREFILL drafts above the Chat composer (never a one-tap re-log) */
 .chat-freq-slot{padding:0 2px}
 .chat-freq-slot[hidden]{display:none}
-.chat-freq{display:flex;align-items:center;gap:10px;padding:2px 0 8px;
-  overflow-x:auto;scrollbar-width:none}
-.chat-freq::-webkit-scrollbar{display:none}
+/* the scroller + edge fade come from .rail (foundation/components.css) */
+.chat-freq{align-items:center;gap:10px;padding:2px 0 8px}
 .freq-head{flex:0 0 auto;color:var(--muted)}
 .freq-chips{display:flex;flex-wrap:nowrap;gap:7px}
 .freq-chip{
@@ -4274,8 +4276,7 @@ body.swr-busy::after{
 .nprog-read>p{max-width:62ch;margin:0;color:var(--ink-2);font-size:.88rem;line-height:1.55}
 .nprog-next{margin-top:14px;padding:10px 13px;color:var(--ink-2);font-size:.88rem;line-height:1.45}
 .nprog-next .lbl{display:block;margin-bottom:4px;color:var(--accent-deep)}
-.nprog-picks{display:flex;gap:7px;overflow-x:auto;padding:2px 1px 4px;scrollbar-width:none}
-.nprog-picks::-webkit-scrollbar{display:none}
+.nprog-picks{gap:7px;padding:2px 1px 4px} /* scroller + edge fade: .rail */
 .nprog-pick{flex:0 0 auto;border:1px solid var(--line-2);border-radius:var(--radius-pill);background:var(--card);
   color:var(--ink-2);font:600 .78rem var(--font-ui);padding:7px 12px;cursor:pointer}
 .nprog-pick.active{background:var(--ink);border-color:var(--ink);color:var(--on-accent)}
@@ -4508,7 +4509,9 @@ body.swr-busy::after{
      long agent call still reads as "working", not frozen (per docs/DESIGN.md) */
   /* a rail's edge fade follows the scroll position — state, not motion — so it
      survives the blanket kill (the longhand must follow the shorthand) */
-  .rail{animation:rail-edges linear both!important;animation-timeline:scroll(self inline)!important}
+  @supports (animation-timeline:scroll()){
+    .rail{animation:rail-edges linear both!important;animation-timeline:scroll(self inline)!important}
+  }
   .aspin{animation:sugspin 1.6s linear infinite!important}
   .is-thinking::after{animation:atelier-filament 2.4s linear infinite!important}
   .typing i{animation:typingdot 1.8s var(--ease) infinite!important}
@@ -8111,8 +8114,7 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
   background:color-mix(in srgb,var(--c,var(--well)) 26%,var(--surface))}
 .stone-detail-read{min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
 /* The stone's name is the page header's one serif title; the hero's own name stays
-   for assistive tech (it labels the article) but is not printed twice. */
-.stone-detail-h{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+   for assistive tech (it labels the article) as .sr-only, not printed twice. */
 .stone-detail-word{margin:0;font-family:var(--font-display);font-weight:400;font-size:2rem;line-height:1.05;
   letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
 .stone-detail-line{margin:var(--space-3) 0 0;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}

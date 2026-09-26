@@ -19,7 +19,9 @@
      long agent call still reads as "working", not frozen (per docs/DESIGN.md) */
   /* a rail's edge fade follows the scroll position — state, not motion — so it
      survives the blanket kill (the longhand must follow the shorthand) */
-  .rail{animation:rail-edges linear both!important;animation-timeline:scroll(self inline)!important}
+  @supports (animation-timeline:scroll()){
+    .rail{animation:rail-edges linear both!important;animation-timeline:scroll(self inline)!important}
+  }
   .aspin{animation:sugspin 1.6s linear infinite!important}
   .is-thinking::after{animation:atelier-filament 2.4s linear infinite!important}
   .typing i{animation:typingdot 1.8s var(--ease) infinite!important}

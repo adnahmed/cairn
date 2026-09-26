@@ -152,11 +152,15 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 .rail{--rail-fade:calc(var(--gutter) * 2);display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;
   overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;
   -webkit-mask-image:linear-gradient(to right,transparent,black var(--rail-l),black calc(100% - var(--rail-r)),transparent);
-  mask-image:linear-gradient(to right,transparent,black var(--rail-l),black calc(100% - var(--rail-r)),transparent);
-  animation:rail-edges linear both;animation-timeline:scroll(self inline)}
+  mask-image:linear-gradient(to right,transparent,black var(--rail-l),black calc(100% - var(--rail-r)),transparent)}
 .rail::-webkit-scrollbar{display:none}
 .rail > *{flex:0 0 auto}
 .rail-bleed{margin-inline:calc(-1 * var(--gutter));padding-inline:var(--gutter);scroll-padding-inline:var(--gutter)}
+/* the animation lives ONLY behind support: without a scroll timeline it would run
+   as a 0s time animation filled at 100% and pin the fade to the wrong edge */
+@supports (animation-timeline:scroll()){
+  .rail{animation:rail-edges linear both;animation-timeline:scroll(self inline)}
+}
 @supports not (animation-timeline:scroll()){
   .rail{--rail-r:var(--rail-fade)}
 }

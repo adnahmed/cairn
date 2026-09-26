@@ -207,7 +207,7 @@ type IntakeNutrient = import("../contracts/client.js").ClientNutritionProgressNu
         <p>${escHtml(`Record coverage is ${density}: ${coverage.logged_days} days include food; ${coverage.macro_known_days} closed days have all five tracked nutrients known${pending}. ${coverage.note}`)}</p>
         <div class="nprog-next well-accent-sm"><span class="lbl">One next move</span>${escHtml(progress.next_move)}</div>
       </section>
-      <nav class="nprog-picks" aria-label="Choose nutrient timeline">${selector}</nav>
+      <nav class="nprog-picks rail" aria-label="Choose nutrient timeline">${selector}</nav>
       ${intakeChartHtml(progress, active)}
       ${intakeBalanceHtml(progress)}
       ${intakeFoodQualityHtml(progress)}

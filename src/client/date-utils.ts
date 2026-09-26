@@ -72,13 +72,14 @@ function absDate(iso: string): string {
 }
 
 /** A calendar date for a list row: "Aug 2" this year, "Aug 2, 2025" any other. */
-function shortDate(iso: string): string {
+/** "Mar 4", or "Mar 4, 2025" outside this year; `year:false` never prints one. */
+function shortDate(iso: string, opts: { year?: boolean } = {}): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
   if (!m) return String(iso || "");
   const d = new Date(+m[1], +m[2] - 1, +m[3]);
   if (Number.isNaN(d.getTime())) return String(iso);
-  const sameYear = m[1] === localISO().slice(0, 4);
-  return d.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+  const withYear = opts.year !== false && m[1] !== localISO().slice(0, 4);
+  return d.toLocaleDateString(undefined, withYear ? { month: "short", day: "numeric", year: "numeric" } : { month: "short", day: "numeric" });
 }
 
 function humanizeReviewText(text: string, latestISO: string | null | undefined): string {
