@@ -72,6 +72,11 @@ test("each doctor-loop follow-up appears once, worded as a calm question", () =>
   assert.match(read.frame, /not medical advice/i);
   for (const q of read.questions)
     assert.doesNotMatch(q.text, /\bmust\b|\b\d{1,3}\s*\/\s*100\b/i, "no gate words, no scores");
+  // The basis is read by the athlete: the loop's machine status clause, which merges the
+  // lab flag and the optimal band into one "optimal/lab range", never reaches it.
+  assert.ok(lipids[0].basis, "the follow-up carries its plain reason");
+  for (const q of loop) assert.doesNotMatch(q.basis ?? "", /optimal\/lab|follow-up lever/i);
+  assert.match(lipids[0].basis, /^A lipid marker/, "the plain policy sentence, as written");
 });
 
 test("a follow-up a year out is not a question for this visit", () => {

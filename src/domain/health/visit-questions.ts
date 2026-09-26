@@ -55,6 +55,18 @@ function loopQuestionText(item: DoctorLoopItem): string {
   return `Is it time to recheck ${label}?`;
 }
 
+// The follow-up's reason as the athlete reads it. The doctor loop stores a machine-register
+// reason that leads with a status clause ("<marker> is outside its optimal/lab range; " or
+// "... is under an active follow-up lever; ") — one phrase that merges the lab's flag with
+// the optimal band, which the athlete-facing surfaces keep as two separate marks. The
+// question already names the marker, so the basis keeps only the plain policy sentence,
+// cased as written (it may open on a marker name such as "hs-CRP").
+const LOOP_STATUS_CLAUSE = /^[^;]{1,160}? is (?:outside its optimal\/lab range|under an active follow-up lever);\s*/i;
+
+function loopBasis(reason: unknown): string | null {
+  return clean(reason, 400).replace(LOOP_STATUS_CLAUSE, "") || null;
+}
+
 function withinHorizon(item: DoctorLoopItem, asOf: string): boolean {
   if (item.due) return true;
   if (!item.next_due) return false;
@@ -107,7 +119,7 @@ export function visitQuestionsRead(opts: { asOf?: string; refresh?: boolean } = 
         id: `loop:${item.key}`,
         text: loopQuestionText(item),
         source: "doctor_loop",
-        basis: clean(item.reason, 400) || null,
+        basis: loopBasis(item.reason),
       });
     }
     for (const w of loop.missing_workup.slice(0, WORKUP_QUESTION_LIMIT)) {
