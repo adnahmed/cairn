@@ -59,6 +59,28 @@ async function renderPlanEndurance(): Promise<void> {
   let laterAgenda: EnduranceAgenda | null = null;
   let laterRunPlan: EnduranceRunPlan | null = null;
   let laterRaceBuild: EnduranceRaceBuild | null = null;
+  // One trip for the whole screen: /horizon-race answers every read below, keyed by
+  // the path each one asks with, and primes the request layer (apiPrime). A read the
+  // fan-in came back without still asks for itself.
+  try {
+    const mondays = [nextMonday, laterMonday].filter(Boolean);
+    const q = encodeURIComponent;
+    const paths = [
+      "/endurance-goal",
+      "/run-compliance",
+      `/training-agenda?date=${q(today)}`,
+      "/settings",
+      "/race-build",
+      "/run-plan",
+      ...mondays.flatMap((d) => [`/training-agenda?date=${q(d)}`, `/run-plan?date=${q(d)}`, `/race-build?date=${q(d)}`]),
+    ];
+    apiPrime(
+      paths,
+      api(`/horizon-race?dates=${mondays.map(q).join(",")}` as "/horizon-race").then(
+        (value) => (value as { responses?: unknown } | null)?.responses ?? null
+      )
+    );
+  } catch { /* each read below asks for itself */ }
   try {
     [goal, compliance, agenda, settings, raceBuild, runPlan, nextAgenda, nextRunPlan, nextRaceBuild, laterAgenda, laterRunPlan, laterRaceBuild] = await Promise.all([
       api("/endurance-goal").catch(() => null),

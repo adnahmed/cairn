@@ -58,8 +58,9 @@ function garminInputState(): { garmin_sleep_gap_nights: number | null } {
   }
 }
 
-operatorRouter.get("/settings", (_req, res) =>
-  res.json({
+// GET /settings, as one call: the /today aggregate primes the same body.
+export function settingsResponse() {
+  return {
     settings: { ...getSettings(), ...garminInputState() },
     agents: getAgentConfig(),
     route_tasks: listRoutableTasks(),
@@ -67,8 +68,10 @@ operatorRouter.get("/settings", (_req, res) =>
     // Quiet state for the strength write-back toggle. Derived, not a settings column,
     // so it rides alongside `settings` rather than inside it.
     garmin_last_export_at: lastGarminStrengthExportAt(),
-  })
-);
+  };
+}
+
+operatorRouter.get("/settings", (_req, res) => res.json(settingsResponse()));
 operatorRouter.put("/settings", (req, res) =>
   res.json({
     settings: { ...setSettings(req.body ?? {}), ...garminInputState() },

@@ -4867,6 +4867,34 @@ other way writes the wrong day into the athlete's log.
 
 ---
 
+## HTTP caching, the response memo and the Today fan-in
+
+- **Cache-Control** (`src/api.ts`): every `/api` read is `private, no-cache` (a browser
+  may keep it, but revalidates with the ETag every time); health reads — `/health*`,
+  `/markers*`, `/recovery*`, `/records*`, `/doctor*`, `/imaging*`, `/dicom*` — are
+  `private, no-store`. A route that needs something else sets its own header.
+- **Response memo** (`src/routes/response-memo.ts`, `memoizedRead`): `/today`,
+  `/today-read` (canonical only), `/daily-session/preview`, `/week-ahead`, `/team-week`,
+  `/journey*`, `/nutrition/expenditure` and `/horizon-race` remember their last body per
+  URL under `responseFreshnessKey()` (`src/repo/response-freshness.ts`): the coach-context
+  backstop signature, the marker counter, an odometer over the bookkeeping tables those
+  reads consult (app_state minus the heartbeat, ai_cache, agent_availability, …), the
+  local date, the device zone and a ten-minute slot. If-None-Match is answered before
+  computing; the ETag is the body digest. A body is stored only when the key read before
+  the compute equals the key read after it, so a read with side effects never stores its
+  first answer. A new input a memoized read depends on belongs in that key.
+- **Fan-ins** (`src/routes/today-responses.ts`): `/today?surface=today` carries
+  `responses` — the exact body of every other GET a Today open makes, keyed by path —
+  and `/horizon-race?dates=` does the same for Horizon → Race. The client primes its
+  request layer with them (`apiPrime`, `api-cache.ts` / `api-core.ts`); primes clear on
+  any write. A new Today GET should join `todaySurfaceResponses` (reuse the route's own
+  body function) and the path list in `today-prefetch.ts`. `responses` never reaches the
+  SWR tiers.
+- **Early fetch**: `index.html`'s one inline script starts `/today-read`,
+  `/daily-session/preview` and `/today?surface=today` before the bundles parse; its CSP
+  hash is computed at boot from the served file (`src/earlyFetch.ts`), and api() takes
+  each response once via `CairnTodayPrefetch.takeEarly`.
+
 ## PWA surfaces (`public/`, source in `src/client/**`)
 
 Dependency-free vanilla JS. The tabbed client talks only to `/api/*` and lives in `public/js/*.js` —

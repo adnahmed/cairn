@@ -4,7 +4,7 @@
 
 {
 type TodayScreenRuntimeApiResponse<Path extends string> = import("../contracts/client.js").ClientApiResponse<Path>;
-type TodayScreenRuntimeCachedApiOptions<T> = { key?: string; freshFor?: number; onUpgrade?: (data: T, meta: { changed: boolean }) => void };
+type TodayScreenRuntimeCachedApiOptions<T> = { key?: string; freshFor?: number; onUpgrade?: (data: T, meta: { changed: boolean }) => void; project?: (data: T) => T };
 type TodayScreenRuntimeSwrPeek<T> = { data: T; fresh: boolean };
 type TodayScreenRuntimeDayRead = import("../contracts/client.js").ClientDayRead & { _provisional?: boolean; override?: string | null };
 type TodayScreenRuntimePlanItem = import("../contracts/client.js").ClientPlanItem & {

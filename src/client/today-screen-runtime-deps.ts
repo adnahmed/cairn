@@ -4,7 +4,7 @@
 
 {
 type TodayScreenRuntimeDepsApiResponse<Path extends string> = import("../contracts/client.js").ClientApiResponse<Path>;
-type TodayScreenRuntimeDepsCachedApiOptions<T> = { key?: string; freshFor?: number; onUpgrade?: (data: T, meta: { changed: boolean }) => void };
+type TodayScreenRuntimeDepsCachedApiOptions<T> = { key?: string; freshFor?: number; onUpgrade?: (data: T, meta: { changed: boolean }) => void; project?: (data: T) => T };
 type TodayScreenRuntimeDepsSwrPeek<T> = { data: T; fresh: boolean };
 type TodayScreenRuntimeDepsState = ClientTodayScreenRuntimeState;
 type TodayScreenRuntimeDepsInput = {

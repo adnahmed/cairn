@@ -84,11 +84,59 @@ test("Today plan selection uses the server-owned adaptive day unless the athlete
   assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, deps), 3);
   assert.deepEqual(calls, ["/today-plan-day?date=2026-07-01"]);
 
-  const failingDeps = {
-    state: { logDate: "2026-07-01", plan },
-    api: async () => { throw new Error("offline"); },
+});
+
+// A tiny in-memory SWR tier standing in for peekCached/swrSet.
+function memoryCache() {
+  const rows = new Map();
+  return {
+    rows,
+    peekCached: (key) => (rows.has(key) ? { data: rows.get(key), fresh: true } : null),
+    storeCached: (key, data) => rows.set(key, data),
   };
-  assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, failingDeps), 1);
+}
+
+test("an offline open with nothing remembered selects NO day and asks the athlete to pick — never day 1", async () => {
+  const client = loadClient();
+  const cache = memoryCache();
+  const state = { logDate: "2026-07-01", plan };
+  const failingDeps = { state, api: async () => { throw new Error("offline"); }, ...cache };
+  assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, failingDeps), null);
+  assert.equal(state.planDayUnknown, true);
+});
+
+test("the server's pick is remembered per date and stands when the next open is offline or times out", async () => {
+  const client = loadClient();
+  const cache = memoryCache();
+  const state = { logDate: "2026-07-01", plan };
+  const online = { state, api: async () => ({ day_number: 2, source: "adaptive", candidates: [] }), ...cache };
+  assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, online), 2);
+  assert.equal(state.planDayUnknown, false);
+  assert.ok(cache.rows.has("today:plan-day:2026-07-01"), "remembered under today:plan-day:<date>");
+
+  for (const error of [new Error("offline"), Object.assign(new Error("timeout"), { name: "AbortError" })]) {
+    const offline = { state, api: async () => { throw error; }, ...cache };
+    // The day a queued set is logged against: the server's own pick, not day 1.
+    assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, offline), 2, error.message);
+    assert.equal(state.planDayUnknown, false);
+  }
+
+  // Another date has nothing remembered: it asks rather than borrowing yesterday's pick.
+  const tomorrow = { logDate: "2026-07-02", plan };
+  const offline = { state: tomorrow, api: async () => { throw new Error("offline"); }, ...cache };
+  assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, offline), null);
+  assert.equal(tomorrow.planDayUnknown, true);
+});
+
+test("a remembered calendar rest/run day stays a calendar day offline", async () => {
+  const client = loadClient();
+  const cache = memoryCache();
+  const state = { logDate: "2026-07-05", plan };
+  const online = { state, api: async () => ({ day_number: null, source: "calendar", calendar: "run", candidates: [] }), ...cache };
+  assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, online), null);
+  const offline = { state, api: async () => { throw new Error("offline"); }, ...cache };
+  assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, offline), null);
+  assert.equal(state.planDayUnknown, false, "a calendar fact, not an unknown");
 });
 
 test("Today plan selection rejects a stale server day that is no longer in the loaded plan", async () => {
@@ -109,4 +157,14 @@ test("a calendar run or rest day selects no lift — never the first plan day by
     };
     assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, deps), null, `${calendar} day`);
   }
+});
+
+test("a remembered pick naming a day the plan no longer has asks the athlete offline — never day 1", async () => {
+  const client = loadClient();
+  const cache = memoryCache();
+  const state = { logDate: "2026-07-01", plan };
+  cache.rows.set("today:plan-day:2026-07-01", { day_number: 99, source: "adaptive", candidates: [] });
+  const offline = { state, api: async () => { throw new Error("offline"); }, ...cache };
+  assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, offline), null);
+  assert.equal(state.planDayUnknown, true);
 });

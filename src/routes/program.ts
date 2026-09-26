@@ -40,6 +40,8 @@ import {
 } from "../domain/training/index.js";
 import { calibrationStatus, dueCalibrations } from "../repo/calibration.js";
 import { backgroundOp } from "./background-op.js";
+import { memoizedRead } from "./response-memo.js";
+import { horizonRaceResponses } from "./today-responses.js";
 import { flexibleTrainingAgenda } from "../repo.js";
 
 export const programRouter = Router();
@@ -306,6 +308,15 @@ programRouter.get("/race-build", (req, res) =>
 // Read-only; unfinished work creates no catch-up debt.
 programRouter.get("/training-agenda", (req, res) =>
   res.json(flexibleTrainingAgenda(req.query.date ? String(req.query.date) : undefined))
+);
+// Horizon -> Race in ONE request (routes/today-responses.ts): the goal, compliance,
+// settings, this week's run plan / race build / agenda, the upcoming-session note,
+// and the same three week reads for each later Monday in `?dates=` (comma list, at
+// most four). `responses` is keyed by the path each individual route answers, with
+// that route's exact body — every one of those routes still stands on its own.
+// Memoized on the response freshness key like the Today aggregate.
+programRouter.get("/horizon-race",
+  memoizedRead("horizon-race", (req) => ({ responses: horizonRaceResponses(req.query.dates) }))
 );
 programRouter.get("/run-zones", (_req, res) => res.json(runZones()));
 // CALIBRATION — how well-anchored the numbers steering training actually are, plus

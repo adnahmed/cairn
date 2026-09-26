@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { enqueueAgentJob, ensureWeekAheadJob } from "../agentJobs.js";
 import { composeDailySession, suggestSession, weekAheadServe, whatIfDo } from "../coachOps.js";
+import { ensureDayReadRefresh } from "../dayread-refresh.js";
 import { readToday, tradeRestDay } from "../domain/brain/index.js";
 import { createAgentJob } from "../domain/person/index.js";
 import {
@@ -19,6 +20,7 @@ import {
 } from "../repo.js";
 import { localDateISO } from "../repo/shared.js";
 import { backgroundOp } from "./background-op.js";
+import { memoizedRead } from "./response-memo.js";
 
 export const dayCoachRouter = Router();
 
@@ -32,16 +34,37 @@ export const dayCoachRouter = Router();
 // Fast path: the canonical (no-override) read is cached per day — written nightly
 // by the scheduler and on any miss — so the morning open is instant and never
 // waits on an agent subprocess. Overrides always recompute (they're transient).
-dayCoachRouter.get("/today-read", async (req, res) => {
-  const date = req.query.date ? String(req.query.date) : undefined;
-  const override = req.query.override ? String(req.query.override) : undefined;
-  const agentParam = req.query.agent ? String(req.query.agent) : undefined;
-  // ?reset=1 clears a persisted steer ("back to today's read") and recomputes the
-  // canonical read — the un-steer escape hatch, so the user is never trapped in
-  // an override they changed their mind about (mirrors the cache-invalidation path).
-  const reset = req.query.reset === "1" || req.query.reset === "true";
-  return res.json(await readToday({ date, override, agent: agentParam, reset, recordOutcome: true }));
-});
+//
+// The canonical read (no override, no reset) is also memoized on the response
+// freshness key (routes/response-memo.ts): a repeat open whose inputs have not moved
+// — no log, no sync, no agent run landing — answers the same body, or a 304, without
+// re-running the reconciliation. A steer or a reset always computes.
+dayCoachRouter.get("/today-read",
+  memoizedRead(
+    "today-read",
+    (req) => {
+      const date = req.query.date ? String(req.query.date) : undefined;
+      const override = req.query.override ? String(req.query.override) : undefined;
+      const agentParam = req.query.agent ? String(req.query.agent) : undefined;
+      // ?reset=1 clears a persisted steer ("back to today's read") and recomputes the
+      // canonical read — the un-steer escape hatch, so the user is never trapped in
+      // an override they changed their mind about (mirrors the cache-invalidation path).
+      const reset = req.query.reset === "1" || req.query.reset === "true";
+      return readToday({ date, override, agent: agentParam, reset, recordOutcome: true });
+    },
+    {
+      cacheable: (req) => !req.query.override && !req.query.reset,
+      // A remembered floor read still arms its self-heal on every open, exactly as
+      // the cached-row path of readToday does (ensureDayReadRefresh dedupes).
+      onHit: (req, read) => {
+        const row = read as { source?: unknown; curated?: unknown; date?: unknown } | null;
+        if (row?.source !== "deterministic" || row.curated) return;
+        const date = typeof row.date === "string" ? row.date : req.query.date ? String(req.query.date) : undefined;
+        ensureDayReadRefresh(date);
+      },
+    }
+  )
+);
 
 // Background the Brief OVERRIDE reshape ("rough night" / "short on time" / "train
 // anyway") as a durable job, so a steer survives a tab switch / reload / restart
@@ -181,20 +204,39 @@ dayCoachRouter.get("/daily-session", (req, res) => {
 // rest/unplanned day, and the PWA asks on EVERY Today render. That absence answers
 // `200 + null` like every other single-row read here; 400 is reserved for malformed
 // input (a bad date or constraint).
-dayCoachRouter.get("/daily-session/preview", (req, res) => {
-  try {
-    const override = req.query.override != null ? String(req.query.override) : null;
-    res.json(
-      previewAdaptiveDailySessionUseCase({
-        date: req.query.date != null ? String(req.query.date) : undefined,
-        constraints: override ? { day_read_override: override } : {},
-        train_anyway: req.query.train_anyway === "1" || req.query.train_anyway === "true",
-      })
-    );
-  } catch (error: any) {
-    if (isDailySessionAbsence(error)) return res.json(null);
-    res.status(400).json(dailySessionErrorBody(error));
+// Memoized on the response freshness key; a malformed request (400) is never remembered.
+dayCoachRouter.get("/daily-session/preview",
+  memoizedRead("daily-session-preview", (req) => {
+    try {
+      return previewAdaptiveDailySessionUseCase(previewRequestFor(req));
+    } catch (error: any) {
+      if (isDailySessionAbsence(error)) return null;
+      throw new PreviewRequestError(error);
+    }
+  })
+);
+
+class PreviewRequestError extends Error {
+  readonly original: unknown;
+  constructor(original: unknown) {
+    super("daily-session preview failed");
+    this.original = original;
   }
+}
+
+function previewRequestFor(req: { query: Record<string, unknown> }) {
+  const override = req.query.override != null ? String(req.query.override) : null;
+  return {
+    date: req.query.date != null ? String(req.query.date) : undefined,
+    constraints: override ? { day_read_override: override } : {},
+    train_anyway: req.query.train_anyway === "1" || req.query.train_anyway === "true",
+  };
+}
+
+// A preview that failed for any reason other than absence keeps its old 400 body.
+dayCoachRouter.use("/daily-session/preview", (error: unknown, _req: any, res: any, next: any) => {
+  if (error instanceof PreviewRequestError) return res.status(400).json(dailySessionErrorBody(error.original as any));
+  next(error);
 });
 
 // The deterministic decision envelope (Stage 2) — an explainable, reproducible
@@ -294,6 +336,26 @@ dayCoachRouter.get("/session-primer", (req, res) => {
   }
 });
 
+// GET /week-ahead's body plus its refresh kick, shared with the /today fan-in.
+// `onRefresh` hears the cache key a kick was armed for, so a memoized fan-in can
+// re-kick it on a later hit (a failed job must not wait for the key to move).
+export function weekAheadResponse(agentParam?: string, onRefresh?: (cacheKey: string) => void) {
+  const served = weekAheadServeSafe();
+  if (served.needsRefresh) {
+    ensureWeekAheadJob(agentParam, served.cacheKey);
+    onRefresh?.(served.cacheKey);
+  }
+  return served.response;
+}
+
+function weekAheadServeSafe(): { response: unknown; needsRefresh: boolean; cacheKey: string } {
+  try {
+    return weekAheadServe();
+  } catch (e: any) {
+    return { response: { ok: false, error: e.message }, needsRefresh: false, cacheKey: "" };
+  }
+}
+
 // The week ahead — a calm forward look (lift / run / mixed / rest across the next
 // several days). Agentic with a deterministic plan-rotation floor, so it always
 // returns a usable shape even with no agent. Cached per day+plan+goal.
@@ -303,16 +365,23 @@ dayCoachRouter.get("/session-primer", (req, res) => {
 // miss or a stale hit, ensureWeekAheadJob kicks (or joins) a durable background
 // job that runs the real agentic read and refreshes the cache for next time —
 // deduplicated so a burst of opens never spawns more than one CLI per day.
-dayCoachRouter.get("/week-ahead", (req, res) => {
-  try {
-    const agentParam = req.query.agent != null ? String(req.query.agent) : undefined;
-    const { response, needsRefresh, cacheKey } = weekAheadServe();
-    if (needsRefresh) ensureWeekAheadJob(agentParam, cacheKey);
-    res.json(response);
-  } catch (e: any) {
-    res.json({ ok: false, error: e.message });
-  }
-});
+//
+// Memoized on the response freshness key: the served body is remembered, and the
+// refresh kick still runs on EVERY serve that needs one (ensureWeekAheadJob dedupes),
+// so a remembered "computing" floor never strands the agentic read.
+dayCoachRouter.get("/week-ahead",
+  memoizedRead("week-ahead", () => weekAheadServeSafe(), {
+    body: (served) => served.response,
+    onServe: (req, served) => {
+      if (!served.needsRefresh) return;
+      try {
+        ensureWeekAheadJob(req.query.agent != null ? String(req.query.agent) : undefined, served.cacheKey);
+      } catch {
+        /* the next open kicks it again */
+      }
+    },
+  })
+);
 
 // ---- the what-if (Ask) ----
 // The athlete asks a hypothetical in words ("what if I lifted three days instead of

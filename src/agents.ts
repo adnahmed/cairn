@@ -17,6 +17,7 @@ import {
 } from "./agentAvailability.js";
 import { AgentBusyError, isAgentBusyError } from "./agent-busy.js";
 import { log } from "./log.js";
+import { bumpAgentStateGeneration } from "./repo/agent-state-generation.js";
 export { AGENT_ENV_DENYLIST, agentCliPath, agentExecutionCwd, buildAgentSpawnOptions, promptReferencesDataDir, sanitizeAgentEnv } from "./agentExecution.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -242,6 +243,7 @@ export function commandPresent(cmd: string): boolean {
     present = lookupOnPath(cmd);
   }
   presenceCache.set(cmd, present);
+  bumpAgentStateGeneration();
   return present;
 }
 
@@ -414,6 +416,7 @@ export function agentConfigured(name: string): boolean | null {
     try { verdict = probeConfigured(name, def); } catch { verdict = null; }
   }
   configuredCache.set(name, verdict);
+  bumpAgentStateGeneration();
   return verdict;
 }
 
@@ -423,6 +426,7 @@ export function agentConfigured(name: string): boolean | null {
 // "Installed" until restart) and after a CLI update (so a new version / model list
 // shows without a restart).
 export function invalidateAgentConfigured(name?: string): void {
+  bumpAgentStateGeneration();
   _codexModel = undefined; // codex model is read from ~/.codex/config.toml
   // A completed login is exactly the event a persisted auth hold was waiting for
   // — drop it here rather than making the person wait out the re-probe leash.

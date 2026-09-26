@@ -315,7 +315,7 @@ type TodayPlanSurfaceRendererApi = {
       options.plan,
       options.activeDay,
       surfaceDeps,
-      options.planDayRecovery ?? null,
+      options.planDayRecovery ?? null, (options.day as { pick?: unknown } | null)?.pick === true,
     );
     html += deps.planSurface.rxBannerHtml(options.rxByEx, options.activeDay, surfaceDeps);
 

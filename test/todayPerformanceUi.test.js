@@ -29,7 +29,8 @@ test("Today starts non-dependent summary reads before later render work", () => 
 });
 
 test("Today starts plan and session requests together on the cold path", () => {
-  assert.match(todayDataLoader, /const aggregatePath = "\/today\?date=" \+/, "one aggregate path for both paths");
+  assert.match(todayDataLoader, /const aggregatePath = todayAggregatePath\(deps\.state\.logDate, deps\.state\.tab\);/, "one aggregate path for both paths");
+  assert.match(todayDataLoader, /return "\/today\?date=" \+ encodeURIComponent\(date\)/, "the aggregate is /today for the date");
   assert.ok(
     (todayDataLoader.match(/deps\.cachedApi\(aggregatePath,/g) || []).length === 2,
     "the aggregate is the cold read AND the warm revalidation — never five separate reads",

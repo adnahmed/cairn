@@ -39,6 +39,7 @@ type TodayPlanSurfaceApi = {
     activeDay: unknown,
     deps: Pick<TodayPlanSurfaceDeps, "escapeHtml">,
     recovery?: Record<number, { recovering_groups?: string[]; mostly_recovering?: boolean }> | null,
+    pick?: boolean,
   ): string;
   rxBannerHtml(rxByEx: Record<string, unknown>, day: unknown, deps: Pick<TodayPlanSurfaceDeps, "escapeAttr" | "escapeHtml" | "rxMoveCount" | "stagger">): string;
   addExerciseFormHtml(): string;
@@ -125,13 +126,19 @@ type TodayRunLineDeps = Pick<TodayPlanSurfaceDeps, "escapeHtml"> & {
   // A hint, never a gate (VISION §2.1 — the wheel is always the athlete's). The
   // pill stays fully tappable; it just says what it is offering, so a leg day the
   // morning after a hard run does not have to be discovered by tapping it.
+  // `pick`: today's plan-day choice could not be read (offline / timed out) and none
+  // was remembered for this date, so nothing is selected — ask, never guess day 1.
   function daySwitchHtml(
     plan: TodayPlanSurfaceDay[],
     activeDay: unknown,
     deps: Pick<TodayPlanSurfaceDeps, "escapeHtml">,
     recovery?: Record<number, { recovering_groups?: string[]; mostly_recovering?: boolean }> | null,
+    pick?: boolean,
   ): string {
-    let html = `<div class="day-switch rail">`;
+    let html = pick
+      ? `<p class="session-pick sess-line">${deps.escapeHtml("Pick today’s day — Cairn couldn’t read today’s choice just now.")}</p>`
+      : "";
+    html += `<div class="day-switch rail">`;
     for (const day of plan.filter(isLiftPill)) {
       const dayNumber = Number(day.day_number);
       const read = recovery ? recovery[dayNumber] : null;

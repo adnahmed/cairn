@@ -225,6 +225,7 @@ async function renderToday(opts: any = {}) {
   // render-scoped CairnTodayPrefetch rather than asking again.
   const todayPrefetch = (globalThis as { CairnTodayPrefetch?: TodayPrefetchApi }).CairnTodayPrefetch;
   todayPrefetch?.reset();
+  if (todayState.tab === "today") todayPrefetch?.primeFanIn?.(todayState.logDate, { api: todayApi, localISO });
 
   // The Brief's day-read and the session preview need only the date + any active
   // override — not the data load or the prepared plan day — so they start first.
@@ -436,13 +437,10 @@ async function renderToday(opts: any = {}) {
     : sessionPreview?.item_count ?? null;
   const previewHasItems = previewItemCount == null ? null : previewItemCount > 0;
   const dayHasItems = !!(day?.items || []).length;
+  // An unread pick (day.pick) starts nothing: the plan surface asks which day it is.
   const nothingToStart =
-    todayState.plan.length > 0 &&
-    !hasLoggedSets &&
-    exDone === 0 &&
-    !isRunDay &&
-    !dayHasItems &&
-    previewHasItems !== true;
+    !!day.pick ||
+    (todayState.plan.length > 0 && !hasLoggedSets && exDone === 0 && !isRunDay && !dayHasItems && previewHasItems !== true);
   // ONE ACTION, ONE BUTTON. A train read's Brief already carries the start for
   // today's session (today-brief-client.ts, gated by the same nothingToStart
   // witness), so when the launch card below would open that SAME session it is not
@@ -501,9 +499,9 @@ async function renderToday(opts: any = {}) {
   );
 
   html +=
-    showPlan && !showDone && nothingToStart
+    showPlan && !showDone && nothingToStart && !day.pick
       ? ""
-      : showPlan && !showDone && previewHasItems !== false
+      : showPlan && !showDone && previewHasItems !== false && !day.pick
       ? briefCarriesStart
         ? ""
         : sessionLaunchCardHtml(launchOpts)
