@@ -117,8 +117,7 @@
       onPhase: (job: AgentJob | null) => {
         if (!live(card) || card.state !== "thinking") return;
         const caption = card.el.querySelector(".ripple-caption");
-        const phase = typeof job?.phase === "string" ? job.phase.trim() : "";
-        if (caption && phase) caption.textContent = `${phase.charAt(0).toUpperCase()}${phase.slice(1)}…`;
+        if (caption) caption.textContent = CairnRippleCard.captionFor(job?.phase);
       },
       onDone: (result: unknown) => showAnswer(card, result, true),
       onError: (error?: unknown) => showFailed(card, typeof error === "string" ? error : null),
@@ -232,6 +231,8 @@
       }
     } else {
       actions?.remove();
+      // Handed over: the change now lives in Changes, so a reload never re-offers Do it.
+      remember(card.deps, null);
       card.deps.invalidate?.("brain:changes");
       card.deps.invalidate?.("plan");
     }
@@ -321,7 +322,9 @@
     const opened = liveCard();
     if (opened || !deps.isLive()) return opened ? opened.el : null;
     const status = String(job?.status ?? "");
-    if (!job || job.kind !== "what_if" || !["queued", "running", "done"].includes(status)) {
+    // A what-if already handed to the team (its job points at the draft) lives in Changes.
+    const handed = job?.ref_table === "plan_proposals";
+    if (!job || job.kind !== "what_if" || handed || !["queued", "running", "done"].includes(status)) {
       remember(deps, null);
       return null;
     }

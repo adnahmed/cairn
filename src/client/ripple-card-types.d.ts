@@ -81,6 +81,7 @@ interface Window {
   };
   CairnRippleCard: {
     askHtml(opts?: { draft?: string }): string;
+    captionFor(phase?: unknown): string;
     thinkingHtml(question: string, phase?: string | null): string;
     answerHtml(answer: ClientRippleAnswer, opts?: { enter?: boolean }): string;
     failedHtml(question: string, message?: string | null): string;

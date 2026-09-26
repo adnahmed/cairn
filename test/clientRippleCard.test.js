@@ -208,8 +208,16 @@ test("the question always reaches the team as one 'What if' sentence", () => {
 test("handed() frames the server's routed result and never decides a tier itself", () => {
   const win = load();
   const h = win.CairnRippleCardModel.handed;
-  const landed = h({ ok: true, applied: true, tier: "quiet_apply", decision: { id: 41 }, proposal_id: 9 });
+  // The server's immediate-apply shape: applyProposal's `applied` is the array of items that landed.
+  const landed = h({
+    ok: true,
+    applied: [{ target_id: 3, field: "target_reps", value: 8 }],
+    tier: "quiet_apply",
+    decision: { id: 41 },
+    proposal_id: 9,
+  });
   assert.equal(landed.state, "landed");
+  assert.equal(h({ ok: true, applied: [], tier: "quiet_apply", decision: { id: 2 } }).state, "landed");
   assert.equal(landed.decisionId, 41);
   assert.equal(landed.proposalId, 9);
   assert.equal(h({ ok: true, announced: true, tier: "announce", decision: { id: 3 } }).state, "lands");
@@ -220,9 +228,11 @@ test("handed() frames the server's routed result and never decides a tier itself
   assert.match(h({ ok: true, review_required: true, tier: "ask", plan_moved: true }).line, /plan has moved/);
   assert.equal(h({ ok: true, review_required: true, tier: "clinician" }).state, "clinician");
   assert.equal(h({ ok: true, already: true, proposal_id: 9 }).state, "already");
-  const refused = h({ ok: false, error: "a goal is yours to name", tried: [] });
+  const refused = h({ ok: false, error: "a goal is yours to name", kind: "goal", tried: [] });
   assert.equal(refused.state, "refused");
-  assert.equal(refused.line, "a goal is yours to name", "the server's reason, verbatim");
+  assert.equal(refused.line, "A goal is yours to name", "what-if's own reason, as a sentence");
+  const raw = h({ ok: false, error: "the autonomous apply decision was not stored", tier: "quiet_apply" });
+  assert.equal(raw.line, "The team couldn't take this change just now.", "a raw failure never reaches the athlete");
   assert.equal(h(null).state, "refused");
 });
 
@@ -272,6 +282,12 @@ test("no number, no score, no gate anywhere on the card", () => {
   const host = renderHtml(html, { document: win.document });
   assert.doesNotMatch(host.textContent, /\d/, "no digit reaches the athlete");
   assert.doesNotMatch(html, /\bscore\b|\/100|%|grade|you must|required/i);
+});
+
+test("an unread ripple says nothing rather than claiming nothing moves", () => {
+  const win = load();
+  const html = win.CairnRippleCard.answerHtml(win.CairnRippleCardModel.answer(answer({ ripple: [] })));
+  assert.doesNotMatch(html, /ripple-still|doesn't expect much/);
 });
 
 test("a change that cannot be drafted offers the conversation, not a dead Do it", () => {
@@ -344,6 +360,14 @@ test("the job's phase is the thinking caption; a failed read is one calm line wi
   fire(card.querySelector("form"), "submit");
   await flush();
   assert.equal(card.querySelector("[data-ripple-state]").getAttribute("data-ripple-state"), "thinking");
+  for (const phase of ["queued", "running", "Queued"]) {
+    rec.streams[0].handlers.onPhase({ id: 5, phase });
+    assert.equal(
+      card.querySelector(".ripple-caption").textContent,
+      "Talking it through with the team…",
+      `the worker's "${phase}" never reaches the athlete`
+    );
+  }
   rec.streams[0].handlers.onPhase({ id: 5, phase: "talking it through with the team" });
   assert.equal(card.querySelector(".ripple-caption").textContent, "Talking it through with the team…");
   rec.streams[0].handlers.onDone({ ok: false, error: "the team couldn't read this what-if right now", tried: [] });
@@ -376,9 +400,16 @@ test("Do it posts only the job id, then prints the Changes feed's own row with i
   const win = load();
   const log = createHost(win.document);
   const rec = recorder({
+    storage: win.sessionStorage,
     respond: {
       "/what-if": { ok: true, job: { id: 77 } },
-      "/what-if/do": { ok: true, applied: true, tier: "quiet_apply", decision: { id: 41 }, proposal_id: 9 },
+      "/what-if/do": {
+        ok: true,
+        applied: [{ target_id: 3, field: "target_reps", value: 8 }],
+        tier: "quiet_apply",
+        decision: { id: 41 },
+        proposal_id: 9,
+      },
       "/brain/changes": changesRead(41),
       "/brain/decisions/41/revert": { ok: true },
     },
@@ -390,6 +421,7 @@ test("Do it posts only the job id, then prints the Changes feed's own row with i
   const doCall = writes(rec.calls).find((c) => c.path === "/what-if/do");
   assert.deepEqual(doCall.body, { job_id: 77 }, "the server reads the change from its own stored answer");
   assert.equal(card.querySelector("[data-ripple-do]"), null, "Do it is spent");
+  assert.equal(win.sessionStorage.getItem(win.CairnRippleCardController.STORAGE_KEY), null, "handed, so forgotten");
   const handed = card.querySelector("[data-ripple-handed]");
   assert.equal(handed.hidden, false);
   assert.equal(handed.querySelector(".chfeed-title").textContent, "Thursday's accessory lift became an easy run");
@@ -436,6 +468,7 @@ test("a refused hand-over prints the server's reason and offers the conversation
       "/what-if/do": {
         ok: false,
         error: "this one is talked through rather than drafted — ask the team in chat",
+        kind: "other",
         tried: [],
       },
     },
@@ -520,4 +553,23 @@ test("a remembered job that is gone or not a what-if is forgotten quietly", asyn
   assert.equal(await win.CairnRippleCardController.resume(log, rec.deps), null);
   assert.equal(storage.getItem(win.CairnRippleCardController.STORAGE_KEY), null);
   assert.equal(log.innerHTML, "");
+});
+
+test("a what-if already handed to the team is not re-offered after a reload", async () => {
+  const win = load();
+  const storage = win.sessionStorage;
+  storage.setItem(win.CairnRippleCardController.STORAGE_KEY, "32");
+  const log = createHost(win.document);
+  const rec = recorder({
+    storage,
+    respond: {
+      "/agent-jobs/32": {
+        ok: true,
+        job: { id: 32, kind: "what_if", status: "done", result: answer(), ref_table: "plan_proposals", ref_id: 9 },
+      },
+    },
+  });
+  assert.equal(await win.CairnRippleCardController.resume(log, rec.deps), null);
+  assert.equal(storage.getItem(win.CairnRippleCardController.STORAGE_KEY), null, "it lives in Changes now");
+  assert.equal(log.querySelector("[data-ripple-do]"), null);
 });

@@ -49,9 +49,19 @@
     return `<ul class="ripple-stones ripple-stones-skel" aria-hidden="true">${items}</ul>`;
   }
 
+  // The job worker's own status words ("queued", "running") are machine register, not the
+  // team talking — the calm caption stands through them (as agent-job-client does).
+  const WORKER_PHASE = /^(queued|running|pending|deferred|waiting|retrying)\b/i;
+
+  /** The thinking caption for a job phase: a spoken phase, or the calm default. */
+  function captionFor(phase?: unknown): string {
+    const raw = typeof phase === "string" ? phase.trim() : "";
+    const said = raw && !WORKER_PHASE.test(raw) ? raw : CAPTION;
+    return `${said.charAt(0).toUpperCase()}${said.slice(1)}…`;
+  }
+
   function thinkingHtml(question: string, phase?: string | null): string {
-    const said = typeof phase === "string" && phase.trim() ? phase.trim() : CAPTION;
-    const caption = `${said.charAt(0).toUpperCase()}${said.slice(1)}…`;
+    const caption = captionFor(phase);
     return shell(
       "thinking",
       `${questionHtml(question)}${ghostStonesHtml()}<p class="ripple-caption" role="status">${escHtml(caption)}</p>`,
@@ -86,6 +96,8 @@
 
   /** One line of why per stone that moves, with the team's confidence as a word. */
   function whysHtml(stones: ClientRippleStone[]): string {
+    // No stones read is an absence, not a claim that nothing moves: say nothing.
+    if (!stones.length) return "";
     const moved = stones.filter((s) => s.moved && s.why);
     if (!moved.length) return `<p class="ripple-still">The team doesn't expect much to move from this.</p>`;
     return `<ul class="ripple-whys">${moved
@@ -163,6 +175,7 @@
 
   const CAIRN_RIPPLE_CARD = {
     askHtml,
+    captionFor,
     thinkingHtml,
     answerHtml,
     failedHtml,

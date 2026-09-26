@@ -7219,10 +7219,9 @@ body[data-tab="today"] header.condensed .moved-note{display:none}
 @media (hover:hover){ .hdr-changes:hover{color:var(--ink);border-color:var(--ink)} }
 .chat-chip-whatif{border-style:dashed}
 
-.ripple-slot{flex:0 0 auto;margin:var(--space-4) 0}
+.ripple-slot{flex:0 0 auto;margin:var(--space-4) 0;animation:settlein var(--dur-3) var(--ease) both}
 .ripple-card{background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
-  padding:var(--space-6) var(--space-7);display:flex;flex-direction:column;gap:var(--space-3);
-  animation:settlein var(--dur-3) var(--ease) both}
+  padding:var(--space-6) var(--space-7);display:flex;flex-direction:column;gap:var(--space-3)}
 .ripple-kicker{margin:0}
 .ripple-question{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink-2);font-style:italic}
 .ripple-ask{display:flex;flex-direction:column;gap:var(--space-3);margin:0}
@@ -7289,6 +7288,6 @@ body[data-tab="today"] header.condensed .moved-note{display:none}
 .ripple-handed .chfeed-row{box-shadow:none;padding:0;background:transparent}
 .ripple-handed-line{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink-2)}
 @media (prefers-reduced-motion:reduce){
-  .ripple-card{animation:none}
+  .ripple-slot{animation:none}
   .ripple-wave.is-entering .ripple-stone-mark,.ripple-wave.is-entering .is-moved .ripple-stone-mark::after{animation:none}
 }

@@ -112,19 +112,30 @@
     refused: "The team couldn't take this change just now.",
   } as const;
 
+  /**
+   * A refusal's athlete-facing line. Only what-if's own talk-it-through refusals (they name
+   * the change's `kind`) are written for the athlete; any other `error` is a raw failure
+   * message from deeper down, so the calm default stands in for it.
+   */
+  function refusedLine(r: Record<string, unknown>): string {
+    const said = KINDS.has(String(r.kind)) ? text(r.error) : "";
+    return said ? `${said.charAt(0).toUpperCase()}${said.slice(1)}` : LINES.refused;
+  }
+
   /** How the team took "Do it", framed from the server's routed result. */
   function handedModel(result: unknown): ClientRippleHanded {
     const r = record(result) ?? {};
     const decision = record(r.decision);
     const decisionId = positiveId(decision?.id);
     const proposalId = positiveId(r.proposal_id);
-    if (r.ok !== true) {
-      return { state: "refused", line: text(r.error) || LINES.refused, decisionId: null, proposalId };
-    }
+    if (r.ok !== true) return { state: "refused", line: refusedLine(r), decisionId: null, proposalId };
     if (r.already === true) return { state: "already", line: LINES.already, decisionId, proposalId };
     const tier = text(r.tier) || text(decision?.autonomy_tier);
     if (tier === "clinician") return { state: "clinician", line: LINES.clinician, decisionId, proposalId };
-    if (r.applied === true) return { state: "landed", line: LINES.landed, decisionId, proposalId };
+    // The immediate-apply path spreads applyProposal's result, whose `applied` is the
+    // ARRAY of items that landed; `true` is kept for any boolean-shaped caller.
+    if (Array.isArray(r.applied) || r.applied === true)
+      return { state: "landed", line: LINES.landed, decisionId, proposalId };
     if (r.announced === true || r.pending === true)
       return { state: "lands", line: LINES.lands, decisionId, proposalId };
     return { state: "waiting", line: r.plan_moved === true ? LINES.moved : LINES.waiting, decisionId, proposalId };

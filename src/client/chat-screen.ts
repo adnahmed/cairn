@@ -217,7 +217,10 @@ async function renderChat(): Promise<void> {
   }
   if (token !== pollToken || !log.isConnected) return; // navigated away / re-rendered
   markRefreshing(false);
-  if (!fetched && cachedMessages) return;
+  // A what-if asked before this render (or before a trip to Changes) comes back, even
+  // when the thread refresh failed and the cached thread stands.
+  const resumeRipple = () => void CairnRippleCardController.resume(log, chatRippleDeps());
+  if (!fetched && cachedMessages) return resumeRipple();
   swrSet(CHAT_LIVE_CACHE_KEY, msgs);
   if (freshBtn) freshBtn.hidden = !msgs.length;
   chatFuelContextApi().seed(msgs);
@@ -225,8 +228,7 @@ async function renderChat(): Promise<void> {
   void loadChatFuel(token);
   // Rebuild any in-flight + queued turns from the server and resume streaming.
   void chatReconnect();
-  // A what-if asked before this render (or before a trip to Changes) comes back.
-  void CairnRippleCardController.resume(log, chatRippleDeps());
+  resumeRipple();
   if (state.pendingChatSession) openChatHistory({ session: state.pendingChatSession });
   requestAnimationFrame(measureChatTop);
 }
