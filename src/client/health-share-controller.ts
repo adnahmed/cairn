@@ -1,5 +1,14 @@
-// Health Share controller: clinician report, portable export, marker-alias hygiene,
+// Health Share controller: the doctor packet, portable export, marker-alias hygiene,
 // and the no-marker route back to Records.
+//
+// On Stand → "Share with your doctor" the packet is composed into the records slot
+// (`CairnRecordsSlot`, registered below as "packet"): the packet-builder component
+// (section toggles + live preview) with the visit-questions editor in its sub-slot.
+// Sharing uses what the athlete chose — "Open the packet" and "Download as text" carry
+// the builder's `?sections=` and the edited `?questions=` — and the informational,
+// not-medical-advice line is part of the builder in every state. `render(deps)` then
+// paints only the portable export and data hygiene below it. Without a packet slot in
+// the view (the older Me → Health tab) `render` keeps the one-button report card.
 {
 type HealthShareRecord = Record<string, unknown>;
 type HealthShareControllerResponse = {
@@ -19,8 +28,8 @@ function healthShareSelect<T extends Element = Element>(deps: ClientHealthShareC
   return deps.root.querySelector<T>(selector) || deps.select<T>(selector);
 }
 
-function openDoctorReportTab(deps: ClientHealthShareControllerDeps): void {
-  const url = deps.withToken("/api/health-report");
+function openReportUrl(deps: ClientHealthShareControllerDeps, path: string): void {
+  const url = deps.withToken(path);
   const tab = window.open("about:blank", "_blank");
   if (!tab) {
     deps.toast("Allow pop-ups to open the doctor report in a new tab");
@@ -30,6 +39,38 @@ function openDoctorReportTab(deps: ClientHealthShareControllerDeps): void {
     tab.opener = null;
   } catch {}
   tab.location.href = url;
+}
+
+function openDoctorReportTab(deps: ClientHealthShareControllerDeps): void {
+  openReportUrl(deps, "/api/health-report");
+}
+
+// The packet's two hand-overs, each carrying the builder's current query.
+function sharePacket(deps: ClientHealthShareControllerDeps, kind: ClientPacketShareKind, query: string): void {
+  if (kind === "open") {
+    openReportUrl(deps, `/api/health-report${query}`);
+    return;
+  }
+  deps.downloadFile(deps.withToken(`/api/health-report.txt${query}`));
+  deps.toast("Packet downloaded as text");
+}
+
+// The "packet" records slot: packet-builder, with visit-questions mounted into its
+// sub-slot. Returns the builder's teardown (which also tears the questions down).
+function mountHealthPacket(host: Element, deps: ClientRecordsPacketDeps): () => void {
+  return CairnPacketBuilderController.mount(host, {
+    api: deps.api,
+    cachedApi: deps.cachedApi,
+    peekCached: deps.peekCached,
+    onShare: (kind, query) => sharePacket(deps, kind, query),
+    onAdd: () => deps.switchHealthSeg("records", { openPicker: true }),
+    mountQuestions: (slot, onChange) =>
+      CairnVisitQuestionsController.mount(slot, { cachedApi: deps.cachedApi, peekCached: deps.peekCached, onChange }),
+  });
+}
+
+function hasPacketSlot(deps: ClientHealthShareControllerDeps): boolean {
+  return !!deps.root.querySelector('[data-slot="packet"]');
 }
 
 function wireHealthShareActions(deps: ClientHealthShareControllerDeps): void {
@@ -68,7 +109,30 @@ function paintHealthShareEmpty(content: HTMLElement, deps: ClientHealthShareCont
   healthShareSelect(deps, "#hShareToRecords")?.addEventListener("click", () => deps.switchHealthSeg("records", { openPicker: true }));
 }
 
+function healthShareExtrasHtml(deps: ClientHealthShareControllerDeps, from: number): string {
+  return `<div class="hshare-grid">
+      <section class="hshare-card reveal" style="${deps.stagger(from)}">
+        <div class="lbl hshare-kicker">Portable data</div>
+        <h3 class="hshare-subtitle">Structured health export</h3>
+        <p class="hshare-copy">A JSON snapshot for another tool: marker observations, history, supplements, and active connected-brain directives.</p>
+        <button id="hExportBtn" class="ghostbtn">Download JSON</button>
+      </section>
+      <section class="hshare-card reveal" style="${deps.stagger(from + 1)}">
+        <div class="lbl hshare-kicker">Data hygiene</div>
+        <h3 class="hshare-subtitle">Align lab names</h3>
+        <p class="hshare-copy">Merge obvious duplicate marker names from different labs so each trend stays one line.</p>
+        <button id="hAlignBtn" class="ghostbtn">Align lab names</button>
+      </section>
+    </div>`;
+}
+
 function paintHealthShareReady(content: HTMLElement, response: HealthShareControllerResponse, deps: ClientHealthShareControllerDeps): void {
+  if (hasPacketSlot(deps)) {
+    // The packet builder above holds the report; this view keeps the other two tools.
+    content.innerHTML = `<div class="hshare">${healthShareExtrasHtml(deps, 0)}</div>`;
+    wireHealthShareActions(deps);
+    return;
+  }
   const markers = healthShareRows(response.markers);
   const groups = healthShareRows(response.groups);
   const count = markers.length;
@@ -84,20 +148,7 @@ function paintHealthShareReady(content: HTMLElement, response: HealthShareContro
         <button id="hReportBtn" class="logbtn">Open doctor report</button>
       </div>
     </section>
-    <div class="hshare-grid">
-      <section class="hshare-card reveal" style="${deps.stagger(1)}">
-        <div class="lbl hshare-kicker">Portable data</div>
-        <h3 class="hshare-subtitle">Structured health export</h3>
-        <p class="hshare-copy">A JSON snapshot for another tool: marker observations, history, supplements, and active connected-brain directives.</p>
-        <button id="hExportBtn" class="ghostbtn">Download JSON</button>
-      </section>
-      <section class="hshare-card reveal" style="${deps.stagger(2)}">
-        <div class="lbl hshare-kicker">Data hygiene</div>
-        <h3 class="hshare-subtitle">Align lab names</h3>
-        <p class="hshare-copy">Merge obvious duplicate marker names from different labs so each trend stays one line.</p>
-        <button id="hAlignBtn" class="ghostbtn">Align lab names</button>
-      </section>
-    </div>
+    ${healthShareExtrasHtml(deps, 1)}
   </div>`;
   wireHealthShareActions(deps);
 }
@@ -105,7 +156,9 @@ function paintHealthShareReady(content: HTMLElement, response: HealthShareContro
 function paintHealthShareResponse(content: HTMLElement, response: unknown, deps: ClientHealthShareControllerDeps): void {
   const data = healthShareRecord(response) as HealthShareControllerResponse;
   if (!healthShareRows(data.markers).length) {
-    paintHealthShareEmpty(content, deps);
+    // With the packet slot present, its builder shows the one empty state.
+    if (hasPacketSlot(deps)) content.innerHTML = "";
+    else paintHealthShareEmpty(content, deps);
     return;
   }
   paintHealthShareReady(content, data, deps);
@@ -132,7 +185,11 @@ function renderHealthShare(deps: ClientHealthShareControllerDeps): void {
 
 const CAIRN_HEALTH_SHARE_CONTROLLER = {
   render: renderHealthShare,
+  mountPacket: mountHealthPacket,
 };
+
+// Register at load: records-slot.js sits ahead of this module in the me-health bundle.
+if (typeof CairnRecordsSlot !== "undefined") CairnRecordsSlot.register("packet", mountHealthPacket);
 
 Object.assign(globalThis, { CairnHealthShareController: CAIRN_HEALTH_SHARE_CONTROLLER });
 

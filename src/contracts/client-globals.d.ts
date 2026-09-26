@@ -3467,6 +3467,7 @@ declare global {
 
     CairnHealthShareController: {
       render(deps: ClientHealthShareControllerDeps): void;
+      mountPacket(host: Element, deps: ClientRecordsPacketDeps): () => void;
     };
 
     CairnSettingsClient: {
@@ -5688,4 +5689,104 @@ declare global {
   declare const CairnEvidenceWanted: Window["CairnEvidenceWanted"];
   declare const CairnEvidenceWantedController: Window["CairnEvidenceWantedController"];
   declare const CairnRecordsSlot: Window["CairnRecordsSlot"];
+  // ---- Wave 3 stream C: packet-builder, visit-questions ----
+  /** The packet's two hand-overs: open the HTML packet, or download the text twin. */
+  type ClientPacketShareKind = "open" | "text";
+  type ClientPacketSectionOption = { id: string; label: string; included: boolean };
+  /** null = the server's default (every section but the opt-in sources / the proposals). */
+  type ClientPacketSelection = { sections: readonly string[] | null; questions: readonly string[] | null };
+  type ClientPacketPreviewRow = {
+    title: string;
+    detail: string;
+    date: string | null;
+    /** The lab's own HIGH/LOW flag — a mark of its own. */
+    flag: "high" | "low" | null;
+    /** Outside the optimal band — a separate mark, never merged with `flag`. */
+    outsideOptimal: boolean;
+  };
+  type ClientPacketPreviewSection = {
+    id: string;
+    label: string;
+    ordered: boolean;
+    rows: ClientPacketPreviewRow[];
+    more: number;
+    /** The calm line for a section that is included but has nothing in it. */
+    empty: string | null;
+  };
+  type ClientPacketPreview = {
+    generated: string | null;
+    range: { from: string; to: string } | null;
+    sections: ClientPacketPreviewSection[];
+    disclaimer: string;
+  };
+  type ClientPacketBuilderDeps = {
+    api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+    cachedApi(path: string, options?: CachedApiOptions<unknown>): Promise<unknown>;
+    peekCached<T = unknown>(key: string, freshFor?: number): SwrPeek<T> | null;
+    /** Share with the current `?sections=…&questions=…` query ("" = the defaults). */
+    onShare(kind: ClientPacketShareKind, query: string): void;
+    /** The empty state's "Add a document". */
+    onAdd?(): void;
+    /** Mount the visit-questions editor into the builder's sub-slot. */
+    mountQuestions?(host: Element, onChange: (list: string[] | null) => void): () => void;
+  };
+  type ClientVisitQuestionItem = { id: string; text: string; source: string; basis: string | null };
+  type ClientVisitQuestionsView = {
+    status: "loading" | "ready" | "error";
+    items: ClientVisitQuestionItem[];
+    edited: boolean;
+    full: boolean;
+    newId?: string | null;
+  };
+  type ClientVisitQuestionsDeps = {
+    cachedApi(path: string, options?: CachedApiOptions<unknown>): Promise<unknown>;
+    peekCached<T = unknown>(key: string, freshFor?: number): SwrPeek<T> | null;
+    /** The list the packet sends after each edit; null = the server's proposals. */
+    onChange(list: string[] | null): void;
+  };
+  interface Window {
+    CairnPacketBuilderModel: {
+      LIST_CAP: number;
+      DISCLAIMER: string;
+      catalog(report: unknown): ClientPacketSectionOption[];
+      sectionsOf(report: unknown): string[];
+      toggle(options: readonly ClientPacketSectionOption[], current: readonly string[], id: string, on: boolean): string[];
+      query(selection: ClientPacketSelection): string;
+      hasRecords(report: unknown): boolean | null;
+      previewModel(report: unknown): ClientPacketPreview;
+    };
+    CairnPacketBuilder: {
+      shellHtml(opts?: { disclaimer?: string }): string;
+      togglesHtml(options: readonly ClientPacketSectionOption[], selected: readonly string[]): string;
+      togglesSkeletonHtml(): string;
+      previewHtml(preview: ClientPacketPreview, opts?: { enter?: boolean }): string;
+      previewSkeletonHtml(): string;
+      previewErrorHtml(): string;
+      emptyHtml(opts?: { disclaimer?: string }): string;
+      statusText(preview: ClientPacketPreview): string;
+    };
+    CairnPacketBuilderController: {
+      KEY: string;
+      PATH: string;
+      mount(host: Element, deps: ClientPacketBuilderDeps): () => void;
+    };
+    CairnVisitQuestions: {
+      SOURCE_LABEL: Record<string, string>;
+      shellHtml(opts: { maxChars: number }): string;
+      listHtml(view: ClientVisitQuestionsView): string;
+    };
+    CairnVisitQuestionsController: {
+      KEY: string;
+      PATH: string;
+      QUESTION_CAP: number;
+      QUESTION_MAX_CHARS: number;
+      cleanQuestion(raw: unknown): string;
+      mount(host: Element, deps: ClientVisitQuestionsDeps): () => void;
+    };
+  }
+  declare const CairnPacketBuilderModel: Window["CairnPacketBuilderModel"];
+  declare const CairnPacketBuilder: Window["CairnPacketBuilder"];
+  declare const CairnPacketBuilderController: Window["CairnPacketBuilderController"];
+  declare const CairnVisitQuestions: Window["CairnVisitQuestions"];
+  declare const CairnVisitQuestionsController: Window["CairnVisitQuestionsController"];
 }
