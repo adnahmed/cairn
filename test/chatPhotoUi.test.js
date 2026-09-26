@@ -10,6 +10,9 @@ const chatClient = readFileSync(path.join(root, "public/js/chat-client.js"), "ut
 const chatAttachment = readFileSync(path.join(root, "public/js/chat-attachment-client.js"), "utf8");
 const chatComposerFocus = readFileSync(path.join(root, "public/js/chat-composer-focus-client.js"), "utf8");
 const chatComposerController = readFileSync(path.join(root, "public/js/chat-composer-controller.js"), "utf8");
+// Chat's composer is the chat-mode mount of the one food composer, which owns the
+// photo, paste and keyboard machinery that Chat and Fuel share.
+const foodComposerController = readFileSync(path.join(root, "public/js/food-composer-controller.js"), "utf8");
 
 test("chat photo capture compresses under the server upload cap before enqueue", () => {
   assert.match(chatClient, /const\s+CHAT_IMAGE_MAX_BYTES\s*=\s*4\s*\*\s*1024\s*\*\s*1024/);
@@ -19,32 +22,33 @@ test("chat photo capture compresses under the server upload cap before enqueue",
   assert.match(chatAttachment, /for\s*\(const quality of CairnChatClient\.CHAT_IMAGE_QUALITY_STEPS\)/);
   assert.match(chatAttachment, /last\.bytes\s*<=\s*CairnChatClient\.CHAT_IMAGE_MAX_BYTES/);
   assert.match(chatAttachment, /new Error\("image-too-large"\)/);
-  assert.match(chatComposerController, /CairnChatAttachment\.compressImage\(f\)/);
-  assert.match(chatComposerController, /try a closer crop/);
+  assert.match(foodComposerController, /CairnChatAttachment\.compressImage\(f\)/);
+  assert.match(foodComposerController, /try a closer crop/);
+  assert.match(chatComposerController, /CairnFoodComposer\.mount\(/);
   assert.match(chat, /CairnChatComposerController\.wire/);
   assert.doesNotMatch(chat, /CairnChatAttachment\.compressImage\(f\)/);
 });
 
 test("chat photo picker settles keyboard geometry before and after the native picker", () => {
-  assert.match(chatComposerController, /const\s+resetChatFocusAfterNativePicker\s*=\s*\(\)\s*=>/);
-  assert.match(chatComposerController, /CairnChatAttachment\.resetFocusAfterNativePicker/);
+  assert.match(foodComposerController, /const\s+resetFocusAfterNativePicker\s*=\s*\(\)\s*=>/);
+  assert.match(foodComposerController, /CairnChatAttachment\.resetFocusAfterNativePicker/);
   assert.match(chatAttachment, /if\s*\(document\.activeElement\s*===\s*options\.input\)\s*options\.input\.blur\(\)/);
   assert.match(chatAttachment, /if\s*\(document\.activeElement\s*===\s*options\.fileInput\)\s*options\.fileInput\.blur\(\)/);
   assert.doesNotMatch(chatAttachment, /classList\.remove\("kb-open"\)/);
   assert.doesNotMatch(chatAttachment, /classList\.remove\("kb-geometry-open"\)/);
-  assert.match(chatComposerController, /const\s+settleChatAfterNativePicker\s*=\s*\(\)\s*=>/);
-  assert.match(chatComposerController, /CairnChatAttachment\.settleAfterNativePicker/);
+  assert.match(foodComposerController, /const\s+settleAfterNativePicker\s*=\s*\(\)\s*=>/);
+  assert.match(foodComposerController, /CairnChatAttachment\.settleAfterNativePicker/);
   assert.match(chatAttachment, /chatFocusGraceMs:\s*options\.graceMs\s*\?\?\s*1200/);
   assert.match(chatAttachment, /nativePickerSuppressMs:\s*options\.nativePickerSuppressMs\s*\?\?\s*900/);
-  assert.match(chatComposerController, /attachBtn\.addEventListener\("click",\s*\(\)\s*=>\s*\{\s*resetChatFocusAfterNativePicker\(\)/);
-  assert.match(chatComposerController, /fileInput\.addEventListener\("change",\s*\(\)\s*=>\s*\{\s*resetChatFocusAfterNativePicker\(\)/);
-  assert.match(chatComposerController, /fileInput\.click\(\)/);
-  assert.match(chatComposerController, /finally\s*\{\s*settleChatAfterNativePicker\(\)/);
+  assert.match(foodComposerController, /attachBtn\.addEventListener\("click",\s*\(\)\s*=>\s*\{\s*resetFocusAfterNativePicker\(\)/);
+  assert.match(foodComposerController, /fileInput\.addEventListener\("change",\s*\(\)\s*=>\s*\{\s*resetFocusAfterNativePicker\(\)/);
+  assert.match(foodComposerController, /fileInput\.click\(\)/);
+  assert.match(foodComposerController, /finally\s*\{\s*settleAfterNativePicker\(\)/);
   assert.doesNotMatch(chat, /CairnChatAttachment\.resetFocusAfterNativePicker/);
 });
 
 test("chat photo composer can refocus the same textarea after the keyboard hides", () => {
-  assert.match(chatComposerController, /CairnChatComposerFocus\.wireFocus/);
+  assert.match(foodComposerController, /CairnChatComposerFocus\.wireFocus/);
   assert.match(chatComposerFocus, /function\s+chatComposerReleaseStaleInputFocus/);
   assert.match(chatComposerFocus, /function\s+chatComposerRecoverInputFocusFromTap/);
   // Recovery is refocus-only: the release hook must NEVER blur the composer (a
@@ -52,8 +56,9 @@ test("chat photo composer can refocus the same textarea after the keyboard hides
   assert.doesNotMatch(chatComposerFocus, /\.blur\(\)/);
   assert.match(chatComposerFocus, /chatComposerFocusInput\(options\.input\)/);
   assert.match(chatComposerFocus, /input\.focus\(\{\s*preventScroll:\s*true\s*\}\)/);
-  assert.match(chatComposerFocus, /addEventListener\("pointerup",\s*recoverInputFocusFromTap,\s*\{\s*passive:\s*true\s*\}\)/);
-  assert.match(chatComposerFocus, /addEventListener\("click",\s*recoverInputFocusFromTap\)/);
+  // The listeners carry the mount's signal, so a re-mount or teardown drops them.
+  assert.match(chatComposerFocus, /addEventListener\("pointerup",\s*recoverInputFocusFromTap,\s*\{\s*passive:\s*true,\s*signal\s*\}\)/);
+  assert.match(chatComposerFocus, /addEventListener\("click",\s*recoverInputFocusFromTap,\s*\{\s*signal\s*\}\)/);
   assert.doesNotMatch(chat, /document\.body\.classList\.contains\("kb-open"\)/);
   assert.doesNotMatch(chat, /CairnChatComposerFocus\.wireFocus/);
   assert.doesNotMatch(chatComposerFocus, /setTimeout\(\(\)\s*=>\s*\{\s*[^}]*focus/);

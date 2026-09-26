@@ -27,6 +27,7 @@ import {
   searchChatMessages,
 } from "../domain/person/index.js";
 import { classifyChatRoute } from "../chatRouting.js";
+import { frameFoodCaptureMessage } from "../chat-intent.js";
 import { hasRecentFoodNote } from "../domain/nutrition/index.js";
 import { UPLOADS_DIR } from "../uploadPaths.js";
 import { extForMime, isAcceptedMime } from "../uploadMime.js";
@@ -112,15 +113,19 @@ chatRouter.post("/", (req, res) => {
 
   if (!message && !imagePath) return res.status(400).json({ error: "message or image required" });
 
+  // `capture: "food"` = sent from a surface opened to log food. The turn carries the
+  // explicit food-log form for routing and the agent; the chat history keeps the
+  // athlete's own words (frameFoodCaptureMessage, src/chat-intent.ts).
+  const turnMessage = b.capture === "food" ? frameFoodCaptureMessage(message, !!imagePath) : message;
   const settings = getSettings();
   const routing =
     settings.chat_routing_mode === "adaptive"
-      ? classifyChatRoute({ message, has_image: !!imagePath, recent_food_capture: hasRecentFoodNote() })
+      ? classifyChatRoute({ message: turnMessage, has_image: !!imagePath, recent_food_capture: hasRecentFoodNote() })
       : null;
   let created: any;
   try {
     created = createChatRequest({
-      message,
+      message: turnMessage,
       image_path: imagePath,
       image_url: imageUrl,
       agent: b.agent ?? null,

@@ -1456,6 +1456,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   const chatAttachmentSource = read("src/client/chat-attachment-client.ts");
   const chatComposerFocusSource = read("src/client/chat-composer-focus-client.ts");
   const chatComposerControllerSource = read("src/client/chat-composer-controller.ts");
+  const foodComposerControllerSource = read("src/client/food-composer-controller.ts");
   const chatMessageSource = read("src/client/chat-message-client.ts");
   const chatTurnRecordsSource = read("src/client/chat-turn-records-client.ts");
   const chatLayoutSource = read("src/client/chat-layout-client.ts");
@@ -1702,6 +1703,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   const chatAttachmentClient = read("public/js/chat-attachment-client.js");
   const chatComposerFocusClient = read("public/js/chat-composer-focus-client.js");
   const chatComposerController = read("public/js/chat-composer-controller.js");
+  const foodComposerController = read("public/js/food-composer-controller.js");
   const chatMessageClient = read("public/js/chat-message-client.js");
   const chatTurnRecordsClient = read("public/js/chat-turn-records-client.js");
   const chatLayoutClient = read("public/js/chat-layout-client.js");
@@ -5083,16 +5085,18 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     chatComposerControllerSource,
     /function wireChatComposer\(deps: ChatComposerControllerDeps\): ChatComposerControllerHandle/
   );
-  assert.match(chatComposerControllerSource, /CairnChatAttachment\.resetFocusAfterNativePicker/);
-  assert.match(chatComposerControllerSource, /CairnChatAttachment\.settleAfterNativePicker/);
-  assert.match(chatComposerControllerSource, /CairnChatAttachment\.compressImage\(f\)/);
-  assert.match(chatComposerControllerSource, /CairnChatAttachment\.previewImage/);
-  assert.match(chatComposerControllerSource, /CairnChatComposerFocus\.wireFocus/);
+  // Chat mounts the one food composer; the photo/keyboard machinery lives there.
+  assert.match(chatComposerControllerSource, /CairnFoodComposer\.mount\(/);
+  assert.match(foodComposerControllerSource, /CairnChatAttachment\.resetFocusAfterNativePicker/);
+  assert.match(foodComposerControllerSource, /CairnChatAttachment\.settleAfterNativePicker/);
+  assert.match(foodComposerControllerSource, /CairnChatAttachment\.compressImage\(f\)/);
+  assert.match(foodComposerControllerSource, /CairnChatAttachment\.previewImage/);
+  assert.match(foodComposerControllerSource, /CairnChatComposerFocus\.wireFocus/);
   assert.match(
-    chatComposerControllerSource,
-    /fileInput\.addEventListener\("change"[\s\S]*resetChatFocusAfterNativePicker\(\)/
+    foodComposerControllerSource,
+    /fileInput\.addEventListener\(\s*"change"[\s\S]*resetFocusAfterNativePicker\(\)/
   );
-  assert.match(chatComposerControllerSource, /classList\.contains\("kb-geometry-open"\)/);
+  assert.match(foodComposerControllerSource, /classList\.contains\("kb-geometry-open"\)/);
   assert.match(
     chatComposerControllerSource,
     /Object\.assign\(globalThis,\s*\{ CairnChatComposerController: CAIRN_CHAT_COMPOSER_CONTROLLER \}\)/
@@ -6988,9 +6992,10 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(chatFuelContextClient, /CairnChatClient\.wantsFuelSurface/);
   assert.doesNotMatch(chat, /CairnChatClient\.starterChipsHtml\(\)|CairnChatClient\.fuelHtml\(d\)/);
   assert.match(chat, /CairnChatComposerController\.wire/);
-  assert.match(chatComposerController, /CairnChatAttachment\.compressImage\(f\)/);
-  assert.match(chatComposerController, /CairnChatAttachment\.resetFocusAfterNativePicker/);
-  assert.match(chatComposerController, /CairnChatComposerFocus\.wireFocus/);
+  assert.match(chatComposerController, /CairnFoodComposer\.mount\(/);
+  assert.match(foodComposerController, /CairnChatAttachment\.compressImage\(f\)/);
+  assert.match(foodComposerController, /CairnChatAttachment\.resetFocusAfterNativePicker/);
+  assert.match(foodComposerController, /CairnChatComposerFocus\.wireFocus/);
   assert.match(chatMessageClient, /function appendMsg\(/);
   assert.match(chatMessageClient, /function chatMessageDayISO\(ts\)/);
   assert.match(chatMessageClient, /function chatDivider\(iso\)/);

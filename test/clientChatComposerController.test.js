@@ -4,6 +4,23 @@ import vm from "node:vm";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+// Chat's composer is the chat-mode mount of the one food composer: load the mount
+// helper and the composer stack ahead of the chat adapter, as the bundle does.
+const COMPOSER_STACK = [
+  "public/js/ui-actions-client.js",
+  "public/js/food-composer-model.js",
+  "public/js/food-composer-client.js",
+  "public/js/food-composer-chips-controller.js",
+  "public/js/food-composer-turn-controller.js",
+  "public/js/food-composer-controller.js",
+  "public/js/chat-composer-controller.js",
+];
+
+function runComposerStack(context) {
+  context.AbortController ??= AbortController;
+  for (const file of COMPOSER_STACK) vm.runInNewContext(readFileSync(join(process.cwd(), file), "utf8"), context);
+}
+
 test("composer reuses request_id and retains text/photo until enqueue succeeds", async () => {
   const listeners = new Map();
   const image = { dataUrl: "data:image/jpeg;base64,YQ==", base64: "YQ==", mime: "image/jpeg", bytes: 1 };
@@ -40,7 +57,7 @@ test("composer reuses request_id and retains text/photo until enqueue succeeds",
     CairnChatComposerFocus: { wireFocus() {} },
   };
   context.globalThis = context;
-  vm.runInNewContext(readFileSync(join(process.cwd(), "public/js/chat-composer-controller.js"), "utf8"), context);
+  runComposerStack(context);
   const handle = context.CairnChatComposerController.wire({
     token: 1,
     state: { tab: "chat", chatPrefill: null },
@@ -97,7 +114,7 @@ test("composer recreation restores session-scoped retry text and idempotency key
     };
     context.globalThis = context;
     vm.runInNewContext(readFileSync(join(process.cwd(), "public/js/chat-turn-records-client.js"), "utf8"), context);
-    vm.runInNewContext(readFileSync(join(process.cwd(), "public/js/chat-composer-controller.js"), "utf8"), context);
+    runComposerStack(context);
     return context;
   };
   const makeDeps = (_context, input, api) => ({
