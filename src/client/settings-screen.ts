@@ -134,8 +134,6 @@ function renderSettingsBundle(bundle: SettingsScreenBundle): void {
     <span id="setSaveSentinel" hidden></span>
     ${homeBackHtml("you", "You")}
     ${segBar(state.setSeg, SET_SEG)}
-    <p class="set-lede">Everything here is optional — Cairn works out of the box. Connect an agent for coaching.</p>
-
     <div id="setSlice"></div>`;
 
   // ---- Persist EVERYTHING from the working model, regardless of the visible slice.

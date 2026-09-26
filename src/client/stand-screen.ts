@@ -186,18 +186,15 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   }
   function readHtml(): string {
     // Stand is the HEALTH tab, so the health read leads: "Your read" (labs,
-    // recovery, the connected picture) comes first and the live conductor card
-    // follows it as the cross-domain "where to focus" — still on the first screen,
-    // so today's priority is never hidden, it just no longer opens a health surface
-    // with a training headline. With no health read yet there is nothing to lead
-    // with, so the conductor keeps the top slot above the quiet invite.
-    const wholePersonLead = focusHeroHtml();
+    // recovery, the connected picture), or with no read yet a quiet invite. The
+    // cross-domain "where to focus" conductor follows the markers (overviewHtml):
+    // Health opens on health, and the training-led line reads as context under it.
     const syn = DATA?.synthesis;
     const headline = syn && typeof syn.headline === "string" ? syn.headline.trim() : "";
     const prios = (syn?.priorities || []).slice(0, 3);
-    // No synthesis yet → the conductor focus line still leads, with a quiet invite
-    // to generate the whole-picture read once there are markers to read.
-    if (!headline && !prios.length) return wholePersonLead + readGenHtml();
+    // No synthesis yet → a quiet invite to generate the whole-picture read once
+    // there are markers to read.
+    if (!headline && !prios.length) return readGenHtml();
     const age = syn && typeof syn.generated_at === "string" ? ` · ${relAge(syn.generated_at)}` : "";
     const zones = prios
       .map((p, i) => {
@@ -231,7 +228,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       ${oc}
       ${conns ? `<div class="stand-conns"><div class="stand-conns-h lbl">Quiet connections</div>${conns}</div>` : ""}
       ${fullStoryHtml()}
-    </div>${wholePersonLead}`;
+    </div>`;
   }
   // Progressive disclosure of the depth the calm read holds back: the narrative
   // "story" paragraph, any priorities beyond the visible three, and a whole-picture
@@ -263,6 +260,10 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
         <button class="linkbtn linkbtn-plain linkbtn-sm stand-ask stand-ask-all" type="button" data-ask="${escAttr(WHOLE_PICTURE_Q)}">Ask the coach about this<span aria-hidden="true"> →</span></button>
       </div>
     </div>`;
+  }
+  function focusSectionHtml(): string {
+    const focus = focusHeroHtml();
+    return focus ? `<div class="stand-focus-after">${focus}</div>` : "";
   }
   function focusHeroHtml(): string {
     const f = DATA?.focus as Record<string, unknown> | null;
@@ -457,6 +458,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       ${readHtml()}
       <div class="stand-browse lbl">Your markers<button class="stand-allmk linkbtn linkbtn-plain linkbtn-sm" type="button" data-allmarkers>All markers<span aria-hidden="true"> →</span></button></div>
       <div class="stand-grid">${tiles.map((t) => t.html).join("")}</div>
+      ${focusSectionHtml()}
     </div>`;
   }
 
@@ -490,7 +492,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     return `<div class="stand-detail stand-root">
       ${back}
       <h2 class="stand-detail-h">${escHtml(title)}</h2>
-      ${lede ? `<p class="stand-read-lede" style="font-size:1rem">${escHtml(lede)}</p>` : ""}
+      ${lede ? `<p class="stand-tool-lede">${escHtml(lede)}</p>` : ""}
       ${mounts}
     </div>`;
   }
@@ -659,7 +661,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     setStandSeg("share");
     paint(
       toolShellHtml(
-        "Share with your doctor",
+        "Doctor packet",
         `<div id="standPacket" class="records-slot" data-slot="packet"></div><div id="hContent"></div><div id="hbSymptomLinks"></div>`
       )
     );

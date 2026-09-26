@@ -202,3 +202,33 @@
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .ctxbanner-go{margin-left:auto;flex:0 0 auto;color:var(--sage);font-weight:600}
 
+
+/* =====================================================================
+   About you, Atelier v2 (wave 6A): a plain muted intro (never a card), the list
+   the coach already reads, then "Add …" folded one tap deeper. Serif names
+   settle to Young Serif's one weight; buttons are small and sentence-case.
+   ===================================================================== */
+.you-intro{margin:2px 2px 0;font-size:var(--text-md);line-height:1.55;color:var(--muted);max-width:56ch}
+.you-list-h{margin:var(--space-9) 2px var(--space-4)}
+.you-add{margin-top:var(--space-9)}
+.you-add-sum{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+  padding:7px 14px 7px 11px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--surface);
+  font-size:.84rem;font-weight:500;color:var(--ink);transition:transform .15s var(--ease),border-color var(--dur-1) var(--ease)}
+.you-add-sum::-webkit-details-marker{display:none}
+.you-add-sum:hover{border-color:var(--line-strong)}
+.you-add-sum:active{transform:var(--press)}
+.you-add-plus{font-size:1rem;line-height:1;color:var(--dawn)}
+.you-add[open] .you-add-sum{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+.you-add[open] .you-add-plus{color:inherit;transform:rotate(45deg)}
+.you-add[open] .lifeadd{margin-top:var(--space-6);animation:settlein var(--dur-2) var(--ease) both}
+.lifeadd{background:var(--surface);border:1px solid var(--line);box-shadow:none;padding:14px}
+.lifeadd .ob-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lifeadd .field label,.lifeadd .field .field-label{font-family:var(--font-mono);font-weight:400;letter-spacing:var(--tracking-mono);font-size:var(--text-2xs)}
+.lifeadd .field input,.lifeadd .field select,.lifeadd .form-input,.lifeadd .selflex{background:var(--ground);border-radius:var(--radius-xs);padding:9px 11px;font-size:var(--text-base);min-width:0}
+.lifeadd input:focus,.lifeadd select:focus{outline:none;border-color:var(--dawn)}
+.logbtn.you-add-btn{width:auto;height:auto;padding:8px 18px;font-size:.84rem;font-weight:500;letter-spacing:0}
+.fam-mono{font-weight:400;font-variation-settings:normal;box-shadow:none}
+.fam-name{font-weight:400;font-variation-settings:normal;font-size:var(--text-lg)}
+.aboutme textarea{background:var(--surface);border-radius:var(--radius-md);font-size:var(--text-md)}
+.aboutme textarea:focus{border-color:var(--dawn);box-shadow:none}
+@media (prefers-reduced-motion:reduce){.you-add[open] .lifeadd{animation:none}.you-add-sum{transition:none}}

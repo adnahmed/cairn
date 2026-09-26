@@ -24,6 +24,8 @@ type ClientCairnStackModel = { date: string; stones: ClientCairnStone[] };
 /** One of a stone's homes: where that part of the picture already lives. */
 type ClientStoneHome = { key: string; title: string; sub: string; target: ClientYouTarget };
 type ClientStoneHomeLink = ClientStoneHome & { href: string | null };
+/** Another stone as the detail names it: its name and today's word (null until read). */
+type ClientStonePeer = { key: ClientStoneKey; name: string; word: string | null };
 type ClientStoneDetailModel = {
   key: ClientStoneKey;
   /** The server's stone for today, or null while it is loading or when the read failed. */
@@ -31,6 +33,10 @@ type ClientStoneDetailModel = {
   /** The stone's own name, used only while its read is not in hand. */
   name: string;
   links: ClientStoneHomeLink[];
+  /** The stones this one moves with, each with its own word. */
+  peers: ClientStonePeer[];
+  /** All six, for the switcher. */
+  all: ClientStonePeer[];
 };
 
 type ClientYouReadDeps = {

@@ -14,21 +14,23 @@
     deps.headerTitle.textContent = "Life";
     deps.state.meSeg = "life";
     deps.invalidatePoll();
+    // The timeline leads (what is already on it is what the coach reads); adding to
+    // it is one tap deeper, folded until it is wanted.
     deps.view.innerHTML = deps.segBar("life", deps.segments) + `
-    <div class="sess"><div class="sess-line" style="color:var(--muted)">
-      Trips, injuries, and life events. The coach factors these into the workout you see — easing off around travel or an injury.
-    </div></div>
+    <p class="you-intro">Trips, injuries, and life events. The coach factors these into the workout you see — easing off around travel or an injury.</p>
     <div id="lConsider"></div>
-    <h1 class="lbl" style="margin:20px 0 8px">Add to your timeline</h1>
-    <div class="lifeadd">
-      <div class="field" style="margin-bottom:9px"><label for="lKind">Kind</label>
-        <select id="lKind" name="lKind" class="selflex">${CairnLife.lifeKindOptionsHtml()}</select>
+    <details class="you-add">
+      <summary class="you-add-sum"><span class="you-add-plus" aria-hidden="true">+</span>Add to your timeline</summary>
+      <div class="lifeadd">
+        <div class="field" style="margin-bottom:9px"><label for="lKind">Kind</label>
+          <select id="lKind" name="lKind" class="selflex">${CairnLife.lifeKindOptionsHtml()}</select>
+        </div>
+        <div id="lFields"></div>
+        <button id="lAdd" class="logbtn you-add-btn">Add to timeline</button>
+        <div id="lStatus" style="margin-top:6px;color:var(--muted);font-size:.82rem"></div>
       </div>
-      <div id="lFields"></div>
-      <button id="lAdd" class="logbtn" style="width:100%;height:44px;letter-spacing:.05em">ADD</button>
-      <div id="lStatus" style="margin-top:6px;color:var(--muted);font-size:.82rem"></div>
-    </div>
-    <h1 class="lbl" style="margin:24px 0 8px">Timeline</h1>
+    </details>
+    <h1 class="lbl you-list-h">Timeline</h1>
     <div id="llist"></div>`;
     deps.wireSeg(deps.handlers);
 

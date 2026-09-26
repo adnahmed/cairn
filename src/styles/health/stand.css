@@ -20,8 +20,10 @@
 .stand-read-top .stand-read-k{margin-bottom:6px}
 .stand-read-refresh{flex:0 0 auto;font-size:.72rem;letter-spacing:.02em;display:inline-flex;align-items:center;gap:5px}
 .stand-read-gen{margin-top:2px}
-.stand-read-lede{font-family:var(--font-display);font-weight:460;font-variation-settings:"opsz" 48;
-  font-size:1.2rem;line-height:1.32;color:var(--ink);margin:0 0 15px;text-wrap:balance;max-width:60ch}
+.stand-read-lede{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1.18;
+  letter-spacing:-.01em;color:var(--ink);margin:0 0 14px;text-wrap:balance;max-width:28ch}
+/* the invite to read the whole picture: one small solid button, never a full-width slab */
+.draftbtn.stand-read-gen{display:inline-flex;width:auto;padding:8px 16px;margin-top:0}
 .stand-zones{display:flex;flex-direction:column;gap:10px}
 .stand-zone{background:var(--card);border-radius:15px;box-shadow:var(--shadow-sm);border-left:3px solid var(--line-2);
   padding:13px 15px;cursor:pointer;transition:transform var(--dur-1) var(--ease)}
@@ -61,47 +63,52 @@
 .stand-sp-why{max-height:none;overflow:visible;margin-top:8px;font-size:.83rem;color:var(--muted);line-height:1.45}
 .stand-sp-why .stand-ask{display:block;margin-top:8px}
 .stand-ask-all{display:inline-block;margin-top:2px}
-.stand-browse{display:flex;align-items:baseline;justify-content:space-between;gap:12px;color:var(--muted);margin:0 2px 9px}
-.stand-allmk{flex:0 0 auto;font-size:.72rem;letter-spacing:.02em}
+.stand-browse{display:flex;align-items:baseline;justify-content:space-between;gap:12px;color:var(--muted);margin:22px 2px 8px}
+.stand-allmk{flex:0 0 auto;font-family:var(--font-ui);font-size:var(--text-sm);letter-spacing:0;text-transform:none}
 .stand-bodymetrics{margin-bottom:4px}
 
-.stand-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stand-tile{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:13px 13px 12px;
-  text-align:left;cursor:pointer;position:relative;font-family:var(--font-ui);
-  transition:box-shadow var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
-@media (hover:hover){.stand-tile:hover{box-shadow:var(--shadow-sm);border-color:var(--line-2)}}
-.stand-tile:active{transform:var(--press)}
-.stand-tile-top{display:flex;align-items:center;gap:7px}
-.stand-tile-name{font-size:.84rem;font-weight:680;color:var(--ink)}
-.stand-tile-read{display:block;font-size:.8rem;color:var(--ink-2);margin-top:7px;line-height:1.35}
-.stand-tile-read b{font-variant-numeric:lining-nums;font-weight:640}
+/* The markers index: one quiet card of hairline rows, worst-first — a dot in the
+   reading's tone, the group's name, its one-line read, a chevron. */
+.stand-grid{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:0 14px}
+.stand-tile{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:var(--space-6);
+  width:100%;background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:11px 0;
+  text-align:left;cursor:pointer;position:static;font-family:var(--font-ui);color:inherit;
+  transition:transform var(--dur-1) var(--ease)}
+.stand-tile:first-child{border-top:0}
+@media (hover:hover){.stand-tile:hover .stand-tile-name{color:var(--dawn-deep)}}
+.stand-tile:active{transform:var(--press-lg)}
+.stand-tile-top{display:flex;align-items:center;gap:var(--space-5);grid-column:1}
+.stand-tile-top .hdot{width:9px;height:9px}
+.stand-tile-name{font-size:var(--text-base);font-weight:600;color:var(--ink);transition:color var(--dur-1) var(--ease)}
+.stand-tile-read{grid-column:1;display:block;font-size:var(--text-sm);color:var(--muted);margin:2px 0 0 19px;line-height:1.4}
+.stand-tile-read b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink2)}
 .stand-tile-read.warn b{color:var(--warn)}
 .stand-tile-read.watch b{color:var(--gold-deep)}
-.stand-tile-arw{position:absolute;right:12px;bottom:11px;color:var(--line-2);font-size:.85rem}
+.stand-tile-arw{grid-column:2;grid-row:1 / span 2;color:var(--muted);font-size:1rem}
 
-/* Sticky action bar — pinned to the top of Stand so Add labs is always one tap
-   away, never buried at the scroll bottom. Full-bleed blurred scrim like the seg nav. */
+/* Sticky action bar — Add labs is always one tap away; the rest sits behind "⋯". */
 .stand-actionbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:var(--z-sticky);
   display:flex;align-items:center;justify-content:space-between;gap:10px;
-  margin:-4px calc(-1 * var(--gutter)) 14px;padding:8px var(--gutter);
+  margin:-4px calc(-1 * var(--gutter)) 10px;padding:8px var(--gutter);
   background:color-mix(in srgb,var(--ground) 86%,transparent);backdrop-filter:blur(12px) saturate(1.1);-webkit-backdrop-filter:blur(12px) saturate(1.1)}
-.stand-addbtn{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:var(--on-accent);
-  border:none;border-radius:var(--radius-pill);padding:8px 16px 8px 12px;font-family:var(--font-ui);font-weight:600;font-size:.82rem;
-  cursor:pointer;box-shadow:var(--shadow-sm);transition:transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
-.stand-addbtn:hover{background:var(--accent-deep)}
+.stand-addbtn{display:inline-flex;align-items:center;gap:6px;background:var(--ink);color:var(--on-ink);
+  border:1px solid var(--ink);border-radius:var(--radius-pill);padding:7px 14px 7px 11px;font-family:var(--font-ui);font-weight:500;font-size:.84rem;
+  cursor:pointer;transition:transform .15s var(--ease),background var(--dur-1) var(--ease)}
+.stand-addbtn:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
 .stand-addbtn:active{transform:var(--press)}
-.stand-addbtn-p{font-size:1.05rem;line-height:1}
+.stand-addbtn-p{font-size:1rem;line-height:1}
 .stand-more{position:relative}
-.stand-morebtn{background:var(--card);border:1px solid var(--line-2);color:var(--ink-2);border-radius:var(--radius-pill);
-  width:38px;height:34px;font-size:1.1rem;line-height:1;cursor:pointer;letter-spacing:.06em}
+.stand-morebtn{background:var(--surface);border:1px solid var(--line);color:var(--ink2);border-radius:var(--radius-pill);
+  width:38px;height:32px;font-size:1.05rem;line-height:1;cursor:pointer;letter-spacing:.06em}
 .stand-morebtn:active{transform:var(--press)}
 .stand-moremenu{position:absolute;right:0;top:calc(100% + 6px);z-index:var(--z-sticky-menu);min-width:200px;
-  background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-md);
   padding:6px;display:flex;flex-direction:column;animation:chipin var(--dur-1) var(--ease)}
 .stand-moremenu[hidden]{display:none}
-.stand-moreitem{text-align:left;background:none;border:none;color:var(--ink);font-family:var(--font-ui);font-size:.85rem;
+.stand-moreitem{text-align:left;background:none;border:none;color:var(--ink);font-family:var(--font-ui);font-size:var(--text-md);
   padding:9px 11px;border-radius:9px;cursor:pointer}
-.stand-moreitem:hover{background:var(--card-2)}
+.stand-moreitem:hover{background:var(--well)}
 
 /* Next checkup — the doctor-loop surfaced. Editorial recheck / follow-through read:
    due & coming-up rechecks, visible follow-through on what you've started, calm prep. */
@@ -144,7 +151,7 @@
 .stand-back,.home-back{margin:2px 0 4px;font-size:.84rem}
 .stand-subhead{font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   color:var(--muted);margin:16px 2px 2px}
-.stand-detail-h{font-family:var(--font-display);font-weight:560;font-size:1.5rem;letter-spacing:-.01em;margin:2px 0 12px}
+.stand-detail-h{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1.15;letter-spacing:-.01em;margin:4px 0 12px;text-wrap:balance}
 .stand-empty{color:var(--muted);font-size:.88rem;padding:10px 2px}
 .stand-figrow{display:flex;gap:15px;align-items:center;background:var(--card);border-radius:var(--radius);
   box-shadow:var(--shadow-sm);padding:14px 16px;margin:2px 0 14px}
@@ -203,16 +210,18 @@
 /* share — report/export utilities separated from the marker catalog */
 .hshare{display:grid;gap:14px}
 .hshare-grid{display:grid;gap:14px}
-.hshare-card{background:var(--card);box-shadow:var(--shadow-sm);border:1px solid var(--line);
-  border-radius:var(--radius);padding:18px;min-width:0}
+.hshare-card{background:var(--surface);box-shadow:none;border:1px solid var(--line);
+  border-radius:var(--radius);padding:16px;min-width:0}
+/* the packet is the page: it sits on the ground, not in a card of its own */
+.hshare-card.packet{background:none;border:0;padding:0}
 .hshare-card-main{display:grid;gap:16px}
-.hshare-kicker{margin:0 0 6px;color:var(--ink-2)}
-.hshare-title,.hshare-subtitle{font-family:var(--font-display);font-style:italic;
-  font-variation-settings:"opsz" 60;color:var(--ink);letter-spacing:0}
-.hshare-title{margin:0;font-weight:540;font-size:1.28rem;line-height:1.12}
-.hshare-subtitle{margin:0;font-weight:530;font-size:1.02rem;line-height:1.2}
-.hshare-copy{margin:8px 0 0;color:var(--muted);font-size:.86rem;line-height:1.5}
-.hshare-meta{margin-top:12px;color:var(--ink-2);font-size:.74rem;letter-spacing:.04em;text-transform:uppercase}
+.hshare-kicker{margin:0 0 4px;color:var(--muted)}
+.hshare-title,.hshare-subtitle{font-family:var(--font-display);font-style:normal;font-weight:400;
+  color:var(--ink);letter-spacing:-.01em}
+.hshare-title{margin:0;font-size:var(--text-xl);line-height:1.15;text-wrap:balance}
+.hshare-subtitle{margin:0;font-size:var(--text-lg);line-height:1.2}
+.hshare-copy{margin:6px 0 0;color:var(--muted);font-size:var(--text-md);line-height:1.5}
+.hshare-meta{margin-top:12px;color:var(--muted);font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);text-transform:uppercase}
 .hshare-actions{display:flex;align-items:center}
 .hshare-card .logbtn,.hshare-card .ghostbtn{width:100%;min-height:42px}
 @media (prefers-reduced-motion: no-preference){
@@ -225,3 +234,12 @@
 }
 @keyframes sparkdraw{to{stroke-dashoffset:0}}
 
+
+/* the conductor's focus, after the markers: context, not the lead — one quiet card */
+.stand-focus-after{margin-top:var(--space-10)}
+.stand-focus-after .cfocus{box-shadow:none;border:1px solid var(--line);border-left:1px solid var(--line);background:var(--surface)}
+.stand-focus-after .cfocus-headline,.stand-focus-after .cfocus-lead-title{font-weight:400;font-variation-settings:normal}
+.stand-focus-after .cfocus-headline{font-size:var(--text-lg);line-height:1.25}
+.stand-focus-after .cfocus-lead-title{font-size:var(--text-base)}
+.stand-read .stand-read-k{margin-bottom:4px}
+.stand-tool-lede{margin:-4px 0 14px;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}

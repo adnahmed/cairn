@@ -65,3 +65,65 @@ ul.packet-rows{list-style:none;padding-left:0}
   .packet-preview,.packet-seg .segbtn{transition:none}
   .packet-paper.settle-in,.vq-item.settle-in{animation:none}
 }
+
+/* ---- Atelier v2 (wave 6A): the packet as the moonshot draws it ----
+   Each section's Include / Leave out pair renders as ONE switch: the choice not
+   taken covers the whole track, so a tap anywhere flips it; the taken one sits
+   underneath. Both buttons keep their words for assistive tech (font-size 0 is
+   still their accessible name) and aria-pressed carries the state. The preview
+   is paper — it stays paper-light in both themes, because it is what prints. */
+.packet{gap:var(--space-9)}
+.packet-toggles{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:0 14px}
+.hshare-card .packet-toggles{background:none;border:0;border-radius:0;padding:0}
+.packet-toggle-list{gap:0}
+.packet-toggle{flex-wrap:nowrap;padding:10px 0;min-height:48px}
+.packet-toggle-label{flex:1 1 auto;font-size:var(--text-base)}
+.seg.packet-seg{position:relative;flex:0 0 auto;width:44px;height:26px;margin:0;padding:0;border:0;
+  border-radius:var(--radius-pill);background:var(--line-strong);overflow:hidden;display:block;
+  transition:background var(--dur-1) var(--ease)}
+.seg.packet-seg:has([data-packet-section="on"].active){background:var(--d-endurance)}
+.packet-seg .segbtn{position:absolute;inset:0;min-height:0;padding:0;font-size:0;color:transparent;
+  background:transparent;border-radius:var(--radius-pill);flex:none}
+.packet-seg .segbtn.active{background:transparent;color:transparent;z-index:0;pointer-events:none}
+.packet-seg .segbtn:not(.active){z-index:2}
+.packet-seg .segbtn:active{transform:none}
+.seg.packet-seg::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:1;pointer-events:none;
+  transition:transform var(--dur-1) var(--ease)}
+.seg.packet-seg:has([data-packet-section="on"].active)::after{transform:translateX(18px)}
+.packet-seg:focus-within{outline:2px solid var(--dawn);outline-offset:2px}
+
+.packet-paper{--paper-bg:#fdfbf7;--paper-ink:#23201d;--paper-muted:#6b635c;--paper-rule:#e3dccf;
+  background:var(--paper-bg);color:var(--paper-ink);border:0;border-radius:6px;padding:18px 16px;gap:12px;
+  box-shadow:0 1px 2px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.12);
+  font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-size:12px;line-height:1.5}
+.packet-paper .packet-pv-head{font-family:inherit;font-size:11px;color:var(--paper-muted)}
+.packet-paper .packet-pv-title{margin:0 0 4px;padding-bottom:3px;border-bottom:1px solid var(--paper-rule);
+  font-family:var(--font-ui);font-size:9.5px;font-weight:600;letter-spacing:.12em;color:var(--paper-muted)}
+.packet-paper .packet-rows{gap:0;padding-left:0}
+.packet-paper ol.packet-rows{padding-left:16px}
+.packet-paper .packet-row{font-size:12px;color:var(--paper-ink);padding:3px 0;border-top:1px dotted var(--paper-rule)}
+.packet-paper .packet-row:first-child{border-top:0}
+.packet-paper .packet-row-meta{font-size:10.5px;color:var(--paper-muted)}
+.packet-paper .packet-flag,.packet-paper .packet-opt{font-family:var(--font-ui);font-size:9.5px;padding:0;background:none;border:0}
+.packet-paper .packet-flag{color:#a3372c;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.packet-paper .packet-opt{color:#8a5a12}
+.packet-paper .packet-more,.packet-paper .packet-empty-line{font-size:10.5px;color:var(--paper-muted)}
+.packet-actions{gap:var(--space-4)}
+.hshare-card .packet-act.logbtn{width:auto;flex:1 1 auto;height:auto;min-height:42px;font-size:.88rem;font-weight:500;padding:0 18px}
+.hshare-card .packet-act.ghostbtn{width:auto;flex:1 1 auto;margin-top:0}
+
+/* visit questions: hairline rows, and an add row that never loses its field */
+.vq-head .lbl{display:block}
+.vq-item{padding:10px 0}
+.vq-src{font-family:var(--font-mono);font-weight:400;letter-spacing:var(--tracking-mono);color:var(--dawn-deep)}
+.vq-remove{color:var(--ink2);text-decoration:underline;text-underline-offset:3px;font-size:var(--text-sm)}
+.vq-add{align-items:center}
+.vq-input{min-height:40px;border-radius:var(--radius-pill);padding:0 14px;background:var(--surface);border-color:var(--line)}
+.vq-input:focus{outline:none;border-color:var(--dawn)}
+.hshare-card .vq-add-btn.ghostbtn{width:auto;min-height:40px;margin-top:0;padding:0 16px}
+/* on Health's own Doctor packet view the page already names it: the card's own title steps aside */
+.stand-detail .packet-head .hshare-kicker,.stand-detail .packet-head .hshare-title{display:none}
+.stand-detail .packet-head .hshare-copy{margin-top:0}
+/* a long packet previews in its own well, so the page never becomes a scroll of paper */
+.packet-paper{max-height:560px;overflow:auto;overscroll-behavior:contain}

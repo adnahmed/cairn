@@ -115,6 +115,16 @@ function lifeControllerDeps(): ClientLifeControllerDeps {
   };
 }
 
+// Life and Family live under the You home: their bar leads with one quiet step back
+// there, exactly as Profile and Memory do.
+function aboutYouSegBar(active: string, items: readonly ClientSegment[]): string {
+  return homeBackHtml("you", "You") + segBar(active, items);
+}
+function aboutYouWireSeg(handlers: Record<string, () => unknown>): void {
+  wireSeg(handlers);
+  wireHomeBack(view);
+}
+
 async function renderLife() {
   return CairnLifeController.render(lifeControllerDeps());
 }
@@ -137,10 +147,10 @@ function familyControllerDeps(): ClientFamilyControllerDeps {
       pollToken++;
     },
     localISO,
-    segBar,
+    segBar: aboutYouSegBar,
     toast,
     viewEnter,
-    wireSeg,
+    wireSeg: aboutYouWireSeg,
     withViewTransition,
     renderLife,
   };

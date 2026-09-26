@@ -255,26 +255,29 @@ function settingsSourcesSliceHtml(options: SettingsSourcesSliceOptions): string 
       <section class="set-group set-group--flush">
         <p class="set-group-sub">Where your recovery and activity data come in. Both are optional and gracefully absent.</p>
 
-        <h1 class="lbl" style="margin:14px 0 8px">Garmin Connect</h1>
-        <div class="field"><label>Garmin email</label>
-          <input id="garminUsername" type="email" autocomplete="username" value="${escAttr(wm.garmin_username)}" placeholder="you@example.com">
+        <div class="set-card">
+          <div class="set-card-head"><h2 class="set-card-h">Garmin Connect</h2><span class="lbl">runs · sleep · recovery</span></div>
+          <div class="syncrow">
+            <div class="syncstatus" id="garminStatus">${options.garminStatusHtml}</div>
+            <button id="garminSyncBtn" class="ghostbtn syncbtn">Sync now</button>
+          </div>
+          <div class="field"><label>Garmin email</label>
+            <input id="garminUsername" type="email" autocomplete="username" value="${escAttr(wm.garmin_username)}" placeholder="you@example.com">
+          </div>
+          <div class="field"><label>Garmin password</label>
+            <input id="garminPassword" type="password" autocomplete="current-password" placeholder="${garminPlaceholder}">
+          </div>
+          <label class="toggle set-toggle"><input type="checkbox" id="garminExportStrength" ${wm.garmin_export_strength ? "checked" : ""}>
+            <span>Send finished strength sessions back to Garmin</span></label>
+          ${settingsGarminExportStateHtml(options)}
+          <details class="set-more">
+            <summary>How Garmin works here</summary>
+            <div class="sess-line">Once configured, Cairn syncs automatically every ~6 hours. Settings credentials override GARMIN_USERNAME / GARMIN_PASSWORD. Runs, sleep and recovery come in from Garmin; finished strength sessions can go back out.</div>
+            <div class="sess-line">When you finish a session here, its exercises and sets are added to that day on Garmin — onto the watch's own recording when there is one, so heart rate and calories stay as they are. A day Garmin already logged itself is left alone.</div>
+          </details>
         </div>
-        <div class="field"><label>Garmin password</label>
-          <input id="garminPassword" type="password" autocomplete="current-password" placeholder="${garminPlaceholder}">
-        </div>
-        <div class="sess-line" style="color:var(--muted);margin-top:6px">Settings credentials override GARMIN_USERNAME / GARMIN_PASSWORD. Runs, sleep and recovery come in from Garmin; finished strength sessions can go back out.</div>
-        <div class="syncrow">
-          <div class="syncstatus" id="garminStatus">${options.garminStatusHtml}</div>
-          <button id="garminSyncBtn" class="ghostbtn syncbtn">Sync now</button>
-        </div>
-        <div class="sess-line" style="color:var(--muted);margin-top:6px">Once configured, Cairn syncs automatically every ~6 hours.</div>
 
-        <label class="toggle" style="margin-top:14px"><input type="checkbox" id="garminExportStrength" ${wm.garmin_export_strength ? "checked" : ""}>
-          <span>Send finished strength sessions back to Garmin</span></label>
-        <div class="sess-line" style="color:var(--muted);margin-top:6px">When you finish a session here, its exercises and sets are added to that day on Garmin — onto the watch's own recording when there is one, so heart rate and calories stay as they are. A day Garmin already logged itself is left alone.</div>
-        ${settingsGarminExportStateHtml(options)}
-
-        <div id="appleHealthCard">${appleHealthCardHtml(options.appleHealth ?? { loading: true })}</div>
+        <div id="appleHealthCard" class="set-card">${appleHealthCardHtml(options.appleHealth ?? { loading: true })}</div>
       </section>`;
 }
 
@@ -334,18 +337,21 @@ function appleHealthCardHtml(state: AppleHealthUiState): string {
     ? `<div class="sess-line" id="ahError" style="color:var(--danger,#b33)">${escHtml(state.error)} <button id="ahRetry" class="ghostbtn" type="button">Retry</button></div>`
     : "";
   return `
-    <h1 class="lbl" style="margin:22px 0 8px">Apple Health (steps, sleep, recovery)</h1>
-    <div class="sess-line" style="color:var(--muted)">Install the Shortcut, tap Connect &amp; test to pair it without copying the owner token, then open it once in the Shortcuts app to allow Health access. Apple asks you to confirm Add Shortcut and each Health permission.</div>
-    <div class="ah-fields"><span>steps</span><span>sleep</span><span>resting HR</span><span>HRV</span><span>active energy</span><span>VO₂ max</span></div>
+    <div class="set-card-head"><h2 class="set-card-h">Apple Health</h2><span class="lbl">steps · sleep · recovery</span></div>
     ${
       state.loading
         ? `<div class="sess-line" style="color:var(--muted);margin-top:10px">Checking connection…</div>`
         : `
-      <div class="ah-builder-actions">${install}${connect}<button id="ahRefresh" class="ghostbtn" type="button">Refresh status</button></div>
+      <div class="ah-rows">${rows}</div>
       ${error}
-      <div style="margin-top:10px">${rows}</div>
-      <div class="sess-line" style="color:var(--muted);margin-top:8px"><a href="${escAttr(helpUrl)}" target="_blank" rel="noopener">Apple Health setup, privacy, and limitations</a></div>`
+      <div class="ah-builder-actions">${install}${connect}<button id="ahRefresh" class="ghostbtn" type="button">Refresh status</button></div>`
     }
+    <details class="set-more">
+      <summary>How the Shortcut works</summary>
+      <div class="sess-line">Install the Shortcut, tap Connect &amp; test to pair it without copying the owner token, then open it once in the Shortcuts app to allow Health access. Apple asks you to confirm Add Shortcut and each Health permission.</div>
+      <div class="ah-fields"><span>steps</span><span>sleep</span><span>resting HR</span><span>HRV</span><span>active energy</span><span>VO₂ max</span></div>
+      <div class="sess-line"><a href="${escAttr(helpUrl)}" target="_blank" rel="noopener">Apple Health setup, privacy, and limitations</a></div>
+    </details>
   `;
 }
 

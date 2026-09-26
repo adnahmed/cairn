@@ -123,10 +123,11 @@ type FamilyControllerApi = {
     deps.state.meSeg = "family";
     deps.invalidatePoll();
     deps.view.innerHTML = deps.segBar("family", deps.segments) + `
-      <div class="sess"><div class="sess-line" style="color:var(--muted)">
-        The people in your life, so the coach plans around them — never the hardest session on the chaos day. Recurring commitments like the school run or a kid's soccer night live on your <button class="linkbtn" id="famToLife">Life timeline</button> as events.
-      </div></div>
-      <h1 class="lbl" style="margin:20px 0 8px">Add someone</h1>
+      <p class="you-intro">The people in your life, so the coach plans around them — never the hardest session on the chaos day. Recurring commitments like the school run or a kid's soccer night live on your <button class="linkbtn" id="famToLife">Life timeline</button> as events.</p>
+      <h1 class="lbl you-list-h">Your people</h1>
+      <div id="flist"></div>
+      <details class="you-add">
+        <summary class="you-add-sum"><span class="you-add-plus" aria-hidden="true">+</span>Add someone</summary>
       <div class="lifeadd famadd">
         <div class="field" style="margin-bottom:9px"><label for="fName">Name</label>
           <input id="fName" name="fName" type="text" placeholder="e.g. Sam" class="form-input"></div>
@@ -141,11 +142,10 @@ type FamilyControllerApi = {
           <input id="fAllergy" name="fAllergy" type="text" placeholder="e.g. peanuts, shellfish" class="form-input"></div>
         <div class="field" style="margin-bottom:9px"><label for="fDiet">Dietary needs (optional)</label>
           <input id="fDiet" name="fDiet" type="text" placeholder="e.g. vegetarian, no pork" class="form-input"></div>
-        <button id="fAdd" class="logbtn" style="width:100%;height:44px;letter-spacing:.05em">ADD</button>
+        <button id="fAdd" class="logbtn you-add-btn">Add</button>
         <div id="fStatus" style="margin-top:6px;color:var(--muted);font-size:.82rem"></div>
       </div>
-      <h1 class="lbl" style="margin:24px 0 8px">Your people</h1>
-      <div id="flist"></div>`;
+      </details>`;
     deps.wireSeg(deps.handlers);
 
     qs<HTMLElement>(deps, "#famToLife")?.addEventListener("click", () => deps.withViewTransition(() => deps.renderLife().then(deps.viewEnter)));

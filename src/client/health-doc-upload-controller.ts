@@ -196,7 +196,7 @@ function wireHealthDocUpload(deps: HealthDocUploadDeps): void {
   let associationDocs: HealthDocUploadDocument[] = [];
   let associatedStudyId: number | null = null;
   let pendingAnalysisIds: number[] = [];
-  const defaultUploadLabel = uploadBtn.textContent || "ADD & ANALYZE";
+  const defaultUploadLabel = uploadBtn.textContent || "Add and read it";
 
   const hasOrdinaryFiles = () => imagingFiles.some((item) => item.role !== "dicom");
   const hasActiveImport = () =>

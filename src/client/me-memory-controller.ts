@@ -67,10 +67,8 @@ type MeMemoryControllerDeps = {
     deps.state.meSeg = "memory";
     deps.invalidatePoll();
     deps.view.innerHTML = deps.segBar("memory", deps.segments) + `
-    <div class="sess"><div class="sess-line" style="color:var(--muted)">
-      Facts and preferences the coach carries between sessions. Edit or remove anything that's stale.
-    </div></div>
-    <h1 class="lbl" style="margin:20px 0 8px">What the coach remembers</h1>
+    <p class="you-intro">Facts and preferences the coach carries between sessions. Edit or remove anything that's stale.</p>
+    <h1 class="lbl you-list-h">What the coach remembers</h1>
     <div class="memadd">
       <select id="memKind">${CairnMemory.memoryKindOptionsHtml()}</select>
       <input id="memInput" type="text" placeholder="Add something to remember...">
