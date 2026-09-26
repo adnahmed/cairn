@@ -19,7 +19,7 @@
 .empty-state{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
   padding:38px 22px;text-align:center}
 .empty-state .artile{margin:0 auto 14px}
-.empty-state-line{font-family:var(--font-display);font-style:italic;font-weight:480;
+.empty-state-line{font-family:var(--font-display);font-style:normal;font-weight:400;
   font-variation-settings:"opsz" 40;font-size:1.05rem;color:var(--ink-2)}
 
 /* history cards: one session per card, each lift one hairline row with its best set
@@ -47,7 +47,7 @@
 .hist-more-sum::after{content:"›";margin-left:auto;color:var(--muted);transition:transform var(--dur-1) var(--ease)}
 .hist-more[open]>.hist-more-sum::after{transform:rotate(90deg)}
 .hist-more>.sess-grid{margin-top:8px}
-.hist-notes{margin:4px 0 6px;font-family:var(--font-display);font-style:italic;color:var(--muted);font-size:.88rem}
+.hist-notes{margin:4px 0 6px;font-family:var(--font-ui);font-style:italic;color:var(--muted);font-size:.88rem}
 
 /* calendar month grids — terracotta intensity by sets logged */
 .cal-month{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);

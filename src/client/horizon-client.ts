@@ -38,9 +38,11 @@
     const behind = lane.rows.map((row, i) => ({ row, i })).filter(({ row }) => row.side === "behind");
     const ahead = lane.rows.map((row, i) => ({ row, i })).filter(({ row }) => row.side === "ahead");
     const now = `<li class="horizon-now"><span class="horizon-row-dot horizon-now-dot" aria-hidden="true"></span><span class="horizon-now-label">Today</span></li>`;
+    // The "Today" mark divides behind from ahead; with nothing behind it would only
+    // repeat the lane's own start, so it stands only between the two.
     const items = [
       ...behind.map(({ row, i }) => rowHtml(lane, row, i, hrefFor)),
-      now,
+      behind.length ? now : "",
       ...ahead.map(({ row, i }) => rowHtml(lane, row, i, hrefFor)),
     ].join("");
     return `<ol class="horizon-rail" aria-label="${escAttr(`${lane.title}, behind and ahead`)}">${items}</ol>`;

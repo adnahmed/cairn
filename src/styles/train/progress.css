@@ -53,7 +53,7 @@
 .pchart.is-body{--chart-line:var(--d-body)}
 .empty{
   color:var(--muted);text-align:center;padding:44px 12px;
-  font-family:var(--font-display);font-style:italic;font-size:1rem;
+  font-family:var(--font-display);font-style:normal;font-size:1rem;
   font-variation-settings:"opsz" 28;
 }
 

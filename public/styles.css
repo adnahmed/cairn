@@ -1395,11 +1395,12 @@ body.resting{padding-bottom:calc(152px + max(env(safe-area-inset-bottom),6px) + 
 .prog-day{border-radius:var(--radius);padding:16px 17px 14px;margin-bottom:14px}
 .prog-head{display:flex;align-items:flex-start;gap:10px}
 .prog-head-main{flex:1;min-width:0}
-.prog-num,.prog-head-main .lbl{font-family:var(--font-ui);font-weight:700;text-transform:uppercase;
-  letter-spacing:.18em;font-size:.6rem;color:var(--accent)}
+.prog-num,.prog-head-main .lbl{font-family:var(--font-mono);font-weight:400;text-transform:uppercase;
+  letter-spacing:var(--tracking-mono);font-size:var(--text-2xs);color:var(--muted)}
+/* Young Serif has no italic: the day name stands upright, like every serif voice. */
 .prog-name{
-  font-family:var(--font-display);font-style:italic;font-weight:520;
-  font-variation-settings:"opsz" 50;font-size:1.3rem;color:var(--ink);
+  font-family:var(--font-display);font-style:normal;font-weight:400;
+  font-size:1.3rem;line-height:1.15;color:var(--ink);
 }
 .prog-focus{width:100%;font-size:.8rem;color:var(--muted);margin-top:1px}
 
@@ -1538,7 +1539,7 @@ body.resting{padding-bottom:calc(152px + max(env(safe-area-inset-bottom),6px) + 
 .pchart.is-body{--chart-line:var(--d-body)}
 .empty{
   color:var(--muted);text-align:center;padding:44px 12px;
-  font-family:var(--font-display);font-style:italic;font-size:1rem;
+  font-family:var(--font-display);font-style:normal;font-size:1rem;
   font-variation-settings:"opsz" 28;
 }
 
@@ -3249,7 +3250,7 @@ body.sheet-open{overflow:hidden}
 .empty-state{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
   padding:38px 22px;text-align:center}
 .empty-state .artile{margin:0 auto 14px}
-.empty-state-line{font-family:var(--font-display);font-style:italic;font-weight:480;
+.empty-state-line{font-family:var(--font-display);font-style:normal;font-weight:400;
   font-variation-settings:"opsz" 40;font-size:1.05rem;color:var(--ink-2)}
 
 /* history cards: one session per card, each lift one hairline row with its best set
@@ -3277,7 +3278,7 @@ body.sheet-open{overflow:hidden}
 .hist-more-sum::after{content:"›";margin-left:auto;color:var(--muted);transition:transform var(--dur-1) var(--ease)}
 .hist-more[open]>.hist-more-sum::after{transform:rotate(90deg)}
 .hist-more>.sess-grid{margin-top:8px}
-.hist-notes{margin:4px 0 6px;font-family:var(--font-display);font-style:italic;color:var(--muted);font-size:.88rem}
+.hist-notes{margin:4px 0 6px;font-family:var(--font-ui);font-style:italic;color:var(--muted);font-size:.88rem}
 
 /* calendar month grids — terracotta intensity by sets logged */
 .cal-month{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
@@ -6286,8 +6287,8 @@ button.prow-name:hover{color:var(--accent)}
 .rbuild-day-v{font-size:.7rem;line-height:1.3;color:var(--ink-2);overflow-wrap:anywhere}
 
 /* ── Plan week strip (Strength + Endurance) — connected did/today/upcoming ── */
-.pweek{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
-  padding:14px 15px;margin:2px 0 14px;border-left:3px solid var(--sage)}
+.pweek{background:var(--surface);border:1px solid var(--line);box-shadow:none;border-radius:18px;
+  padding:14px 15px;margin:2px 0 14px}
 .pweek-h{margin-bottom:10px}
 /* Each day is one real <button>: the labeled grid cell on wide screens, a weekday
    over a round token on narrow ones (the words move to the one .pweek-detail line). */
@@ -6300,12 +6301,12 @@ button.prow-name:hover{color:var(--accent)}
   .pweek-day{display:flex;flex-direction:column;gap:3px;padding:8px 6px;border-radius:var(--radius-sm);
     background:var(--card-2);border-top:2px solid transparent;min-height:64px}
   .pweek-day.is-hard{border-top-color:var(--gold)}
-  .pweek-day.is-today{box-shadow:inset 0 0 0 1px var(--sage)}
+  .pweek-day.is-today{box-shadow:inset 0 0 0 1px var(--dawn)}
   .pweek-day.is-done{opacity:.82}
   .pweek-glyph{font-size:.7rem;line-height:1;color:var(--muted)}
-  .pweek-lift .pweek-glyph{color:var(--accent)}
-  .pweek-run .pweek-glyph{color:var(--sage)}
-  .pweek-mixed .pweek-glyph{color:var(--gold)}
+  .pweek-lift .pweek-glyph{color:var(--d-strength)}
+  .pweek-run .pweek-glyph{color:var(--d-endurance)}
+  .pweek-mixed .pweek-glyph{color:var(--d-strength)}
   .pweek-rest .pweek-glyph{color:var(--line-2)}
   .pweek-day-v{font-size:.72rem;line-height:1.3;color:var(--ink-2);overflow-wrap:anywhere}
   .pweek-status{font-size:.58rem;letter-spacing:.06em;color:var(--muted);margin-top:2px}
@@ -6320,18 +6321,20 @@ button.prow-name:hover{color:var(--accent)}
   .pweek-day{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:44px;min-height:64px;
     padding:4px 0;background:none;border-radius:var(--radius-sm)}
   .pweek-day-k{font-size:.62rem;letter-spacing:.08em}
-  .pweek-day.is-today .pweek-day-k{color:var(--accent)}
+  .pweek-day.is-today .pweek-day-k{color:var(--dawn)}
   .pweek-glyph,.pweek-day-v,.pweek-status,.pweek-today{display:none}
   .pweek-token{position:relative;width:30px;height:30px;border-radius:50%;box-sizing:border-box;
     display:flex;align-items:center;justify-content:center;font-size:.72rem;line-height:1;
-    border:1.5px solid var(--muted);color:var(--ink-2);background:var(--card);
+    border:1.5px solid var(--s-strength);color:var(--ink-2);background:var(--surface);
     transition:transform var(--dur-2) var(--ease)}
-  .pweek-run .pweek-token{border-color:var(--gold)}
+  .pweek-run .pweek-token{border-color:var(--s-endurance)}
   .pweek-rest .pweek-token,.pweek-empty .pweek-token{border:1px dashed var(--faint);color:var(--faint)}
-  .pweek-day.is-done .pweek-token{background:var(--sage);border-color:var(--sage);color:var(--on-accent)}
-  .pweek-day.is-today .pweek-token{border:2px solid var(--accent);color:var(--accent)}
+  /* a done day wears its own stone: strength for a lift, endurance for a run */
+  .pweek-day.is-done .pweek-token{background:var(--s-strength);border-color:var(--s-strength);color:var(--on-stone)}
+  .pweek-run.is-done .pweek-token{background:var(--s-endurance);border-color:var(--s-endurance)}
+  .pweek-day.is-today .pweek-token{border:2px solid var(--dawn);color:var(--dawn)}
   .pweek-day.is-hard .pweek-token::after{content:"";position:absolute;top:-2px;right:-2px;width:6px;height:6px;
-    border-radius:50%;background:var(--gold);box-shadow:0 0 0 1.5px var(--card)}
+    border-radius:50%;background:var(--dawn);box-shadow:0 0 0 1.5px var(--surface)}
   .pweek-day.is-selected .pweek-token{transform:scale(1.1)}
   .pweek-under{width:16px;height:2px;border-radius:1px;background:transparent;
     transition:background var(--dur-2) var(--ease)}
@@ -6938,7 +6941,7 @@ body[data-tab="session"] .tabbar{display:none}
    tone never paints chrome. */
 .well-accent.tov-focus{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:none}
 .well-accent.tov-focus::before{display:none}
-.tov-focus>.lbl+p{margin:6px 0 12px;font-family:var(--font-display);font-size:1.15rem;line-height:1.28;color:var(--ink);text-wrap:balance}
+.tov-focus>.lbl+p{margin:6px 0 12px;font-family:var(--font-display);font-size:1.06rem;line-height:1.28;color:var(--ink);text-wrap:balance}
 .tov-focus-title{font-weight:600;color:var(--ink);margin:4px 0 2px}
 .tov-focus-why{font-size:.82rem;color:var(--ink-2)}
 .tov-focus-move{font-size:.82rem;color:var(--ink-2);font-style:italic;margin-top:6px}
