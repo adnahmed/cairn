@@ -4968,6 +4968,35 @@ reference-physique rows). Its SVG is authored geometry, never caller text, so it
 reached via file-local guarded accessors (mirroring `art()`) so a missing lib degrades to the
 ellipse-pack / tape-driven-croquis fallbacks.
 
+### Navigation: five homes over the views
+
+The tab bar has five buttons, one per **home**: Today, Train, Horizon, Ask, You. Underneath, nothing
+renamed: `state.tab` is still the **view** that renders (today, session, progress, plan, horizon,
+chat, stand, me, settings, you), `body[data-tab]` still carries it, and every
+`activateTab("<view>")` call site and `state.<x>Seg` write works unchanged. The home is a layer only
+the shell owns, defined in `src/contracts/client-routes.ts` (`homes`, `homeViews`, `viewHomes`,
+`planHomes`) and mirrored verbatim in `src/client/route-state.ts`:
+
+- `CairnRoutes.homeOf(view, section)` names the lit button. Plan is the one view split across
+  homes: its editor is Train's (`/app/train/plan`), its race view Horizon's (`/app/horizon/race`),
+  Fuel Today's (`/app/today/fuel`) and Changes Ask's (`/app/ask/changes`).
+- `highlightHome` (`src/client/app/tabs.ts`) lights the button on every switch AND on every route
+  sync (`app/route-sync.ts`), so a section change inside a view moves the lit home with it. A tap on
+  a button activates the home's landing view (`CairnRoutes.viewFor`).
+- The canonical URL is `/app/<home>/<section>[/<nested>]?date&id&session`; `routeToUrl` writes only
+  that. `parseRoute` also reads every v1 form (`/app/<view>/<section>`, a bare `/<view>/...`,
+  `?tab=`, `?jump=`, `me/health/*`) onto the same view and marks it `legacy`; startup and popstate
+  then activate with `replace`, so the address bar is rewritten in place and Back never walks into an
+  old address. `test/routeState.test.js` is the redirect table, one row per v1 path.
+- Train's group nav carries one cross-view leaf, Program → Plan (`UI_PROGRESS_CROSS_VIEW_LEAVES`,
+  `src/client/ui-segments-client.ts`): its handler navigates with `activateTab` instead of repainting
+  in place, and the editor paints the same nav with `PROGRESS_LINK_HANDLERS`, whose Progress leaves
+  navigate back.
+- The You and Horizon landings sit in EAGER bundles (02 and 06), so neither waits on the lazy
+  me-health bundle; only a tap into Health (the `stand` view) or About you (`me`) loads it.
+- A device that knew the old tabs sees one dismissible "what moved here" line per home, once
+  (`src/client/app/moved-note.ts`, localStorage, a per-viewer convenience only).
+
 ### Tab-by-tab
 
 **Today** opens to the day-read **Brief** (`/api/today-read` → a calm `kind`/`headline`/`why`/`focus`
@@ -5036,8 +5065,9 @@ Four details of the Brief are easy to get wrong from the markup alone:
 `/api/nutrition/checkin`); a History session is **tap-to-edit** (correct logged set numbers + notes
 via the `openSessionEdit` overlay).
 
-**Stand** is the single health home (a bar tab; card-based, one focused screen per view, routes
-`/app/stand/<seg>` in `src/contracts/client-routes.ts` + `src/client/route-state.ts`): the overview
+**Health** (the `stand` view) is the single health home, under You (card-based, one focused screen
+per view, routes `/app/you/health` and `/app/you/<seg>` in `src/contracts/client-routes.ts` +
+`src/client/route-state.ts`; the v1 `/app/stand/<seg>` paths redirect there): the overview
 leads with the agentic whole-picture **read** (`/api/health/synthesis`, generate/refresh in place)
 over worst-first domain tiles, and every health tool is a first-class Stand sub-view hosted in place
 — **Records** (upload + docs list, the "Add labs or scan" action bar), **Share with your doctor**
@@ -5045,10 +5075,10 @@ over worst-first domain tiles, and every health tool is a first-class Stand sub-
 timeline), **Connections** (grouped `/api/directives` with status flips + re-derive + the agentic
 review card), **Age** (the `/api/health/standing` bio-age/percentile read + BP capture), **Body**
 (the full body-metrics surface), plus the per-domain / all-markers catalogs (clinical-review order,
-inline charts). Legacy `me/standing` + `me/health/*` deep links redirect into Stand (`applyRouteState`
-in `src/client/app/router.ts`).
+inline charts). Legacy `me/standing` + `me/health/*` deep links redirect into Health (`parseRoute`
+in `src/client/route-state.ts`).
 
-**Me** is the about-you home reached from Settings → You (Profile-first sub-nav Profile / Life /
+**Me** is the about-you home reached from You (Profile-first sub-nav Profile / Life /
 Family / Memory): Profile includes the free-text `about_me` field (`PUT /api/profile`); Memory is the
 curate-able coach memory; **Life** is the trips/injuries/events timeline (with a subtle
 active-context banner mirrored on Today); **Family** is the CRUD roster (`/api/family`).
