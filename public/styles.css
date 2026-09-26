@@ -29,20 +29,22 @@
   --line-strong: #c3bbab;/* a firmer hairline: input borders, dividers that must read */
   --ink:      #191d20;   /* primary text */
   --ink2:     #454b50;   /* secondary text */
-  --muted:    #626762;   /* tertiary text, labels. The brief's #6c716c nudged to clear AA 4.5:1 on --ground */
+  --muted:    #5d625d;   /* tertiary text, labels. The brief's #6c716c nudged to clear AA 4.5:1 on every neutral, --well included */
   --faint-ink:#a9a79f;   /* dismiss glyphs, ghosted marks, placeholders */
   --on-ink:   var(--ground); /* text on a solid ink fill (the solid button, a selected segment) */
 
   /* one accent: dawn */
-  --dawn:      #b8611a;
-  --dawn-deep: #95490c;
-  --dawn-wash: rgba(184,97,26,.12);
+  /* the brief's #b8611a deepened so dawn clears AA as small text on --ground and
+     under --on-accent as a fill (test/tokenContrast.test.js) */
+  --dawn:      #984b0e;
+  --dawn-deep: #843f0a;   /* the hover and pressed fill, and the firmest dawn word */
+  --dawn-wash: rgba(152,75,14,.12);
 
   /* the six stones — each keeps its OWN hue; tone is never a stone's fill */
-  --s-strength:  #a2b2bf;  --d-strength:  #4f6577;
-  --s-endurance: #97b89f;  --d-endurance: #46735a;
-  --s-recovery:  #aca4cf;  --d-recovery:  #655c96;
-  --s-fuel:      #dbb882;  --d-fuel:      #8e6424;
+  --s-strength:  #a2b2bf;  --d-strength:  #4c6174;
+  --s-endurance: #97b89f;  --d-endurance: #40694f;
+  --s-recovery:  #aca4cf;  --d-recovery:  #615893;
+  --s-fuel:      #dbb882;  --d-fuel:      #83591c;
   --s-body:      #cfa18b;  --d-body:      #8d5238;
   --s-heart:     #dc877b;  --d-heart:     #a53d35;
   --on-stone:    #15191c;  /* a glyph or initial on a stone fill */
@@ -63,7 +65,7 @@
   --accent-wash: var(--dawn-wash);
   --on-accent: #fbf8f2;  /* ink/glyph on a saturated fill (dawn / sage / warn / ink / gold) */
   --sage:    #5b8467;    /* done, completion — marks and borders */
-  --sage-text: var(--d-endurance); /* sage for small text, AA on surface */
+  --sage-text: var(--d-endurance); /* sage for small text, AA on ground, surface and well */
   --sage-deep: #37604a;
   --sage-bg: color-mix(in srgb, var(--s-endurance) 22%, var(--surface));
   --warn:    var(--d-heart);
@@ -173,7 +175,7 @@
     --line-strong: #3d474e;
     --ink:      #ece6da;
     --ink2:     #b0b3ad;
-    --muted:    #80877f;
+    --muted:    #91988f;
     --faint-ink:#5d655f;
     --dawn:      #f0aa62;
     --dawn-deep: #f6c28e;
@@ -211,7 +213,7 @@
   --line-strong: #3d474e;
   --ink:      #ece6da;
   --ink2:     #b0b3ad;
-  --muted:    #80877f;
+  --muted:    #91988f;
   --faint-ink:#5d655f;
   --dawn:      #f0aa62;
   --dawn-deep: #f6c28e;
@@ -2735,7 +2737,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .token-sheet-err{margin-top:8px;font-size:.8rem;color:var(--warn);font-weight:600}
 .token-sheet-ft{display:flex;justify-content:flex-end;margin-top:16px}
 .token-sheet-btn{appearance:none;font-family:inherit;font-size:.92rem;font-weight:600;cursor:pointer;
-  padding:10px 20px;border-radius:var(--radius-pill);border:0;background:var(--accent);color:var(--card);
+  padding:10px 20px;border-radius:var(--radius-pill);border:0;background:var(--accent);color:var(--on-accent);
   transition:transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
 .token-sheet-btn:hover{background:var(--accent-deep)}
 .token-sheet-btn:active{transform:var(--press)}
@@ -3407,11 +3409,13 @@ body.sheet-open{overflow:hidden}
   font-size:.8rem;color:var(--ink-2);font-variant-numeric:lining-nums;
   transition:transform var(--dur-1) var(--ease)}
 .cal-pad,.cal-out{background:transparent}
-.cal-out{color:#c9c0ad}
+.cal-out{color:var(--faint-ink)}
+/* heat levels are dawn washed into the surface, so they follow the theme; the day
+   number on each clears AA in both (ink-2 on the palest, ink above it) */
 .cl0{background:var(--card-2)}
-.cl1{background:#f4e2d5}
-.cl2{background:#eac3a7}
-.cl3{background:#d49270;color:var(--on-accent)}
+.cl1{background:color-mix(in srgb,var(--dawn) 18%,var(--surface))}
+.cl2{background:color-mix(in srgb,var(--dawn) 32%,var(--surface));color:var(--ink)}
+.cl3{background:color-mix(in srgb,var(--dawn) 46%,var(--surface));color:var(--ink)}
 .cl4{background:var(--accent);color:var(--on-accent)}
 .cal-today{outline:2px solid var(--accent);outline-offset:1.5px}
 .cal-has{cursor:pointer}
@@ -5395,7 +5399,7 @@ button.hmk-row:active{background:var(--card-2)}
 .supp-sub{font-size:.8rem;color:var(--muted);line-height:1.5;margin:7px 0 12px;max-width:46ch}
 .supp-empty{font-size:.83rem;color:var(--muted);margin:0 0 12px}
 .supp-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:13px}
-.supp-chip{display:inline-flex;align-items:center;gap:7px;background:var(--paper,#f3ede1);
+.supp-chip{display:inline-flex;align-items:center;gap:7px;background:var(--paper);
   border:1px solid var(--line,rgba(0,0,0,.08));border-radius:var(--radius-pill);padding:5px 6px 5px 12px}
 .supp-name{font-size:.84rem;font-weight:600;color:var(--ink)}
 .supp-meta{font-size:.72rem;color:var(--muted)}
@@ -6741,7 +6745,7 @@ button.prow-name:hover{color:var(--accent)}
 .agenda-title{font-size:.98rem;line-height:1.4;color:var(--ink)}
 .agenda-body{margin-top:5px;color:var(--ink-2);font-size:.86rem;line-height:1.5}
 .agenda-foot{margin-top:11px;display:flex;gap:8px;flex-wrap:wrap}
-.agenda-act{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);
+.agenda-act{background:var(--accent);color:var(--on-accent);border:none;border-radius:var(--radius-sm);
   padding:8px 14px;font-family:var(--font-ui);font-weight:600;font-size:.88rem;cursor:pointer}
 .agenda-act:hover{background:var(--accent-deep)}
 .agenda-act:active{transform:var(--press)}
@@ -7088,7 +7092,7 @@ body[data-tab="session"] .tabbar{display:none}
 .sess-launch-meta{margin-top:6px;color:var(--ink-2);font-size:.85rem}
 .sess-launch-cta{
   flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;
-  padding:11px 18px;border-radius:var(--radius-pill);background:var(--accent);color:#fff;
+  padding:11px 18px;border-radius:var(--radius-pill);background:var(--accent);color:var(--on-accent);
   font-family:var(--font-ui);font-weight:600;font-size:.9rem;letter-spacing:.01em;
 }
 .sess-launch-arrow{transition:transform var(--dur-1) var(--ease)}

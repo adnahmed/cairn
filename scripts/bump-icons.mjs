@@ -34,6 +34,9 @@ export const IDENTITY_FILES = {
 const ICON_URL_RE = /\/icons\/[\w.-]+/g;
 const VERSIONED_RE = /\.v(\d+)\.[a-z0-9]+$/i;
 const MODEL_CONST_RE = /const APP_IDENTITY_VERSION = (\d+);/;
+// index.html carries a theme-color per scheme; the LIGHT one is the manifest's colour
+// (a manifest holds only one), and the dark one is the dark palette's ground.
+const LIGHT_THEME_META_RE = /(<meta\s+name="theme-color"\s+media="\(prefers-color-scheme: light\)"\s+content=")([^"]+)(")/;
 
 function read(root, rel) {
   return readFileSync(path.join(root, rel), "utf8");
@@ -59,7 +62,7 @@ export function readIdentity(root = REPO_ROOT) {
   const indexIcons = [...new Set(index.match(ICON_URL_RE) || [])];
   const swIcons = [...swArray(sw, "CORE_ASSETS"), ...swArray(sw, "OPTIONAL_ASSETS")].filter((u) => u.startsWith("/icons/"));
   const appleTouch = /<link\s+rel="apple-touch-icon"\s+href="([^"]+)"/.exec(index)?.[1] || null;
-  const metaTheme = /<meta\s+name="theme-color"\s+content="([^"]+)"/.exec(index)?.[1] || null;
+  const metaTheme = LIGHT_THEME_META_RE.exec(index)?.[2] || null;
   const modelVersion = Number(MODEL_CONST_RE.exec(modelSource)?.[1] || 0);
   return {
     manifest,
@@ -128,7 +131,7 @@ export function bumpIdentity(root = REPO_ROOT, { dryRun = false, themeColor = nu
   // short_name further down) so the hand-kept manifest layout survives, then re-parsed.
   if (themeColor != null) {
     manifestText = manifestText.replace(/("theme_color":\s*")[^"]*(")/, `$1${themeColor}$2`);
-    index = index.replace(/(<meta\s+name="theme-color"\s+content=")[^"]+(")/, `$1${themeColor}$2`);
+    index = index.replace(LIGHT_THEME_META_RE, `$1${themeColor}$3`);
   }
   if (shortName != null) {
     manifestText = manifestText.replace(/("short_name":\s*")[^"]*(")/, `$1${JSON.stringify(shortName).slice(1, -1)}$2`);

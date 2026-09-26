@@ -48,7 +48,7 @@ declare const CairnAppIdentityModel: AppIdentityModelApi;
   // The icon/name version: the `.vN` every icon url carries. Never hand-edit it —
   // `node scripts/bump-icons.mjs` moves it together with the icon files, manifest,
   // index.html and sw.js (test/pwaInstallIdentity.test.js holds all five together).
-  const APP_IDENTITY_VERSION = 3;
+  const APP_IDENTITY_VERSION = 4;
   // What an install made before this stamp existed was added with. Frozen: it is a
   // fact about the past, so the note stays OFF until APP_IDENTITY_VERSION moves past it.
   const PRE_STAMP_IDENTITY_VERSION = 2;

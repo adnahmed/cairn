@@ -55,10 +55,11 @@ Stone drawing tokens: `--shadow` (the contact shadow), `--sheen-hi` / `--sheen-l
 `:root[data-theme="dark"]`. The app has no theme toggle today; it follows the system, and
 `index.html` declares `<meta name="color-scheme" content="light dark">`. An alias follows its
 target for free; a raw `rgba()` literal does not, so a scrim or tint is written as
-`color-mix(in srgb,var(--ground) 88%,transparent)`, never as a light-only rgba. The installed-app
-`theme-color` (`#f4efe7`, manifest + meta, pinned by `test/pwaInstallIdentity.test.js`) is still the
-v1 cream; moving it goes through `node scripts/bump-icons.mjs --theme-color`, which also bumps the
-icon version.
+`color-mix(in srgb,var(--ground) 88%,transparent)`, never as a light-only rgba. `index.html` carries
+one `theme-color` meta per scheme, each that palette's `--ground` (pinned by
+`test/pwaInstallIdentity.test.js`). A manifest holds one colour, so its `theme_color` and
+`background_color` are the light ground; moving the light value goes through
+`node scripts/bump-icons.mjs --theme-color`, which also bumps the icon version.
 
 ## Type
 
