@@ -87,12 +87,20 @@
     return `${WEEKDAYS[d.getUTCDay()]}, ${shortDate(key)}`;
   }
 
-  function countdownText(race: NonNullable<RaceBuild["race"]>): string {
-    const days = num(race.days_to_race);
-    const weeks = Math.max(0, Math.round(num(race.weeks_to_race) ?? 0));
-    if (days === 0) return "Race day is today";
-    if (weeks === 0) return "Race week";
-    return weeks === 1 ? "1 week to race" : `${weeks} weeks to race`;
+  /**
+   * The head's countdown, in the ladder's own count. The current rung's
+   * `weeks_to_race` is the server's CALENDAR-week count to race week (the one the
+   * ladder labels and the engine prescribes by), so the head can never say "2 weeks
+   * to race" over a row that reads "1 wk out". `race.weeks_to_race` is a rounded-up
+   * day count and is only the fallback when no rung is this week.
+   */
+  function countdownText(race: NonNullable<RaceBuild["race"]>, weeks: RaceWeek[]): string {
+    if (num(race.days_to_race) === 0) return "Race day is today";
+    const here = weeks.find((week) => week.current === true);
+    const count = here ? num(here.weeks_to_race) : num(race.weeks_to_race);
+    const out = Math.max(0, Math.round(count ?? 0));
+    if (here?.kind === "race" || out === 0) return "Race week";
+    return out === 1 ? "1 week to race" : `${out} weeks to race`;
   }
 
   function eventName(race: NonNullable<RaceBuild["race"]>): string {
@@ -188,8 +196,13 @@
     });
   }
 
+  /**
+   * The fold's sentences. `build.why` is deliberately left out: the head, the estimate
+   * and the ladder already say all of it, and its estimate clause prints the time gap
+   * as a verdict ("4:31 off the target") in a rounded-up week count the ladder does not use.
+   */
   function notesModel(build: RaceBuild | null | undefined): string[] {
-    const notes = [build?.why, build?.strength?.principle, build?.strength?.layout, build?.ride?.placement];
+    const notes = [build?.strength?.principle, build?.strength?.layout, build?.ride?.placement];
     return notes.map((note) => String(note || "").trim()).filter(Boolean);
   }
 
@@ -205,7 +218,7 @@
     const race = value.race as NonNullable<RaceBuild["race"]>;
     return {
       event: eventName(race),
-      countdown: countdownText(race),
+      countdown: countdownText(race, Array.isArray(value.weeks) ? value.weeks : []),
       race_day: longDate(race.date),
       phase_word: PHASE_WORD[race.phase] || "",
       estimate: estimateModel(value),

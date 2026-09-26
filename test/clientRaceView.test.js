@@ -6,6 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHost, flush, loadClientModule, renderHtml } from "./_dom.mjs";
+import { repo, resetTables } from "./_seed.js";
+import { raceBuild } from "../dist/repo/race-build.js";
 
 const MODULES = [
   "html-utils",
@@ -54,7 +56,8 @@ function build(overrides = {}) {
       date: "2026-11-08",
       distance_km: 21.1,
       days_to_race: 53,
-      weeks_to_race: 7,
+      // The server's rounded-up day count (ceil(53 / 7)); the ladder's calendar count is 7.
+      weeks_to_race: 8,
       phase: "build",
       target: { sec: 7199, pace_sec_per_km: 341, raw: "sub-2:00", kind: "time" },
       target_raw: "sub-2:00",
@@ -95,7 +98,8 @@ function build(overrides = {}) {
     },
     ride: null,
     review: { weeks: [], longest_recent_km: 13, volume_word: "steady" },
-    why: "7 weeks to Riverside Half: this week is 32 km with a 13 km long run.",
+    // The server's why carries the estimate sentence, gap and all; the view never prints it.
+    why: "8 weeks to Riverside Half: this week is 32 km with a 13 km long run. Current shape reads about 2:04:30 (5:54 /km), 2 min faster over the last month — 4:31 off the 1:59:59 target, a stretch the build can close.",
     reason: null,
     ...overrides,
   };
@@ -188,16 +192,26 @@ test("run volume is km per week, whatever the pace units", () => {
 
 // ---------- the head and the estimate ----------
 
-test("the head frames the race: its name, weeks to race and race day", () => {
+test("the head frames the race: its name, the ladder's own weeks to race, and race day", () => {
   const win = load();
   const host = paint(win, build());
   assert.equal(host.querySelector(".race-view-event").textContent, "Riverside Half");
+  // The current rung's calendar count (7), never the rounded-up day count (8).
   assert.equal(host.querySelector(".race-view-when").textContent, "7 weeks to race · Sunday, Nov 8");
+  assert.equal(host.querySelector(".is-current .race-ladder-out").textContent, "7 wk out");
   assert.match(host.querySelector(".race-view-head .lbl").textContent, /Building/);
-  const week = paint(win, build({ race: { ...build().race, weeks_to_race: 0, days_to_race: 4 } }));
+  const at = (i) => WEEKS.map((w, j) => ({ ...w, current: j === i }));
+  // Race week on a Tuesday: 5 days out, the server's ceil says 1, the ladder says race week.
+  const week = paint(win, build({ weeks: at(7), race: { ...build().race, weeks_to_race: 1, days_to_race: 5 } }));
   assert.match(week.querySelector(".race-view-when").textContent, /^Race week/);
-  const one = paint(win, build({ race: { ...build().race, weeks_to_race: 1, days_to_race: 9 } }));
+  // The taper Monday: 13 days out, the server's ceil says 2, the ladder says 1 wk out.
+  const one = paint(win, build({ weeks: at(6), race: { ...build().race, weeks_to_race: 2, days_to_race: 13 } }));
   assert.match(one.querySelector(".race-view-when").textContent, /^1 week to race/);
+  // No rung is this week: the race's own count is the fallback.
+  const none = paint(win, build({ weeks: [], race: { ...build().race, weeks_to_race: 3, days_to_race: 20 } }));
+  assert.match(none.querySelector(".race-view-when").textContent, /^3 weeks to race/);
+  const today = paint(win, build({ weeks: at(7), race: { ...build().race, weeks_to_race: 0, days_to_race: 0 } }));
+  assert.match(today.querySelector(".race-view-when").textContent, /^Race day is today/);
   const unnamed = paint(win, build({ race: { ...build().race, event: null } }));
   assert.equal(unnamed.querySelector(".race-view-event").textContent, "Your half marathon");
 });
@@ -246,7 +260,13 @@ test("nothing on the view is a score", () => {
 
 test("caller strings are escaped", () => {
   const win = load();
-  const host = paint(win, build({ race: { ...build().race, event: "<b>Half</b>" }, why: "<i>why</i>" }));
+  const host = paint(
+    win,
+    build({
+      race: { ...build().race, event: "<b>Half</b>" },
+      strength: { ...build().strength, principle: "<i>why</i>" },
+    })
+  );
   assert.equal(host.querySelector(".race-view-event b"), null);
   assert.equal(host.querySelector(".race-view-event").textContent, "<b>Half</b>");
   assert.equal(host.querySelector(".race-view-note i"), null);
@@ -262,8 +282,72 @@ test("the paces and the server's sentences sit behind a 44px fold", () => {
   assert.deepEqual(paces, ["Race pace", "Easy"]);
   assert.match(host.querySelectorAll(".race-view-pace")[1].querySelector("dd").textContent, /under 150 bpm/);
   const notes = host.querySelectorAll(".race-view-note").map((p) => p.textContent);
-  assert.deepEqual(notes, [build().why, build().strength.principle]);
+  // The server's why is not in the fold: the head, estimate and ladder already say it,
+  // and its estimate clause prints the gap as a verdict.
+  assert.deepEqual(notes, [build().strength.principle]);
+  assert.doesNotMatch(more.textContent, /off the [0-9:]+ target|4:31/);
 });
+
+// ---------- against the real server read ----------
+
+// A real raceBuild(asOf), through the JSON the route sends, painted as-is: the rows,
+// km, kinds and the current rung are the server's, and the head counts what the
+// ladder counts. Riverside Half is Sunday 2026-11-01, so the rounded-up day count and
+// the ladder's calendar count disagree on every day but Monday.
+const REAL_RACE = "2026-11-01";
+const shiftDays = (iso, n) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 864e5).toISOString().slice(0, 10);
+
+function seedRealBuild(asOf) {
+  resetTables("activities", "garmin_activities", "garmin_daily_metrics", "profile", "app_state");
+  repo.setProfile({
+    age: 40,
+    sex: "male",
+    primary_discipline: "hybrid",
+    endurance_sport: "running",
+    endurance_goal: { mode: "race", event: "Riverside Half", date: REAL_RACE, distance_km: 21.1, target: "sub-2:00" },
+  });
+  // Six weeks of Tue / Thu / Sat running, all before the as-of.
+  for (let wk = 1; wk <= 6; wk++) {
+    const base = shiftDays(asOf, -7 * wk);
+    repo.addActivity({ type: "run", duration_min: 48, distance_km: 8, date: shiftDays(base, 1) });
+    repo.addActivity({ type: "run", duration_min: 42, distance_km: 7.5, date: shiftDays(base, 3) });
+    repo.addActivity({ type: "run", duration_min: 84, distance_km: 13, date: shiftDays(base, 5) });
+  }
+  return JSON.parse(JSON.stringify(raceBuild(asOf)));
+}
+
+for (const [asOf, head, currentOut] of [
+  ["2026-09-16", "6 weeks to race", "6 wk out"], // a Wednesday: ceil(46 / 7) would say 7
+  ["2026-10-19", "1 week to race", "1 wk out"], // the taper Monday: ceil(13 / 7) would say 2
+  ["2026-10-27", "Race week", "Race week"], // race week, Tuesday: ceil(5 / 7) would say 1
+]) {
+  test(`a real raceBuild(${asOf}) paints its own ladder, and the head counts what the ladder counts`, () => {
+    const data = seedRealBuild(asOf);
+    assert.equal(data.available, true, data.reason);
+    const win = load();
+    const host = paint(win, data);
+    const rows = host.querySelectorAll(".race-ladder-row");
+    assert.equal(rows.length, data.weeks.length);
+    assert.ok(rows.length > 0);
+    rows.forEach((row, i) => {
+      const week = data.weeks[i];
+      assert.equal(row.getAttribute("data-race-week"), week.week_start);
+      assert.equal(row.querySelector(".race-ladder-km").textContent, win.CairnRaceViewModel.kmText(week.km));
+      assert.equal(
+        row.querySelector(".race-ladder-kind").firstChild.textContent,
+        win.CairnRaceViewModel.KIND_WORD[week.kind]
+      );
+      assert.ok(row.classList.contains(`is-${week.kind}`) || !["taper", "race"].includes(week.kind));
+      assert.equal(row.classList.contains("is-current"), week.current === true);
+    });
+    const here = data.weeks.findIndex((week) => week.current);
+    assert.ok(here >= 0);
+    assert.equal(rows[here].querySelector(".race-ladder-out").textContent, currentOut);
+    assert.match(host.querySelector(".race-view-when").textContent, new RegExp(`^${head} · Sunday, Nov 1$`));
+    // Never the server's why (its rounded-up count and its gap-as-verdict clause).
+    assert.doesNotMatch(host.textContent, /off the .* target|weeks to Riverside Half/);
+  });
+}
 
 // ---------- the controller ----------
 
