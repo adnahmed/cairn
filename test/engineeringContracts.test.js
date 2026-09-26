@@ -4896,7 +4896,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     /var _progFocusCard: string \| undefined|function paintProgramBody|function triggerProgramEvolve|function tidyExerciseNames/
   );
   assert.match(captureTypesSource, /type CaptureDirective = import\("\.\.\/contracts\/client\.js"\)\.ClientDirective/);
-  assert.match(captureTypesSource, /type CaptureActivity = import\("\.\.\/contracts\/client\.js"\)\.ClientActivity/);
+  assert.match(captureTypesSource, /type CaptureFoodNote = import\("\.\.\/contracts\/client\.js"\)\.ClientFoodNote/);
   assert.match(captureTypesSource, /type CaptureSpeechRecognitionCtor = new \(\) => CaptureSpeechRecognition/);
   assert.doesNotMatch(captureSource, /type CaptureDirective = import|type CaptureSpeechRecognitionCtor = new/);
   assert.match(

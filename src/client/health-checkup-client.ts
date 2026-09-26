@@ -146,9 +146,8 @@ type ClientCheckupOrderedLab = import("../contracts/client-api.js").ClientChecku
     return `<div class="stand-root">${ledeBlock}${body}${empty}${frame}</div>`;
   }
 
-  const CAIRN_HEALTH_CHECKUP = { checkupHtml };
-  Object.assign(globalThis, { CairnHealthCheckup: CAIRN_HEALTH_CHECKUP, checkupHtml });
+  Object.assign(globalThis, { checkupHtml });
   if (typeof window !== "undefined") {
-    Object.assign(window, { CairnHealthCheckup: CAIRN_HEALTH_CHECKUP, checkupHtml });
+    Object.assign(window, { checkupHtml });
   }
 })();

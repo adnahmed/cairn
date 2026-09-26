@@ -458,7 +458,6 @@ test("a past quality day that was run easy closes its slot instead of re-asking 
 // Review round (r5) — every finding pinned. Namespace imports so a symbol this round
 // adds fails one test, never the file.
 // ============================================================================
-import * as rdi from "../dist/repo/run-day-intensity.js";
 import * as rp from "../dist/repo/run-progression.js";
 import * as useCase from "../dist/domain/brain/day-read-use-case.js";
 import * as ramp from "../dist/repo/long-run-ramp.js";

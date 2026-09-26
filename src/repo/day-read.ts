@@ -34,7 +34,6 @@ import { getCheckinByDate, getRecoverySummary, latestSleep, trainingSignals } fr
 import { RECOVERY_SAMPLE_FLOOR, recoveryTrendBars } from "./recovery-trend.js";
 import { activeContextEffect, contextEventIsRestTrade, REST_TRADE_META_KEY } from "./context-effect.js";
 import { listActiveDirectives } from "./directives-read.js";
-import { RUN_SPORT_PATTERNS } from "./endurance-sports.js";
 import { estimateExpenditure } from "./expenditure.js";
 import { flexibleTrainingAgenda } from "./flexible-training-agenda.js";
 import type { RunDayIntensity } from "./run-day-intensity.js";

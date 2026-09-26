@@ -160,7 +160,6 @@ Object.assign(globalThis, {
   CairnTodayAgenda: {
     TODAY_RAIL_SLOTS,
     TODAY_PRIMARY_CLIENT_MAX,
-    canRenderCard: todayAgendaCanRenderCard,
     renderableBuckets: todayAgendaRenderableBuckets,
     genericCardHtml: todayAgendaGenericCardHtml,
     railHtml: todayAgendaRailHtml,

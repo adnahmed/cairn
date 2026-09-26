@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { db, repo, savePlanDaySettled, replacePlanSettled } from "./_seed.js";
+import { db, repo, savePlanDaySettled } from "./_seed.js";
 import { addDaysISO, localDateISO } from "../dist/repo/shared.js";
 import { runUnderfuelingControlLoop } from "../dist/domain/brain/underfueling-service.js";
 

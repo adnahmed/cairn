@@ -3325,10 +3325,6 @@ declare global {
       load(token: number): Promise<void>;
     };
 
-    CairnHealthCheckup: {
-      checkupHtml(data: ClientNextCheckup | null | undefined): string;
-    };
-
     CairnMemory: {
       MEM_KINDS: readonly ClientMemoryKind[];
       memoryKindOptionsHtml(selected?: ClientMemoryKind | null): string;
@@ -4000,7 +3996,6 @@ declare global {
     CairnTodayAgenda: {
       TODAY_RAIL_SLOTS: Record<string, string>;
       TODAY_PRIMARY_CLIENT_MAX: number;
-      canRenderCard(candidate: ClientTodayAgendaCandidate | null | undefined): boolean;
       renderableBuckets(agenda: Partial<ClientTodayAgenda> | null | undefined): {
         primary: ClientTodayAgendaCandidate[];
         more: ClientTodayAgendaCandidate[];

@@ -10,7 +10,7 @@
 // temp DB (the harness wipes before every test).
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { db, repo, localDaysAgo, seedSleep, savePlanDaySettled, replacePlanSettled } from "./_seed.js";
+import { db, repo, localDaysAgo, seedSleep, savePlanDaySettled } from "./_seed.js";
 import { sessionPrimer } from "../dist/repo/session-primer.js";
 import { recordDecision } from "../dist/repo/brain-decisions.js";
 import { addDaysISO, localDateISO } from "../dist/repo/shared.js";

@@ -11,7 +11,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { db, localDaysAgo, repo, resetTables, seedIntake, seedWeight, savePlanDaySettled, replacePlanSettled } from "./_seed.js";
+import { db, localDaysAgo, repo, resetTables, seedIntake, seedWeight, savePlanDaySettled } from "./_seed.js";
 import {
   doseComparability,
   evaluatePerformedAtFullLoad,
