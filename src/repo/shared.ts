@@ -202,6 +202,26 @@ const EXTRA_MEAL_LABEL_HOURS = new Map<string, string>([
   ["supper", "19:00"],
 ]);
 
+// The default meal windows a day still has AHEAD at a local hour: a window counts
+// while it has not closed, unless a meal already logged today sits in it. `logged`
+// takes each logged meal's stated label and/or eaten time; a label is placed through
+// its representative hour, so "supper" covers dinner and "brunch" covers lunch, and a
+// snack covers no window. Used to size a food idea as ONE meal rather than the whole
+// day's room — a default about how a day usually splits, never a rule about when to eat.
+export function mealWindowsAhead(
+  hour: number,
+  logged: Iterable<{ meal?: unknown; eaten_at?: unknown }> = []
+): string[] {
+  const covered = new Set<string>();
+  for (const entry of logged) {
+    const byTime = mealLabelForTime(entry?.eaten_at);
+    if (byTime) covered.add(byTime);
+    const byLabel = mealLabelForTime(approxTimeForMealLabel(entry?.meal));
+    if (byLabel) covered.add(byLabel);
+  }
+  return MEAL_WINDOWS.filter((w) => hour < w.endHour && !covered.has(w.label)).map((w) => w.label);
+}
+
 // The inverse: a representative local "HH:MM" for a stated meal label, for placing
 // a meal on a day when someone said "breakfast" but not when. Null for "snack" and
 // anything unrecognized — a snack has no representative hour, and inventing one

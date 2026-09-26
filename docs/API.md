@@ -332,7 +332,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/fuel/ideas` | Three deterministic ideas for the rest of the day from the athlete's own staples, sized inside the observed band, protein first (src/repo/fuel-ideas.ts). Ideas, not a plan: nothing is logged or drafted, and no agent turn runs. ?hour= is the device's local hour (for "what you usually eat now"); ?exclude=key,key skips ideas already shown ("Another idea"); ?date= overrides today. |
+| GET | `/api/fuel/ideas` | Up to three deterministic ideas for the rest of the day from what the athlete eats again and again, each sized as ONE meal of the room left (never sized up), inside the observed band, protein first (src/repo/fuel-ideas.ts). Ideas, not a plan: nothing is logged or drafted, and no agent turn runs. ?hour= is the device's local hour (the meals still ahead, and what is usually eaten now); ?exclude=key,key skips ideas already shown ("Another idea"); ?date= overrides today. |
 
 ## `/garmin`
 

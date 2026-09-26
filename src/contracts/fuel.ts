@@ -6,8 +6,9 @@
 //     days `classifyIntakeDay` calls complete plus the bodyweight response over the same
 //     weeks (src/repo/intake-band.ts). An observation, never a target and never a
 //     maintenance measurement; it bounds ENERGY only and never trims protein;
-//   - FUEL IDEAS — three deterministic ideas built from the athlete's own staples,
-//     sized to the rest of today inside that band, protein first (src/repo/fuel-ideas.ts).
+//   - FUEL IDEAS — up to three deterministic ideas built from what the athlete eats
+//     again and again, each sized as ONE MEAL of the rest of today (never sized up),
+//     inside that band, protein first (src/repo/fuel-ideas.ts).
 //     An idea is never a plan and is never shown as eaten: "Start from this" fills the
 //     composer, and nothing is logged until the person logs it.
 //
@@ -21,7 +22,8 @@
 /**
  * What today's energy room is measured under (src/repo/fuel-ideas.ts fuelEnergyBound):
  * the band's no-gain ceiling; during a cut, the band's loss edge (the most eaten in a
- * week the weight still came down) or a target the athlete accepted, whichever is lower.
+ * week the weight still came down) or a target the athlete set or accepted, whichever
+ * is lower.
  */
 export type ClientFuelEnergyBound = "observed_ceiling" | "loss_edge" | "accepted_target";
 
@@ -139,26 +141,28 @@ export interface ClientIntakeBand {
 }
 
 export interface ClientFuelIdea {
-  /** Stable key for "Another idea" (`?exclude=`): the staple key plus the portion. */
+  /** Stable key for "Another idea" (`?exclude=`): the staple key plus the portion. Never holds a comma. */
   key: string;
+  /** Card-sized, in the athlete's own food words, never naming alcohol. */
   title: string;
-  /** Portion multiplier of the athlete's usual serving (0.5, 1, 1.5, 2). */
+  /** Portion of the athlete's usual serving: 1, 0.75 or 0.5 — never above the usual. */
   portion: number;
   portion_words: string;
   kcal: number | null;
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
-  /** True when it fits the rest of today's energy room; null when there is no room to claim. */
+  /** True when it fits ONE MEAL's share of today's energy room; null when there is no room to claim. */
   fits_band: boolean | null;
-  /** Spoken reason it was offered (protein first, then the room left). */
+  /** Spoken reason it was offered (protein first, then the idea as one meal of the day). */
   why: string;
   /** Text "Start from this" drops into the composer — never logged by itself. */
   prefill: string;
   /** How often it has been logged (distinct days) and when last. */
   times_logged: number;
   last_logged: string | null;
-  source: "staple";
+  /** "staple" = a whole meal that repeats; "components" = built from items logged often. */
+  source: "staple" | "components";
 }
 
 export interface ClientFuelIdeas {
@@ -197,6 +201,10 @@ export interface ClientFuelIdeas {
     energy_kcal: number | null;
     /** What `energy_kcal` is measured under; null exactly when `energy_kcal` is null. */
     energy_bound: ClientFuelEnergyBound | null;
+    /** Meals the rest of the day plausibly still holds (the shared meal windows), at least 1. */
+    meals_ahead: number;
+    /** One meal's share of the room — what each idea is sized against. */
+    meal_share: { protein_g: number | null; energy_kcal: number | null };
   };
   band_status: ClientIntakeBandStatus;
   ideas: ClientFuelIdea[];

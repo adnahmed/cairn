@@ -1,27 +1,43 @@
-// ---------- fuel ideas: three staples for the rest of today ----------
+// ---------- fuel ideas: three meal ideas for the rest of today ----------
 //
 // Meal plans stopped drafting on a schedule; what replaces them is ideas on demand.
-// This is the deterministic floor of that: three ideas built from the athlete's OWN
-// staples (foods logged on at least two different days, plus what they usually eat
-// near this hour), sized to the rest of today inside the observed intake band
-// (intake-band.ts), protein first.
+// This is the deterministic floor of that: up to three ideas built from what the
+// athlete actually eats again and again, each sized as ONE MEAL of the rest of today,
+// protein first, inside the observed intake band (intake-band.ts).
 //
 // THE RULES:
 //   - An idea is never a plan and never eaten. It carries a `prefill` for the
 //     composer's "Start from this"; nothing is logged until the person logs it.
-//   - PROTEIN FIRST. Ideas rank by how much of the protein still owed they cover.
-//     A portion is shrunk to fit the band ONLY when the smaller portion still covers
-//     the whole protein gap — an idea never trades protein away to fit the band. When
-//     the protein-carrying portion does not fit, it is offered anyway and says so.
+//   - A STAPLE REPEATS. A whole meal counts only once it is logged on at least
+//     FUEL_STAPLE_MIN_DAYS different days; being eaten near this hour is a tie-break,
+//     never a way round that (it used to be, and one-off dinners came back as
+//     "staples"). The athlete's recurring COMPONENTS — ingredient rows logged on
+//     enough days — also build ideas: a protein food they keep coming back to, with
+//     the sides they keep eating it with, in their own food words.
+//   - AN IDEA IS ONE MEAL. The room left (protein owed, energy under the bound) is
+//     shared across the meals plausibly still ahead today (`mealWindowsAhead`, the
+//     shared meal windows): about three on a morning with nothing logged, one in the
+//     evening. A portion is NEVER sized up to fill room; it is sized DOWN (a smaller
+//     or a half portion) when the usual portion runs past this meal's share, and no
+//     single idea carries more than half the day's protein anchor.
+//   - PROTEIN FIRST. Ideas rank by how much of this meal's protein share they cover.
+//     A portion shrinks to fit the energy share ONLY when the smaller portion still
+//     covers this meal's protein share — an idea never trades owed protein away to
+//     fit. When the protein-carrying portion does not fit, it is offered anyway and
+//     says so.
 //   - The band bounds energy only, and only when there IS a band the ideas can lean
 //     on: with no band — or a band too loose to size inside (mixed weeks, or low
-//     confidence) — the ideas keep the usual portion and make no energy claim.
+//     confidence) — the ideas make no energy claim.
 //   - DURING A CUT the room is not the no-gain ceiling (that is observed maintenance,
 //     and filling it would quietly undo the cut the athlete chose). A 'lose' goal
 //     bounds the room by the lowest of: the ceiling, the band's loss edge (the most
 //     eaten in a week the weight still came down — the athlete's own evidence), and a
-//     target the athlete ACCEPTED (never the formula's guess). And while the only bound
-//     a cut has is the no-gain ceiling, a portion is never sized up.
+//     target the athlete set or accepted (never the formula's guess).
+//   - NEVER ALCOHOL. An alcohol item is stripped from an idea (title and, where the
+//     estimate itemises it, its numbers); a staple that is mostly alcohol is skipped.
+//   - Active nutrition findings (a lipid or blood-pressure pattern) nudge the ORDER
+//     only — an idea whose own estimate is low in saturated fat or sodium, or carries
+//     fiber, ranks a little higher. Nothing is excluded and nothing is said about it.
 //   - No agent turn. An agent refinement, if one is ever layered on, must never block
 //     this response.
 
@@ -29,31 +45,49 @@ import type { ClientFuelEnergyBound, ClientFuelIdea, ClientFuelIdeas, ClientInta
 import { db } from "../db.js";
 import { intakeBand } from "./intake-band.js";
 import { dayIntakeCoverage, dayIntakeTarget, frequentFoodKey, frequentFoods, getDayIntake } from "./nutrition.js";
+import { nutritionRelevantDirectives } from "./nutrition-progress.js";
 import { computeGoalCheck } from "./profile.js";
-import { addDaysISO, localDateISO } from "./shared.js";
+import { addDaysISO, clipText, joinList, localDateISO, localHourFraction, mealWindowsAhead } from "./shared.js";
 
 export const FUEL_IDEAS_COUNT = 3;
 export const FUEL_STAPLE_WINDOW_DAYS = 90;
 // A staple repeats: one logged day is an event, two is a habit worth building on.
 export const FUEL_STAPLE_MIN_DAYS = 2;
-const PORTIONS = [0.5, 1, 1.5, 2] as const;
+// Longest idea title; a longer one is cut at a list boundary ("…, and more") or a word.
+export const FUEL_IDEA_TITLE_MAX = 60;
+// A recurring component leads an idea when its usual amount carries real protein.
+const LEAD_MIN_PROTEIN_G = 15;
+const LEAD_MIN_PROTEIN_SHARE = 0.25; // of its kcal, from protein
+const LEAD_CANDIDATES = 6;
+const SIDES_PER_IDEA = 2;
+// Portions offered, largest first. Never above the usual: an idea is never sized up.
+const PORTIONS = [1, 0.75, 0.5] as const;
 const PORTION_WORDS: Record<number, string> = {
-  0.5: "a half portion",
   1: "your usual portion",
-  1.5: "one and a half portions",
-  2: "a double portion",
+  0.75: "a smaller portion",
+  0.5: "a half portion",
 };
 
 export interface FuelStaple {
   key: string;
   title: string;
+  /** What "Start from this" drops into the composer (defaults to the title). */
+  prefill?: string;
   kcal: number;
   protein_g: number;
   carbs_g: number | null;
   fat_g: number | null;
+  fiber_g?: number | null;
+  /** The estimate's own coarse bands, when it carries them. */
+  saturated_fat?: string | null;
+  sodium?: string | null;
   times_logged: number;
   last_logged: string | null;
   usual_now: boolean;
+  /** "staple" = a whole meal that repeats; "components" = built from recurring items. */
+  source?: "staple" | "components";
+  /** The food the idea is built around, so two ideas never lead with the same one. */
+  lead_key?: string;
 }
 
 const num = (v: unknown): number | null => {
@@ -62,11 +96,111 @@ const num = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+// An idea key travels in `?exclude=key,key`, split on commas, and carries "@portion".
+const safeKey = (key: string): string => key.replace(/[,@]/g, " ").replace(/\s+/g, " ").trim();
+const foodKey = (text: string): string => safeKey(frequentFoodKey(text));
+
+// A side named after the lead reads as a phrase: "Chicken breast with asparagus",
+// not "…with Asparagus". Proper adjectives and acronyms keep their capital.
+const PROPER_FOOD_WORD =
+  /^(?:Greek|Icelandic|Italian|French|Thai|Mexican|Swiss|Dijon|Parmesan|Cheddar|Caesar|Cajun|Korean|Japanese|Indian|Chinese|Turkish|Spanish|English|Irish|Polish|Serbian|Brussels|Nordic)\b/;
+const sideWord = (text: string): string =>
+  /^[A-Z][a-z]/.test(text) && !PROPER_FOOD_WORD.test(text) ? text[0].toLowerCase() + text.slice(1) : text;
+
+// ---- alcohol: never part of an idea ----
+// Word-bounded, and not when the word is a cooking use ("red wine vinegar",
+// "beer-battered") or a soft drink ("ginger beer", "alcohol-free").
+const ALCOHOL_RE =
+  /\b(?:wine|beer|lager|ale|ipa|stout|porter|pilsner|cider|spirits?|liquor|liqueur|vodka|whiske?y|bourbon|scotch|gin|rum|tequila|mezcal|brandy|cognac|rakija|rakia|raki|grappa|schnapps|slivovitz|palinka|ouzo|sake|soju|prosecco|champagne|cava|cocktails?|margaritas?|martinis?|negroni|spritz|mojitos?|sangria|mead|alcohol|alcoholic)\b(?![-\s]*(?:vinegar|batter|battered|braised|sauce|reduction|glaze|free|cake|raisin))/i;
+const NOT_ALCOHOL_RE = /\b(?:non[-\s]?alcoholic|alcohol[-\s]free|ginger\s+(?:beer|ale)|root\s+beer)\b/i;
+
+export function isAlcoholFood(text: unknown): boolean {
+  const s = String(text ?? "");
+  return ALCOHOL_RE.test(s) && !NOT_ALCOHOL_RE.test(s);
+}
+
+// A meal summary's list parts: "A with B, C, trail mix & D" → ["A with B", "C", "trail mix", "D"].
+const listParts = (text: string): string[] =>
+  text
+    .split(/\s*(?:,|;|\s&\s|\s\+\s)\s*/)
+    .map((part) => part.replace(/^(?:and|plus)\s+/i, "").trim())
+    .filter(Boolean);
+
+// One list part with any alcohol clause removed: "steak with red wine" → "steak";
+// "mac and cheese with beer" → "mac and cheese". "" when the whole part is alcohol.
+function dropAlcoholClause(part: string): string {
+  const pieces = part.split(/(\s+(?:with|and|plus)\s+)/i);
+  const kept: string[] = [];
+  for (let i = 0; i < pieces.length; i += 2) {
+    if (isAlcoholFood(pieces[i])) continue;
+    if (kept.length) kept.push(pieces[i - 1] ?? " and ");
+    kept.push(pieces[i]);
+  }
+  return kept.join("").trim();
+}
+
 /**
- * The athlete's staples: foods logged on at least FUEL_STAPLE_MIN_DAYS distinct days in
- * the window, each with the macros of its newest occurrence that carries both kcal and
- * protein (a staple with no known protein cannot be ranked protein-first, so it is left
- * out), plus the foods usually eaten near `hour` (frequentFoods), flagged `usual_now`.
+ * The athlete's own meal words with every alcohol item taken out. PURE. Returns the
+ * text unchanged when it names no alcohol, and "" when nothing but alcohol is left.
+ */
+export function stripAlcohol(text: string): string {
+  const s = String(text ?? "").trim();
+  if (!isAlcoholFood(s)) return s;
+  const parts = listParts(s)
+    .map(dropAlcoholClause)
+    .filter((part) => part && !isAlcoholFood(part));
+  return joinList(parts);
+}
+
+/**
+ * A card-sized title from the athlete's own words. PURE. Short text is kept as
+ * written; a long list is cut at a list boundary and says so ("…, and more"); a
+ * single long phrase is cut at a word, never mid-word.
+ */
+export function capIdeaTitle(text: string, max = FUEL_IDEA_TITLE_MAX): string {
+  const s = String(text ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (s.length <= max) return s;
+  const parts = listParts(s);
+  for (let n = parts.length - 1; n >= 1; n--) {
+    const cut = `${parts.slice(0, n).join(", ")}, and more`;
+    if (cut.length <= max) return cut;
+  }
+  return clipText(parts[0] ?? s, max, { wordBoundary: true }).replace(/\s+(?:with|and|of|in|on|plus)…$/i, "…");
+}
+
+interface ComponentAcc {
+  title: string;
+  days: Set<string>;
+  last: string | null;
+  macros: {
+    kcal: number;
+    protein_g: number;
+    carbs_g: number | null;
+    fat_g: number | null;
+    fiber_g: number | null;
+  } | null;
+  amount: string | null;
+}
+
+interface MealAcc {
+  title: string;
+  days: Set<string>;
+  last: string | null;
+  estimate: any | null;
+}
+
+/**
+ * The athlete's staples. PURE over the food log. Two kinds:
+ *   - whole meals logged on at least FUEL_STAPLE_MIN_DAYS distinct days in the window,
+ *     each with the numbers of its newest estimate that carries both kcal and protein
+ *     (a meal with no known protein cannot be ranked protein-first), alcohol taken out;
+ *   - ideas built from recurring COMPONENTS: an ingredient row logged on enough days
+ *     that carries real protein, with the (at most two) other recurring items it was
+ *     eaten with on enough days.
+ * Foods usually eaten near `hour` (frequentFoods) are flagged `usual_now` — a
+ * tie-break only; it never makes a one-off meal a staple.
  */
 export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelStaple[] {
   const since = addDaysISO(asOf, -FUEL_STAPLE_WINDOW_DAYS) ?? asOf;
@@ -79,7 +213,18 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
         ORDER BY id DESC`
     )
     .all(since, asOf) as any[];
-  const byKey = new Map<string, { title: string; days: Set<string>; last: string | null; macros: any | null }>();
+  const meals = new Map<string, MealAcc>();
+  const comps = new Map<string, ComponentAcc>();
+  // Days two components were eaten in the same meal: pairs.get(a).get(b).
+  const pairs = new Map<string, Map<string, Set<string>>>();
+  const touch = <T>(map: Map<string, T>, key: string, make: () => T): T => {
+    let cur = map.get(key);
+    if (!cur) {
+      cur = make();
+      map.set(key, cur);
+    }
+    return cur;
+  };
   for (const row of rows) {
     let parsed: any = null;
     try {
@@ -87,43 +232,150 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
     } catch {
       parsed = null;
     }
-    const title = String(parsed?.summary ?? row.meal ?? "").trim();
-    if (!title) continue;
-    const key = frequentFoodKey(title);
-    if (!key) continue;
     const day = String(row.day ?? "").slice(0, 10);
-    const cur = byKey.get(key) ?? { title, days: new Set<string>(), last: null, macros: null };
-    if (day) cur.days.add(day);
-    if (!cur.last || day > cur.last) cur.last = day || cur.last;
-    const kcal = num(parsed?.kcal);
-    const protein = num(parsed?.protein_g);
-    // Rows are id-DESC, so the first occurrence carrying both is the newest estimate.
-    if (!cur.macros && kcal != null && kcal > 0 && protein != null) {
-      cur.macros = { kcal, protein_g: protein, carbs_g: num(parsed?.carbs_g), fat_g: num(parsed?.fat_g) };
+    const title = String(parsed?.summary ?? row.meal ?? "").trim();
+    const key = title ? foodKey(title) : "";
+    if (key) {
+      const cur = touch(meals, key, () => ({ title, days: new Set<string>(), last: null, estimate: null }));
+      if (day) cur.days.add(day);
+      if (!cur.last || day > cur.last) cur.last = day || cur.last;
+      const kcal = num(parsed?.kcal);
+      // Rows are id-DESC, so the first occurrence carrying both is the newest estimate.
+      if (!cur.estimate && kcal != null && kcal > 0 && num(parsed?.protein_g) != null) cur.estimate = parsed;
     }
-    byKey.set(key, cur);
+    const inMeal = new Set<string>();
+    for (const ing of Array.isArray(parsed?.ingredients) ? parsed.ingredients : []) {
+      const item = String(ing?.item ?? "").trim();
+      if (!item || isAlcoholFood(item)) continue;
+      const ck = foodKey(item);
+      if (!ck) continue;
+      inMeal.add(ck);
+      const cur = touch(comps, ck, () => ({
+        title: item,
+        days: new Set<string>(),
+        last: null,
+        macros: null,
+        amount: null,
+      }));
+      if (day) cur.days.add(day);
+      if (!cur.last || day > cur.last) cur.last = day || cur.last;
+      const kcal = num(ing?.kcal);
+      const protein = num(ing?.protein_g);
+      if (!cur.macros && kcal != null && kcal > 0 && protein != null) {
+        cur.macros = {
+          kcal,
+          protein_g: protein,
+          carbs_g: num(ing?.carbs_g),
+          fat_g: num(ing?.fat_g),
+          fiber_g: num(ing?.fiber_g),
+        };
+        cur.amount = ing?.amount ? String(ing.amount).trim() : null;
+      }
+    }
+    if (day)
+      for (const a of inMeal)
+        for (const b of inMeal)
+          if (a !== b)
+            touch(
+              touch(pairs, a, () => new Map()),
+              b,
+              () => new Set<string>()
+            ).add(day);
   }
+
   let usualNow = new Set<string>();
   try {
-    usualNow = new Set(frequentFoods(hour).map((f) => frequentFoodKey(f.summary)));
+    usualNow = new Set(frequentFoods(hour).map((f) => foodKey(f.summary)));
   } catch {
     usualNow = new Set();
   }
   const out: FuelStaple[] = [];
-  for (const [key, v] of byKey) {
-    if (!v.macros) continue;
-    const now = usualNow.has(key);
-    if (v.days.size < FUEL_STAPLE_MIN_DAYS && !now) continue;
+
+  // Whole meals that repeat.
+  for (const [key, v] of meals) {
+    if (!v.estimate || v.days.size < FUEL_STAPLE_MIN_DAYS) continue;
+    const est = v.estimate;
+    const rowsOf: any[] = Array.isArray(est.ingredients) ? est.ingredients : [];
+    const alcohol = rowsOf.filter((ing) => isAlcoholFood(ing?.item));
+    const drinkSum = (k: string) => alcohol.reduce((acc, ing) => acc + (num(ing?.[k]) ?? 0), 0);
+    let kcal = Number(est.kcal);
+    // Mostly alcohol: nothing worth offering once it is taken out.
+    if (drinkSum("kcal") * 2 >= kcal) continue;
+    const cleaned = stripAlcohol(v.title);
+    if (!cleaned) continue;
+    kcal -= drinkSum("kcal");
+    const less = (k: string) => {
+      const n = num(est[k]);
+      return n == null ? null : Math.max(0, n - drinkSum(k));
+    };
+    const lead = rowsOf
+      .filter((ing) => ing?.item && !isAlcoholFood(ing.item) && num(ing?.protein_g) != null)
+      .sort((a, b) => Number(b.protein_g) - Number(a.protein_g))[0];
     out.push({
       key,
-      title: v.title,
-      kcal: v.macros.kcal,
-      protein_g: v.macros.protein_g,
-      carbs_g: v.macros.carbs_g,
-      fat_g: v.macros.fat_g,
+      title: capIdeaTitle(cleaned),
+      prefill: cleaned,
+      kcal,
+      protein_g: less("protein_g") ?? 0,
+      carbs_g: less("carbs_g"),
+      fat_g: less("fat_g"),
+      fiber_g: num(est.fiber_g),
+      saturated_fat: est.nutrition_pattern?.saturated_fat ?? null,
+      sodium: est.nutrition_pattern?.sodium ?? null,
       times_logged: v.days.size,
       last_logged: v.last,
-      usual_now: now,
+      usual_now: usualNow.has(key),
+      source: "staple",
+      lead_key: lead ? foodKey(String(lead.item)) : key,
+    });
+  }
+
+  // Ideas from recurring components, around a protein food the athlete keeps eating.
+  const recurring = new Map([...comps].filter(([, c]) => c.macros && c.days.size >= FUEL_STAPLE_MIN_DAYS));
+  const density = (c: ComponentAcc) => (c.macros ? (c.macros.protein_g * 4) / c.macros.kcal : 0);
+  const leads = [...recurring]
+    .filter(([, c]) => c.macros!.protein_g >= LEAD_MIN_PROTEIN_G && density(c) >= LEAD_MIN_PROTEIN_SHARE)
+    .sort(([ak, a], [bk, b]) => b.days.size - a.days.size || density(b) - density(a) || ak.localeCompare(bk))
+    .slice(0, LEAD_CANDIDATES);
+  for (const [leadKey, lead] of leads) {
+    const together = pairs.get(leadKey) ?? new Map<string, Set<string>>();
+    const sides = [...recurring]
+      .filter(([k]) => k !== leadKey && (together.get(k)?.size ?? 0) >= FUEL_STAPLE_MIN_DAYS)
+      .sort(
+        ([ak, a], [bk, b]) =>
+          (together.get(bk)?.size ?? 0) - (together.get(ak)?.size ?? 0) ||
+          (b.macros!.fiber_g ?? 0) - (a.macros!.fiber_g ?? 0) ||
+          a.macros!.kcal - b.macros!.kcal ||
+          ak.localeCompare(bk)
+      )
+      .slice(0, SIDES_PER_IDEA);
+    const parts = [lead, ...sides.map(([, c]) => c)];
+    const sum = (k: "kcal" | "protein_g") => parts.reduce((acc, c) => acc + c.macros![k], 0);
+    const sumKnown = (k: "carbs_g" | "fat_g" | "fiber_g") =>
+      parts.some((c) => c.macros![k] != null) ? parts.reduce((acc, c) => acc + (c.macros![k] ?? 0), 0) : null;
+    const title = sides.length ? `${lead.title} with ${joinList(sides.map(([, c]) => sideWord(c.title)))}` : lead.title;
+    const times = Math.min(lead.days.size, ...sides.map(([k]) => together.get(k)?.size ?? 0));
+    out.push({
+      key: `items ${leadKey}`,
+      title: capIdeaTitle(title),
+      prefill: joinList(
+        parts.map((c, i) => {
+          const name = i ? sideWord(c.title) : c.title;
+          return c.amount ? `${name} (${c.amount})` : name;
+        })
+      ),
+      kcal: sum("kcal"),
+      protein_g: sum("protein_g"),
+      carbs_g: sumKnown("carbs_g"),
+      fat_g: sumKnown("fat_g"),
+      fiber_g: sumKnown("fiber_g"),
+      saturated_fat: null,
+      sodium: null,
+      times_logged: times,
+      last_logged: lead.last,
+      usual_now: [...usualNow].some((k) => k.includes(leadKey)),
+      source: "components",
+      lead_key: leadKey,
     });
   }
   return out;
@@ -142,43 +394,56 @@ export interface FuelEnergyBound {
   /** The kcal the day's room is measured under; null = no energy claim at all. */
   kcal: number | null;
   kind: ClientFuelEnergyBound | null;
-  /** Whether a portion may be sized UP to fill the room. */
-  allow_up: boolean;
 }
+
+// A target the athlete set or accepted, never the formula's guess. `dayIntakeTarget`
+// reports every row in nutrition_targets as "accepted"; "user" is the stated spelling.
+const STATED_TARGET_SOURCES = new Set(["accepted", "user"]);
 
 /**
  * What today's energy room is measured under (rules in the header). PURE. `target` is
  * `dayIntakeTarget(goal)` — its `mode` says whether this is a cut, its `source` whether
- * the kcal is a target the athlete accepted or only the formula's.
+ * the kcal is a target the athlete set or accepted, or only the formula's.
  */
 export function fuelEnergyBound(
   band: Pick<ClientIntakeBand, "status" | "band" | "energy_ceiling_kcal" | "confidence">,
   target: { kcal: number; mode: string; source: string } | null
 ): FuelEnergyBound {
-  const none: FuelEnergyBound = { kcal: null, kind: null, allow_up: false };
+  const none: FuelEnergyBound = { kcal: null, kind: null };
   if (band.status !== "ok" || !band.band || band.energy_ceiling_kcal == null) return none;
   // A loose read sizes nothing: its ceiling may be one noisy week.
   if (band.band.mixed || band.confidence === "low") return none;
   const ceiling = band.energy_ceiling_kcal;
-  if (target?.mode !== "lose") return { kcal: ceiling, kind: "observed_ceiling", allow_up: true };
+  if (target?.mode !== "lose") return { kcal: ceiling, kind: "observed_ceiling" };
   // Ties go to the cut's own bound, so the words say what actually holds the room.
   const candidates: Array<{ kcal: number; kind: ClientFuelEnergyBound }> = [];
-  if (target.source === "accepted" && target.kcal > 0) candidates.push({ kcal: target.kcal, kind: "accepted_target" });
+  if (STATED_TARGET_SOURCES.has(target.source) && target.kcal > 0)
+    candidates.push({ kcal: target.kcal, kind: "accepted_target" });
   if (band.band.low_is_loss_edge) candidates.push({ kcal: band.band.low_kcal, kind: "loss_edge" });
   candidates.push({ kcal: ceiling, kind: "observed_ceiling" });
   let best = candidates[0];
   for (const c of candidates) if (c.kcal < best.kcal) best = c;
-  return { kcal: best.kcal, kind: best.kind, allow_up: best.kind !== "observed_ceiling" };
+  return { kcal: best.kcal, kind: best.kind };
 }
 
-// Size one staple for the room left (rules in the header). PURE. `allowUp` false keeps
-// a portion from growing to fill the room (a cut bounded only by the no-gain ceiling).
-export function sizeFuelIdea(
-  staple: FuelStaple,
-  proteinNeed: number | null,
-  energyRoom: number | null,
-  allowUp = true
-): Sized {
+/** One meal's share of the room left today. */
+export interface FuelMealShare {
+  /** This meal's share of the protein still owed; null when unknown. */
+  protein_g: number | null;
+  /** This meal's share of the energy room; null = no energy claim. */
+  energy_kcal: number | null;
+  /** The most protein any one idea may carry (half the day's anchor); null = no anchor. */
+  protein_cap_g?: number | null;
+}
+
+/**
+ * Size one staple as ONE meal (rules in the header). PURE. Never above the usual
+ * portion. Largest portion that fits this meal's energy share while still covering
+ * its protein share; else the smallest portion that still covers it, marked as not
+ * fitting. Null
+ * when even a half portion carries more than half the day's protein anchor.
+ */
+export function sizeFuelIdea(staple: FuelStaple, share: FuelMealShare): Sized | null {
   const at = (portion: number): Sized => {
     const kcal = staple.kcal * portion;
     const protein = staple.protein_g * portion;
@@ -187,64 +452,95 @@ export function sizeFuelIdea(
       portion,
       kcal,
       protein,
-      covered: proteinNeed == null ? protein : Math.min(protein, proteinNeed),
-      fits: energyRoom == null ? null : kcal <= energyRoom,
+      covered: share.protein_g == null ? protein : Math.min(protein, Math.max(0, share.protein_g)),
+      fits: share.energy_kcal == null ? null : kcal <= share.energy_kcal,
     };
   };
-  const usual = at(1);
-  // Up: more of a protein staple, only with a band to size inside and only while it
-  // still fits and still buys protein that is owed.
-  if (allowUp && energyRoom != null && proteinNeed != null && proteinNeed > usual.covered && usual.fits) {
-    let best = usual;
-    for (const portion of PORTIONS.filter((p) => p > 1)) {
-      const s = at(portion);
-      if (s.fits && s.covered > best.covered + 0.5) best = s;
-    }
-    return best;
-  }
-  // Down: only to fit the band, and only when no protein that is owed is lost.
-  if (usual.fits === false) {
-    for (const portion of PORTIONS.filter((p) => p < 1).sort((a, b) => b - a)) {
-      const s = at(portion);
-      const keepsProtein = proteinNeed == null || proteinNeed <= 0 || s.covered >= usual.covered - 1e-9;
-      if (s.fits && keepsProtein) return s;
-    }
-  }
-  return usual;
+  const cap = share.protein_cap_g;
+  const options = PORTIONS.map(at).filter((s) => cap == null || s.protein <= cap + 1e-9);
+  if (!options.length) return null;
+  const owed = share.protein_g != null && share.protein_g > 0 ? Math.min(share.protein_g, options[0].protein) : 0;
+  const keeps = (s: Sized) => s.protein >= owed - 1e-9;
+  // Largest portion that fits and keeps; else the smallest that still keeps (closest
+  // to fitting without giving owed protein away); else the largest under the cap.
+  return options.find((s) => s.fits !== false && keeps(s)) ?? [...options].reverse().find(keeps) ?? options[0];
 }
 
 const BOUND_WORDS: Record<ClientFuelEnergyBound, { fits: string; past: string }> = {
-  observed_ceiling: { fits: "left in your observed range", past: "your observed range" },
+  observed_ceiling: { fits: "in your observed range", past: "your observed range" },
   loss_edge: {
-    fits: "left under the intake your weight still came down at",
+    fits: "under the intake your weight still came down at",
     past: "the intake your weight still came down at",
   },
-  accepted_target: { fits: "left under the target you accepted", past: "the target you accepted" },
+  accepted_target: { fits: "under the target you set", past: "the target you set" },
 };
 
-function ideaWhy(
-  s: Sized,
-  proteinNeed: number | null,
-  energyRoom: number | null,
-  boundKind: ClientFuelEnergyBound | null
-): string {
-  const words = BOUND_WORDS[boundKind ?? "observed_ceiling"];
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five"];
+
+interface WhyContext {
+  proteinNeed: number | null;
+  energyRoom: number | null;
+  mealsAhead: number;
+  boundKind: ClientFuelEnergyBound | null;
+}
+
+// The spoken reason: protein toward what is still owed, then the idea as ONE meal of
+// the day. The day's whole room is never quoted as if this meal should use it; every
+// number carries its unit; no score.
+function ideaWhy(s: Sized, ctx: WhyContext): string {
+  const { proteinNeed, energyRoom, mealsAhead } = ctx;
+  const words = BOUND_WORDS[ctx.boundKind ?? "observed_ceiling"];
   const protein = Math.round(s.protein);
+  const kcal = Math.round(s.kcal);
+  const owed = proteinNeed != null && proteinNeed > 0;
   let lead: string;
-  if (proteinNeed != null && proteinNeed > 0) {
-    lead = `About ${protein} g protein toward the ${Math.round(proteinNeed)} g still to go`;
-  } else if (proteinNeed != null) {
-    lead = `Protein is already met today; this adds about ${protein} g`;
-  } else {
-    lead = `One of your staples, about ${protein} g protein`;
+  const need = Math.round(proteinNeed ?? 0);
+  if (owed && protein >= need) lead = `About ${protein} g protein, enough for the ${need} g still to go`;
+  else if (owed) lead = `About ${protein} g protein toward the ${need} g still to go`;
+  else if (proteinNeed != null) lead = `Protein is already met today; this adds about ${protein} g`;
+  else if (s.staple.source === "components") lead = `Built from foods you log often, about ${protein} g protein`;
+  else lead = `One of your staples, about ${protein} g protein`;
+  const meals = `the ${COUNT_WORDS[mealsAhead] ?? mealsAhead} meals still ahead`;
+  const first = owed ? "; protein comes first" : "";
+  if (s.fits === true) {
+    return mealsAhead > 1
+      ? `${lead}. At about ${kcal} kcal it is one of ${meals}, and leaves room for the rest of the day.`
+      : `${lead}. At about ${kcal} kcal it fits what is left ${words.fits}.`;
   }
-  if (s.fits === true) return `${lead}, and it fits the ${Math.round(energyRoom as number)} kcal ${words.fits}.`;
   if (s.fits === false) {
-    return proteinNeed != null && proteinNeed > 0
-      ? `${lead}. It runs past ${words.past} today; protein comes first.`
-      : `${lead}. It runs past ${words.past} today.`;
+    return mealsAhead > 1 && energyRoom != null && s.kcal <= energyRoom
+      ? `${lead}. At about ${kcal} kcal it takes more than one meal's share of today's room${first}.`
+      : `${lead}. It runs past ${words.past} today${first}.`;
   }
-  return `${lead}.`;
+  return mealsAhead > 1 ? `${lead}, sized as one of ${meals}.` : `${lead}.`;
+}
+
+// ---- health leans: active nutrition findings nudge the order, never the set ----
+export interface FuelHealthLeans {
+  lower_saturated_fat: boolean;
+  more_fiber: boolean;
+  lower_sodium: boolean;
+}
+
+/** What the active nutrition-relevant directives lean toward, read off their words. PURE. */
+export function fuelHealthLeans(directives: any[]): FuelHealthLeans {
+  const text = (directives ?? [])
+    .map((d) => `${d?.marker ?? ""} ${d?.directive ?? ""} ${d?.rationale ?? ""}`)
+    .join(" ");
+  return {
+    lower_saturated_fat: /saturated|\bldl|apo\s*-?b\b|cholesterol|lipid|non-hdl|triglycer/i.test(text),
+    more_fiber: /\bfib(?:er|re)s?\b/i.test(text),
+    lower_sodium: /sodium|\bsalt\b|blood pressure|hypertens/i.test(text),
+  };
+}
+
+/** How many of the leans this staple's own estimate lines up with. PURE. */
+export function fuelHealthAlignment(staple: FuelStaple, leans: FuelHealthLeans): number {
+  let n = 0;
+  if (leans.lower_saturated_fat && staple.saturated_fat === "low") n++;
+  if (leans.lower_sodium && staple.sodium === "low") n++;
+  if (leans.more_fiber && (staple.fiber_g ?? 0) >= 5) n++;
+  return n;
 }
 
 export interface FuelIdeasOptions {
@@ -302,9 +598,29 @@ export function todaySoFar(
   };
 }
 
+// How many meals the rest of `date` plausibly still holds: the shared meal windows not
+// yet closed at `hour` and not already covered by a logged meal — at least one.
+export function fuelMealsAhead(
+  date: string,
+  hour: number | undefined,
+  logged: Array<{ meal?: unknown; eaten_at?: unknown }>
+): number {
+  const today = localDateISO();
+  const at = date < today ? 24 : date > today ? 0 : (hour ?? Math.floor(localHourFraction()));
+  return Math.max(1, mealWindowsAhead(at, logged).length);
+}
+
+function setWords(count: number): string {
+  if (!count) return "No staples to build ideas from yet. They appear once a few meals repeat.";
+  if (count >= FUEL_IDEAS_COUNT)
+    return "Ideas from your own staples, each one meal of the day — not a plan. Nothing is logged until you log it.";
+  const lead = count === 1 ? "Only one idea so far" : `Only ${COUNT_WORDS[count] ?? count} ideas so far`;
+  return `${lead}: an idea needs a food you have logged on more than one day, and more appear as meals repeat. Not a plan — nothing is logged until you log it.`;
+}
+
 /**
- * Three ideas for the rest of `date` (default today), deterministic. Never logs,
- * never drafts a plan, never asks an agent.
+ * Up to three ideas for the rest of `date` (default today), each sized as one meal,
+ * deterministic. Never logs, never drafts a plan, never asks an agent.
  */
 export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions = {}): ClientFuelIdeas {
   let goal: any = null;
@@ -339,27 +655,55 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
   const bound = fuelEnergyBound(band, target);
   const energyRoom = bound.kcal != null && kcalKnown ? Math.round(bound.kcal - totals.kcal) : null;
 
-  const excluded = new Set((opts.exclude ?? []).map((k) => String(k).split("@")[0]));
-  const eatenToday = new Set(day.entries.map((e: any) => frequentFoodKey(String(e.summary ?? ""))));
+  // One meal's share of what is left.
+  const mealsAhead = fuelMealsAhead(date, opts.hour, day.entries);
+  const share: FuelMealShare = {
+    protein_g: proteinNeed == null ? null : proteinNeed / mealsAhead,
+    energy_kcal: energyRoom == null ? null : Math.max(0, energyRoom) / mealsAhead,
+    protein_cap_g: anchor && anchor.protein_g > 0 ? anchor.protein_g / 2 : null,
+  };
+
+  let leans: FuelHealthLeans = { lower_saturated_fat: false, more_fiber: false, lower_sodium: false };
+  try {
+    leans = fuelHealthLeans(nutritionRelevantDirectives());
+  } catch {
+    // No findings read: the order stands on protein alone.
+  }
+
+  const excluded = new Set((opts.exclude ?? []).map((k) => safeKey(String(k).split("@")[0])));
+  const eatenToday = new Set(day.entries.map((e: any) => foodKey(String(e.summary ?? ""))));
   const staples = fuelStaples(date, opts.hour).filter((s) => !excluded.has(s.key) && !eatenToday.has(s.key));
 
   const fitRank = (f: boolean | null) => (f === true ? 2 : f === null ? 1 : 0);
-  const sized = staples
-    .map((staple) => sizeFuelIdea(staple, proteinNeed, energyRoom, bound.allow_up))
+  const ranked = staples
+    .map((staple) => sizeFuelIdea(staple, share))
+    .filter((s): s is Sized => s != null)
+    .map((s) => ({ s, aligned: fuelHealthAlignment(s.staple, leans) }))
     .sort(
       (a, b) =>
-        (proteinNeed != null && proteinNeed > 0 ? Math.round(b.covered / 5) - Math.round(a.covered / 5) : 0) ||
-        fitRank(b.fits) - fitRank(a.fits) ||
-        b.staple.protein_g / b.staple.kcal - a.staple.protein_g / a.staple.kcal ||
-        Number(b.staple.usual_now) - Number(a.staple.usual_now) ||
-        b.staple.times_logged - a.staple.times_logged ||
-        a.staple.key.localeCompare(b.staple.key)
-    )
-    .slice(0, FUEL_IDEAS_COUNT);
+        (proteinNeed != null && proteinNeed > 0 ? Math.round(b.s.covered / 5) - Math.round(a.s.covered / 5) : 0) ||
+        fitRank(b.s.fits) - fitRank(a.s.fits) ||
+        b.aligned - a.aligned ||
+        b.s.staple.protein_g / b.s.staple.kcal - a.s.staple.protein_g / a.s.staple.kcal ||
+        Number(b.s.staple.usual_now) - Number(a.s.staple.usual_now) ||
+        b.s.staple.times_logged - a.s.staple.times_logged ||
+        a.s.staple.key.localeCompare(b.s.staple.key)
+    );
+  // Two ideas never lead with the same food.
+  const leads = new Set<string>();
+  const sized: Sized[] = [];
+  for (const { s } of ranked) {
+    const lead = s.staple.lead_key ?? s.staple.key;
+    if (leads.has(lead)) continue;
+    leads.add(lead);
+    sized.push(s);
+    if (sized.length >= FUEL_IDEAS_COUNT) break;
+  }
 
   const round = (n: number | null) => (n == null ? null : Math.round(n));
   const ideas: ClientFuelIdea[] = sized.map((s) => {
-    const portion_words = PORTION_WORDS[s.portion] ?? `${s.portion}× your usual portion`;
+    const portion_words = PORTION_WORDS[s.portion] ?? "your usual portion";
+    const base = s.staple.prefill ?? s.staple.title;
     return {
       key: `${s.staple.key}@${s.portion}`,
       title: s.staple.title,
@@ -370,11 +714,11 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
       carbs_g: s.staple.carbs_g == null ? null : Math.round(s.staple.carbs_g * s.portion),
       fat_g: s.staple.fat_g == null ? null : Math.round(s.staple.fat_g * s.portion),
       fits_band: s.fits,
-      why: ideaWhy(s, proteinNeed, energyRoom, bound.kind),
-      prefill: s.portion === 1 ? s.staple.title : `${s.staple.title} (${portion_words})`,
+      why: ideaWhy(s, { proteinNeed, energyRoom, mealsAhead, boundKind: bound.kind }),
+      prefill: s.portion === 1 ? base : `${base} (${portion_words})`,
       times_logged: s.staple.times_logged,
       last_logged: s.staple.last_logged,
-      source: "staple",
+      source: s.staple.source ?? "staple",
     };
   });
 
@@ -387,11 +731,11 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
       protein_g: proteinNeed == null ? null : Math.round(proteinNeed),
       energy_kcal: energyRoom,
       energy_bound: bound.kind,
+      meals_ahead: mealsAhead,
+      meal_share: { protein_g: round(share.protein_g), energy_kcal: round(share.energy_kcal) },
     },
     band_status: band.status,
     ideas,
-    words: ideas.length
-      ? "Ideas from your own staples, not a plan. Nothing is logged until you log it."
-      : "No staples to build ideas from yet. They appear once a few meals repeat.",
+    words: setWords(ideas.length),
   };
 }
