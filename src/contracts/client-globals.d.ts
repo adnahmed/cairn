@@ -5289,6 +5289,8 @@ declare global {
   type CairnMealCardModelApi = {
     MACRO_KEYS: readonly ClientMealCardMacroKey[];
     gramsFromAmount(amount: unknown): number | null;
+    /** parseFoodQuantity (src/foodCapture.ts) on this side of the PUT. */
+    quantityOf(amount: unknown): { value: number; unit: string } | null;
     parseGramsInput(value: unknown): number | null;
     formatGrams(grams: number | null): string;
     portionWords(amount: unknown): string;

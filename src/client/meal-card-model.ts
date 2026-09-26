@@ -83,16 +83,8 @@
    * ("2 eggs", "250 ml"). Unrounded, so a rescale uses the server's own ratio.
    */
   function gramsFromAmount(amount: unknown): number | null {
-    const s = text(amount)
-      .toLowerCase()
-      .replace(/^(~|about|approx\.?|approximately|around)\s*/, "");
-    const match = /^(\d+(?:[.,]\d+)?)(?:\s*\/\s*(\d+))?\s*([a-z]+)?/.exec(s);
-    if (!match) return null;
-    let value = Number(match[1].replace(",", "."));
-    if (match[2]) value = value / Number(match[2]);
-    const factor = MASS_TO_G[match[3] ?? ""];
-    if (!factor || !Number.isFinite(value) || value <= 0) return null;
-    return value * factor;
+    const quantity = quantityOf(amount);
+    return quantity?.unit === "g" ? quantity.value : null;
   }
 
   /**
@@ -356,6 +348,7 @@
   const CAIRN_MEAL_CARD_MODEL = {
     MACRO_KEYS,
     gramsFromAmount,
+    quantityOf,
     parseGramsInput,
     formatGrams,
     portionWords,
