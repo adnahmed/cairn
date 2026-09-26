@@ -126,6 +126,8 @@ function chatAppliedTagHtml(a: ChatScreenAppliedAction): string {
     const active = CairnChatClient.captureFoodActive(info.status);
     return `<span class="bubble-tag capture-food${active ? " pending" : ""}" data-capture-note="${escAttr(info.id)}">${CairnChatClient.captureFoodTagInner(info.status, info.food)}</span>`;
   }
+  const amendedTag = CairnChatClient.amendedFoodTag(a); // "✓ Lunch updated · 780 kcal"
+  if (amendedTag) return `<span class="bubble-tag capture-food">${escHtml(amendedTag)}</span>`;
   const landing = CairnChatClient.planLandingTag(a);
   if (landing) return `<span class="bubble-tag">${escHtml(landing.text)}</span>`;
   const record = a as Record<string, unknown>;
@@ -144,9 +146,8 @@ function chatCaptureReviewHtml(a: ChatScreenAppliedAction): string {
   return `<div class="capture-review" data-capture-review="${escAttr(info.id)}"${inner ? "" : " hidden"}>${inner}</div>`;
 }
 
-// Re-render a capture chip AND its review in place from a fetched food-note row
-// (found anywhere in the log by its note id, so it survives a re-render that
-// rebuilt the bubble).
+// Re-render a capture chip AND its review in place from a food-note row, found
+// anywhere in the log by its note id (so it survives a re-render of the bubble).
 function applyCaptureFoodRow(id: number, row: unknown): void {
   const tag = document.querySelector(`.capture-food[data-capture-note="${id}"]`);
   if (!(tag instanceof HTMLElement)) return;
@@ -155,8 +156,6 @@ function applyCaptureFoodRow(id: number, row: unknown): void {
   tag.innerHTML = CairnChatClient.captureFoodTagInner(status, food);
   const review = document.querySelector(`.capture-review[data-capture-review="${id}"]`);
   if (!(review instanceof HTMLElement)) return;
-  // Settled with rows to edit: the review becomes the meal card (chat-capture-card-client.ts).
-  if (CairnChatCaptureCard.settleFromRow(review, row, CairnChatCaptureCard.chatDeps())) return;
   const inner = CairnChatClient.captureFoodReviewInner(status, food);
   if (inner === review.innerHTML) return; // an SSE re-emit of the same state: don't re-animate
   const wasEmpty = !!review.hidden;
@@ -376,9 +375,11 @@ function appendMsg(
   // Resume the enrichment watch for any still-filling capture chip — on a live turn,
   // a reload, or a tab-switch re-render. The read-only history overlay never arms it
   // (its notes have long settled). pollEnrichment's stale guard tears it down.
-  if (!readonly && applied.length) {
-    armCaptureFoodWatches(applied);
-    CairnChatCaptureCard.mountAll(el, applied, CairnChatCaptureCard.chatDeps());
+  if (!readonly && applied.length) armCaptureFoodWatches(applied);
+  // An amendment ("oh and 40 g of avocado") reprints THAT meal's chip + review, live turn only.
+  for (const a of !readonly && !noScroll ? applied : []) {
+    const amended = CairnChatClient.amendedFoodRow(a);
+    if (amended) applyCaptureFoodRow(amended.id, amended.row);
   }
   if (!noScroll && log && stickBottom && (!before || before === host.lastElementChild)) log.scrollTop = log.scrollHeight;
   return el;

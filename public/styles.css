@@ -1572,17 +1572,22 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   border-radius:50%;border:1.5px solid var(--accent);border-top-color:transparent;
   animation:enrspin .7s linear infinite;vertical-align:-1px}
 @media (prefers-reduced-motion:reduce){.bubble-tag.capture-food.pending .enr-dot{animation:none;opacity:.6}}
-/* What the estimate was built from, settling under the chip once enrichment lands.
-   Reuses the food detail sheet's .ing-breakdown/.ing-row family, one notch tighter
-   for a chat bubble; the basis line stays muted — provenance, never a verdict. */
-.capture-review{margin-top:10px}
+/* What the estimate was built from, settling under the chip once enrichment lands:
+   one quiet line per item (name · portion in words · a muted ~kcal), read-only and
+   phone-sized. No inputs, no totals line (the chip above carries the meal's total),
+   no provenance line — a correction is the next message, never a form. */
+.capture-review{margin-top:var(--space-3)}
 /* Only the review that lands WHILE you are looking settles in; one rendered from
    history is already part of the message and must not re-animate on every paint. */
 .capture-review.settling{animation:settlein var(--dur-2) var(--ease)}
-.capture-review .ing-row{padding:6px 0;font-size:.82rem}
-.capture-review .ing-row:last-child{border-bottom:none}
-.capture-review .ing-nutri{font-size:.78rem}
-.capture-review-more,.capture-review-basis{margin-top:6px;font-size:.76rem;color:var(--muted);line-height:1.45}
+.capture-items{list-style:none;margin:0;padding:0;font-size:var(--text-xs);line-height:1.5;color:var(--ink-2)}
+.capture-item{display:flex;align-items:baseline;gap:var(--space-2);min-width:0}
+.capture-item-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.capture-item-portion{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.capture-item-portion::before{content:"· "}
+.capture-item-kcal{flex:0 0 auto;margin-left:auto;padding-left:var(--space-3);color:var(--muted);
+  font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.capture-item-more{color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.capture-review.settling{animation:none}}
 .agentcheck{
   display:inline-flex;align-items:center;gap:7px;margin-top:8px;max-width:100%;
