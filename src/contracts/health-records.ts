@@ -43,7 +43,8 @@ export interface ClientRecordsStaleness {
   validity_class: "genetic" | "slow" | "standard" | "fast";
   /** Whole days since the latest reading, as of the read; null when undated. */
   age_days: number | null;
-  freshness: ClientReadingFreshness;
+  /** Null when the reading is undated — an undated reading is never called current. */
+  freshness: ClientReadingFreshness | null;
   /** One calm sentence about the reading's age, or null while it is current. */
   note: string | null;
 }
@@ -67,6 +68,12 @@ export interface ClientRecordsMarkerHit {
   date: string | null;
   /** The lab's OWN flag — the only thing "out of range" keys on. */
   lab_flag: ClientLabFlag | null;
+  /**
+   * The lab itself ranged this reading (printed a reference interval, flagged it, or marked
+   * it normal). False for weigh-ins, home blood pressure, wearable series and any result the
+   * lab gave no range for — those make no range claim either way.
+   */
+  lab_ranged: boolean;
   /** The evidence-anchored optimal band, when one is trustworthy for this marker. */
   optimal: ClientRecordsOptimalBand | null;
   /** A separate mark from `lab_flag`: true outside the optimal band, null with no trusted band. */
@@ -119,8 +126,9 @@ export type ClientRecordsHit = ClientRecordsMarkerHit | ClientRecordsDocumentHit
 
 export interface ClientRecordsSection {
   /**
-   * `out_of_range`: `lab_flagged`, `within_lab_range`, then `documents`, `visit_notes`,
-   * `body`. `panel`: one per MARKER_GROUPS key present, then the same three.
+   * `out_of_range`: `lab_flagged` ("Flagged by the lab"), `not_lab_flagged` ("Not flagged
+   * by the lab": lab-ranged, no HIGH/LOW flag), `no_lab_range` ("Other readings": nothing a
+   * lab ranged), then `documents`, `visit_notes`, `body`. `panel`: one per MARKER_GROUPS key present, then the same three.
    * `newest`: a single `newest` section, every kind interleaved by date.
    */
   key: string;
@@ -189,7 +197,8 @@ export interface ClientEvidenceWantedRead {
 
 /**
  * The packet's toggleable sections. The header (who, when, reading span) and the
- * informational / not-medical-advice line are always present.
+ * informational / not-medical-advice line are always present. With no `?sections=`, every
+ * section prints except `sources` (the uploaded file names), which is opt-in; `all` includes it.
  */
 export type ClientReportSectionId =
   | "findings"

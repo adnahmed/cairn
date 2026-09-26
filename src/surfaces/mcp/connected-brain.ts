@@ -274,7 +274,7 @@ export function registerConnectedBrainTools(server: McpToolRegistrar) {
         .array(z.enum(REPORT_SECTION_IDS as [string, ...string[]]))
         .optional()
         .describe(
-          "sections to include; omitted = all. An omitted section is absent from the packet. The informational line always prints."
+          "sections to include; omitted = every section except `sources` (the source-document file names are opt-in). An omitted section is absent from the packet. The informational line always prints."
         ),
       questions: z
         .array(z.string())

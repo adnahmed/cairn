@@ -185,7 +185,9 @@ export interface ClinicalReportData {
 //
 // The ids name what the report already had (findings lead, clinical panels, the body
 // composition caption, the supplement list, the source documents) plus the visit
-// questions. Default = all. A section toggled off is ABSENT from HTML, text and JSON; the
+// questions. Default = every section EXCEPT the source documents: the file-name list is
+// opt-in (`sources`), so a packet never hands the athlete's raw upload names to a
+// clinician unless asked. A section toggled off is ABSENT from HTML, text and JSON; the
 // header and REPORT_DISCLAIMER print whatever is toggled.
 export const REPORT_SECTIONS: ReadonlyArray<{ id: ReportSectionId; label: string }> = [
   { id: "findings", label: "Findings to discuss" },
@@ -196,22 +198,28 @@ export const REPORT_SECTIONS: ReadonlyArray<{ id: ReportSectionId; label: string
   { id: "sources", label: "Source documents" },
 ];
 export const REPORT_SECTION_IDS: ReadonlyArray<ReportSectionId> = REPORT_SECTIONS.map((s) => s.id);
+const OPT_IN_SECTIONS: ReadonlySet<ReportSectionId> = new Set<ReportSectionId>(["sources"]);
+export const REPORT_DEFAULT_SECTION_IDS: ReadonlyArray<ReportSectionId> = REPORT_SECTION_IDS.filter(
+  (id) => !OPT_IN_SECTIONS.has(id)
+);
 
 export const REPORT_DISCLAIMER = "Informational, not medical advice.";
 
-// `?sections=` → the toggled-on ids, in catalog order. Missing or blank = every section;
-// `none` = header and the informational line only; unknown ids are ignored (so a list of
-// only unknown ids also falls back to every section rather than printing an empty page).
+// `?sections=` → the toggled-on ids, in catalog order. Missing or blank = the default
+// (every section but `sources`); `all` = every section; `none` = header and the
+// informational line only; unknown ids are ignored (so a list of only unknown ids also
+// falls back to the default rather than printing an empty page).
 export function parseReportSections(raw: unknown): ReportSectionId[] {
   const parts = (Array.isArray(raw) ? raw : [raw])
     .flatMap((v) => (typeof v === "string" ? v.split(",") : []))
     .map((v) => v.trim().toLowerCase())
     .filter(Boolean);
-  if (!parts.length) return [...REPORT_SECTION_IDS];
+  if (!parts.length) return [...REPORT_DEFAULT_SECTION_IDS];
   if (parts.length === 1 && parts[0] === "none") return [];
+  if (parts.length === 1 && parts[0] === "all") return [...REPORT_SECTION_IDS];
   const wanted = new Set(parts);
   const picked = REPORT_SECTION_IDS.filter((id) => wanted.has(id));
-  return picked.length ? picked : [...REPORT_SECTION_IDS];
+  return picked.length ? picked : [...REPORT_DEFAULT_SECTION_IDS];
 }
 
 function hasSection(data: ClinicalReportData, id: ReportSectionId): boolean {
@@ -902,7 +910,7 @@ function duplicateProfileFieldMarker(marker: ReportMarker, profile: any): boolea
 }
 
 export interface ClinicalReportOptions {
-  // Toggled-on section ids (parseReportSections); omitted = every section.
+  // Toggled-on section ids (parseReportSections); omitted = REPORT_DEFAULT_SECTION_IDS.
   sections?: ReportSectionId[];
   // The athlete's final visit-question list (parseVisitQuestionList); omitted = the
   // proposals from visitQuestionsRead stand.
@@ -910,7 +918,7 @@ export interface ClinicalReportOptions {
 }
 
 export function buildClinicalReportData(opts: ClinicalReportOptions = {}): ClinicalReportData {
-  const sections = opts.sections ? REPORT_SECTION_IDS.filter((id) => opts.sections!.includes(id)) : [...REPORT_SECTION_IDS];
+  const sections = opts.sections ? REPORT_SECTION_IDS.filter((id) => opts.sections!.includes(id)) : [...REPORT_DEFAULT_SECTION_IDS];
   const profile = (repo.getProfile() as any) || {};
   const { markers, groups } = repo.prioritizeMarkers() as any;
   const generatedDay = reportTodayISO();
@@ -1217,17 +1225,28 @@ function abnormalGroups(groups: ReportGroup[], opts: { includeStale?: boolean } 
     .filter((g) => g.markers.length);
 }
 
-function findingsBox(groups: ReportGroup[]): string {
+// Where the older out-of-range readings live, worded for whether the dated panels are
+// in this packet at all — a note never points the reader at a section that is not there.
+function staleFindingsNote(count: number, panelsIncluded: boolean): string {
+  const readings = `${count} older out-of-range reading${count === 1 ? "" : "s"}`;
+  return panelsIncluded
+    ? `${readings} ${count === 1 ? "is" : "are"} kept in the dated panels below, not highlighted as current.`
+    : `${readings} ${count === 1 ? "is" : "are"} not highlighted as current and not included in this packet.`;
+}
+
+function findingsBox(groups: ReportGroup[], opts: { panelsIncluded: boolean }): string {
   const grouped = abnormalGroups(groups);
   const staleTotal = abnormalGroups(groups, { includeStale: true })
     .reduce((sum, g) => sum + g.markers.filter((m) => m.staleForFinding).length, 0);
   if (!grouped.length) {
     const msg = staleTotal
-      ? `No current highlighted findings. ${staleTotal} older out-of-range reading${staleTotal === 1 ? "" : "s"} are kept in the dated panels below.`
+      ? `No current highlighted findings. ${staleFindingsNote(staleTotal, opts.panelsIncluded)}`
       : "No markers fall outside their lab reference range or optimal target.";
     return `<section class="findings none"><h2>Findings</h2><p>${esc(msg)}</p></section>`;
   }
-  const CAP = 24;
+  // The cap keeps a long findings list a summary when the full panels follow; without the
+  // panels the findings ARE the record, so every one is printed.
+  const CAP = opts.panelsIncluded ? 24 : Number.POSITIVE_INFINITY;
   let shown = 0;
   const blocks = grouped
     .map((g) => {
@@ -1254,7 +1273,7 @@ function findingsBox(groups: ReportGroup[]): string {
     .filter(Boolean)
     .join("\n");
   const total = grouped.reduce((sum, g) => sum + g.markers.length, 0);
-  const omitted = staleTotal ? ` ${staleTotal} older out-of-range reading${staleTotal === 1 ? "" : "s"} not highlighted as current — see dated panels below.` : "";
+  const omitted = staleTotal ? ` ${staleFindingsNote(staleTotal, opts.panelsIncluded)}` : "";
   const more = total > CAP || omitted ? `<p class="f-more">${total > CAP ? `+ ${total - CAP} more outside range — see panels below.` : ""}${omitted}</p>` : "";
   return `<section class="findings">
     <h2>Findings by panel</h2>
@@ -1308,11 +1327,11 @@ export function renderClinicalReportText(data: ClinicalReportData, opts: { name?
           L.push(`    • ${m.name} — ${fmtVal(m.value)}${m.unit ? ` ${m.unit}` : ""}${when} (${status})${tgt}${tr}`);
         }
       }
-      if (staleFindings) L.push(`  (${staleFindings} older out-of-range reading${staleFindings === 1 ? "" : "s"} kept in dated panels below, not highlighted as current.)`);
+      if (staleFindings) L.push(`  (${staleFindingsNote(staleFindings, hasSection(data, "panels"))})`);
       L.push("");
     } else if (staleFindings) {
       L.push(`FINDINGS TO DISCUSS`);
-      L.push(`  No current highlighted findings. ${staleFindings} older out-of-range reading${staleFindings === 1 ? "" : "s"} are kept in dated panels below.`);
+      L.push(`  No current highlighted findings. ${staleFindingsNote(staleFindings, hasSection(data, "panels"))}`);
       L.push("");
     }
   }
@@ -1578,7 +1597,7 @@ export function renderClinicalReportHTML(data: ClinicalReportData, opts: { name?
     ? `<div class="srcs"><b>Source documents</b>: ${sourceLines(data.sources).map(esc).join("; ")}</div>`
     : "";
 
-  const findings = hasSection(data, "findings") ? findingsBox(data.groups) : "";
+  const findings = hasSection(data, "findings") ? findingsBox(data.groups, { panelsIncluded: hasSection(data, "panels") }) : "";
   const panels = hasSection(data, "panels") ? data.groups.map(groupTable).join("\n") : "";
   // "Findings only" hides the panels, so it is offered only when both are in the packet.
   const toggle = hasSection(data, "findings") && hasSection(data, "panels");

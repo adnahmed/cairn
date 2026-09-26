@@ -47,8 +47,9 @@ exportsRouter.get("/health-export", (_req, res) => {
 });
 
 // The packet options every format shares: `?sections=` (comma-separated ids — findings,
-// visit_questions, body_composition, panels, supplements, sources; missing = all, "none"
-// = header + the informational line only) and `?questions=` (repeatable: the athlete's
+// visit_questions, body_composition, panels, supplements, sources; missing = every section
+// but the opt-in `sources`, "all" = every section, "none" = header + the informational
+// line only) and `?questions=` (repeatable: the athlete's
 // final visit-question list, used verbatim and never stored; absent = the proposals).
 function reportOptions(query: Record<string, unknown>) {
   return {

@@ -3,8 +3,9 @@
 // Body Weight / BP series), health documents, visit notes, and body readings (the tape
 // sites, which are not markers), grouped one of three ways:
 //
-//   - out_of_range: the markers the LAB flagged first, then the rest, then documents,
-//     visit notes and body readings. "Out of range" is the lab's own HIGH/LOW flag and
+//   - out_of_range: the markers the LAB flagged first, then the ones a lab ranged and left
+//     unflagged, then readings no lab ranged (weigh-ins, home cuff, wearables, a result
+//     printed without a range), then documents, visit notes and body readings. "Out of range" is the lab's own HIGH/LOW flag and
 //     nothing else; sitting outside the optimal band is its own mark (`outside_optimal`)
 //     and never moves a marker into the flagged section.
 //   - panel: one section per clinical panel, in MARKER_GROUPS array order (the doctor
@@ -160,6 +161,10 @@ function markerHit(m: any, asOf: string): ClientRecordsMarkerHit {
   const age = readingAgeDays(date, asOf);
   const groupKey = String(m?.group ?? "") || markerGroup(name).key;
   const groupLabel = String(m?.group_label ?? "") || markerGroup(name).label;
+  // The lab itself ranged this reading: it printed a reference interval, or marked the
+  // reading normal. A curated fallback interval is not the lab's, and a weigh-in, home
+  // cuff or wearable series never had a lab behind it.
+  const labRanged = labFlag != null || m?.latest?.flag === "normal" || m?.reference_source === "source_lab";
   return {
     type: "marker",
     id: `marker:${String(m?.key ?? name)}`,
@@ -169,13 +174,14 @@ function markerHit(m: any, asOf: string): ClientRecordsMarkerHit {
     value,
     date,
     lab_flag: labFlag,
+    lab_ranged: labRanged,
     optimal,
     outside_optimal: outside,
     optimal_side: side,
     staleness: {
       validity_class: markerValidityClass(name),
       age_days: age,
-      freshness: FRESHNESS[validityBand(name, age)],
+      freshness: age == null ? null : FRESHNESS[validityBand(name, age)],
       note: markerAgingClause(name, date, asOf)?.clause ?? null,
     },
     marker: publicMarkerRow(m, trusted),
@@ -318,7 +324,18 @@ export function searchRecords(opts: { q?: unknown; group?: unknown; asOf?: strin
     const ordered = [...markers].sort(byPanel);
     sections = [
       { key: "lab_flagged", label: "Flagged by the lab", hits: ordered.filter((m) => m.lab_flag != null) },
-      { key: "within_lab_range", label: "Within the lab's range", hits: ordered.filter((m) => m.lab_flag == null) },
+      // Unflagged is not "within range": a lab that ranged the reading and left it
+      // unflagged says only that; a reading no lab ranged makes no range claim at all.
+      {
+        key: "not_lab_flagged",
+        label: "Not flagged by the lab",
+        hits: ordered.filter((m) => m.lab_flag == null && m.lab_ranged),
+      },
+      {
+        key: "no_lab_range",
+        label: "Other readings",
+        hits: ordered.filter((m) => m.lab_flag == null && !m.lab_ranged),
+      },
       ...trailingSections(documents, visitNotes, body),
     ];
   }

@@ -142,6 +142,19 @@ test("evidence wanted falls back to an off reading past its own marker's window 
   assert.equal(evidenceWantedRead({ asOf: "2026-06-01" }).item, null, "a genetic marker is never evidence wanted");
 });
 
+test("evidence wanted counts off-optimal only where the optimal band is trusted", () => {
+  // A composite name is never given an optimal mark (the Records view shows none), so a
+  // lab-normal one is never the evidence line — the same guard as the Records marks.
+  seedHealthDoc("2025-01-01", [marker("Total Cholesterol / HDL Ratio", 3.1, { flag: "normal" })]);
+  assert.equal(evidenceWantedRead({ asOf: "2026-06-01" }).item, null, "an untrusted band never names evidence");
+
+  // Control: a lab-normal reading outside a trusted optimal band, past its window, does.
+  seedHealthDoc("2025-01-01", [marker("LDL-C", 150, { unit: "mg/dL", flag: "normal" })]);
+  const read = evidenceWantedRead({ asOf: "2026-06-01" });
+  assert.ok(read.item, "a trusted off-optimal aged reading is named");
+  assert.match(read.item.label, /ldl/i);
+});
+
 test("the MCP tools mirror the reads", async () => {
   seedLipidFollowUp();
   const tools = new Map();

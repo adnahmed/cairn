@@ -10,7 +10,7 @@
 //      soonest-due first) — the recheck cadence the attention engine keeps;
 //   2. a body-composition directive whose scan has aged while the weight moved
 //      (`rescan_reason`, annotateDirectiveFreshness in src/repo/propagation.ts);
-//   3. a lab-flagged or off-optimal reading past the window where its own kind of marker
+//   3. a lab-flagged or off-optimal (trusted band only, optimalTrustworthy) reading past the window where its own kind of marker
 //      still describes the person (`readingPastValidity`, src/repo/marker-validity.ts) —
 //      never a genetic marker, which never ages out.
 //
@@ -18,6 +18,7 @@
 // nothing waits on it.
 
 import type { ClientEvidenceWanted, ClientEvidenceWantedRead } from "../../contracts/health-records.js";
+import { optimalTrustworthy } from "../../report.js";
 import { formatReportDate } from "../../reportDates.js";
 import { listDirectives } from "../../repo/directives.js";
 import { doctorLoopRead } from "../../repo/doctor-loop.js";
@@ -107,7 +108,10 @@ function agedFinding(asOf: string): EvidenceWanted | null {
       .filter((m) => {
         const name = String(m?.name ?? "");
         const flagged = m?.latest?.flag === "high" || m?.latest?.flag === "low";
-        if (!name || !(flagged || m?.in_optimal === false)) return false;
+        // Off-optimal counts only where the band is trustworthy for this marker — the same
+        // guard the Records marks and the packet apply, so the three reads never disagree.
+        const offOptimal = m?.in_optimal === false && optimalTrustworthy(name, m?.latest?.value);
+        if (!name || !(flagged || offOptimal)) return false;
         if (markerValidityClass(name) === "genetic") return false;
         return readingPastValidity(name, readingAgeDays(dayOf(m?.latest?.date), asOf));
       })

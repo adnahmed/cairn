@@ -2,7 +2,7 @@
 // three formats — HTML (print/PDF), text (MyChart paste) and JSON (the live preview) —
 // and the invariants are:
 //   - a section toggled off is ABSENT from all three (the JSON key is not sent)
-//   - default = every section; clinical panel order, lab flags and the stale-results
+//   - default = every section but the opt-in source-document list; clinical panel order, lab flags and the stale-results
 //     note survive the toggles
 //   - the informational / not-medical-advice line prints whatever is toggled
 //   - the athlete's visit-question list is used verbatim and never stored
@@ -13,6 +13,7 @@ import express from "express";
 import { db, localDaysAgo, marker, repo, resetTables, seedHealthDoc } from "./_seed.js";
 import { markerGroupRank } from "../dist/repo/propagation-data.js";
 import {
+  REPORT_DEFAULT_SECTION_IDS,
   REPORT_SECTION_IDS,
   buildClinicalReportData,
   clinicalReportJson,
@@ -91,31 +92,77 @@ const PROBES = {
   sources: { html: 'class="srcs"', text: "SOURCE DOCUMENTS", json: "sources", also: SOURCE_NAME },
 };
 
-test("section ids come from what the report has, and default to all", () => {
+test("section ids come from what the report has; the default is all but the source list", () => {
   assert.deepEqual([...REPORT_SECTION_IDS].sort(), Object.keys(PROBES).sort());
-  assert.deepEqual(parseReportSections(undefined), [...REPORT_SECTION_IDS]);
-  assert.deepEqual(parseReportSections(""), [...REPORT_SECTION_IDS]);
+  assert.deepEqual(
+    [...REPORT_DEFAULT_SECTION_IDS],
+    REPORT_SECTION_IDS.filter((id) => id !== "sources")
+  );
+  assert.deepEqual(parseReportSections(undefined), [...REPORT_DEFAULT_SECTION_IDS]);
+  assert.deepEqual(parseReportSections(""), [...REPORT_DEFAULT_SECTION_IDS]);
+  assert.deepEqual(parseReportSections("all"), [...REPORT_SECTION_IDS]);
   assert.deepEqual(parseReportSections("none"), []);
   assert.deepEqual(
     parseReportSections("panels,findings,bogus"),
     ["findings", "panels"],
     "catalog order, unknown ids dropped"
   );
-  assert.deepEqual(parseReportSections("bogus"), [...REPORT_SECTION_IDS], "only-unknown falls back to all");
+  assert.deepEqual(
+    parseReportSections("bogus"),
+    [...REPORT_DEFAULT_SECTION_IDS],
+    "only-unknown falls back to the default"
+  );
   assert.deepEqual(parseReportSections(["findings", "sources"]), ["findings", "sources"]);
 });
 
-test("every section is present by default in HTML, text and JSON", () => {
+test("every section but the source list is present by default in HTML, text and JSON", () => {
   seedPacket();
   const { html, text, json } = renderAll(undefined);
   for (const [id, probe] of Object.entries(PROBES)) {
+    if (id === "sources") continue;
     assert.ok(html.includes(probe.html), `${id} in HTML`);
     assert.ok(text.includes(probe.text), `${id} in text`);
     assert.ok(Object.hasOwn(json, probe.json), `${id} in JSON`);
     if (probe.also) assert.ok(html.includes(probe.also) && text.includes(probe.also), `${id} content printed`);
   }
-  assert.deepEqual(json.sections, [...REPORT_SECTION_IDS]);
-  assert.ok(json.section_catalog.every((s) => s.included && s.label));
+  assert.deepEqual(json.sections, [...REPORT_DEFAULT_SECTION_IDS]);
+  // The uploaded file names reach a clinician only when asked for.
+  assert.ok(!html.includes(SOURCE_NAME) && !text.includes(SOURCE_NAME), "no file names by default");
+  assert.ok(!Object.hasOwn(json, "sources"));
+  assert.ok(json.section_catalog.every((s) => s.label && s.included === (s.id !== "sources")));
+
+  const all = renderAll([...REPORT_SECTION_IDS]);
+  for (const [id, probe] of Object.entries(PROBES)) {
+    assert.ok(all.html.includes(probe.html) && all.text.includes(probe.text), `${id} with every section on`);
+    assert.ok(Object.hasOwn(all.json, probe.json), `${id} in JSON with every section on`);
+  }
+});
+
+test("findings without panels never point at panels that are not in the packet", () => {
+  seedPacket();
+  // An old flagged fast-moving reading (the stale-results note) and enough current
+  // findings to pass the HTML summary cap.
+  seedHealthDoc(localDaysAgo(400), [marker("hs-CRP", 4.2, { unit: "mg/L", flag: "high" })]);
+  seedHealthDoc(
+    localDaysAgo(10),
+    Array.from({ length: 30 }, (_, i) => marker(`Synthetic Analyte ${i + 1}`, 99 + i, { unit: "U/L", flag: "high" }))
+  );
+  const off = renderAll(["findings", "visit_questions"]);
+  assert.ok(off.json.findings.length > 24, "more findings than the HTML cap");
+  for (const [format, body] of [
+    ["html", off.html],
+    ["text", off.text],
+  ]) {
+    assert.doesNotMatch(body, /panels below|see panels/i, `${format}: no pointer to absent panels`);
+    assert.match(body, /older out-of-range reading/, `${format}: the stale note still prints`);
+    assert.match(body, /not included in this packet/, `${format}: the stale note says where it is`);
+  }
+  assert.doesNotMatch(off.html, /more outside range/, "no overflow line — every finding prints");
+  for (const m of off.json.findings) assert.ok(off.html.includes(m.name), `${m.name} printed without the panels`);
+
+  const on = renderAll(["findings", "panels"]);
+  assert.match(on.html, /dated panels below/, "with the panels in, the note points at them");
+  assert.match(on.html, /more outside range — see panels below/, "the cap applies when panels follow");
 });
 
 test("a section toggled off is absent from HTML, text and JSON — one at a time", () => {
@@ -215,7 +262,9 @@ test("REST ?sections= and ?questions= reach every format; MCP mirrors them", asy
     const html = await (await fetch(`${base}/health-report?${qs}`)).text();
     assert.ok(html.includes(QUESTION) && !html.includes(SUPPLEMENT));
     const all = await (await fetch(`${base}/health-report.json`)).json();
-    assert.deepEqual(all.sections, [...REPORT_SECTION_IDS]);
+    assert.deepEqual(all.sections, [...REPORT_DEFAULT_SECTION_IDS]);
+    const every = await (await fetch(`${base}/health-report.json?sections=all`)).json();
+    assert.deepEqual(every.sections, [...REPORT_SECTION_IDS]);
   } finally {
     server.close();
   }

@@ -93,10 +93,37 @@ test("out of range first keys on the lab flag; outside-optimal is a separate mar
   assert.equal(ldl.outside_optimal, true, "outside optimal is its own fact");
   assert.equal(ldl.optimal_side, "above");
   assert.ok(!flagged.includes(ldl), "outside-optimal never moves a lab-normal marker into the flagged section");
-  assert.equal(read.sections[1].key, "within_lab_range");
+  assert.equal(read.sections[1].key, "not_lab_flagged");
+  assert.equal(read.sections[1].label, "Not flagged by the lab");
   assert.ok(read.sections[1].hits.includes(ldl));
+  assert.equal(ldl.lab_ranged, true);
   assert.equal(read.counts.lab_flagged, 1);
   assert.ok(read.counts.outside_optimal >= 1);
+});
+
+test("a reading no lab ranged is never filed as within the lab's range", () => {
+  seedPanel();
+  repo.logWeight(170.2, "2026-05-20");
+  seedHealthDoc("2026-05-02", [marker("Vitamin D", 38, { unit: "ng/mL" })]); // printed with no flag, no range
+  const read = searchRecords({ group: "out_of_range", asOf: AS_OF });
+  assert.ok(
+    read.sections.every((s) => s.key !== "within_lab_range" && !/within the lab/i.test(s.label)),
+    "no section claims a lab range"
+  );
+  const section = (key) => read.sections.find((s) => s.key === key);
+  const bw = allHits(read).find((h) => h.type === "marker" && /body weight/i.test(h.name));
+  assert.ok(bw, "the weigh-in is a marker hit");
+  assert.equal(bw.lab_ranged, false);
+  assert.ok(section("no_lab_range").hits.includes(bw), "a weigh-in files under Other readings");
+  assert.equal(section("no_lab_range").label, "Other readings");
+  assert.ok(!section("not_lab_flagged").hits.includes(bw));
+  const vitd = allHits(read).find((h) => h.type === "marker" && /vitamin d/i.test(h.name));
+  assert.ok(
+    section("no_lab_range").hits.includes(vitd),
+    "a result printed with no flag and no range makes no range claim"
+  );
+  const keys = read.sections.map((s) => s.key);
+  assert.ok(keys.indexOf("not_lab_flagged") < keys.indexOf("no_lab_range"), "lab-ranged readings come first");
 });
 
 test("the internal priority number and the optimal distance never leave the server", async () => {
