@@ -161,7 +161,19 @@ Horizon's two views and Train's charts share one chart language (`horizon-chart-
   diamonds: filled behind today, open ahead, the same diamonds their rows wear below; one far
   beyond the season's own span is pinned at the edge rather than squeezing the line. The key
   names only what was drawn.
+- **The terrain reads the whole build**: the closed weeks the log holds lead it in a quieter ink
+  ridge, then the ladder's weeks in endurance, the peak and the taper named in mono on the ground,
+  and a wash on the week the rows below hold open (this week unless another is tapped). Race day
+  wears the race's short name ("Half · Nov 1").
 - **Space is held** at the chart's own aspect ratio while its reads land, so nothing jumps.
+
+Horizon opens on **To the race** when a race is set and on **Season** when none is (a view the
+athlete picks holds for the session); **Week** is this week day by day from the plan-week read,
+its first sentence the serif voice. The race view is one serif line from the ladder's own count
+("Five weeks of build, then the half."), the terrain, then a hairline row a week (mono date,
+kind, km) with the open week's run and lift in the server's words, and the finish estimate as
+a footnote. The race sub-view (`/app/horizon/race`) draws the same terrain inside its card, with
+the bar ladder one tap deeper.
 
 ## Stylesheet ownership
 

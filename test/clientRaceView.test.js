@@ -447,3 +447,22 @@ test("a view the athlete has left is never painted", async () => {
   await flush();
   assert.equal(host.querySelector(".race-ladder"), null);
 });
+
+// ---------- wave 6B: Horizon's terrain in the race view ----------
+
+test("with Horizon's chart loaded the race view draws the terrain and folds the ladder one tap deeper", () => {
+  const win = loadClientModule([...MODULES.slice(0, -2), "horizon-chart-client", ...MODULES.slice(-2)], { globals: {} });
+  const host = paint(win, build());
+  const terrain = host.querySelector(".race-view-terrain .hz-terrain");
+  assert.ok(terrain, "the km terrain is drawn");
+  assert.match(terrain.getAttribute("aria-label"), /Kilometres per week to race day/);
+  assert.match(host.querySelector(".hz-race-word").textContent, /^Half · Nov 8$/);
+  // The ladder is still whole, inside its fold.
+  const fold = host.querySelector("details.race-view-weeks");
+  assert.ok(fold);
+  assert.equal(fold.querySelectorAll(".race-ladder-row").length, 8);
+  // Without the chart the ladder stands open as the build's only picture.
+  const bare = paint(load(), build());
+  assert.equal(bare.querySelector("details.race-view-weeks"), null);
+  assert.equal(bare.querySelectorAll(".race-ladder-row").length, 8);
+});

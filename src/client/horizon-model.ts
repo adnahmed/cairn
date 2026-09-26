@@ -112,15 +112,18 @@
 
   // ---- Race -----------------------------------------------------------------------
 
-  /** The ladder from this week forward: at most a few weeks, and race week always last. */
-  function ladderAhead(ladder: ClientRaceLadderModel): ClientRaceLadderModel | null {
+  /**
+   * The ladder from this week forward, race week always last. `cap` keeps at most that
+   * many rows (race week kept in the last place); Horizon's race view lists every week.
+   */
+  function ladderAhead(ladder: ClientRaceLadderModel, cap: number = LADDER_ROWS_CAP): ClientRaceLadderModel | null {
     const rows = Array.isArray(ladder?.rows) ? ladder.rows : [];
     if (!rows.length) return null;
     const here = rows.findIndex((row) => row.current);
     const ahead = rows.slice(here >= 0 ? here : 0);
     const race = ahead.find((row) => row.kind === "race") || null;
-    let kept = ahead.slice(0, LADDER_ROWS_CAP);
-    if (race && !kept.includes(race)) kept = [...kept.slice(0, LADDER_ROWS_CAP - 1), race];
+    let kept = ahead.slice(0, cap);
+    if (race && !kept.includes(race)) kept = [...kept.slice(0, cap - 1), race];
     return { rows: kept, max_km: ladder.max_km, taper_text: ladder.taper_text };
   }
 
@@ -143,29 +146,25 @@
         links: [{ label: "Set a race goal", target: copyTarget(TARGETS.profile) }, ...links],
       });
     }
+    const ladder = ladderAhead(model.ladder, Number.POSITIVE_INFINITY);
+    const shared = !!ladder?.rows.some((row) => row.run_text && row.lift_text);
     return lane("race", "Race", {
       headline: model.event,
+      voice: CairnRaceViewModel.buildVoice(model.ladder, (value as RaceBuild).race),
       when: [model.countdown, model.race_day].filter(Boolean).join(" · "),
+      lede: [
+        model.race_day ? `${model.event}, ${model.race_day}.` : "",
+        shared ? "Running and lifting share each week; tap one." : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
       fit: model.estimate.fit,
       fit_word: model.estimate.fit_word,
       fit_line: model.estimate.fit_line,
-      ladder: ladderAhead(model.ladder),
-      terrain: terrainOf(value as RaceBuild, model.ladder),
+      ladder,
+      terrain: model.terrain,
       links,
     });
-  }
-
-  /** The whole build, every week, for the terrain chart. Null when there is no ridge to draw. */
-  function terrainOf(build: RaceBuild, ladder: ClientRaceLadderModel): ClientHorizonTerrain | null {
-    const rows = Array.isArray(ladder?.rows) ? ladder.rows : [];
-    if (rows.length < 2) return null;
-    const raceDate = dayKey(build.race?.date);
-    return {
-      weeks: rows.map((row) => ({ week_start: row.week_start, km: row.km, kind: row.kind, current: row.current })),
-      race_date: raceDate,
-      race_label: ["Race", raceDate ? CairnUiChart.dateLabel(raceDate) : ""].filter(Boolean).join(" · "),
-      as_of: dayKey(build.as_of),
-    };
   }
 
   // ---- Goal line ------------------------------------------------------------------

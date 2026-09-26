@@ -2,9 +2,11 @@
 // The Horizon instruments (docs/DESIGN.md "Charts: instruments drawn to scale"): two SVG
 // charts drawn to scale.
 //
-//   - terrainSvg: the race build as terrain. Every week's kilometres, a smooth ridge
-//     with two quieter contour lines under it, the km written over each week, a dawn
-//     "now" line, this week washed, and race day as a dashed endurance line.
+//   - terrainSvg: the race build as terrain. The closed weeks the log holds (quieter,
+//     ink), then every ladder week's kilometres, a smooth ridge with two quieter contour
+//     lines under it, the km written over each week, the peak and the taper named on
+//     the ground, a dawn "now" line, the open week washed, and race day as a dashed
+//     endurance line.
 //   - seasonSvg: the season's weight line. The weigh-ins since the window opened, the
 //     goal as a dashed body-colored line, the server's projection window as a fan from
 //     the latest weigh-in to the goal, and a lane of dated diamonds under it: draws and
@@ -76,9 +78,13 @@
 
   // ---- terrain ----------------------------------------------------------------
 
-  function terrainSvg(terrain: Terrain): string {
+  /** A per-chart id suffix, so two terrains on one page never share a clip path. */
+  let clipSeq = 0;
+
+  function terrainSvg(terrain: Terrain, opts: { selected?: string | null } = {}): string {
     const weeks = (terrain?.weeks || []).filter((w) => Number.isFinite(dayNum(w.week_start)));
-    if (weeks.length < 2) return "";
+    const ahead = weeks.filter((w) => !w.logged);
+    if (ahead.length < 2) return "";
     const W = 340;
     const L = 28;
     const R = 332;
@@ -93,9 +99,10 @@
     const lastStart = dayNum(weeks[weeks.length - 1].week_start);
     const end = raceDay >= lastStart && raceDay < lastStart + 7 ? raceDay + 1 : Math.max(raceDay + 1, lastStart + 7);
     const X = (n: number): number => L + ((n - first) / (end - first)) * (R - L);
-    const maxKm = Math.max(...weeks.map((w) => Math.max(0, Number(w.km) || 0)));
+    const km = (w: ClientHorizonTerrainWeek): number => Math.max(0, Number(w.km) || 0);
+    const maxKm = Math.max(...weeks.map(km));
     const { top, step } = axisTop(maxKm);
-    const Y = (km: number): number => base - (km / top) * (base - ceil);
+    const Y = (k: number): number => base - (k / top) * (base - ceil);
     // A week stands at its middle; race week stands between its Monday and race day, so
     // the ridge always comes down onto the race line, never past it.
     const mid = (w: ClientHorizonTerrainWeek): number => {
@@ -105,37 +112,66 @@
 
     const pts: Array<[number, number]> = [
       [X(first), Y(0)],
-      ...weeks.map((w): [number, number] => [mid(w), Y(Math.max(0, Number(w.km) || 0))]),
+      ...weeks.map((w): [number, number] => [mid(w), Y(km(w))]),
       [X(raceDay), Y(0)],
     ];
     const ridgeD = ridge(pts);
+    // Where the log ends and the ladder begins: the logged weeks' ridge is drawn quieter.
+    const split = ahead.length < weeks.length ? X(dayNum(ahead[0].week_start)) : null;
+    const clip = split != null ? `hzT${++clipSeq}` : "";
     let g = "";
+    if (clip) {
+      g += `<defs><clipPath id="${clip}-log"><rect x="0" y="0" width="${fx(split as number)}" height="166"/></clipPath><clipPath id="${clip}-plan"><rect x="${fx(split as number)}" y="0" width="${fx(W - (split as number))}" height="166"/></clipPath></defs>`;
+    }
     for (let k = step; k <= top; k += step) {
       g += `<line class="hz-grid" x1="${L}" x2="${R}" y1="${fx(Y(k))}" y2="${fx(Y(k))}"/><text class="hz-axis" x="${L - 5}" y="${fx(Y(k) + 3)}" text-anchor="end">${k}</text>`;
     }
     g += `<text class="hz-axis" x="${L}" y="12">KM PER WEEK</text>`;
-    const current = weeks.find((w) => w.current);
-    if (current) {
-      const a = X(dayNum(current.week_start));
-      const b = X(Math.min(end, dayNum(current.week_start) + 7));
+    // The wash stands on the week the rows below hold open (this week unless another is picked).
+    const selected =
+      (opts.selected ? ahead.find((w) => w.week_start === opts.selected) : null) ||
+      (opts.selected === "" ? null : ahead.find((w) => w.current) || null);
+    if (selected) {
+      const a = X(dayNum(selected.week_start));
+      const b = X(Math.min(end, dayNum(selected.week_start) + 7));
       g += `<rect class="hz-wash" x="${fx(a)}" y="${ceil - 8}" width="${fx(b - a)}" height="${fx(Y(0) - ceil + 8)}" rx="6"/>`;
     }
-    g += `<path class="hz-terrain-fill" d="${ridgeD} Z"/>`;
-    for (const k of [0.66, 0.36]) {
-      g += `<path class="hz-contour" d="${ridge(pts.map(([x, y]): [number, number] => [x, Y(0) - (Y(0) - y) * k]))}"/>`;
+    const withClip = (cls: string, d: string, part: "log" | "plan" | ""): string =>
+      `<path class="${cls}" d="${d}"${part && clip ? ` clip-path="url(#${clip}-${part})"` : ""}/>`;
+    const contours = [0.66, 0.36].map((k) => ridge(pts.map(([x, y]): [number, number] => [x, Y(0) - (Y(0) - y) * k])));
+    if (clip) {
+      g += withClip("hz-terrain-fill is-logged", `${ridgeD} Z`, "log");
+      g += withClip("hz-terrain-fill", `${ridgeD} Z`, "plan");
+      for (const d of contours) g += withClip("hz-contour", d, "plan");
+      g += withClip("hz-terrain-line is-logged", ridgeD, "log");
+      g += withClip("hz-terrain-line", ridgeD, "plan");
+    } else {
+      g += withClip("hz-terrain-fill", `${ridgeD} Z`, "");
+      for (const d of contours) g += withClip("hz-contour", d, "");
+      g += withClip("hz-terrain-line", ridgeD, "");
     }
-    g += `<path class="hz-terrain-line" d="${ridgeD}"/>`;
     // The km over each week; a long build writes every other week, never the current one skipped.
     const every = weeks.length > 12 ? 2 : 1;
+    const nowDay = dayNum(terrain.as_of);
+    const nowX = Number.isFinite(nowDay) && nowDay >= first && nowDay <= end ? X(nowDay) : null;
     weeks.forEach((w, i) => {
       if (i % every && !w.current && i !== weeks.length - 1) return;
-      const x = mid(w);
+      // A number the now line would cross steps to the side of it that has more room.
+      const raw = mid(w);
+      const nearNow = nowX != null && Math.abs(raw - nowX) < 16;
+      const x = nearNow ? (raw >= (nowX as number) ? (nowX as number) + 15 : (nowX as number) - 15) : raw;
       const hug = X(raceDay) - x < 14;
-      g += `<text class="hz-num" x="${fx(hug ? x - 4 : x)}" y="${fx(Y(Math.max(0, Number(w.km) || 0)) - 7)}" text-anchor="${hug ? "end" : "middle"}">${escHtml(kmWord(Number(w.km) || 0))}</text>`;
+      const cls = w.logged ? "hz-num is-logged" : "hz-num";
+      g += `<text class="${cls}" x="${fx(hug ? x - 4 : x)}" y="${fx(Y(km(w)) - 7)}" text-anchor="${hug ? "end" : "middle"}">${escHtml(kmWord(km(w)))}</text>`;
     });
-    const nowDay = dayNum(terrain.as_of);
-    if (Number.isFinite(nowDay) && nowDay >= first && nowDay <= end) {
-      const nx = X(nowDay);
+    // The build's turning points named on the ground: the peak and the taper.
+    for (const kind of ["peak", "taper"] as const) {
+      const w = ahead.find((week) => week.kind === kind);
+      if (!w || Y(km(w)) > Y(0) - 22) continue;
+      g += `<text class="hz-kind" x="${fx(mid(w))}" y="${fx(Y(0) - 6)}" text-anchor="middle">${kind.toUpperCase()}</text>`;
+    }
+    if (nowX != null) {
+      const nx = nowX;
       g += `<line class="hz-now" x1="${fx(nx)}" x2="${fx(nx)}" y1="${ceil - 14}" y2="${fx(Y(0))}"/><text class="hz-now-word" x="${fx(nx + 4)}" y="${ceil - 8}">now</text>`;
     }
     const rx = X(raceDay);
@@ -149,7 +185,13 @@
       g += `<text class="hz-axis" x="${fx(x)}" y="${fx(Y(0) + 14)}">${escHtml(monoDate(weeks[i].week_start))}</text>`;
     }
     g += `<text class="hz-axis" x="${fx(rx)}" y="${fx(Y(0) + 14)}" text-anchor="end">${escHtml(monoDate(terrain.race_date || isoOf(raceDay)))}</text>`;
-    const label = `Kilometres per week to race day: ${weeks.map((w) => `${monoDate(w.week_start)} ${kmWord(Number(w.km) || 0)} km`).join(", ")}`;
+    const logged = weeks.filter((w) => w.logged);
+    const label = [
+      logged.length ? `Logged: ${logged.map((w) => `${monoDate(w.week_start)} ${kmWord(km(w))} km`).join(", ")}` : "",
+      `Kilometres per week to race day: ${ahead.map((w) => `${monoDate(w.week_start)} ${kmWord(km(w))} km`).join(", ")}`,
+    ]
+      .filter(Boolean)
+      .join(". ");
     return `<svg class="hz-chart hz-terrain" viewBox="0 0 ${W} 166" role="img" aria-label="${escAttr(label)}">${g}</svg>`;
   }
 

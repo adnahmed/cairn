@@ -6,7 +6,8 @@
 //   npm run screens -- --reference <file.html> [--out <dir>]
 //
 // App mode boots the BUILT server (run `npm run build` first) on a throwaway DATA_DIR
-// seeded with the demo persona (CAIRN_SEED_DEMO=1) and an OFFLINE agents table (every
+// seeded with the demo persona (CAIRN_SEED_DEMO=1, plus its goal race as a structured
+// goal so Horizon draws a build) and an OFFLINE agents table (every
 // real CLI pointed at a command that does not exist, exactly as test/run.mjs does), so
 // no agent CLI ever spawns and no real data is ever read. It then drives headless
 // Chrome over CDP at a phone viewport, in light and dark (emulated
@@ -86,6 +87,18 @@ const ROUTES = [
   { name: "train-weight", path: "/app/train/weight", tab: "progress" },
   { name: "train-plan", path: "/app/train/plan", tab: "plan" },
   { name: "horizon", path: "/app/horizon", tab: "horizon" },
+  {
+    name: "horizon-week",
+    path: "/app/horizon",
+    tab: "horizon",
+    prepare: `(() => { document.querySelector('[data-horizon-seg="week"]')?.click(); return true; })()`,
+  },
+  {
+    name: "horizon-season",
+    path: "/app/horizon",
+    tab: "horizon",
+    prepare: `(() => { document.querySelector('[data-horizon-seg="season"]')?.click(); return true; })()`,
+  },
   { name: "horizon-race", path: "/app/horizon/race", tab: "plan" },
   { name: "horizon-goal", path: "/app/horizon/goal", tab: "horizon" },
   { name: "you", path: "/app/you", tab: "you" },
@@ -160,6 +173,26 @@ function seedAskThread(dbPath) {
   } finally {
     db.close();
   }
+}
+
+/**
+ * A goal race for the demo persona (its own "Coastal half marathon" context event,
+ * made the structured goal), so Horizon opens on a real build: the first Sunday at
+ * least five weeks out. Set through the API, the same path a person takes.
+ */
+async function seedRace(base) {
+  const d = new Date();
+  d.setDate(d.getDate() + 35);
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const res = await fetch(`${base}/api/profile`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      endurance_goal: { mode: "race", event: "Coastal half marathon", date, distance_km: 21.1, target: "1:55:00" },
+    }),
+  });
+  if (!res.ok) console.warn(`  ! could not set the demo race (${res.status})`);
 }
 
 async function evaluate(cdp, expression) {
@@ -327,6 +360,7 @@ async function captureApp() {
     });
     console.log(`Cairn screens: server on ${server.base} (demo seed, offline agents, temp DB ${server.dir})`);
     seedAskThread(path.join(server.dir, "cairn-smoke.db"));
+    await seedRace(server.base);
     chrome = await launchChrome({ windowSize: `${WIDTH},${HEIGHT}`, profilePrefix: "cairn-screens-" });
     cdp = await openPage(chrome);
     await setViewport(cdp, { width: WIDTH, height: HEIGHT, dpr: DPR });
