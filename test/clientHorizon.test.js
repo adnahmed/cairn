@@ -22,6 +22,7 @@ const MODULES = [
   "race-ladder-client",
   "race-view-client",
   "horizon-model",
+  "horizon-chart-client",
   "horizon-client",
   "horizon-controller",
 ];

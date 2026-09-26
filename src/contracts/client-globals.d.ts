@@ -5924,8 +5924,32 @@ declare global {
     fit_line: string;
     /** The race ladder from this week forward (race lane only). */
     ladder: ClientRaceLadderModel | null;
+    /** The whole build as a terrain: every week's km to race day (race lane only). */
+    terrain?: ClientHorizonTerrain | null;
     rows: ClientHorizonRow[];
     links: Array<{ label: string; target: ClientHorizonTarget }>;
+  };
+  /** Horizon's two views: the race build, and the season line. */
+  type ClientHorizonView = "race" | "season";
+  type ClientHorizonTerrainWeek = { week_start: string; km: number; kind: string; current: boolean };
+  type ClientHorizonTerrain = {
+    weeks: ClientHorizonTerrainWeek[];
+    /** Race day (YYYY-MM-DD) and its short marker label ("Race · Nov 8"). */
+    race_date: string;
+    race_label: string;
+    /** The build read's own "as of" day: where the now line stands. */
+    as_of: string;
+  };
+  type ClientHorizonSeasonMark = { date: string; label: string; kind: string; side: "behind" | "ahead" };
+  type ClientHorizonSeason = {
+    points: Array<{ date: string; lb: number }>;
+    goal_lb: number | null;
+    goal_date: string | null;
+    /** The server's projection window toward the goal weight: the fan. */
+    fan: { start: string; end: string } | null;
+    race: { date: string; label: string } | null;
+    marks: ClientHorizonSeasonMark[];
+    today: string;
   };
   type ClientHorizonDeps = {
     /** Today's date, the line between behind and ahead. */
@@ -5944,6 +5968,17 @@ declare global {
       labsLane(docs: unknown, checkup: unknown, timeline: unknown, today: string): ClientHorizonLane;
       ladderAhead(ladder: ClientRaceLadderModel): ClientRaceLadderModel | null;
       weightLine(read: import("./client-api.js").ClientJourneyRead | null): string;
+      season(
+        pace: unknown,
+        timeline: unknown,
+        docs: unknown,
+        checkup: unknown,
+        today: string
+      ): ClientHorizonSeason | null;
+    };
+    CairnHorizonChart: {
+      terrainSvg(terrain: ClientHorizonTerrain): string;
+      seasonSvg(season: ClientHorizonSeason): string;
     };
     CairnHorizon: {
       KEYS: ReadonlyArray<ClientHorizonLane["key"]>;
@@ -5951,8 +5986,10 @@ declare global {
         lane: ClientHorizonLane,
         opts?: { enter?: boolean; hrefFor?: (target: ClientHorizonTarget) => string | null }
       ): string;
+      PANEL: Readonly<Record<ClientHorizonLane["key"], ClientHorizonView>>;
       laneSkeletonHtml(key: ClientHorizonLane["key"]): string;
-      shellHtml(): string;
+      seasonHtml(season: ClientHorizonSeason | null): string;
+      shellHtml(active?: ClientHorizonView): string;
     };
     CairnHorizonController: {
       mount(host: Element, deps: ClientHorizonDeps): () => void;
@@ -5960,6 +5997,7 @@ declare global {
   }
   declare const CairnHorizonModel: Window["CairnHorizonModel"];
   declare const CairnHorizon: Window["CairnHorizon"];
+  declare const CairnHorizonChart: Window["CairnHorizonChart"];
   declare const CairnHorizonController: Window["CairnHorizonController"];
   type ClientPebble = {
     key: string;

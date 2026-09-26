@@ -1,6 +1,10 @@
 // @ts-check
 // Progress chart palette and canvas drawing primitives.
 
+// Axis words are Martian Mono, small (Atelier v2 charts); the system mono stands in
+// until the face has loaded.
+const CHART_AXIS_FONT = `9px "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace`;
+
 function withAlpha(hex: unknown, alpha: number): string {
   let value = String(hex || "").trim().replace("#", "");
   if (value.length === 3) value = value.split("").map((part) => part + part).join("");
@@ -62,7 +66,7 @@ function drawProgressChartBase(
   const { left: padL, right: padR, top: padT, bottom: padB } = padding;
   const y = model.y;
   ctx.clearRect(0, 0, width, height);
-  ctx.font = "10px system-ui, sans-serif";
+  ctx.font = CHART_AXIS_FONT;
   for (let grid = 0; grid <= 3; grid++) {
     const value = min + ((max - min) * grid) / 3;
     const yy = y(value);
@@ -89,7 +93,7 @@ function drawProgressChartBase(
     ctx.stroke();
     ctx.restore();
     ctx.fillStyle = colors.sage;
-    ctx.font = "600 9px system-ui, sans-serif";
+    ctx.font = CHART_AXIS_FONT;
     ctx.fillText(`GOAL ${options.goal}`, padL + 3, goalY - 5);
   }
   if (count > 1) {
@@ -118,14 +122,14 @@ function drawProgressChartBase(
   if (options.peak && count > 1) {
     if (peakIndex !== count - 1) {
       ctx.fillStyle = colors.gold;
-      ctx.font = "10px system-ui, sans-serif";
+      ctx.font = CHART_AXIS_FONT;
       ctx.textAlign = "center";
       ctx.fillText("▲", xs[peakIndex], ys[peakIndex] - 9);
       ctx.textAlign = "left";
     }
   }
   ctx.fillStyle = colors.label;
-  ctx.font = "10px system-ui, sans-serif";
+  ctx.font = CHART_AXIS_FONT;
   ctx.textAlign = "left";
   ctx.fillText(fmtShortDate(points[0].date), padL, height - 8);
   if (count > 1) {

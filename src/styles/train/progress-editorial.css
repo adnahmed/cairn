@@ -7,13 +7,14 @@
 .progress-read{font-size:.92rem;color:var(--ink-2);line-height:1.5;margin:4px 2px 2px;max-width:52ch}
 .progress-read:empty{margin:0}
 .phero{padding:4px 2px 18px}
-.phero-title{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 80;
-  font-size:1.55rem;line-height:1.1;letter-spacing:-.01em;color:var(--ink)}
-.phero-stats{display:flex;gap:28px;margin-top:13px;flex-wrap:wrap}
+.phero-title{font-family:var(--font-display);font-weight:400;
+  font-size:1.5rem;line-height:1.1;letter-spacing:-.005em;color:var(--ink)}
+.phero-stats{display:flex;gap:10px 22px;margin-top:13px;flex-wrap:wrap}
 .phero-stat{display:flex;flex-direction:column;gap:5px;min-width:0}
-.phero-n{font-size:1.7rem;font-weight:600;letter-spacing:-.01em}
+.phero-n{font-size:1.45rem;font-weight:400;letter-spacing:-.005em}
 .phero-n-sm{font-size:1.25rem;line-height:1.45;text-transform:capitalize}
-.chart-foot{display:block;margin:10px 4px 0;text-align:center;letter-spacing:.14em}
+.chart-foot{display:block;margin:10px 4px 0;text-align:center;line-height:1.5}
+.chart-foot.lbl{font-family:var(--font-ui);font-size:var(--text-xs);text-transform:none;letter-spacing:0}
 
 .empty-state{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
   padding:38px 22px;text-align:center}
@@ -21,25 +22,32 @@
 .empty-state-line{font-family:var(--font-display);font-style:italic;font-weight:480;
   font-variation-settings:"opsz" 40;font-size:1.05rem;color:var(--ink-2)}
 
-/* history cards */
+/* history cards: one session per card, each lift one hairline row with its best set
+   and a count; every set lives one tap deeper, in the edit sheet. */
+.hist.sess{padding:14px 16px 8px;border-radius:18px;margin-bottom:10px}
 .hist-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.hist-kicker{letter-spacing:.16em}
-.hist-day{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 60;
-  font-size:1.35rem;line-height:1.12;margin-top:2px;color:var(--ink)}
-.hist-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;padding-top:3px}
-.hist-chip{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
-  font-size:.76rem;background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-pill);
-  padding:3px 10px;white-space:nowrap;font-variant-numeric:lining-nums;color:var(--ink-2)}
-.hist-line{display:flex;justify-content:space-between;gap:12px;align-items:baseline;
-  padding:7px 0;border-top:1px solid var(--line);font-size:.84rem}
-.hist .hist-line:first-of-type{border-top:none;margin-top:11px}
+.hist-day{font-family:var(--font-display);font-weight:400;font-size:1.3rem;line-height:1.12;margin-top:3px;color:var(--ink)}
+.hist-chips{display:flex;gap:4px 10px;flex-wrap:wrap;justify-content:flex-end;padding-top:2px;max-width:55%}
+.hist-chip{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);text-transform:uppercase;
+  white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
+.hist-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:baseline;
+  padding:8px 0;border-top:1px solid var(--line);font-size:var(--text-sm)}
+.hist-head+.hist-line{border-top:none;margin-top:6px}
 .hist-ex{color:var(--ink);font-weight:500;min-width:0}
-.hist-sets{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:500;
-  color:var(--ink-2);text-align:right;font-variant-numeric:lining-nums;font-size:.84rem}
-.hist-sep{color:var(--line-2);margin:0 5px}
-.hist-best{font-weight:680;color:var(--ink);font-size:.94rem}
-.hist-notes{margin-top:10px;font-family:var(--font-display);font-style:italic;
-  font-variation-settings:"opsz" 28;color:var(--muted);font-size:.88rem}
+.hist-sets{color:var(--ink-2);text-align:right;font-variant-numeric:tabular-nums lining-nums;font-size:var(--text-sm);white-space:nowrap}
+.hist-sets.is-many .hist-set:not(.hist-best),.hist-sets.is-many .hist-sep{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.hist-sets:not(.is-many) .hist-sep{margin:0 5px;color:var(--line-strong)}
+.hist-best{font-weight:600;color:var(--ink)}
+.hist-count{margin-left:8px;font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--muted)}
+.hist-more{margin-top:4px}
+.hist-more-sum{display:flex;align-items:center;min-height:46px;padding:0 2px;cursor:pointer;list-style:none;
+  font-size:var(--text-sm);font-weight:600;color:var(--ink-2);border-top:1px solid var(--line)}
+.hist-more-sum::-webkit-details-marker{display:none}
+.hist-more-sum::after{content:"›";margin-left:auto;color:var(--muted);transition:transform var(--dur-1) var(--ease)}
+.hist-more[open]>.hist-more-sum::after{transform:rotate(90deg)}
+.hist-more>.sess-grid{margin-top:8px}
+.hist-notes{margin:4px 0 6px;font-family:var(--font-display);font-style:italic;color:var(--muted);font-size:.88rem}
 
 /* calendar month grids — terracotta intensity by sets logged */
 .cal-month{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);

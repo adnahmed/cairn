@@ -135,5 +135,6 @@ test("the journey line is empty when neither read has anything to say", () => {
 test("train overview masthead never surfaces a day streak", () => {
   const overview = readFileSync(join(root, "src/client/progress-overview-client.ts"), "utf8");
   assert.doesNotMatch(overview, /day streak/);
-  assert.match(overview, /sessions · week/);
+  // The week's sessions sit under the "This week" kicker, so the stat reads "sessions".
+  assert.match(overview, /stat\(`\$\{done\}\/\$\{planned\}`, "sessions"\)/);
 });

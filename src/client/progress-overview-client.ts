@@ -389,9 +389,9 @@ function tovMastHtml(data: TovData, rows: TovRow[]): string {
   const stat = (n: string, l: string, cu?: number) =>
     `<div class="stat"><div class="stat-n"${cu != null ? ` data-cu="${cu}"` : ""}>${escHtml(n)}</div><div class="stat-l">${escHtml(l)}</div></div>`;
   const strip = [
-    planned > 0 ? stat(`${done}/${planned}`, "sessions · week") : stat(String(done), "sessions · week"),
+    planned > 0 ? stat(`${done}/${planned}`, "sessions") : stat(String(done), "sessions"),
     stat(String(sets), "sets · 7d", sets),
-    stat(tonnage >= 1000 ? `${(tonnage / 1000).toFixed(1)}k` : String(Math.round(tonnage)), "lb moved · 7d"),
+    stat(tonnage >= 1000 ? `${(tonnage / 1000).toFixed(1)}k` : String(Math.round(tonnage)), "lb · 7d"),
   ].filter(Boolean).join("");
   return `<div class="tov-mast reveal" style="${stagger(0)}">
     <div class="lbl">This week</div>
@@ -485,10 +485,8 @@ function tovMapHtml(rows: TovRow[]): string {
   </div>`;
 }
 
-function tovRowsHtml(rows: TovRow[]): string {
-  const visible = rows.filter((r) => r.tone !== "none" || TOV_GROUP_ORDER.includes(r.group));
-  if (!visible.length) return "";
-  const items = visible.map((row, i) => `
+function tovRowHtml(row: TovRow, i: number): string {
+  return `
     <button class="tov-row reveal" type="button" data-tovgo="program" data-group="${escAttr(row.group)}" style="${stagger(Math.min(i + 2, 12))}">
       <span class="tov-row-dot tov-dot-${row.tone === "none" ? "idle" : row.tone}"></span>
       <span class="tov-row-main">
@@ -497,20 +495,29 @@ function tovRowsHtml(rows: TovRow[]): string {
         <span class="tov-row-note">${escHtml(tovRowNote(row) || "nothing logged yet")}</span>
       </span>
       <span class="tov-row-arw">›</span>
-    </button>`).join("");
-  return `<div class="tov-kicker lbl reveal" style="${stagger(2)}">Working sets per week, against your productive range</div>${items}`;
+    </button>`;
+}
+
+// The groups that ask for a look (due, running high, stalling) lead, at least three;
+// the rest fold under one quiet line, one tap away, never a wall of thirteen rows.
+function tovRowsHtml(rows: TovRow[]): string {
+  const visible = rows.filter((r) => r.tone !== "none" || TOV_GROUP_ORDER.includes(r.group));
+  if (!visible.length) return "";
+  const lead = visible.filter((r) => r.tone === "due" || r.tone === "high" || r.verdict === "stalling");
+  for (const row of visible) if (lead.length < 3 && !lead.includes(row)) lead.push(row);
+  const rest = visible.filter((r) => !lead.includes(r));
+  const hint = rest.slice(0, 3).map((r) => tovCapitalize(r.label)).join(", ") + (rest.length > 3 ? "…" : "");
+  const more = rest.length ? `<details class="tov-more"><summary class="tov-more-sum"><span>${rest.length} more muscle group${rest.length === 1 ? "" : "s"}</span><span class="tov-more-hint">${escHtml(hint)}</span></summary><div class="tov-rows">${rest.map((row, i) => tovRowHtml(row, lead.length + i)).join("")}</div></details>` : "";
+  return `<div class="tov-kicker lbl reveal" style="${stagger(2)}">Working sets per week, against your productive range</div>
+    <div class="tov-rows">${lead.map((row, i) => tovRowHtml(row, i)).join("")}</div>${more}`;
 }
 
 function tovCapitalize(value: string): string {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }
 
-// The always-available "just start training" entry on the Train tab. Routes into
-// the isolated Session logging surface via the shared openSession() — the same
-// path the Today Brief uses — so there is no parallel start-session flow. dayPicked
-// is reset on the way in (see wireTovStart) so it lands on today's calm suggested
-// plan day, not a day left selected from elsewhere.
-// Today's lift in the server's one line, with the one door into it. The door names
+// The always-available start entry: routes through the shared openSession() (the
+// Brief's path; dayPicked reset in wireTovStart). Today's lift in the server's one line, with the one door into it. The door names
 // the plan day ("Start Pull →") and goes away once the day's lift is logged — the
 // line itself then says so.
 function tovStartHtml(data?: TovData): string {
@@ -642,14 +649,14 @@ function paintTrainOverview(data: TovData): void {
   // opens Horizon's goal line.
   view.innerHTML = head +
     tovMastHtml(data, rows) +
-    tovLoadBandHtml(data) +
     tovStartHtml(data) +
-    tovMapHtml(rows) +
+    tovLoadBandHtml(data) +
     tovFocusHtml(data) +
+    tovMapHtml(rows) +
     tovRowsHtml(rows) +
-    tovJourneyPointerHtml(data) +
     tovMovesHtml(data) +
-    tovSessionsHtml(data);
+    tovSessionsHtml(data) +
+    tovJourneyPointerHtml(data);
   wireSeg(PROGRESS_HANDLERS);
   wireTovStart();
   wireTovJourneyPointer();
@@ -674,6 +681,8 @@ function paintTrainOverview(data: TovData): void {
       const group = el.getAttribute("data-group") || "";
       const row = group ? view.querySelector<HTMLElement>(`.tov-row[data-group="${group}"]`) : null;
       if (!row) return;
+      const fold = row.closest("details");
+      if (fold && !fold.open) fold.open = true;
       const reduce = reducedMotion();
       row.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
       row.style.transition = "background-color .5s ease";

@@ -71,6 +71,7 @@ test("streams B, C and D find their file slots already registered", () => {
     ],
     "public/js/bundle-06-chat-plan.js": [
       "horizon-model",
+      "horizon-chart-client",
       "horizon-client",
       "horizon-controller",
       "horizon-screen",

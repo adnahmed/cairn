@@ -18,7 +18,11 @@ function progressHistorySessionCardHtml(session: unknown, index: number): string
       const figure = progressHistorySetFigure(set);
       return `<span class="hist-set${setIndex === bestIndex && sets.length > 1 ? " hist-best" : ""}">${escHtml(figure)}</span>`;
     }).join(`<span class="hist-sep">·</span>`);
-    return `<div class="hist-line"><span class="hist-ex">${escHtml(exercise)}</span><span class="hist-sets">${figures}</span></div>`;
+    // Many sets read as the day's best and a count; every set stays in the markup for
+    // assistive tech and sits one tap deeper, in the edit sheet.
+    const many = sets.length > 1 && bestIndex >= 0 && bestIndex < sets.length;
+    const count = many ? `<span class="hist-count">${sets.length} sets</span>` : "";
+    return `<div class="hist-line"><span class="hist-ex">${escHtml(exercise)}</span><span class="hist-sets${many ? " is-many" : ""}">${figures}${count}</span></div>`;
   }).join("");
   const chips = [
     tonnage ? `${fmtK(Math.round(tonnage))} lb` : null,
