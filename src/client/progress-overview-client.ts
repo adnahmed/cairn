@@ -376,27 +376,20 @@ function tovHeadline(data: TovData, rows: TovRow[]): string {
   return [opener, clause].filter(Boolean).join(" ") || "Your training, in one look.";
 }
 
+// The week's load, as one serif voice line and at most one supporting mono fact.
+// Sessions ride the voice line; sets are the one fact; pounds moved live one tap
+// deeper (Volume, History). Honest continuity, not a streak: a reset-on-miss
+// consecutive-day count is the chain-you-fear-breaking mechanic the constitution
+// rules out — §2/§6C of VISION.md. The deterministic streak value still exists in
+// getWeeklyStats for agent context; it is not surfaced here.
 function tovMastHtml(data: TovData, rows: TovRow[]): string {
   const stats = data.stats || {};
-  const done = CairnProgressData.number(stats.week_done);
-  const planned = CairnProgressData.number(stats.week_planned);
   const sets = CairnProgressData.number(stats.week_sets);
-  const tonnage = CairnProgressData.number(stats.week_tonnage);
-  // Honest continuity, not a streak: sessions / sets / load. A reset-on-miss
-  // consecutive-day count is the chain-you-fear-breaking mechanic the constitution
-  // rules out — §2/§6C of VISION.md. The deterministic streak value still exists
-  // in getWeeklyStats for agent context; it is not surfaced here.
-  const stat = (n: string, l: string, cu?: number) =>
-    `<div class="stat"><div class="stat-n"${cu != null ? ` data-cu="${cu}"` : ""}>${escHtml(n)}</div><div class="stat-l">${escHtml(l)}</div></div>`;
-  const strip = [
-    planned > 0 ? stat(`${done}/${planned}`, "sessions") : stat(String(done), "sessions"),
-    stat(String(sets), "sets · 7d", sets),
-    stat(tonnage >= 1000 ? `${(tonnage / 1000).toFixed(1)}k` : String(Math.round(tonnage)), "lb · 7d"),
-  ].filter(Boolean).join("");
-  return `<div class="tov-mast reveal" style="${stagger(0)}">
+  const fact = sets > 0 ? `${sets} working set${sets === 1 ? "" : "s"} this week` : "";
+  return `<div class="tov-mast reveal" style="${stagger(3)}">
     <div class="lbl">This week</div>
     <h2 class="tov-mast-h">${escHtml(tovHeadline(data, rows))}</h2>
-    <div class="statstrip">${strip}</div>
+    ${fact ? `<div class="tov-mast-fact lbl">${escHtml(fact)}</div>` : ""}
   </div>`;
 }
 
@@ -433,7 +426,7 @@ function tovLoadBandHtml(data: TovData): string {
     hot: band.hot === true,
   });
   if (!row) return "";
-  return `<div class="tov-loadband reveal" role="group" aria-label="${escAttr(`${label}: ${phrase}`)}" style="${stagger(1)}">${row}</div>`;
+  return `<div class="tov-loadband reveal" role="group" aria-label="${escAttr(`${label}: ${phrase}`)}" style="${stagger(3)}">${row}</div>`;
 }
 
 function tovVerdictChip(row: TovRow): string {
@@ -475,7 +468,7 @@ function tovMapHtml(rows: TovRow[]): string {
   const legend = [
     ["due", "Due"], ["ok", "On track"], ["high", "Running high"], ["recover", "Recovering"],
   ].map(([k, l]) => `<span class="tov-leg"><i class="tov-leg-dot tov-dot-${k}"></i>${l}</span>`).join("");
-  return `<div class="tov-map sess reveal" style="${stagger(1)}">
+  return `<div class="tov-map sess reveal" style="${stagger(4)}">
     <div class="lbl">Muscle balance</div>
     <div class="tov-figs">
       <figure><figcaption class="lbl">Front</figcaption>${tovFigureSvg("front", tones)}</figure>
@@ -565,7 +558,7 @@ function tovFocusHtml(data: TovData): string {
   if (typeof coachingFocusHtml !== "function") return "";
   return coachingFocusHtml((data.focus || null) as unknown as ClientCoachingFocus | null, {
     variant: "overview",
-    style: stagger(3),
+    style: stagger(2),
   });
 }
 
@@ -599,7 +592,6 @@ function tovSessionsHtml(data: TovData): string {
   return `<div class="tov-recent reveal" style="${stagger(5)}">
     <div class="lbl">Latest sessions</div>
     ${rows}
-    <button class="linkbtn linkbtn-sm" type="button" data-tovgo="sessions">All history ›</button>
   </div>`;
 }
 
@@ -642,8 +634,8 @@ function paintTrainOverview(data: TovData): void {
     // Nothing trained yet — lead with the journey line so a fresh install still
     // opens to something, not an empty screen.
     view.innerHTML = head + `<div class="tov-empty">` +
-      tovJourneyPointerHtml(data) +
       tovStartHtml() +
+      tovJourneyPointerHtml(data) +
       emptyStateHtml(art("exercise", "barbell row"), "Log a session and this becomes your training map — what's trained, what's due, and where to push next.") +
       `</div>`;
     wireSeg(PROGRESS_HANDLERS);
@@ -651,17 +643,21 @@ function paintTrainOverview(data: TovData): void {
     wireTovJourneyPointer();
     return;
   }
-  // Train leads with the muscle-group progress read; the journey is one line that
-  // opens Horizon's goal line.
+  // Train leads with the one thing that matters now — today's lift and its start —
+  // then where to focus, then the week's load (the voice line, the load band, the
+  // muscle map and the groups asking for a look). The week-by-week moves, the
+  // latest sessions and the deeper views follow; the journey is one line that opens
+  // Horizon's goal line.
   view.innerHTML = head +
-    tovMastHtml(data, rows) +
     tovStartHtml(data) +
-    tovLoadBandHtml(data) +
     tovFocusHtml(data) +
+    tovMastHtml(data, rows) +
+    tovLoadBandHtml(data) +
     tovMapHtml(rows) +
     tovRowsHtml(rows) +
     tovMovesHtml(data) +
     tovSessionsHtml(data) +
+    `<div data-train-deeper-slot></div>` +
     tovJourneyPointerHtml(data);
   wireSeg(PROGRESS_HANDLERS);
   wireTovStart();

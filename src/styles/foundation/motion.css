@@ -66,7 +66,7 @@
 ::view-transition-old(tabbar){display:none}
 ::view-transition-new(tabbar){animation:none}
 ::view-transition-group(detail-art){animation-duration:var(--dur-3);animation-timing-function:var(--ease)}
-::view-transition-group(seg-thumb),::view-transition-group(prog-subseg-thumb){animation-duration:var(--dur-2);animation-timing-function:var(--ease)}
+::view-transition-group(seg-thumb){animation-duration:var(--dur-2);animation-timing-function:var(--ease)}
 /* the Brief hero morphs (not crossfades) when an override chip reshapes the read */
 ::view-transition-group(brief-hero){animation-duration:var(--dur-3);animation-timing-function:var(--ease)}
 ::view-transition-old(brief-hero),::view-transition-new(brief-hero){

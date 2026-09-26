@@ -53,3 +53,20 @@ test("progress empty state keeps trusted art raw and escapes copy", () => {
   assert.match(html, /No &lt;sets&gt; yet/);
   assert.doesNotMatch(html, /No <sets> yet/);
 });
+
+test("a voice header is one serif line and at most one mono fact, escaped; units ride inside a value", () => {
+  const components = loadProgressComponents();
+  const voice = components.progressHero("History", [["sets", 9]], { line: "Fifteen <sessions>.", fact: "222 sets · 30 <days>" });
+  assert.match(voice, /class="phero-line">Fifteen &lt;sessions&gt;\.</);
+  assert.match(voice, /class="phero-fact lbl">222 sets · 30 &lt;days&gt;</);
+  assert.doesNotMatch(voice, /phero-stats|phero-title|data-cu/, "a voice header never paints a stat row");
+  assert.doesNotMatch(components.progressHero("History", [], { line: "One line." }), /phero-fact/);
+
+  const energy = components.progressHero("Energy Balance", [["est. burn", 2417, { unit: "kcal" }], ["trend", "−1", { text: true, unit: "lb/wk" }]]);
+  assert.match(energy, /<span class="phero-n numeral"><span data-cu="2417">0<\/span><span class="phero-u">kcal<\/span><\/span>/);
+  assert.match(energy, />−1<span class="phero-u">lb\/wk<\/span>/);
+
+  assert.equal(components.countWord(15, true), "Fifteen");
+  assert.equal(components.countWord(0), "no");
+  assert.equal(components.countWord(42), "42");
+});

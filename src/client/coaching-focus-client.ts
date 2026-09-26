@@ -112,6 +112,7 @@ type CfocusVariantSpec = {
   moveClass: string;
   // The lead's title is required for this variant to render at all.
   requireTitle: boolean;
+  fold?: boolean; // the flat lead's why, move and retest fold under one tap (Train overview)
   // Renders even when the server says the focus is not available (hero only).
   allowUnavailable: boolean;
   parallel: boolean;
@@ -175,13 +176,13 @@ const CFOCUS_VARIANTS: Record<ClientCoachingFocusVariant, CfocusVariantSpec> = {
     leadWhyClass: "tov-focus-why",
     moveClass: "tov-focus-move",
     requireTitle: true,
+    fold: true,
     allowUnavailable: false,
     parallel: false,
     later: false,
     connections: false,
     retest: "line",
-    // The Progress overview wires [data-tovgo] itself (a view-transitioned seg
-    // handler), so this link stays in that family rather than [data-cfocus-go].
+    // The Train overview wires [data-tovgo] itself, so this link stays in that family.
     footer: `<button class="linkbtn linkbtn-sm" type="button" data-tovgo="program">Full program read ›</button>`,
   },
   hero: {
@@ -278,13 +279,13 @@ function cfocusRouteLeadHtml(
   return `${html}</div>`;
 }
 
-// The flat lead (the Progress-overview well): the same words with no route
-// chrome, because the well itself is not a link — its footer is.
-function cfocusFlatLeadHtml(lead: ClientCoachingFocusItem, spec: CfocusVariantSpec): string {
-  let html = `<div class="${spec.leadTitleClass}">${escHtml(lead.title || "")}</div>`;
-  if (lead.why) html += `<div class="${spec.leadWhyClass}">${escHtml(lead.why)}</div>`;
-  if (spec.moveClass && lead.move) html += `<div class="${spec.moveClass}">${escHtml(lead.move)}</div>`;
-  return html;
+// The flat lead (the Progress-overview well): no route chrome — its footer links.
+function cfocusFlatLeadHtml(lead: ClientCoachingFocusItem, spec: CfocusVariantSpec, after = ""): string {
+  const why = lead.why ? `<div class="${spec.leadWhyClass}">${escHtml(lead.why)}</div>` : "";
+  const move = spec.moveClass && lead.move ? `<div class="${spec.moveClass}">${escHtml(lead.move)}</div>` : "";
+  const body = why + move + after;
+  const rest = spec.fold && body ? `<details class="tov-focus-fold"><summary class="tov-focus-fold-sum">Why, and the move</summary><div class="tov-focus-fold-body">${body}</div></details>` : body;
+  return `<div class="${spec.leadTitleClass}">${escHtml(lead.title || "")}</div>${rest}`;
 }
 
 function cfocusRetestHtml(focus: ClientCoachingFocus, spec: CfocusVariantSpec): string {
@@ -359,7 +360,7 @@ function coachingFocusHtml(
 
   if (lead) {
     if (spec.lead === "route") html += cfocusRouteLeadHtml(lead, spec, options, acts);
-    else if (spec.lead === "flat") html += cfocusFlatLeadHtml(lead, spec);
+    else if (spec.lead === "flat") html += cfocusFlatLeadHtml(lead, spec, spec.fold ? cfocusRetestHtml(focus, spec) : "");
   }
   if (spec.lead === "line" && heroLine) html += `<p class="${spec.leadWhyClass}">${escHtml(heroLine)}</p>`;
 
@@ -391,9 +392,8 @@ function coachingFocusHtml(
     for (const connection of connections) html += `<p class="cfocus-conn">${escHtml(connection)}</p>`;
   }
 
-  html += cfocusRetestHtml(focus, spec);
-  html += spec.footer;
-  return `${html}</div>`;
+  if (!(spec.fold && lead && spec.lead === "flat")) html += cfocusRetestHtml(focus, spec);
+  return `${html}${spec.footer}</div>`;
 }
 
 // The named variants stay as thin aliases: every existing call site keeps its

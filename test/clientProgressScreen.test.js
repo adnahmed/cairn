@@ -216,16 +216,22 @@ function loadProgressScreenWithDom() {
   return { context, view };
 }
 
-test("paintVolumeBody: the balance slot mounts ahead of the numeral hero", () => {
+test("paintVolumeBody: one voice line leads, the balance read follows, never a stat wall", () => {
   const { context, view } = loadProgressScreenWithDom();
   context.paintVolumeBody({
     days: 30,
-    total_tonnage: 1000,
-    by_muscle: [{ muscle_group: "chest", sets: 10, tonnage: 500 }],
+    total_tonnage: 12345,
+    by_muscle: [
+      { muscle_group: "chest", sets: 10.5, tonnage: 500 },
+      { muscle_group: "back", sets: 4, tonnage: 500 },
+    ],
   });
   const slotAt = view.innerHTML.indexOf('id="volBalanceSlot"');
-  const heroAt = view.innerHTML.indexOf("Volume");
-  assert.ok(slotAt > -1 && heroAt > -1 && slotAt < heroAt, "the balance slot precedes the numeral hero");
+  const heroAt = view.innerHTML.indexOf("phero-voice");
+  assert.ok(slotAt > -1 && heroAt > -1 && heroAt < slotAt, "the voice line precedes the balance read");
+  assert.match(view.innerHTML, /class="phero-line">15 working sets across two muscle groups\.</);
+  assert.match(view.innerHTML, /class="phero-fact lbl">12\.3k lb moved</);
+  assert.doesNotMatch(view.innerHTML, /phero-stats/);
 });
 
 test("mountGoalPaceChart inserts the goal-pace card into #weightLeadMount, ahead of the hero", () => {

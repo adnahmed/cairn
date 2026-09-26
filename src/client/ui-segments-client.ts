@@ -1,6 +1,6 @@
 // @ts-check
 // Segmented navigation plus the discipline state that gates Train's Endurance leaf.
-// Train's group/leaf nav also carries one CROSS-VIEW leaf: Program → Plan opens the
+// Train's nav also carries one CROSS-VIEW leaf: Program → Plan opens the
 // plan editor (the Plan view, which lives under the Train home), so its handler
 // navigates with activateTab instead of repainting the Progress view in place.
 
@@ -48,6 +48,8 @@ type UiSegmentsApi = {
   PROGRESS_GROUPS: readonly UiSegmentsSegment[];
   progressGroupOf(leaf: unknown): string;
   progressNav(activeLeaf: string): string;
+  progressDeeperHtml(activeLeaf: string): string;
+  progressIsLanding(leaf: string): boolean;
   create(deps: UiSegmentsDeps): UiSegmentsController;
   setDiscipline(discipline: unknown): string;
   isEndurance(): boolean;
@@ -74,93 +76,16 @@ const UI_PROGRESS_SEGMENTS: readonly UiSegmentsSegment[] = [
   ["energy", "Energy"],
 ];
 
-// Train's two-level nav: the flat views regroup into 4 top GROUPS, each with an
-// optional sub-bar of leaves. Program holds the program you are running — the plan
-// editor (Plan) and the program read (Program) — and Fuel the adaptive-nutrition
-// trends, as their own top slots instead of the tail of a wide scroll bar; "Body"
-// is the home for body-composition reads. The ROUTE stays the leaf
-// (/app/train/<leaf>), so every deep link is unchanged.
-const UI_PROGRESS_GROUPS: readonly UiSegmentsSegment[] = [
-  ["train", "Train"],
-  ["program", "Program"],
-  ["fuel", "Fuel"],
-  ["body", "Body"],
-];
-const UI_PROGRESS_GROUP_LEAVES: Record<string, readonly string[]> = {
-  train: ["overview", "sessions", "trend", "volume", "endurance", "calendar"],
-  program: ["plan", "program"],
-  fuel: ["intake", "energy"],
-  body: ["weight", "measurements"],
-};
-// Leaves that open ANOTHER view (the Plan view's editor) rather than a Progress one.
+// Train's one-level nav (groups, landings, deeper rows, the step back) is built by
+// CairnTrainNav (train-nav-client.ts); this module wires it. Leaves that open
+// ANOTHER view (the Plan view's editor) rather than a Progress one:
 const UI_PROGRESS_CROSS_VIEW_LEAVES: ReadonlySet<string> = new Set(["plan"]);
-const UI_PROGRESS_LEAF_GROUP: Record<string, string> = (() => {
-  const map: Record<string, string> = {};
-  for (const group of Object.keys(UI_PROGRESS_GROUP_LEAVES)) {
-    for (const leaf of UI_PROGRESS_GROUP_LEAVES[group]) map[leaf] = group;
-  }
-  return map;
-})();
-
-function uiProgressGroupOf(leaf: unknown): string {
-  return UI_PROGRESS_LEAF_GROUP[String(leaf || "")] || "train";
-}
-function uiProgressLeafLabel(leaf: string): string {
-  const found = UI_PROGRESS_SEGMENTS.find(([k]) => k === leaf);
-  return found ? found[1] : leaf;
-}
-// A group's visible leaves — endurance is hidden unless the user's discipline
-// shows it OR it's the active view (so a deep-link to it is never stranded).
-function uiProgressVisibleLeaves(group: string, activeLeaf: string): string[] {
-  const leaves = UI_PROGRESS_GROUP_LEAVES[group] || [];
-  return leaves.filter((leaf) => leaf !== "endurance" || uiSegmentsShowEnduranceTab() || activeLeaf === "endurance");
-}
-// A group tap stays in the view it was tapped from when it can: Program opens the
-// Program read, and the editor stays one leaf away.
-function uiProgressGroupDefaultLeaf(group: string): string {
-  const leaves = uiProgressVisibleLeaves(group, "");
-  return leaves.find((leaf) => !UI_PROGRESS_CROSS_VIEW_LEAVES.has(leaf)) || leaves[0] || "sessions";
-}
-
-// Top group bar — the sliding segmented control, but the buttons carry
-// data-proggroup, wired to their group's default leaf.
-function uiProgressGroupBar(activeGroup: string): string {
-  return CairnUi.segmentedHtml({
-    items: UI_PROGRESS_GROUPS,
-    active: activeGroup,
-    label: "Progress sections",
-    attr: "proggroup",
-  });
-}
-// Sub-bar of the active group's leaves (leaf buttons keep data-seg so the existing
-// wireSeg handler map drives them). The leaf variant omits a single-view group.
-function uiProgressSubBar(group: string, activeLeaf: string): string {
-  const leaves = uiProgressVisibleLeaves(group, activeLeaf);
-  return CairnUi.segmentedHtml({
-    items: leaves.map((leaf) => [leaf, uiProgressLeafLabel(leaf)] as const),
-    active: activeLeaf,
-    label: "Progress view",
-    variant: "leaf",
-    className: "prog-subseg",
-    wrapClass: "prog-subwrap",
-  });
-}
-// The Fuel group reads the trends (Intake, Energy); logging is a same-day act that
-// lives on Today's Fuel. One quiet pointer line under the group's bar leads there,
-// so the trends never strand someone who came to log.
-function uiFuelLogPointerHtml(): string {
-  const routes = typeof routeApi === "function" ? routeApi() : null;
-  const href = routes?.routeToUrl({ tab: "plan", section: "food" }) || "/app/today/fuel";
-  return `<a class="tov-jpoint" href="${escAttr(href)}" data-fuel-log-point>
-    <span class="lbl tov-jpoint-kick">Fuel</span>
-    <span class="tov-jpoint-line">Log food</span>
-    <span class="tov-jpoint-arw" aria-hidden="true">›</span>
-  </a>`;
-}
+const uiTrainNav = (): TrainNavApi => (globalThis as unknown as { CairnTrainNav: TrainNavApi }).CairnTrainNav;
 function uiProgressNav(activeLeaf: string): string {
-  const group = uiProgressGroupOf(activeLeaf);
-  const pointer = group === "fuel" ? uiFuelLogPointerHtml() : "";
-  return uiProgressGroupBar(group) + uiProgressSubBar(group, activeLeaf) + pointer;
+  return uiTrainNav().navHtml(activeLeaf);
+}
+function uiProgressDeeperHtml(activeLeaf: string): string {
+  return uiTrainNav().deeperHtml(activeLeaf, uiSegmentsShowEnduranceTab());
 }
 
 let uiPrimaryDiscipline = "strength";
@@ -224,7 +149,7 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
   }
 
   function segBar(active: unknown, items: ReadonlyArray<UiSegmentsSegment>): string {
-    // The Progress seg-set renders as a two-level group/leaf nav; every other
+    // The Progress seg-set renders as Train's one-level group nav; every other
     // caller keeps the flat sliding segmented bar unchanged.
     if (items === UI_PROGRESS_SEGMENTS) return uiProgressNav(String(active ?? ""));
     return deps.segmentedNavHtml({ active, items });
@@ -240,6 +165,20 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
       const active = el.querySelector<HTMLElement>(".segbtn.active");
       if (active) el.scrollLeft = active.offsetLeft - (el.clientWidth - active.offsetWidth) / 2;
     }
+    fadeSegEdges(el, overflow);
+    if (overflow && !fadeWired.has(el) && typeof el.addEventListener === "function") {
+      fadeWired.add(el);
+      el.addEventListener("scroll", () => fadeSegEdges(el, el.classList.contains("seg-scroll")), { passive: true });
+    }
+  }
+
+  // The scrolling rail's edge fades follow what is still hidden on each side.
+  const fadeWired = new WeakSet<HTMLElement>();
+  function fadeSegEdges(el: HTMLElement, overflow: boolean): void {
+    const left = overflow && el.scrollLeft > 2;
+    const right = overflow && el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    el.classList.toggle("seg-fade-l", left);
+    el.classList.toggle("seg-fade-r", right);
   }
 
   function wireSeg(handlers: UiSegmentsHandlerMap): void {
@@ -260,6 +199,7 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
         })
       );
     };
+    layDeeperRows();
     deps.root.querySelectorAll<HTMLElement>(".segbtn").forEach((button) =>
       button.addEventListener("click", () => {
         const handler = handlers[String(button.dataset.seg || "")];
@@ -267,13 +207,20 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
         drive(button, handler);
       })
     );
-    // Progress top-group buttons — a tap lands on the group's default leaf. Tapping
-    // the group you're already in is a no-op (its sub-bar already holds the choice).
+    // Train's group buttons — a tap lands on the group's landing. Tapping the group
+    // you're already on is a no-op.
     deps.root.querySelectorAll<HTMLElement>(".segbtn[data-proggroup]").forEach((button) =>
       button.addEventListener("click", () => {
         if (button.classList.contains("active")) return;
-        const handler = handlers[uiProgressGroupDefaultLeaf(String(button.dataset.proggroup || ""))];
+        const handler = handlers[uiTrainNav().landingOf(String(button.dataset.proggroup || ""))];
         if (handler) drive(button, handler);
+      })
+    );
+    // Train's one-tap-deeper rows and a deeper leaf's step back to its landing.
+    deps.root.querySelectorAll<HTMLElement>("[data-train-leaf]").forEach((row) =>
+      row.addEventListener("click", () => {
+        const handler = handlers[String(row.dataset.trainLeaf || "")];
+        if (handler) drive(row, handler);
       })
     );
     // The Fuel group's "Log food" line leaves Train for Today's Fuel; a modified
@@ -286,6 +233,21 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
       })
     );
     deps.root.querySelectorAll(".seg").forEach(fitSeg);
+  }
+
+  // A Train landing lays its deeper rows into its own slot when it carries one
+  // (the overview places them above the journey line), else at the view's end.
+  // Idempotent: a repaint that kept the rows never doubles them.
+  function layDeeperRows(): void {
+    const root = deps.root as ParentNode & Partial<Pick<Element, "insertAdjacentHTML">>;
+    if (typeof root.querySelector !== "function") return;
+    const marker = root.querySelector<HTMLElement>("[data-train-landing]");
+    if (!marker || root.querySelector(".train-deeper")) return;
+    const html = uiProgressDeeperHtml(String(marker.dataset.trainLanding || ""));
+    if (!html) return;
+    const slot = root.querySelector<HTMLElement>("[data-train-deeper-slot]");
+    if (slot) slot.innerHTML = html;
+    else if (typeof root.insertAdjacentHTML === "function") root.insertAdjacentHTML("beforeend", html);
   }
 
   function scheduleFit(): void {
@@ -337,9 +299,13 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
 
 const CAIRN_UI_SEGMENTS: UiSegmentsApi = {
   PROGRESS_SEG: UI_PROGRESS_SEGMENTS,
-  PROGRESS_GROUPS: UI_PROGRESS_GROUPS,
-  progressGroupOf: uiProgressGroupOf,
+  get PROGRESS_GROUPS() {
+    return uiTrainNav().GROUPS;
+  },
+  progressGroupOf: (leaf: unknown) => uiTrainNav().groupOf(leaf),
   progressNav: uiProgressNav,
+  progressDeeperHtml: uiProgressDeeperHtml,
+  progressIsLanding: (leaf: string) => uiTrainNav().isLanding(leaf),
   create: createUiSegments,
   setDiscipline: uiSegmentsSetDiscipline,
   isEndurance: uiSegmentsIsEndurance,

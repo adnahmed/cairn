@@ -62,6 +62,7 @@ function progressProgramRouteDeps(renderSelf: ProgressRouteRenderSelf): ClientPr
     skeletonHtml: progressRouteSkeletonHtml,
     wireSegments: progressRouteWireSegments,
     hero: progressHero,
+    countWord: progressCountWord,
     empty: emptyStateHtml,
     art,
     busy: btnBusy,

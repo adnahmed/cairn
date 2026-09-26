@@ -465,13 +465,8 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
     return;
   }
 
-  const sorted = sortLifts(lifts);
-  const nStalled = sorted.filter((lift) => lift.status === "plateaued" || lift.status === "regressing").length;
-  const nGood = sorted.filter((lift) => lift.status === "progressing").length;
   const heroStats: ProgressProgramStat[] = [];
-  if (lifts.length) heroStats.push(["lifts tracked", lifts.length]);
-  if (nGood) heroStats.push(["climbing", nGood]);
-  if (nStalled) heroStats.push(["stalled", nStalled]);
+  const heroVoice = programHeroVoice(lifts, deps.countWord);
 
   const conductor = CairnProgressFocus.cardHtml();
   const hasConductor = !!conductor;
@@ -510,7 +505,7 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
   if (hasConductor) {
     html =
       head +
-      deps.hero("Program", heroStats) +
+      deps.hero("Program", heroStats, heroVoice) + `<div data-train-deeper-slot></div>` +
       conductor +
       strengthJourneySlot +
       liftsHtml +
@@ -535,8 +530,8 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
   } else {
     html =
       head +
-      deps.hero("Program", heroStats) +
-      headlineHtml +
+      deps.hero("Program", heroStats, heroVoice) +
+      headlineHtml + `<div data-train-deeper-slot></div>` +
       strengthJourneySlot +
       testSlot +
       perfSlot +

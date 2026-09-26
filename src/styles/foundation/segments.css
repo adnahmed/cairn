@@ -25,6 +25,13 @@
 .seg.seg-scroll .segbtn{flex:0 0 auto;padding-left:13px;padding-right:13px;scroll-snap-align:center}
 .seg.seg-scroll .seg-thumb{display:none}
 .seg.seg-scroll.seg-sliding .segbtn.active{background:var(--ink);color:var(--on-ink)}
+/* A rail that scrolls never looks clipped: the edge with more behind it fades out
+   (fitSeg toggles .seg-fade-l / .seg-fade-r from the scroll position). */
+.seg.seg-scroll{--seg-fl:0px;--seg-fr:0px;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,black var(--seg-fl),black calc(100% - var(--seg-fr)),transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,black var(--seg-fl),black calc(100% - var(--seg-fr)),transparent 100%)}
+.seg.seg-scroll.seg-fade-l{--seg-fl:28px}
+.seg.seg-scroll.seg-fade-r{--seg-fr:28px}
 
 /* sliding ink thumb (segBar() emits .seg-sliding + the thumb; hand-built segs keep
    the classic background-swap active state) */
@@ -36,10 +43,6 @@
   transition:transform var(--dur-2) var(--ease);
   view-transition-name:seg-thumb;
 }
-/* Progress renders a group bar and a leaf bar together. Its leaf thumb needs a
-   distinct shared-element name so one transition never snapshots two seg-thumb
-   elements. */
-.prog-subseg .seg-thumb{view-transition-name:prog-subseg-thumb}
 .seg-sliding .segbtn.active{background:transparent;color:var(--on-ink)}
 
 /* Sticky sub-nav band: keeps the segmented switcher pinned to the top while a
@@ -53,27 +56,3 @@
   backdrop-filter:blur(14px) saturate(1.1);-webkit-backdrop-filter:blur(14px) saturate(1.1);
 }
 .segwrap .seg{margin:0}
-
-/* Progress two-level nav: a top group bar (Train/Performance/Fuel/Body) over an
-   optional leaf sub-bar. When both are present the group bar scrolls with the
-   content and the leaf sub-bar is the pinned one (same model as the Me → Health
-   sub-nav), so the view switcher stays one tap away. A single-view group has no
-   sub-bar, so its group bar stays sticky. Gated on :has() like the Health nav. */
-.prog-subwrap{margin-top:-6px;z-index:var(--z-pinned-under)}
-.segwrap:has(+ .prog-subwrap){position:static}
-.segwrap:has(+ .prog-subwrap) + .prog-subwrap{top:env(safe-area-inset-top,0px)}
-/* The leaf bar reads as a SUB-level of the group bar: quiet text tabs on the page
-   (no second pill container), smaller caps, and the same sliding thumb re-shaped
-   into a 2px ink underline riding a hairline rule. Scroll mode (fitSeg) hides the
-   thumb, so the active leaf carries its own inset underline there instead. */
-.prog-subseg{background:transparent;border:none;border-radius:0;padding:0;gap:2px;
-  box-shadow:inset 0 -1px 0 var(--line)}
-.prog-subseg .segbtn{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
-  text-transform:uppercase;font-weight:400;color:var(--muted);padding:8px 4px 9px;border-radius:0}
-.prog-subseg .segbtn.active,.seg.seg-scroll.prog-subseg .segbtn.active{background:transparent;color:var(--ink)}
-.seg.seg-scroll.prog-subseg .segbtn.active{box-shadow:inset 0 -2px 0 var(--ink)}
-.prog-subseg .seg-thumb{top:auto;bottom:0;left:0;height:2px;border-radius:2px;
-  width:calc((100% - (var(--segn,2) - 1)*2px)/var(--segn,2));
-  transform:translateX(calc(var(--segi,0)*(100% + 2px)))}
-.prog-subseg .segbtn:focus-visible{border-radius:4px;outline-offset:-2px}
-

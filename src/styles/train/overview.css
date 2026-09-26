@@ -1,16 +1,11 @@
 /* ---------- Train overview (the training home) ---------- */
-/* Masthead: editorial serif week-read over an honest stat strip. */
-.tov-mast{padding:2px 0 6px}
+/* The week's load: a mono eyebrow, one serif voice line and one mono fact. */
+.tov-mast{padding:10px 0 4px}
 .tov-mast-h{
-  font-family:var(--font-display);font-size:1.62rem;line-height:1.12;font-weight:400;color:var(--ink);
-  margin:6px 0 14px;letter-spacing:-.005em;text-wrap:balance;
+  font-family:var(--font-display);font-size:1.42rem;line-height:1.16;font-weight:400;color:var(--ink);
+  margin:6px 0 0;letter-spacing:-.005em;text-wrap:balance;
 }
-/* The week in three numbers: one hairline-ruled row, serif numerals over mono labels. */
-.tov-mast .statstrip{gap:0;margin:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.tov-mast .stat{background:none;border:0;border-radius:0;padding:10px 0 9px;text-align:left}
-.tov-mast .stat+.stat{border-left:1px solid var(--line);padding-left:14px}
-.tov-mast .stat-n{font-weight:400;font-size:1.36rem}
-.tov-mast .stat-l{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono)}
+.tov-mast-fact{display:block;margin:9px 0 12px;color:var(--muted)}
 /* Training-load band: ONE aligned row under the masthead — label · compact meter ·
    one plain word (usual / lighter / heavier), never a number. Composes §04d
    .read-band; the word takes terracotta only when the band is .hot. */
@@ -90,6 +85,16 @@
 .tov-focus-move{font-size:.82rem;color:var(--ink-2);font-style:italic;margin-top:6px}
 .tov-focus-retest{font-size:.74rem;color:var(--muted);margin-top:6px}
 .tov-focus .linkbtn{margin-top:8px}
+/* The lever's why, move and re-test fold under one quiet tap. */
+.tov-focus-fold{margin-top:6px}
+.tov-focus-fold-sum{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:32px;
+  font-size:var(--text-xs);color:var(--muted)}
+.tov-focus-fold-sum::-webkit-details-marker{display:none}
+.tov-focus-fold-sum::after{content:"›";transition:transform var(--dur-1) var(--ease)}
+.tov-focus-fold[open] .tov-focus-fold-sum::after{transform:rotate(90deg)}
+.tov-focus-fold-body{padding:2px 0 4px}
+.tov-focus-fold[open] .tov-focus-fold-body{animation:in var(--dur-2) var(--ease) both}
+@media (prefers-reduced-motion: reduce){.tov-focus-fold[open] .tov-focus-fold-body{animation:none}}
 .jprog-card{margin:14px 0;padding:16px 18px 15px}
 .jprog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .jprog-title{
@@ -196,7 +201,13 @@
 .prog-head-actions .ghostbtn{margin-top:0}
 /* Train overview: the calm "Start today's training" CTA under the week masthead. */
 .tov-start{margin:4px 0 12px}
-.tov-today{display:flex;flex-direction:column;align-items:stretch;gap:12px;margin:18px 0 14px;
-  padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:none}
+/* Today's lift leads Train: the one focal point — the day's lift in the serif
+   voice, its caveat quiet under it, and the one door into it. */
+.tov-today{display:flex;flex-direction:column;align-items:stretch;gap:14px;margin:4px 0 16px;
+  padding:16px 18px 18px;background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:none}
+.tov-today .strength-line{gap:6px}
+.tov-today .strength-line-t{font-family:var(--font-display);font-weight:400;font-size:1.62rem;line-height:1.14;
+  letter-spacing:-.005em;text-wrap:balance}
+.tov-today .strength-line-caveat{font-size:var(--text-sm);color:var(--ink-2);line-height:1.45}
 .tov-today .tov-start{margin:0}
 

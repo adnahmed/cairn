@@ -701,6 +701,22 @@ async function smokeProgressSegmentNavigation(cdp, base) {
   try {
     await navigateAndHydrate(cdp, base, "/app/train/energy", "progress");
     await assertGlobals(cdp);
+    // Train's nav is one level: a deeper leaf wears only a step back to its landing.
+    await evaluate(cdp, `(() => {
+      if (document.querySelector(".segbtn[data-proggroup]")) throw new Error("a deeper leaf wears no group bar");
+      const back = document.querySelector('.train-crumb[data-train-leaf="intake"]');
+      if (!back) throw new Error("missing Energy's step back to Fuel");
+      back.click();
+      return true;
+    })()`);
+    await waitForCondition(cdp, "Energy's step back lands on Fuel's landing (Intake)", `(() => {
+      const activeGroup = document.querySelector('.segbtn.active[data-proggroup="fuel"]');
+      return {
+        ok: Boolean(activeGroup && window.state?.progressSeg === "intake" && location.pathname === "/app/train/intake"),
+        href: location.pathname,
+        progressSeg: window.state && window.state.progressSeg
+      };
+    })()`);
     await evaluate(cdp, `(() => {
       const btn = document.querySelector('.segbtn[data-proggroup="program"]');
       if (!btn) throw new Error("missing Train Program group");
@@ -708,7 +724,7 @@ async function smokeProgressSegmentNavigation(cdp, base) {
       return true;
     })()`);
     await waitForCondition(cdp, "Train's Program group opens the Program read", `(() => {
-      const active = document.querySelector('.segbtn.active[data-seg="program"]');
+      const active = document.querySelector('.segbtn.active[data-proggroup="program"]');
       const view = document.querySelector("#view");
       return {
         ok: Boolean(
@@ -720,8 +736,7 @@ async function smokeProgressSegmentNavigation(cdp, base) {
           view.textContent.trim().length > 0
         ),
         href: location.pathname,
-        progressSeg: window.state && window.state.progressSeg,
-        active: active ? active.textContent.trim() : ""
+        progressSeg: window.state && window.state.progressSeg
       };
     })()`);
 
@@ -731,33 +746,28 @@ async function smokeProgressSegmentNavigation(cdp, base) {
       btn.click();
       return true;
     })()`);
-    await waitForCondition(cdp, "Train's Fuel group opens Intake", `(() => {
+    await waitForCondition(cdp, "Train's Fuel group opens Intake, with Energy one row deeper", `(() => {
       const activeGroup = document.querySelector('.segbtn.active[data-proggroup="fuel"]');
-      const activeLeaf = document.querySelector('.segbtn.active[data-seg="intake"]');
+      const row = document.querySelector('.train-deeper-row[data-train-leaf="energy"]');
       return {
-        ok: Boolean(activeGroup && activeLeaf && window.state?.progressSeg === "intake" && location.pathname === "/app/train/intake"),
+        ok: Boolean(activeGroup && row && window.state?.progressSeg === "intake" && location.pathname === "/app/train/intake"),
         href: location.pathname,
         progressSeg: window.state && window.state.progressSeg,
-        activeGroup: activeGroup ? activeGroup.textContent.trim() : "",
-        activeLeaf: activeLeaf ? activeLeaf.textContent.trim() : ""
+        hasRow: Boolean(row)
       };
     })()`);
     await evaluate(cdp, `(() => {
-      const btn = document.querySelector('.segbtn[data-seg="energy"]');
-      if (!btn) throw new Error("missing Train Energy leaf");
-      btn.click();
+      const row = document.querySelector('.train-deeper-row[data-train-leaf="energy"]');
+      if (!row) throw new Error("missing Fuel's Energy row");
+      row.click();
       return true;
     })()`);
-    await waitForCondition(cdp, "Train's Energy leaf opens Energy", `(() => {
-      const active = document.querySelector('.segbtn.active[data-seg="energy"]');
-      return {
-        ok: Boolean(active && window.state?.progressSeg === "energy" && location.pathname === "/app/train/energy" && document.querySelector("#energyCard")),
-        href: location.pathname,
-        progressSeg: window.state && window.state.progressSeg,
-        active: active ? active.textContent.trim() : "",
-        hasEnergyCard: Boolean(document.querySelector("#energyCard"))
-      };
-    })()`);
+    await waitForCondition(cdp, "Fuel's Energy row opens Energy", `(() => ({
+      ok: Boolean(window.state?.progressSeg === "energy" && location.pathname === "/app/train/energy" && document.querySelector("#energyCard")),
+      href: location.pathname,
+      progressSeg: window.state && window.state.progressSeg,
+      hasEnergyCard: Boolean(document.querySelector("#energyCard"))
+    }))()`);
     ok(failures.length === 0, "/app/train segment workflow has no browser runtime/load errors", failures.join("\n"));
   } finally {
     off();
@@ -806,10 +816,13 @@ async function smokePlanSegmentNavigation(cdp, base) {
     }))()`);
 
     await navigateAndHydrate(cdp, base, "/app/train/program", "progress");
+    await waitForCondition(cdp, "the Program read lists the plan one row deeper", `(() => ({
+      ok: Boolean(document.querySelector('.train-deeper-row[data-train-leaf="plan"]'))
+    }))()`);
     await evaluate(cdp, `(() => {
-      const btn = document.querySelector('.segbtn[data-seg="plan"]');
-      if (!btn) throw new Error("missing Train Program → Plan leaf");
-      btn.click();
+      const row = document.querySelector('.train-deeper-row[data-train-leaf="plan"]');
+      if (!row) throw new Error("missing Train Program → The plan row");
+      row.click();
       return true;
     })()`);
     await waitForCondition(cdp, "Program → Plan opens the editor under Train", `(() => ({
@@ -818,18 +831,18 @@ async function smokePlanSegmentNavigation(cdp, base) {
         window.state?.planSeg === "edit" &&
         location.pathname === "/app/train/plan" &&
         document.querySelector("#planedit") &&
-        document.querySelector('.segbtn.active[data-seg="plan"]') &&
+        document.querySelector('.train-crumb[data-train-leaf="program"]') &&
         ${lit} === "train"
       ),
       href: location.pathname, planSeg: window.state && window.state.planSeg, lit: ${lit}
     }))()`);
     await evaluate(cdp, `(() => {
-      const btn = document.querySelector('.segbtn[data-seg="program"]');
-      if (!btn) throw new Error("missing the editor's Program leaf");
+      const btn = document.querySelector('.train-crumb[data-train-leaf="program"]');
+      if (!btn) throw new Error("missing the editor's step back to Program");
       btn.click();
       return true;
     })()`);
-    await waitForCondition(cdp, "the editor's Train nav returns to the Program read", `(() => ({
+    await waitForCondition(cdp, "the editor's step back returns to the Program read", `(() => ({
       ok: Boolean(window.state?.tab === "progress" && window.state?.progressSeg === "program" && location.pathname === "/app/train/program"),
       href: location.pathname, tab: window.state && window.state.tab
     }))()`);

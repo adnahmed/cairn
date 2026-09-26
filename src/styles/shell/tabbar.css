@@ -97,7 +97,6 @@ body.resting .savebar{bottom:calc(114px + max(env(safe-area-inset-bottom),6px) +
   .daybtn.active:hover{color:var(--on-ink)}
   .segbtn:hover{color:var(--ink)}
   .segbtn.active:hover{color:var(--on-ink)}
-  .prog-subseg .segbtn.active:hover{color:var(--ink)}
   .rest-btn:hover{border-color:var(--ink);color:var(--ink)}
   .savebar-discard:hover{color:var(--on-accent)}
   .savebar-save:not(:disabled):hover{background:var(--accent-deep)}

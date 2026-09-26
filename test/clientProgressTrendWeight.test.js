@@ -68,8 +68,10 @@ test("progress bodyweight helper renders chart input without owning the route", 
     { goal_weight_lb: 190 },
   );
 
-  assert.match(view.innerHTML, /Bodyweight/);
-  assert.match(view.innerHTML, /-4.3/);
+  // One voice line and one fact, never a stat wall.
+  assert.match(view.innerHTML, /class="phero-line">198\.1 lb, 8\.1 to go\.</);
+  assert.match(view.innerHTML, /class="phero-fact lbl">−4\.3 lb since /);
+  assert.doesNotMatch(view.innerHTML, /phero-stats/);
   assert.match(view.innerHTML, /goal 190 lb/);
   assert.ok(calls.some((call) => call[0] === "wireSeg"));
   assert.ok(calls.some((call) => call[0] === "runCountUps" && call[1] === view));
@@ -84,7 +86,7 @@ test("progress bodyweight helper renders chart input without owning the route", 
 
   // The goal-pace read (mounted by progress-screen.ts's mountGoalPaceChart) is
   // unified to LEAD, ahead of the numeral hero — this anchor is where it lands.
-  assert.ok(view.innerHTML.indexOf('id="weightLeadMount"') < view.innerHTML.indexOf("Bodyweight"));
+  assert.ok(view.innerHTML.indexOf('id="weightLeadMount"') < view.innerHTML.indexOf("phero-voice"));
 });
 
 test("progress trend helper escapes API text and draws the peak chart", async () => {
@@ -111,7 +113,9 @@ test("progress trend helper escapes API text and draws the peak chart", async ()
   await trendWeight.drawProgress("Bench <Press>");
 
   assert.deepEqual(apiPaths, ["/progress/Bench%20%3CPress%3E"]);
-  assert.match(hero.innerHTML, /Estimated 1RM/);
+  assert.match(hero.innerHTML, /Bench &lt;Press&gt;/);
+  assert.match(hero.innerHTML, /lb&lt;script&gt;/);
+  assert.doesNotMatch(hero.innerHTML, /<Press>|lb<script>/);
   assert.match(stats.innerHTML, /lb&lt;script&gt;/);
   assert.doesNotMatch(stats.innerHTML, /lb<script>/);
 
@@ -124,7 +128,7 @@ test("progress trend helper escapes API text and draws the peak chart", async ()
   assert.equal(JSON.stringify(chartCall?.[3]), JSON.stringify({ peak: true }));
 });
 
-test("progress trend helper writes a lead sentence into #trendLead ahead of the hero", async () => {
+test("progress trend helper speaks the read as the hero's voice line, with one fact", async () => {
   const { elements, trendWeight } = loadTrendWeight({
     api: async () => ({
       unit: "lb",
@@ -135,30 +139,30 @@ test("progress trend helper writes a lead sentence into #trendLead ahead of the 
     }),
   });
   const canvas = { isConnected: true, style: {} };
-  const lead = { innerHTML: "" };
+  const hero = { innerHTML: "" };
   elements.set("#chart", canvas);
   elements.set("#pstats", { innerHTML: "" });
-  elements.set("#trendHero", { innerHTML: "" });
-  elements.set("#trendLead", lead);
+  elements.set("#trendHero", hero);
 
   await trendWeight.drawProgress("Bench Press");
 
-  assert.match(lead.innerHTML, /Bench Press/);
-  assert.doesNotMatch(lead.innerHTML, /behind|low/i);
+  assert.match(hero.innerHTML, /class="phero-line">[^<]*Bench Press/);
+  assert.match(hero.innerHTML, /class="phero-fact lbl">est\. 1RM 216 lb · \+15\.5 since the first</);
+  assert.doesNotMatch(hero.innerHTML, /phero-stats|behind|low/i);
 });
 
-test("progress trend helper clears the lead line when there's no data for the exercise", async () => {
+test("progress trend helper shows the plain title when there's no data for the exercise", async () => {
   const { elements, trendWeight } = loadTrendWeight({ api: async () => ({ points: [] }) });
   const canvas = { isConnected: true, style: {} };
-  const lead = { innerHTML: "should be cleared" };
+  const hero = { innerHTML: "should be replaced" };
   elements.set("#chart", canvas);
   elements.set("#pstats", { innerHTML: "" });
-  elements.set("#trendHero", { innerHTML: "" });
-  elements.set("#trendLead", lead);
+  elements.set("#trendHero", hero);
 
   await trendWeight.drawProgress("New Exercise");
 
-  assert.equal(lead.innerHTML, "");
+  assert.match(hero.innerHTML, /Estimated 1RM/);
+  assert.doesNotMatch(hero.innerHTML, /phero-line/);
 });
 
 test("oneRmReadLine: thin data reads as early, never a fabricated trend", () => {

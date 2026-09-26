@@ -422,7 +422,7 @@ main{max-width:680px;margin:0 auto;padding:0 var(--gutter);position:relative}
 ::view-transition-old(tabbar){display:none}
 ::view-transition-new(tabbar){animation:none}
 ::view-transition-group(detail-art){animation-duration:var(--dur-3);animation-timing-function:var(--ease)}
-::view-transition-group(seg-thumb),::view-transition-group(prog-subseg-thumb){animation-duration:var(--dur-2);animation-timing-function:var(--ease)}
+::view-transition-group(seg-thumb){animation-duration:var(--dur-2);animation-timing-function:var(--ease)}
 /* the Brief hero morphs (not crossfades) when an override chip reshapes the read */
 ::view-transition-group(brief-hero){animation-duration:var(--dur-3);animation-timing-function:var(--ease)}
 ::view-transition-old(brief-hero),::view-transition-new(brief-hero){
@@ -1377,6 +1377,13 @@ body.resting{padding-bottom:calc(152px + max(env(safe-area-inset-bottom),6px) + 
 .seg.seg-scroll .segbtn{flex:0 0 auto;padding-left:13px;padding-right:13px;scroll-snap-align:center}
 .seg.seg-scroll .seg-thumb{display:none}
 .seg.seg-scroll.seg-sliding .segbtn.active{background:var(--ink);color:var(--on-ink)}
+/* A rail that scrolls never looks clipped: the edge with more behind it fades out
+   (fitSeg toggles .seg-fade-l / .seg-fade-r from the scroll position). */
+.seg.seg-scroll{--seg-fl:0px;--seg-fr:0px;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,black var(--seg-fl),black calc(100% - var(--seg-fr)),transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,black var(--seg-fl),black calc(100% - var(--seg-fr)),transparent 100%)}
+.seg.seg-scroll.seg-fade-l{--seg-fl:28px}
+.seg.seg-scroll.seg-fade-r{--seg-fr:28px}
 
 /* sliding ink thumb (segBar() emits .seg-sliding + the thumb; hand-built segs keep
    the classic background-swap active state) */
@@ -1388,10 +1395,6 @@ body.resting{padding-bottom:calc(152px + max(env(safe-area-inset-bottom),6px) + 
   transition:transform var(--dur-2) var(--ease);
   view-transition-name:seg-thumb;
 }
-/* Progress renders a group bar and a leaf bar together. Its leaf thumb needs a
-   distinct shared-element name so one transition never snapshots two seg-thumb
-   elements. */
-.prog-subseg .seg-thumb{view-transition-name:prog-subseg-thumb}
 .seg-sliding .segbtn.active{background:transparent;color:var(--on-ink)}
 
 /* Sticky sub-nav band: keeps the segmented switcher pinned to the top while a
@@ -1405,30 +1408,6 @@ body.resting{padding-bottom:calc(152px + max(env(safe-area-inset-bottom),6px) + 
   backdrop-filter:blur(14px) saturate(1.1);-webkit-backdrop-filter:blur(14px) saturate(1.1);
 }
 .segwrap .seg{margin:0}
-
-/* Progress two-level nav: a top group bar (Train/Performance/Fuel/Body) over an
-   optional leaf sub-bar. When both are present the group bar scrolls with the
-   content and the leaf sub-bar is the pinned one (same model as the Me → Health
-   sub-nav), so the view switcher stays one tap away. A single-view group has no
-   sub-bar, so its group bar stays sticky. Gated on :has() like the Health nav. */
-.prog-subwrap{margin-top:-6px;z-index:var(--z-pinned-under)}
-.segwrap:has(+ .prog-subwrap){position:static}
-.segwrap:has(+ .prog-subwrap) + .prog-subwrap{top:env(safe-area-inset-top,0px)}
-/* The leaf bar reads as a SUB-level of the group bar: quiet text tabs on the page
-   (no second pill container), smaller caps, and the same sliding thumb re-shaped
-   into a 2px ink underline riding a hairline rule. Scroll mode (fitSeg) hides the
-   thumb, so the active leaf carries its own inset underline there instead. */
-.prog-subseg{background:transparent;border:none;border-radius:0;padding:0;gap:2px;
-  box-shadow:inset 0 -1px 0 var(--line)}
-.prog-subseg .segbtn{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
-  text-transform:uppercase;font-weight:400;color:var(--muted);padding:8px 4px 9px;border-radius:0}
-.prog-subseg .segbtn.active,.seg.seg-scroll.prog-subseg .segbtn.active{background:transparent;color:var(--ink)}
-.seg.seg-scroll.prog-subseg .segbtn.active{box-shadow:inset 0 -2px 0 var(--ink)}
-.prog-subseg .seg-thumb{top:auto;bottom:0;left:0;height:2px;border-radius:2px;
-  width:calc((100% - (var(--segn,2) - 1)*2px)/var(--segn,2));
-  transform:translateX(calc(var(--segi,0)*(100% + 2px)))}
-.prog-subseg .segbtn:focus-visible{border-radius:4px;outline-offset:-2px}
-
 /* -------------------------------------------------------------------
    11 · Program gallery (Plan tab)
    ------------------------------------------------------------------- */
@@ -2844,7 +2823,6 @@ body.resting .savebar{bottom:calc(114px + max(env(safe-area-inset-bottom),6px) +
   .daybtn.active:hover{color:var(--on-ink)}
   .segbtn:hover{color:var(--ink)}
   .segbtn.active:hover{color:var(--on-ink)}
-  .prog-subseg .segbtn.active:hover{color:var(--ink)}
   .rest-btn:hover{border-color:var(--ink);color:var(--ink)}
   .savebar-discard:hover{color:var(--on-accent)}
   .savebar-save:not(:disabled):hover{background:var(--accent-deep)}
@@ -3360,6 +3338,31 @@ body.sheet-open{overflow:hidden}
 .phero-stat{display:flex;flex-direction:column;gap:5px;min-width:0}
 .phero-n{font-size:1.45rem;font-weight:400;letter-spacing:-.005em}
 .phero-n-sm{font-size:1.25rem;line-height:1.45;text-transform:capitalize}
+/* A unit rides inside its value ("2,417 kcal"), so the mono label stays one word. */
+.phero-u{font-family:var(--font-ui);font-size:.72rem;font-weight:500;letter-spacing:0;text-transform:none;
+  color:var(--muted);margin-left:4px;white-space:nowrap}
+/* The voice header: ONE serif line and at most one mono fact — never a stat wall. */
+.phero-voice{padding:6px 2px 18px}
+.phero-line{font-family:var(--font-display);font-weight:400;font-size:1.62rem;line-height:1.14;
+  letter-spacing:-.005em;color:var(--ink);margin:0;text-wrap:balance;max-width:24ch}
+.phero-fact{display:block;margin-top:10px;color:var(--muted)}
+
+/* ---- Train's one-level nav ----
+   A deeper leaf wears one quiet step back to its landing (the .home-back look);
+   a landing lists its deeper leaves as hairline rows: name, one muted line, chevron. */
+.train-crumb{display:inline-block;margin:0 0 10px}
+.train-deeper{margin:24px 0 8px}
+.train-deeper-kick{display:block;margin:0 0 2px}
+.train-deeper-row{width:100%;display:flex;align-items:center;gap:12px;text-align:left;color:inherit;font:inherit;
+  background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:12px 2px;margin:0;box-shadow:none;
+  cursor:pointer;transition:transform var(--dur-1) var(--ease)}
+.train-deeper-kick+.train-deeper-row{border-top:0}
+.train-deeper-row:active{transform:var(--press-lg)}
+.train-deeper-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.train-deeper-name{font-size:var(--text-body);font-weight:500;color:var(--ink);line-height:1.3}
+.train-deeper-meta{font-size:var(--text-xs);color:var(--muted);line-height:1.4}
+.train-deeper-arw{flex:none;color:var(--muted)}
+@media (hover:hover){.train-deeper-row:hover .train-deeper-name{color:var(--ink-2)}}
 .chart-foot{display:block;margin:10px 4px 0;text-align:center;line-height:1.5}
 .chart-foot.lbl{font-family:var(--font-ui);font-size:var(--text-xs);text-transform:none;letter-spacing:0}
 
@@ -3375,6 +3378,13 @@ body.sheet-open{overflow:hidden}
 .hist-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .hist-day{font-family:var(--font-display);font-weight:400;font-size:1.3rem;line-height:1.12;margin-top:3px;color:var(--ink)}
 .hist-chips{display:flex;gap:4px 10px;flex-wrap:wrap;justify-content:flex-end;padding-top:2px;max-width:55%}
+/* At phone width the card's facts drop under the weekday as one muted meta line,
+   so neither the kicker nor the facts ever wrap into a column. */
+@media (max-width:520px){
+  .hist-head{flex-direction:column;gap:4px}
+  .hist-chips{justify-content:flex-start;max-width:none;padding-top:0}
+  .hist-chip+.hist-chip::before{content:"·";margin-right:10px;color:var(--line-strong)}
+}
 .hist-chip{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);text-transform:uppercase;
   white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
 .hist-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:baseline;
@@ -7107,18 +7117,13 @@ body[data-tab="session"] .tabbar{display:none}
 @media (hover:hover){.sess-launch:hover .sess-launch-arrow{transform:translateX(3px)}}
 
 /* ---------- Train overview (the training home) ---------- */
-/* Masthead: editorial serif week-read over an honest stat strip. */
-.tov-mast{padding:2px 0 6px}
+/* The week's load: a mono eyebrow, one serif voice line and one mono fact. */
+.tov-mast{padding:10px 0 4px}
 .tov-mast-h{
-  font-family:var(--font-display);font-size:1.62rem;line-height:1.12;font-weight:400;color:var(--ink);
-  margin:6px 0 14px;letter-spacing:-.005em;text-wrap:balance;
+  font-family:var(--font-display);font-size:1.42rem;line-height:1.16;font-weight:400;color:var(--ink);
+  margin:6px 0 0;letter-spacing:-.005em;text-wrap:balance;
 }
-/* The week in three numbers: one hairline-ruled row, serif numerals over mono labels. */
-.tov-mast .statstrip{gap:0;margin:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.tov-mast .stat{background:none;border:0;border-radius:0;padding:10px 0 9px;text-align:left}
-.tov-mast .stat+.stat{border-left:1px solid var(--line);padding-left:14px}
-.tov-mast .stat-n{font-weight:400;font-size:1.36rem}
-.tov-mast .stat-l{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono)}
+.tov-mast-fact{display:block;margin:9px 0 12px;color:var(--muted)}
 /* Training-load band: ONE aligned row under the masthead — label · compact meter ·
    one plain word (usual / lighter / heavier), never a number. Composes §04d
    .read-band; the word takes terracotta only when the band is .hot. */
@@ -7198,6 +7203,16 @@ body[data-tab="session"] .tabbar{display:none}
 .tov-focus-move{font-size:.82rem;color:var(--ink-2);font-style:italic;margin-top:6px}
 .tov-focus-retest{font-size:.74rem;color:var(--muted);margin-top:6px}
 .tov-focus .linkbtn{margin-top:8px}
+/* The lever's why, move and re-test fold under one quiet tap. */
+.tov-focus-fold{margin-top:6px}
+.tov-focus-fold-sum{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:32px;
+  font-size:var(--text-xs);color:var(--muted)}
+.tov-focus-fold-sum::-webkit-details-marker{display:none}
+.tov-focus-fold-sum::after{content:"›";transition:transform var(--dur-1) var(--ease)}
+.tov-focus-fold[open] .tov-focus-fold-sum::after{transform:rotate(90deg)}
+.tov-focus-fold-body{padding:2px 0 4px}
+.tov-focus-fold[open] .tov-focus-fold-body{animation:in var(--dur-2) var(--ease) both}
+@media (prefers-reduced-motion: reduce){.tov-focus-fold[open] .tov-focus-fold-body{animation:none}}
 .jprog-card{margin:14px 0;padding:16px 18px 15px}
 .jprog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .jprog-title{
@@ -7304,8 +7319,14 @@ body[data-tab="session"] .tabbar{display:none}
 .prog-head-actions .ghostbtn{margin-top:0}
 /* Train overview: the calm "Start today's training" CTA under the week masthead. */
 .tov-start{margin:4px 0 12px}
-.tov-today{display:flex;flex-direction:column;align-items:stretch;gap:12px;margin:18px 0 14px;
-  padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:none}
+/* Today's lift leads Train: the one focal point — the day's lift in the serif
+   voice, its caveat quiet under it, and the one door into it. */
+.tov-today{display:flex;flex-direction:column;align-items:stretch;gap:14px;margin:4px 0 16px;
+  padding:16px 18px 18px;background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:none}
+.tov-today .strength-line{gap:6px}
+.tov-today .strength-line-t{font-family:var(--font-display);font-weight:400;font-size:1.62rem;line-height:1.14;
+  letter-spacing:-.005em;text-wrap:balance}
+.tov-today .strength-line-caveat{font-size:var(--text-sm);color:var(--ink-2);line-height:1.45}
 .tov-today .tov-start{margin:0}
 
 /* -------------------------------------------------------------------
