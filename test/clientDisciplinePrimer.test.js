@@ -25,6 +25,7 @@ function loadPrimer(options = {}) {
       return options.warmProfile ? { data: options.warmProfile, fresh: true } : null;
     },
     renderTab: (tab) => calls.push(["renderTab", tab]),
+    swrSet: (key) => calls.push(["swrSet", key]),
     setDiscipline: (discipline) => {
       currentDiscipline = discipline || "strength";
       calls.push(["setDiscipline", currentDiscipline]);
@@ -39,6 +40,7 @@ function loadPrimer(options = {}) {
     state: {
       tab: options.tab || "today",
       progressSeg: options.progressSeg,
+      planSeg: options.planSeg,
     },
     window: {},
   };
@@ -75,6 +77,7 @@ test("discipline primer re-renders Progress when cold profile changes default se
   assert.deepEqual(env.calls, [
     ["peekCached", "profile"],
     ["api", "/profile"],
+    ["swrSet", "profile"],
     ["setDiscipline", "endurance"],
     ["setEnduranceGoalSet", false],
     ["renderTab", "progress"],
@@ -93,6 +96,7 @@ test("discipline primer re-renders Plan when endurance tab appears after profile
   assert.deepEqual(env.calls, [
     ["peekCached", "profile"],
     ["api", "/profile"],
+    ["swrSet", "profile"],
     ["setDiscipline", "strength"],
     ["setEnduranceGoalSet", true],
     ["renderTab", "plan"],
@@ -108,5 +112,24 @@ test("discipline primer swallows profile lookup failures", async () => {
   assert.deepEqual(env.calls, [
     ["peekCached", "profile"],
     ["api", "/profile"],
+  ]);
+});
+
+test("discipline primer never repaints the race view, which carries no sub-nav", async () => {
+  const env = loadPrimer({
+    profile: { primary_discipline: "strength", endurance_goal_json: "{}" },
+    tab: "plan",
+    planSeg: "endurance",
+  });
+
+  env.context.primeDiscipline();
+  await flush();
+
+  assert.deepEqual(env.calls, [
+    ["peekCached", "profile"],
+    ["api", "/profile"],
+    ["swrSet", "profile"],
+    ["setDiscipline", "strength"],
+    ["setEnduranceGoalSet", true],
   ]);
 });

@@ -10,6 +10,9 @@
 
     api("/profile").then((profile) => {
       if (!profile) return;
+      // Held for the next open, which then primes from it synchronously instead of
+      // repainting the screen it already drew once this answer lands.
+      swrSet("profile", profile);
       const before = defaultProgressSeg();
       const beforeEnduranceVisible = showEnduranceTab();
       setDiscipline(profile.primary_discipline);
