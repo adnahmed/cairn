@@ -811,6 +811,13 @@ A module stays under **400 lines**, and **600 is the hard ceiling**; 30 files ar
 sub-renderers. A screen file does composition only and stays under 400. The existing oversize files
 are allowed to shrink but never to grow, and each is split when a wave touches it.
 
+Each served bundle also has a **byte budget**, raw and brotli, in `scripts/bundle-budget.json`,
+set 2% (rounded up to a whole KiB) above its size when last measured. `npm run verify` fails when a
+built bundle grows past either number and prints how far over it is and how much it grew since the
+budget was set. Before raising one, try moving the heavy surface into a lazy bundle. If the growth
+is deliberate, run `npm run build`, then `node scripts/check-bundle-budget.mjs --update`, and commit
+the new JSON: a budget diff is a review signal. `--report` lists each bundle's largest inputs.
+
 ### Tokens
 
 - Every color, shadow, radius, font, duration, easing and press depth is defined in `styles.css`

@@ -30,6 +30,7 @@ const buildJobs = [
 const postBuildJobs = [
   { name: "public scripts", steps: [["npm", "run", "public:check"]] },
   { name: "service worker cache", steps: [["node", "scripts/check-sw-cache.mjs"]] },
+  { name: "bundle byte budget", steps: [["node", "scripts/check-bundle-budget.mjs"]] },
   { name: "tests", steps: [["npm", "run", "test:built"]] },
 ];
 
