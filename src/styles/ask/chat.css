@@ -194,19 +194,6 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .agentcheck span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .agentcheck-dot{width:7px;height:7px;border-radius:var(--radius-pill);background:var(--rust);flex:0 0 auto}
 
-.draftbtn{
-  display:block;margin-top:9px;width:100%;background:transparent;
-  border:1px solid var(--accent);color:var(--accent);border-radius:var(--radius-pill);padding:9px 13px;
-  font-family:var(--font-ui);font-weight:600;font-size:.76rem;letter-spacing:.08em;
-  text-transform:uppercase;transition:background .15s,color .15s;
-}
-.draftbtn:hover{background:var(--accent);color:var(--on-accent)}
-/* an applied draft — calm, done, non-interactive (no hover, no pointer) */
-.draftbtn.applied{
-  border-color:var(--sage);background:var(--sage-bg);color:var(--sage);
-  cursor:default;text-transform:none;letter-spacing:.02em;
-}
-.draftbtn.applied:hover{background:var(--sage-bg);color:var(--sage)}
 .bubble.user .draftbtn.applied{
   border-color:rgba(255,253,248,.22);background:rgba(255,253,248,.14);color:#d8c9b2;
 }

@@ -1,9 +1,9 @@
 /* -------------------------------------------------------------------
    04 · Motion
    ------------------------------------------------------------------- */
-@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes rise{from{opacity:0;transform:translateY(var(--rise))}to{opacity:1;transform:translateY(0)}}
 .reveal{
-  animation:rise .5s var(--ease) both;
+  animation:rise var(--dur-in) var(--ease) both;
   animation-delay:calc(min(var(--i,0),12) * 45ms);
 }
 /* A soft (background stale-while-revalidate) Today repaint mounts the same cards
@@ -23,6 +23,19 @@
 /* hairline bars grow to their inline width on first paint */
 @keyframes bargrow{from{width:0}}
 .barfill{animation:bargrow var(--dur-3) var(--ease) both;animation-delay:120ms}
+
+/* the v2 content entrance: `in` — a .35s fade with an 8px rise. Use .anim-in on a
+   block that arrives with its screen; .reveal is the staggered sibling for lists. */
+@keyframes in{from{opacity:0;transform:translateY(var(--rise))}to{opacity:1;transform:none}}
+.anim-in{animation:in var(--dur-in) var(--ease) both}
+
+/* the live ping — a dawn dot breathing outward (.ping, §05b) */
+@keyframes ping{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--dawn) 60%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
+
+/* a stone's slow drift (.stone-drift, §04e); reduced motion stills it */
+@keyframes stone-drift{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.6px)}}
+/* a ghost stone breathing while its read loads */
+@keyframes stone-breathe{0%,100%{opacity:.55}50%{opacity:.85}}
 
 /* slow idle float for detail-view art */
 @keyframes drift{from{transform:translateY(0)}to{transform:translateY(-6px)}}

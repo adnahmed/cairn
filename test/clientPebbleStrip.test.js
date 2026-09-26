@@ -10,6 +10,8 @@ import { FakeEvent, createHost, fire, flush, loadClientModule, renderHtml } from
 const MODULES = [
   "html-utils",
   "ui-actions-client",
+  "ui-stone-model",
+  "ui-stone",
   "pebble-strip-model",
   "pebble-strip-client",
   "pebble-strip-controller",

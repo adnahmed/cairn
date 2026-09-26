@@ -170,7 +170,7 @@ test("every home's moved-here line is calm prose on that home's landing view", (
 function loadYou() {
   const tabs = [];
   const state = { standSeg: "markers", standDomain: "lipids", meSeg: "profile", setSeg: "sources" };
-  const modules = ["html-utils", "ui-actions-client", "cairn-stack-model", "cairn-stack-client", "cairn-stack-controller"];
+  const modules = ["html-utils", "ui-actions-client", "ui-stone-model", "ui-stone", "cairn-stack-model", "cairn-stack-client", "cairn-stack-controller"];
   modules.push("stone-detail-model", "stone-detail-client", "stone-detail-controller", "you-screen");
   const win = loadClientModule(modules, {
     globals: {

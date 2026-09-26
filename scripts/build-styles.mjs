@@ -33,6 +33,7 @@ export const STYLE_PARTIALS = [
   "foundation/primitives",
   "foundation/stones",
   "foundation/cards",
+  "foundation/components",
   "today/header",
   "session/exercise",
   "foundation/segments",

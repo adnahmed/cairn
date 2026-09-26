@@ -122,17 +122,6 @@
 .timerbtn[data-stopwatch-state="running"]{border-color:var(--accent);color:var(--accent-deep);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .timerbtn:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
 
-/* primary action button — solid terracotta, cream glyph */
-.logbtn{
-  flex:0 0 auto;background:var(--accent);color:var(--on-accent);border:none;border-radius:var(--radius-pill);
-  width:44px;height:42px;font-size:1.35rem;font-weight:700;line-height:1;
-  box-shadow:0 1px 2px rgba(147,66,31,.3),0 4px 12px rgba(147,66,31,.22);
-  transition:background .15s,box-shadow var(--dur-1),transform .12s;
-}
-.logbtn:hover{background:var(--accent-deep)}
-.logbtn:active{transform:var(--press)}
-.logbtn:disabled{opacity:.5;cursor:default}
-
 /* add off-plan exercise */
 .addex{margin:4px 0 13px}
 .addex-btn{width:100%;text-align:center}
@@ -252,7 +241,7 @@
   position:fixed;left:0;right:0;bottom:calc(46px + env(safe-area-inset-bottom) + var(--vvb,0px));z-index:var(--z-rest);
   /* Paper-toned (not card-white) so the unfilled track blends with the page —
      a card-white bg read as a jarring white block to the right of the fill. */
-  background:rgba(244,239,231,.95);border-top:1px solid var(--line-2);
+  background:color-mix(in srgb,var(--ground) 95%,transparent);border-top:1px solid var(--line-2);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   box-shadow:0 -6px 24px rgba(72,58,35,.1);
   transform:translateY(calc(100% + 46px + env(safe-area-inset-bottom,0px) + var(--vvb,0px)));

@@ -17,7 +17,7 @@ body[data-tab="today"] header{
 }
 body[data-tab="today"] header::after{
   content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
-  background:rgba(252,250,244,.86);
+  background:color-mix(in srgb,var(--ground) 86%,transparent);
   backdrop-filter:blur(14px) saturate(1.1);-webkit-backdrop-filter:blur(14px) saturate(1.1);
   border-bottom:1px solid var(--line);
   opacity:0;transition:opacity var(--dur-2) var(--ease);

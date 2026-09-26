@@ -7,21 +7,21 @@
    ------------------------------------------------------------------- */
 .loadstate{display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:13px;padding:42px 16px;text-align:center;animation:settlein var(--dur-3) var(--ease) both}
-.loadstate-label{font-family:var(--font-display);font-style:italic;
-  font-variation-settings:"opsz" 28;font-size:1.05rem;color:var(--ink-2);line-height:1.3}
+.loadstate-label{font-family:var(--font-display);font-size:1.05rem;color:var(--ink-2);line-height:1.3}
 
 /* -------------------------------------------------------------------
    05 · Cards & illustration tiles
    ------------------------------------------------------------------- */
+/* v2: a card is surface + one hairline, no drop shadow — used sparingly */
 .ex,.sess,.pday,.mp-card,.prog-day,.memrow,.qlent,
 .hupload,.lifeadd,.stat{
-  background:var(--card);border:none;box-shadow:var(--shadow-sm);
-  transition:box-shadow .25s ease,transform .25s ease;
+  background:var(--surface);border:1px solid var(--line);box-shadow:none;
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease);
 }
 @media (hover:hover){
   .ex:hover,.sess:hover,.pday:hover,.mp-card:hover,.prog-day:hover,
   .memrow:hover,.qlent:hover{
-    box-shadow:var(--shadow-md);transform:translateY(-2px);
+    border-color:var(--line-strong);
   }
 }
 

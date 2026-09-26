@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------
    10 · Segmented sub-nav
    ------------------------------------------------------------------- */
-.seg{display:flex;gap:4px;background:var(--card-2);border:1px solid var(--line);
+.seg{display:flex;gap:2px;background:var(--surface);border:1px solid var(--line);
   border-radius:var(--radius-pill);padding:3px;margin:2px 0 16px;position:relative;
   overflow-x:auto;overflow-y:hidden;scroll-behavior:smooth;
   scrollbar-width:none;-ms-overflow-style:none}
@@ -9,12 +9,12 @@
 /* Standalone pill groups wrap naturally and never inherit segmented-nav clipping. */
 .pill-group{display:flex;flex-wrap:wrap;gap:6px;background:transparent;border:none;padding:0;overflow:visible}
 .segbtn{
-  flex:1;background:transparent;border:none;color:var(--muted);
-  font-family:var(--font-ui);font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  font-size:.68rem;padding:9px 4px;border-radius:var(--radius-pill);white-space:nowrap;
-  transition:background .15s,color .15s;position:relative;z-index:1;
+  flex:1;background:transparent;border:none;color:var(--ink2);
+  font-family:var(--font-ui);font-weight:500;letter-spacing:0;text-transform:none;
+  font-size:var(--text-sm);padding:7px 4px;border-radius:var(--radius-pill);white-space:nowrap;
+  transition:background var(--dur-1) var(--ease),color var(--dur-1) var(--ease);position:relative;z-index:1;
 }
-.segbtn.active{background:var(--ink);color:var(--paper)}
+.segbtn.active{background:var(--ink);color:var(--on-ink)}
 /* Keyboard focus ring follows the pill shape (the global :focus-visible default is
    a 6px-radius rectangle, which looks broken hugging a 999px pill). */
 .segbtn:focus-visible{border-radius:var(--radius-pill);outline-offset:1px}
@@ -24,7 +24,7 @@
 .seg.seg-scroll{scroll-snap-type:x proximity}
 .seg.seg-scroll .segbtn{flex:0 0 auto;padding-left:13px;padding-right:13px;scroll-snap-align:center}
 .seg.seg-scroll .seg-thumb{display:none}
-.seg.seg-scroll.seg-sliding .segbtn.active{background:var(--ink);color:var(--paper)}
+.seg.seg-scroll.seg-sliding .segbtn.active{background:var(--ink);color:var(--on-ink)}
 
 /* sliding ink thumb (segBar() emits .seg-sliding + the thumb; hand-built segs keep
    the classic background-swap active state) */
@@ -40,7 +40,7 @@
    distinct shared-element name so one transition never snapshots two seg-thumb
    elements. */
 .prog-subseg .seg-thumb{view-transition-name:prog-subseg-thumb}
-.seg-sliding .segbtn.active{background:transparent}
+.seg-sliding .segbtn.active{background:transparent;color:var(--on-ink)}
 
 /* Sticky sub-nav band: keeps the segmented switcher pinned to the top while a
    long sub-view scrolls, so another section is always one tap away. Full-bleed
@@ -48,8 +48,8 @@
    Sits below the tab bar / save bar / overlays in the z-stack (z:30 < 40+). */
 .segwrap{
   position:sticky;top:env(safe-area-inset-top,0px);z-index:var(--z-pinned);
-  margin:0 -18px 16px;padding:6px 18px;
-  background:rgba(252,250,244,.85);
+  margin:0 calc(-1 * var(--gutter)) 16px;padding:6px var(--gutter);
+  background:color-mix(in srgb,var(--ground) 88%,transparent);
   backdrop-filter:blur(14px) saturate(1.1);-webkit-backdrop-filter:blur(14px) saturate(1.1);
 }
 .segwrap .seg{margin:0}
@@ -68,7 +68,8 @@
    thumb, so the active leaf carries its own inset underline there instead. */
 .prog-subseg{background:transparent;border:none;border-radius:0;padding:0;gap:2px;
   box-shadow:inset 0 -1px 0 var(--line)}
-.prog-subseg .segbtn{font-size:.6rem;letter-spacing:.1em;padding:8px 4px 9px;border-radius:0}
+.prog-subseg .segbtn{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;font-weight:400;color:var(--muted);padding:8px 4px 9px;border-radius:0}
 .prog-subseg .segbtn.active,.seg.seg-scroll.prog-subseg .segbtn.active{background:transparent;color:var(--ink)}
 .seg.seg-scroll.prog-subseg .segbtn.active{box-shadow:inset 0 -2px 0 var(--ink)}
 .prog-subseg .seg-thumb{top:auto;bottom:0;left:0;height:2px;border-radius:2px;

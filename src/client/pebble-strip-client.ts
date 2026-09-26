@@ -1,17 +1,20 @@
 // @ts-check
 // The pebble strip (docs/V2-PLAN.md wave 4, `pebble-strip`), the view: one quiet row
 // of six pebbles under the Brief — Strength, Endurance, Fuel, Recovery, Body, Heart —
-// each a small stone tinted by the reading layer's tone class, its name, and the
-// server's word printed verbatim beneath it. Each pebble is a link into its stone's
+// each the cairn's own stone laid flat (CairnStone, in the stone's OWN hue), its name,
+// and the server's word printed verbatim beneath it in the stone's deep hue. The tone
+// rides as a class and adds at most a small dawn dot ("worth a look"); it never
+// becomes the stone's fill. Each pebble is a link into its stone's
 // own surface. Nothing here asks for a tap: no badge, no count, no chevron, no
 // "tap to" copy, and no number. Pure strings; wired by CairnPebbleStripController.
 {
   function pebbleHtml(pebble: ClientPebble, index: number): string {
     const name = `${pebble.label}: ${pebble.word}${pebble.line ? `. ${pebble.line}` : ""}`;
-    const inner = `<span class="pebble-strip-stone" aria-hidden="true"></span><span class="pebble-strip-label">${escHtml(
+    const stone = CairnStone.pebbleSvg(pebble.key, { idPrefix: `pebble-${pebble.key}`, flag: pebble.tone === "watch" });
+    const inner = `<span class="pebble-strip-stone" aria-hidden="true">${stone}</span><span class="pebble-strip-label">${escHtml(
       pebble.label
     )}</span><span class="pebble-strip-word">${escHtml(pebble.word)}</span>`;
-    const cls = `pebble-strip-pebble pebble-strip-${pebble.tone}`;
+    const cls = `pebble-strip-pebble pebble-strip-${pebble.tone} ${CairnStone.hueClass(pebble.key)}`;
     const body = pebble.href
       ? `<a class="${cls}" href="${escAttr(pebble.href)}" data-pebble-strip-go="${escAttr(pebble.key)}" aria-label="${escAttr(name)}">${inner}</a>`
       : `<span class="${cls}">${inner}</span>`;

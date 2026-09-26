@@ -1,6 +1,7 @@
 // @ts-check
 // The stone detail (docs/V2-PLAN.md wave 5), the view: a step back to You, the one
-// stone settled large and tinted by its tone, its name, the server's word and line,
+// stone settled large in its own hue (CairnStone; a dawn dot when it is worth a look,
+// never a tone fill), its name, the server's word and line,
 // then "Where it lives" — the surfaces that already own that part of the picture,
 // each one quiet row. The homes paint at once; only the stone's own words wait on
 // the read, and a read that never comes leaves the name and the homes standing.
@@ -17,7 +18,7 @@
   function readHtml(model: ClientStoneDetailModel, loading: boolean): string {
     const stone = model.stone;
     if (stone) {
-      return `<p class="stone-detail-word">${escHtml(stone.word)}</p>${
+      return `<p class="stone-detail-word stone-word">${escHtml(stone.word)}</p>${
         stone.line ? `<p class="stone-detail-line">${escHtml(stone.line)}</p>` : ""
       }`;
     }
@@ -34,10 +35,11 @@
       typeof homeBackHtml === "function"
         ? homeBackHtml("you", "You")
         : `<button class="home-back linkbtn linkbtn-plain" type="button" data-home-back="you">‹ You</button>`;
-    return `<article class="stone-detail stone-detail-${escAttr(model.key)} cairn-stack-${escAttr(tone)}${opts.enter ? " is-entering" : ""}" aria-labelledby="stoneDetailH">
+    const rock = CairnStone.pebbleSvg(model.key, { idPrefix: "stone-detail", flag: tone === "watch", drift: true });
+    return `<article class="stone-detail stone-detail-${escAttr(model.key)} ${CairnStone.hueClass(model.key)} cairn-stack-${escAttr(tone)}${opts.enter ? " is-entering" : ""}" aria-labelledby="stoneDetailH">
       ${back}
       <header class="stone-detail-hero">
-        <span class="stone-detail-rock" aria-hidden="true"></span>
+        <span class="stone-detail-rock" aria-hidden="true">${rock}</span>
         <div class="stone-detail-read">
           <h2 class="stone-detail-h" id="stoneDetailH">${escHtml(model.name)}</h2>
           ${readHtml(model, !!opts.loading)}

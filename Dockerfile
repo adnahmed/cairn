@@ -72,6 +72,7 @@ COPY --from=builder /app/dist ./dist
 COPY public/art.js public/favicon.ico public/index.html public/manifest.json public/styles.css public/sw.js ./public/
 COPY public/icons ./public/icons
 COPY public/vendor ./public/vendor
+COPY public/fonts ./public/fonts
 COPY --from=builder /app/public/cairn-body-figure.js ./public/cairn-body-figure.js
 COPY --from=builder /app/public/js ./public/js
 # Precompressed siblings of the shell files copied from git above. public/js's own

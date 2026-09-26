@@ -5,7 +5,9 @@
 html{-webkit-text-size-adjust:100%}
 body{
   background:var(--paper); color:var(--ink);
-  font-family:var(--font-ui); line-height:1.55; font-size:16px;
+  font-family:var(--font-ui); line-height:var(--leading); font-size:var(--text-body);
+  /* Young Serif and Martian Mono ship one or two weights: never fake a bold */
+  font-synthesis:style; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
   padding-bottom:calc(92px + max(env(safe-area-inset-bottom),6px) + var(--vvb,0px)); min-height:100dvh;
 }
 /* paper grain — fixed noise wash over everything, barely-there */
@@ -20,9 +22,9 @@ button:not(:disabled):active{transform:var(--press)}
 input,select,textarea{font-family:var(--font-ui);color:var(--ink)}
 /* no double-tap-to-zoom on controls (iOS) — taps fire immediately, page never zooms */
 button,input,select,textarea,a{touch-action:manipulation}
-::placeholder{color:#b3aa97;opacity:1}
-::selection{background:var(--accent);color:var(--on-accent)}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+::placeholder{color:var(--faint-ink);opacity:1}
+::selection{background:var(--dawn-wash);color:var(--ink)}
+:focus-visible{outline:2px solid var(--dawn);outline-offset:2px;border-radius:6px}
 /* Programmatic focus never paints the keyboard ring. A tab switch moves focus onto
    #view or the new view's first heading (tabindex="-1" reading positions, not
    controls); where an engine still matches :focus-visible after a TAP, the switch
@@ -48,7 +50,7 @@ input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:99px;border:3px solid var(--paper)}
-::-webkit-scrollbar-thumb:hover{background:#c4b9a2}
+::-webkit-scrollbar-thumb:hover{background:var(--faint-ink)}
 
 /* screen-reader-only — visually hidden, still in the accessibility tree.
    Never display:none/visibility:hidden; those pull the text from assistive tech too. */
@@ -57,26 +59,27 @@ input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 /* -------------------------------------------------------------------
    03 · Typography primitives
    ------------------------------------------------------------------- */
-header{padding:calc(env(safe-area-inset-top) + 26px) 18px 14px;max-width:680px;margin:0 auto}
+header{padding:calc(env(safe-area-inset-top) + 20px) var(--gutter) 10px;max-width:680px;margin:0 auto}
+/* the page title: Young Serif at one weight (400), tight and balanced */
 h1{
-  font-family:var(--font-display);font-weight:580;font-size:var(--text-2xl);line-height:1.12;
-  font-variation-settings:"opsz" 60;letter-spacing:-.01em;color:var(--ink);margin-top:4px;
+  font-family:var(--font-display);font-weight:400;font-size:var(--text-2xl);line-height:1.1;
+  letter-spacing:-.01em;color:var(--ink);margin-top:4px;text-wrap:balance;
 }
-h1 i,h1 em{font-style:italic;font-weight:480}
-main{max-width:680px;margin:0 auto;padding:0 18px;position:relative}
+h1 i,h1 em{font-style:italic;font-weight:400}
+main{max-width:680px;margin:0 auto;padding:0 var(--gutter);position:relative}
 
-/* tracked caps label — the "PROTEIN ───" style */
-.lbl{
-  font-family:var(--font-ui);text-transform:uppercase;letter-spacing:.18em;
-  font-size:var(--text-2xs);font-weight:600;color:var(--muted);
+/* the mono label — Martian Mono, small, uppercase, letter-spaced (the "PROTEIN" style).
+   .eyebrow is its v2 name; .lbl stays for every surface that already prints it. */
+.lbl,.eyebrow{
+  font-family:var(--font-mono);text-transform:uppercase;letter-spacing:var(--tracking-mono);
+  font-size:var(--text-2xs);font-weight:400;color:var(--muted);line-height:1.5;
 }
 
 /* Display serif numerals */
 .numeral{
-  font-family:var(--font-display);font-weight:580;
-  font-variation-settings:"opsz" 144;line-height:1.05;color:var(--ink);
-  font-variant-numeric:lining-nums;
+  font-family:var(--font-display);font-weight:400;line-height:1.05;color:var(--ink);
+  font-variant-numeric:lining-nums tabular-nums;
 }
-.numeral-xl{font-size:var(--text-3xl);font-weight:600;letter-spacing:-.015em}
+.numeral-xl{font-size:var(--text-3xl);font-weight:400;letter-spacing:-.015em}
 .numeral-lg{font-size:var(--text-xl)}
 

@@ -83,8 +83,8 @@
    away, never buried at the scroll bottom. Full-bleed blurred scrim like the seg nav. */
 .stand-actionbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:var(--z-sticky);
   display:flex;align-items:center;justify-content:space-between;gap:10px;
-  margin:-4px -18px 14px;padding:8px 18px;
-  background:rgba(252,250,244,.86);backdrop-filter:blur(12px) saturate(1.1);-webkit-backdrop-filter:blur(12px) saturate(1.1)}
+  margin:-4px calc(-1 * var(--gutter)) 14px;padding:8px var(--gutter);
+  background:color-mix(in srgb,var(--ground) 86%,transparent);backdrop-filter:blur(12px) saturate(1.1);-webkit-backdrop-filter:blur(12px) saturate(1.1)}
 .stand-addbtn{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:var(--on-accent);
   border:none;border-radius:var(--radius-pill);padding:8px 16px 8px 12px;font-family:var(--font-ui);font-weight:600;font-size:.82rem;
   cursor:pointer;box-shadow:var(--shadow-sm);transition:transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}

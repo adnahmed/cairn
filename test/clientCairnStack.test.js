@@ -14,7 +14,7 @@ import { FakeEvent, createHost, fire, flush, loadClientModule, renderHtml } from
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DATE = "2026-09-26";
 
-const STACK = ["html-utils", "ui-actions-client", "cairn-stack-model", "cairn-stack-client", "cairn-stack-controller"];
+const STACK = ["html-utils", "ui-actions-client", "ui-stone-model", "ui-stone", "cairn-stack-model", "cairn-stack-client", "cairn-stack-controller"];
 const DETAIL = [...STACK, "stone-detail-model", "stone-detail-client", "stone-detail-controller"];
 
 function stone(key, label, word, tone, line = null) {

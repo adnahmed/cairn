@@ -58,11 +58,11 @@ body.savebar-open .toast{bottom:calc(150px + var(--vvb,0px))}
 body.resting .savebar{bottom:calc(114px + max(env(safe-area-inset-bottom),6px) + var(--vvb,0px))}
 
 /* -------------------------------------------------------------------
-   24 · Tab bar (mobile: bottom, cream blur)
+   24 · Tab bar (mobile: bottom, surface blur)
    ------------------------------------------------------------------- */
 .tabbar{
   position:fixed;bottom:var(--vvb,0px);left:0;right:0;z-index:var(--z-tabbar);display:flex;
-  background:rgba(252,250,244,.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   border-top:1px solid var(--line);
   padding-bottom:max(env(safe-area-inset-bottom),6px);
   transition:transform .22s ease;
@@ -70,21 +70,23 @@ body.resting .savebar{bottom:calc(114px + max(env(safe-area-inset-bottom),6px) +
 .tab{
   flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:3px;background:transparent;border:none;color:var(--muted);
-  font-family:var(--font-ui);font-weight:600;letter-spacing:.04em;
-  padding:8px 2px 4px;line-height:1;transition:color var(--dur-1) var(--ease);
+  font-family:var(--font-ui);font-weight:500;letter-spacing:0;
+  padding:9px 2px 4px;line-height:1;transition:color var(--dur-1) var(--ease);
 }
-.tab-ico{width:22px;height:22px;display:block;flex:0 0 auto;stroke-width:1.8}
-.tab-lbl{font-size:.58rem;text-transform:uppercase;letter-spacing:.1em}
+.tab-ico{width:22px;height:22px;display:block;flex:0 0 auto;stroke-width:1.6;
+  transition:color var(--dur-1) var(--ease)}
+.tab-lbl{font-size:.66rem;text-transform:none;letter-spacing:.01em}
 .tab::after{content:"";width:4px;height:4px;border-radius:50%;background:transparent;
   margin-top:2px;transform:scale(0);
   transition:background var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
-.tab.active{color:var(--accent)}
+.tab.active{color:var(--ink)}
+.tab.active .tab-ico{color:var(--dawn)}
 /* the active dot grows in on the new tab as the old one shrinks away (a fade +
    scale, never a jump); reduced motion snaps it via the global transition kill */
-.tab.active::after{background:var(--accent);transform:scale(1)}
+.tab.active::after{background:var(--dawn);transform:scale(1)}
 /* non-color active affordance: the dot appears AND the label bolds, so the live
    tab reads without relying on the terracotta tint alone (colour-blind safe). */
-.tab.active .tab-lbl{font-weight:700}
+.tab.active .tab-lbl{font-weight:650}
 .brand{display:none}
 
 /* -------------------------------------------------------------------
@@ -92,9 +94,9 @@ body.resting .savebar{bottom:calc(114px + max(env(safe-area-inset-bottom),6px) +
    ------------------------------------------------------------------- */
 @media (hover:hover){
   .daybtn:hover{border-color:var(--ink);color:var(--ink)}
-  .daybtn.active:hover{color:var(--paper)}
+  .daybtn.active:hover{color:var(--on-ink)}
   .segbtn:hover{color:var(--ink)}
-  .segbtn.active:hover{color:var(--paper)}
+  .segbtn.active:hover{color:var(--on-ink)}
   .prog-subseg .segbtn.active:hover{color:var(--ink)}
   .rest-btn:hover{border-color:var(--ink);color:var(--ink)}
   .savebar-discard:hover{color:var(--on-accent)}

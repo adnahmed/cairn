@@ -69,22 +69,6 @@
 .pi-note{width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink-2);
   border-radius:9px;padding:8px 10px;font-size:.8rem;margin-top:6px}
 
-/* utility buttons */
-.delbtn{flex:0 0 auto;background:var(--card-2);border:1px solid var(--line);color:var(--warn);
-  border-radius:9px;width:34px;height:32px;font-size:.8rem}
-.ghostbtn{
-  background:transparent;border:1px solid var(--line-2);color:var(--ink-2);
-  border-radius:var(--radius-pill);padding:9px 15px;font-family:var(--font-ui);font-weight:600;
-  font-size:.76rem;letter-spacing:.06em;margin-top:4px;
-  transition:border-color .15s,color .15s,background .15s;
-}
-.ghostbtn:hover{border-color:var(--ink);color:var(--ink)}
-.iconbtn{background:var(--card-2);border:1px solid var(--line);color:var(--muted);
-  border-radius:9px;min-width:30px;height:30px;font-size:.88rem;padding:0 7px}
-.iconbtn:hover{color:var(--ink);border-color:var(--line-2)}
-.ordbtn{background:var(--card-2);border:1px solid var(--line);color:var(--ink-2);
-  border-radius:9px;width:30px;height:30px;font-size:.92rem}
-.ordbtn:disabled{opacity:.3;cursor:default}
 
 /* -------------------------------------------------------------------
    13 · Session / generic entry cards
