@@ -19,27 +19,28 @@ function load(globals = {}) {
   );
 }
 
-test("the identity version is the icon suffix and the note is OFF for every install today", () => {
+test("the identity version is the icon suffix, and the note fires once for installs the real bump left behind", () => {
   const { CairnAppIdentityModel: model } = load();
-  assert.equal(model.VERSION, 2, "bumped only by scripts/bump-icons.mjs");
+  assert.equal(model.VERSION, 3, "bumped only by scripts/bump-icons.mjs");
   assert.equal(model.PRE_STAMP_VERSION, 2, "frozen: what every install made before the stamp was added with");
   assert.equal(model.STAMP_KEY, "cairn.app.identity.v1");
   assert.equal(model.DISMISS_KEY, "cairn.app.readd.dismissed.v1");
-  // An existing install (prior state, no stamp) and a fresh one both stamp at the
-  // current identity today, so nothing shows until the constant moves.
-  for (const prior of [true, false]) {
-    const installedWith = model.stampFor(null, prior, model.VERSION);
-    assert.equal(
-      model.noteVisible({
-        iosStandalone: true,
-        outboxCount: 0,
-        installedWith,
-        dismissedFor: 0,
-        current: model.VERSION,
-      }),
-      false
-    );
-  }
+  // A brand-new device (no prior state) always stamps itself at whatever is
+  // current today, so it never sees the note.
+  const fresh = model.stampFor(null, false, model.VERSION);
+  assert.equal(
+    model.noteVisible({ iosStandalone: true, outboxCount: 0, installedWith: fresh, dismissedFor: 0, current: model.VERSION }),
+    false
+  );
+  // An install that predates the stamp is frozen at PRE_STAMP_VERSION (2), which
+  // this real icon bump has now moved past (VERSION 3) — that install genuinely
+  // was added under the old identity, so the one-time re-add note is correctly ON.
+  const predatesStamp = model.stampFor(null, true, model.VERSION);
+  assert.equal(predatesStamp, model.PRE_STAMP_VERSION);
+  assert.equal(
+    model.noteVisible({ iosStandalone: true, outboxCount: 0, installedWith: predatesStamp, dismissedFor: 0, current: model.VERSION }),
+    true
+  );
 });
 
 test("iOS standalone is navigator.standalone, or display-mode standalone on an iOS user agent", () => {
@@ -123,7 +124,7 @@ test("mountReaddNote shows only when the rules say so, and dismissal is remember
   const storage = createStorage({ [model.STAMP_KEY]: "2" });
 
   const off = createHost(win.document, { html: "<p>Brief</p>" });
-  ctl.mountReaddNote(off, { storage, env, outboxCount: () => 0 });
+  ctl.mountReaddNote(off, { storage, env, outboxCount: () => 0, version: 2 });
   assert.equal(off.querySelector(".app-readd"), null, "OFF at the shipped identity");
 
   const busy = createHost(win.document);
@@ -369,7 +370,7 @@ test("an installed app's Today gets no install coach — on iOS, the re-add note
   assert.ok(older.querySelector(".app-readd"));
   assert.equal(older.querySelector(".phone-coach"), null);
   assert.equal(run({ ua: IPHONE_UA, standalone: true, stamp: "1", outbox: 3 }).querySelector(".app-readd"), null);
-  assert.equal(run({ ua: IPHONE_UA, standalone: true, stamp: "2" }).querySelector(".app-readd"), null, "OFF today");
+  assert.equal(run({ ua: IPHONE_UA, standalone: true, stamp: "3" }).querySelector(".app-readd"), null, "OFF today");
   const fresh = run({ ua: IPHONE_UA, standalone: true });
   assert.equal(fresh.querySelector(".app-readd"), null, "a just-added app stamps itself current at load");
   const android = run({ ua: ANDROID_UA, standalone: true, stamp: "1" });
