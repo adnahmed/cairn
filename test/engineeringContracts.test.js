@@ -443,7 +443,11 @@ test("MCP modular tool sources are discovered without duplicate names", () => {
   // Fuel (v2 wave 2): +2 (get_intake_band, get_fuel_ideas) in
   // src/surfaces/mcp/nutrition.ts — the MCP mirrors of GET /api/nutrition/intake-band and
   // GET /api/fuel/ideas, both pure reads.
-  assert.equal(tools.length, 277,"tool count changes only for reviewed MCP additions");
+  // Health records (v2 wave 3): +3 (search_health_records, get_visit_questions,
+  // get_evidence_wanted) in src/surfaces/mcp/connected-brain.ts — the MCP mirrors of
+  // GET /api/records/search, /api/health/visit-questions and /api/health/evidence-wanted,
+  // all pure reads (get_visit_questions runs the doctor-loop refresh like get_next_checkup).
+  assert.equal(tools.length, 280,"tool count changes only for reviewed MCP additions");
   assert.equal(new Set(tools).size, tools.length, "MCP tool names must be unique across modules");
   assert.doesNotMatch(mcp, /server\.tool\(/, "src/mcp.ts should stay a registry, not a tool-definition file");
   assert.doesNotMatch(mcp, /server\.tool\("get_chat_history"/);

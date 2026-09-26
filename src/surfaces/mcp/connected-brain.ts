@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { buildClinicalReportData, renderClinicalReportText } from "../../report.js";
+import {
+  buildClinicalReportData,
+  clinicalReportJson,
+  parseReportSections,
+  REPORT_SECTION_IDS,
+  renderClinicalReportText,
+} from "../../report.js";
 import {
   activeContextEffect,
   getCoachingFocus,
@@ -30,7 +36,12 @@ import {
   cardiovascularRiskRead,
   doctorLoopRead,
   doctorPacketRead,
+  evidenceWantedRead,
   nextCheckupRead,
+  parseVisitQuestionList,
+  RECORDS_GROUP_MODES,
+  searchRecords,
+  visitQuestionsRead,
   healthFocus,
   healthStanding,
   prioritizeMarkers,
@@ -256,9 +267,58 @@ export function registerConnectedBrainTools(server: McpToolRegistrar) {
 
   server.tool(
     "get_health_report",
-    "Doctor-ready CLINICAL summary as plain text — the human-readable counterpart to get_health_export (which is JSON for tools). A 'findings to discuss' lead (every marker outside its lab range or optimal target, in priority order), then markers grouped into clinical panels (Lipids & Cardiovascular, Metabolic, …) with the latest value, lab flag, optimal target, and the full dated history so progress is visible, plus DEXA body composition and the supplement list. Ready to paste into a patient-portal (MyChart) message. The PWA renders the same data as a print-to-PDF page at GET /api/health-report.",
-    { name: z.string().optional().describe("patient name to stamp on the summary") },
-    async ({ name }) => asText(renderClinicalReportText(buildClinicalReportData(), { name }))
+    "Doctor-ready CLINICAL summary as plain text — the human-readable counterpart to get_health_export (which is JSON for tools). A 'findings to discuss' lead (every marker outside its lab range or optimal target, in priority order), then markers grouped into clinical panels (Lipids & Cardiovascular, Metabolic, …) with the latest value, lab flag, optimal target, and the full dated history so progress is visible, plus DEXA body composition and the supplement list. Ready to paste into a patient-portal (MyChart) message. The PWA renders the same data as a print-to-PDF page at GET /api/health-report. `sections` toggles whole sections (findings, visit_questions, body_composition, panels, supplements, sources) and `questions` carries the athlete's visit questions — both mirror the ?sections= / ?questions= query of /api/health-report(.txt|.json).",
+    {
+      name: z.string().optional().describe("patient name to stamp on the summary"),
+      sections: z
+        .array(z.enum(REPORT_SECTION_IDS as [string, ...string[]]))
+        .optional()
+        .describe(
+          "sections to include; omitted = all. An omitted section is absent from the packet. The informational line always prints."
+        ),
+      questions: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "the athlete's final visit-question list, used verbatim and never stored; omitted = the proposed questions (get_visit_questions)"
+        ),
+      format: z.enum(["text", "json"]).optional().describe("text (default) or json — the same packet as data"),
+    },
+    async ({ name, sections, questions, format }) => {
+      const data = buildClinicalReportData({
+        sections: sections ? (sections.length ? parseReportSections(sections.join(",")) : []) : undefined,
+        questions: parseVisitQuestionList(questions),
+      });
+      return asText(format === "json" ? clinicalReportJson(data) : renderClinicalReportText(data, { name }));
+    }
+  );
+
+  server.tool(
+    "search_health_records",
+    "Search everything on file — lab/vital markers, health documents, visit notes and body readings (weigh-ins, tape sites) — grouped out_of_range (the LAB's own flag first; outside-optimal is a separate mark, never merged into it), panel (clinical panel order), or newest. Every word of q must match; an empty q lists everything. Each marker carries its lab flag, its optimal band and outside-optimal mark, and its reading's age for its own kind of marker. Informational, not medical advice. Mirrors GET /api/records/search.",
+    {
+      q: z.string().optional().describe("search words; empty = everything"),
+      group: z
+        .enum(RECORDS_GROUP_MODES as unknown as [string, ...string[]])
+        .optional()
+        .describe("out_of_range (default) | panel | newest"),
+      as_of: z.string().optional().describe("YYYY-MM-DD for reading ages; defaults to today."),
+    },
+    async ({ q, group, as_of }) => asText(searchRecords({ q, group, asOf: as_of }))
+  );
+
+  server.tool(
+    "get_visit_questions",
+    "Proposed questions for the next clinician visit: one per doctor-loop follow-up due now or opening soon, a couple of worth-adding workups, and any clinical ask the team is holding for a doctor. The athlete keeps, drops or adds questions; the final list is passed to get_health_report as `questions` and never stored. Informational, not medical advice. Mirrors GET /api/health/visit-questions.",
+    { as_of: z.string().optional().describe("YYYY-MM-DD for due checks; defaults to today.") },
+    async ({ as_of }) => asText(visitQuestionsRead({ asOf: as_of, refresh: true }))
+  );
+
+  server.tool(
+    "get_evidence_wanted",
+    "At most ONE calm line naming the overdue recheck or rescan the team would find useful (an overdue doctor-loop follow-up, an aged body-composition scan, or an off reading past its own marker's validity window), or item:null. Pull, never push — nothing notifies and nothing waits on it. Mirrors GET /api/health/evidence-wanted.",
+    { as_of: z.string().optional().describe("YYYY-MM-DD; defaults to today.") },
+    async ({ as_of }) => asText(evidenceWantedRead({ asOf: as_of }))
   );
 
   server.tool(

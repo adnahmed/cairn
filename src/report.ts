@@ -17,6 +17,16 @@ import crypto from "node:crypto";
 import * as repo from "./repo.js";
 import { formatReportDate, formatReportDateShort, reportDateISO, reportDaysBetween, reportTodayISO } from "./reportDates.js";
 import { round1 } from "./lib/numbers.js";
+import type {
+  ClientHealthReportJson,
+  ClientReportGroup,
+  ClientReportMarker,
+  ClientReportSectionId,
+  ClientReportTargetKind,
+} from "./contracts/health-records.js";
+import { resolveVisitQuestions, type VisitQuestion } from "./domain/health/visit-questions.js";
+
+export type ReportSectionId = ClientReportSectionId;
 
 function esc(s: unknown): string {
   return String(s ?? "")
@@ -77,7 +87,7 @@ function rangeText(range: { low?: number | null; high?: number | null } | null):
   return `≥ ${fmtVal(range.low)}`;
 }
 
-type TargetKind = "optimal" | "reference" | "source_flag" | "expected" | "context";
+type TargetKind = ClientReportTargetKind;
 
 function qualitativeExpectedText(name: string, value: unknown): string | null {
   const n = name.toLowerCase();
@@ -152,41 +162,8 @@ function findingFreshness(name: string, latestDate: string | null, asOf: string)
   };
 }
 
-export interface ReportMarker {
-  name: string;
-  unit: string | null;
-  value: unknown;
-  flag: "high" | "low" | null; // the lab's own out-of-range flag (normal stripped to null)
-  abnormal: boolean; // lab-flagged OR out of optimal target
-  optimal: { low: number; high: number; dir: string } | null;
-  optimalText: string | null;
-  reference: { low: number | null; high: number | null } | null;
-  referenceSource: string | null;
-  referenceSourceUrl: string | null;
-  referenceText: string | null;
-  targetText: string;
-  targetKind: TargetKind;
-  inOptimal: boolean | null;
-  latestDate: string | null;
-  trendDir: string | null;
-  trendText: string | null;
-  methodNote: string | null;
-  sourceNames: string[];
-  estimated: boolean;
-  dateLabel: string | null;
-  staleForFinding: boolean;
-  freshnessNote: string | null;
-  findingSuppressed: boolean;
-  findingSuppressionNote: string | null;
-  history: Array<{ value: unknown; date: string; flag: string | null }>;
-  source: string | null;
-}
-
-export interface ReportGroup {
-  key: string;
-  label: string;
-  markers: ReportMarker[];
-}
+export type ReportMarker = ClientReportMarker;
+export type ReportGroup = ClientReportGroup;
 
 export interface ClinicalReportData {
   subject: { name: string | null; sex: string | null; age: number | null; heightText: string; weightLb: number | null };
@@ -197,6 +174,48 @@ export interface ClinicalReportData {
   bodyComp: { label: string; summary: string; asOf: string | null } | null;
   supplements: Array<{ name: string; dose: string | null; frequency: string | null }>;
   sources: Array<{ date: string | null; kind: string; name: string }>;
+  // The toggled-on sections, in catalog order. A renderer prints only these; the header
+  // and the informational line are never a section and always print.
+  sections: ReportSectionId[];
+  visitQuestions: VisitQuestion[];
+  disclaimer: string;
+}
+
+// ---- section toggles ----
+//
+// The ids name what the report already had (findings lead, clinical panels, the body
+// composition caption, the supplement list, the source documents) plus the visit
+// questions. Default = all. A section toggled off is ABSENT from HTML, text and JSON; the
+// header and REPORT_DISCLAIMER print whatever is toggled.
+export const REPORT_SECTIONS: ReadonlyArray<{ id: ReportSectionId; label: string }> = [
+  { id: "findings", label: "Findings to discuss" },
+  { id: "visit_questions", label: "Questions for the visit" },
+  { id: "body_composition", label: "Body composition" },
+  { id: "panels", label: "Results by panel" },
+  { id: "supplements", label: "Supplements" },
+  { id: "sources", label: "Source documents" },
+];
+export const REPORT_SECTION_IDS: ReadonlyArray<ReportSectionId> = REPORT_SECTIONS.map((s) => s.id);
+
+export const REPORT_DISCLAIMER = "Informational, not medical advice.";
+
+// `?sections=` → the toggled-on ids, in catalog order. Missing or blank = every section;
+// `none` = header and the informational line only; unknown ids are ignored (so a list of
+// only unknown ids also falls back to every section rather than printing an empty page).
+export function parseReportSections(raw: unknown): ReportSectionId[] {
+  const parts = (Array.isArray(raw) ? raw : [raw])
+    .flatMap((v) => (typeof v === "string" ? v.split(",") : []))
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
+  if (!parts.length) return [...REPORT_SECTION_IDS];
+  if (parts.length === 1 && parts[0] === "none") return [];
+  const wanted = new Set(parts);
+  const picked = REPORT_SECTION_IDS.filter((id) => wanted.has(id));
+  return picked.length ? picked : [...REPORT_SECTION_IDS];
+}
+
+function hasSection(data: ClinicalReportData, id: ReportSectionId): boolean {
+  return data.sections.includes(id);
 }
 
 // Report-local guard against the shared optimal-zone matcher's substring
@@ -207,7 +226,7 @@ export interface ClinicalReportData {
 // so we only TRUST (and thus display) an optimal band when the name isn't one of
 // these traps and the value is numerically comparable. The lab's own H/L flag is
 // authoritative and never suppressed; this only governs the optimal annotation.
-function optimalTrustworthy(name: string, value: unknown): boolean {
+export function optimalTrustworthy(name: string, value: unknown): boolean {
   const n = name.toLowerCase();
   const num = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(num)) return false; // qualitative result (e.g. pattern "A")
@@ -838,7 +857,9 @@ function markerSubgroup(groupKey: string, name: string): string | null {
   return null;
 }
 
-function reportMarkerRank(groupKey: string, name: string): number {
+// A marker's clinical place inside its panel (lower first; 900 = after every named
+// analyte). Shared with the Records search so "by panel" reads in the packet's order.
+export function reportMarkerRank(groupKey: string, name: string): number {
   return markerRank(groupKey, name);
 }
 
@@ -880,7 +901,16 @@ function duplicateProfileFieldMarker(marker: ReportMarker, profile: any): boolea
   return false;
 }
 
-export function buildClinicalReportData(): ClinicalReportData {
+export interface ClinicalReportOptions {
+  // Toggled-on section ids (parseReportSections); omitted = every section.
+  sections?: ReportSectionId[];
+  // The athlete's final visit-question list (parseVisitQuestionList); omitted = the
+  // proposals from visitQuestionsRead stand.
+  questions?: string[];
+}
+
+export function buildClinicalReportData(opts: ClinicalReportOptions = {}): ClinicalReportData {
+  const sections = opts.sections ? REPORT_SECTION_IDS.filter((id) => opts.sections!.includes(id)) : [...REPORT_SECTION_IDS];
   const profile = (repo.getProfile() as any) || {};
   const { markers, groups } = repo.prioritizeMarkers() as any;
   const generatedDay = reportTodayISO();
@@ -1025,10 +1055,21 @@ export function buildClinicalReportData(): ClinicalReportData {
   let sources: ClinicalReportData["sources"] = [];
   try {
     sources = ((repo.listHealthDocuments() as any[]) || [])
-      .map((d) => ({ date: d.doc_date ?? null, kind: String(d.kind || "other"), name: String(d.original_name || "document") }))
+      .map((d) => ({ date: dayISO(d.doc_date, { notAfter: generatedDay }), kind: String(d.kind || "other"), name: String(d.original_name || "document") }))
       .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
   } catch {
     sources = [];
+  }
+
+  // Visit questions are read only when the section is on — the read touches the doctor
+  // loop and the decision ledger, and a packet without the section needs neither.
+  let visitQuestions: VisitQuestion[] = [];
+  if (sections.includes("visit_questions")) {
+    try {
+      visitQuestions = resolveVisitQuestions(opts.questions, { asOf: generatedDay });
+    } catch {
+      visitQuestions = [];
+    }
   }
 
   return {
@@ -1046,7 +1087,31 @@ export function buildClinicalReportData(): ClinicalReportData {
     bodyComp,
     supplements,
     sources,
+    sections,
+    visitQuestions,
+    disclaimer: REPORT_DISCLAIMER,
   };
+}
+
+// The packet as JSON — the same data the HTML and text formats render, with every
+// toggled-off section's key ABSENT (not empty). The header, the section catalog and the
+// informational line are always present.
+export function clinicalReportJson(data: ClinicalReportData): ClientHealthReportJson {
+  const out: ClientHealthReportJson = {
+    subject: data.subject,
+    generated: data.generated,
+    dateRange: data.dateRange,
+    sections: [...data.sections],
+    section_catalog: REPORT_SECTIONS.map((s) => ({ id: s.id, label: s.label, included: data.sections.includes(s.id) })),
+    disclaimer: data.disclaimer,
+  };
+  if (hasSection(data, "findings")) out.findings = data.findings;
+  if (hasSection(data, "visit_questions")) out.visit_questions = data.visitQuestions;
+  if (hasSection(data, "body_composition")) out.bodyComp = data.bodyComp;
+  if (hasSection(data, "panels")) out.groups = data.groups;
+  if (hasSection(data, "supplements")) out.supplements = data.supplements;
+  if (hasSection(data, "sources")) out.sources = data.sources;
+  return out;
 }
 
 // ---- flag / result rendering ----
@@ -1197,6 +1262,18 @@ function findingsBox(groups: ReportGroup[]): string {
   </section>`;
 }
 
+// The source documents, newest first, capped so a split multi-year import stays a
+// footnote rather than a page. One line each: date · kind · file name.
+const SOURCE_LINE_CAP = 12;
+function sourceLines(sources: ClinicalReportData["sources"]): string[] {
+  const newest = [...sources].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  const lines = newest
+    .slice(0, SOURCE_LINE_CAP)
+    .map((src) => [src.date ? fmtDate(src.date) : "undated", src.kind.replace(/_/g, " "), src.name].join(" · "));
+  if (newest.length > SOURCE_LINE_CAP) lines.push(`+ ${newest.length - SOURCE_LINE_CAP} more`);
+  return lines;
+}
+
 // ---- plain-text twin (for pasting into a MyChart message body) ----
 
 export function renderClinicalReportText(data: ClinicalReportData, opts: { name?: string } = {}): string {
@@ -1213,66 +1290,76 @@ export function renderClinicalReportText(data: ClinicalReportData, opts: { name?
   if (data.dateRange) L.push(`Readings ${fmtDate(data.dateRange.from)} – ${fmtDate(data.dateRange.to)}`);
   L.push("");
 
-  const groupedFindings = abnormalGroups(data.groups);
-  const staleFindings = abnormalGroups(data.groups, { includeStale: true })
-    .reduce((sum, g) => sum + g.markers.filter((m) => m.staleForFinding).length, 0);
-  if (groupedFindings.length) {
-    L.push("FINDINGS TO DISCUSS");
-    for (const g of groupedFindings) {
-      L.push(`  ${g.label}:`);
+  if (hasSection(data, "findings")) {
+    const groupedFindings = abnormalGroups(data.groups);
+    const staleFindings = abnormalGroups(data.groups, { includeStale: true })
+      .reduce((sum, g) => sum + g.markers.filter((m) => m.staleForFinding).length, 0);
+    if (groupedFindings.length) {
+      L.push("FINDINGS TO DISCUSS");
+      for (const g of groupedFindings) {
+        L.push(`  ${g.label}:`);
+        for (const m of g.markers) {
+          const status = m.flag === "high" ? "High" : m.flag === "low" ? "Low" : optimalSide(m);
+          const when = m.latestDate ? `, ${resultDateText(m)}` : "";
+          const tgt = m.targetKind === "optimal" && m.optimalText
+            ? ` · optimal ${m.optimalText}`
+            : m.targetKind === "reference" ? ` · ${m.targetText}` : "";
+          const tr = m.trendText ? ` · ${m.trendText}` : "";
+          L.push(`    • ${m.name} — ${fmtVal(m.value)}${m.unit ? ` ${m.unit}` : ""}${when} (${status})${tgt}${tr}`);
+        }
+      }
+      if (staleFindings) L.push(`  (${staleFindings} older out-of-range reading${staleFindings === 1 ? "" : "s"} kept in dated panels below, not highlighted as current.)`);
+      L.push("");
+    } else if (staleFindings) {
+      L.push(`FINDINGS TO DISCUSS`);
+      L.push(`  No current highlighted findings. ${staleFindings} older out-of-range reading${staleFindings === 1 ? "" : "s"} are kept in dated panels below.`);
+      L.push("");
+    }
+  }
+
+  if (hasSection(data, "visit_questions") && data.visitQuestions.length) {
+    L.push("QUESTIONS FOR THE VISIT");
+    for (const q of data.visitQuestions) L.push(`  • ${q.text}`);
+    L.push("");
+  }
+
+  if (hasSection(data, "panels")) {
+    for (const g of data.groups) {
+      L.push(g.label.toUpperCase());
+      if (g.key === "lipids") {
+        const standard = g.markers.find((m) => isStandardLdlName(m.name));
+        const direct = g.markers.find((m) => isDirectLdlName(m.name));
+        if (standard && direct) {
+          const sDate = standard.latestDate ? ` (${fmtShort(standard.latestDate)})` : "";
+          const dDate = direct.latestDate ? ` (${fmtShort(direct.latestDate)})` : "";
+          L.push(`  Note: LDL-C rows are separated by assay/source method: ${standard.name}${sDate} and ${direct.name}${dDate} are not merged.`);
+        }
+      }
+      let lastSubgroup = "";
       for (const m of g.markers) {
-        const status = m.flag === "high" ? "High" : m.flag === "low" ? "Low" : optimalSide(m);
+        const subgroup = markerSubgroup(g.key, m.name);
+        if (subgroup && subgroup !== lastSubgroup) {
+          L.push(`  ${subgroup}:`);
+          lastSubgroup = subgroup;
+        }
+        const flag = m.flag === "high" ? " [High]" : m.flag === "low" ? " [Low]" : m.inOptimal === false ? ` [${optimalSide(m)}]` : "";
+        const hist = m.history.length > 1 ? `   {${m.history.slice(-6).map((h) => `${fmtVal(h.value)} ${fmtShort(h.date)}`).join(" · ")}}` : "";
+        const tgt = m.targetKind === "optimal" && m.optimalText ? `  (optimal ${m.optimalText})` : `  (${m.targetText})`;
         const when = m.latestDate ? `, ${resultDateText(m)}` : "";
-        const tgt = m.targetKind === "optimal" && m.optimalText
-          ? ` · optimal ${m.optimalText}`
-          : m.targetKind === "reference" ? ` · ${m.targetText}` : "";
-        const tr = m.trendText ? ` · ${m.trendText}` : "";
-        L.push(`    • ${m.name} — ${fmtVal(m.value)}${m.unit ? ` ${m.unit}` : ""}${when} (${status})${tgt}${tr}`);
+        const notes = [m.methodNote, sourceNote(m), referenceSourceNote(m), m.freshnessNote].filter(Boolean);
+        L.push(`  ${m.name}: ${fmtVal(m.value)}${m.unit ? ` ${m.unit}` : ""}${when}${flag}${tgt}${notes.length ? ` — ${notes.join("; ")}` : ""}${hist}`);
       }
+      L.push("");
     }
-    if (staleFindings) L.push(`  (${staleFindings} older out-of-range reading${staleFindings === 1 ? "" : "s"} kept in dated panels below, not highlighted as current.)`);
-    L.push("");
-  } else if (staleFindings) {
-    L.push(`FINDINGS TO DISCUSS`);
-    L.push(`  No current highlighted findings. ${staleFindings} older out-of-range reading${staleFindings === 1 ? "" : "s"} are kept in dated panels below.`);
-    L.push("");
   }
 
-  for (const g of data.groups) {
-    L.push(g.label.toUpperCase());
-    if (g.key === "lipids") {
-      const standard = g.markers.find((m) => isStandardLdlName(m.name));
-      const direct = g.markers.find((m) => isDirectLdlName(m.name));
-      if (standard && direct) {
-        const sDate = standard.latestDate ? ` (${fmtShort(standard.latestDate)})` : "";
-        const dDate = direct.latestDate ? ` (${fmtShort(direct.latestDate)})` : "";
-        L.push(`  Note: LDL-C rows are separated by assay/source method: ${standard.name}${sDate} and ${direct.name}${dDate} are not merged.`);
-      }
-    }
-    let lastSubgroup = "";
-    for (const m of g.markers) {
-      const subgroup = markerSubgroup(g.key, m.name);
-      if (subgroup && subgroup !== lastSubgroup) {
-        L.push(`  ${subgroup}:`);
-        lastSubgroup = subgroup;
-      }
-      const flag = m.flag === "high" ? " [High]" : m.flag === "low" ? " [Low]" : m.inOptimal === false ? ` [${optimalSide(m)}]` : "";
-      const hist = m.history.length > 1 ? `   {${m.history.slice(-6).map((h) => `${fmtVal(h.value)} ${fmtShort(h.date)}`).join(" · ")}}` : "";
-      const tgt = m.targetKind === "optimal" && m.optimalText ? `  (optimal ${m.optimalText})` : `  (${m.targetText})`;
-      const when = m.latestDate ? `, ${resultDateText(m)}` : "";
-      const notes = [m.methodNote, sourceNote(m), referenceSourceNote(m), m.freshnessNote].filter(Boolean);
-      L.push(`  ${m.name}: ${fmtVal(m.value)}${m.unit ? ` ${m.unit}` : ""}${when}${flag}${tgt}${notes.length ? ` — ${notes.join("; ")}` : ""}${hist}`);
-    }
-    L.push("");
-  }
-
-  if (data.bodyComp) {
+  if (hasSection(data, "body_composition") && data.bodyComp) {
     L.push(`BODY COMPOSITION (${data.bodyComp.label}${data.bodyComp.asOf ? `, ${fmtDate(data.bodyComp.asOf)}` : ""})`);
     L.push(`  ${data.bodyComp.summary}`);
     L.push("");
   }
 
-  if (data.supplements.length) {
+  if (hasSection(data, "supplements") && data.supplements.length) {
     L.push("SUPPLEMENTS / WHAT I TAKE");
     for (const s of data.supplements) {
       const detail = [s.dose, s.frequency].filter(Boolean).join(", ");
@@ -1281,9 +1368,20 @@ export function renderClinicalReportText(data: ClinicalReportData, opts: { name?
     L.push("");
   }
 
-  L.push("— Target/reference legend: optimal = evidence-anchored preventive/longevity band;");
-  L.push("  ref = the source lab's printed reference interval, or a curated adult reference interval when the upload omitted one; context labels are not targets.");
-  L.push("  Informational, not medical advice. Generated by Cairn.");
+  if (hasSection(data, "sources") && data.sources.length) {
+    L.push("SOURCE DOCUMENTS");
+    for (const line of sourceLines(data.sources)) L.push(`  ${line}`);
+    L.push("");
+  }
+
+  // The legend explains the target column, so it rides with the sections that print one;
+  // the informational line prints whatever is toggled.
+  const legend = hasSection(data, "findings") || hasSection(data, "panels");
+  if (legend) {
+    L.push("— Target/reference legend: optimal = evidence-anchored preventive/longevity band;");
+    L.push("  ref = the source lab's printed reference interval, or a curated adult reference interval when the upload omitted one; context labels are not targets.");
+  }
+  L.push(`${legend ? "  " : "— "}${data.disclaimer} Generated by Cairn.`);
   return L.join("\n");
 }
 
@@ -1400,6 +1498,10 @@ table.markers tr{break-inside:avoid}
 .supps li{margin:2px 0}
 .foot{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);color:var(--faint);font-size:10.5px;line-height:1.6}
 .foot .srcs{margin-top:6px}
+.visitq{margin:0 0 18px;break-inside:avoid}
+.visitq h2{font-size:14px;margin:0 0 6px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.vq-list{margin:0;padding-left:18px;font-size:12.5px}
+.vq-list li{margin:3px 0}
 .foot b{color:var(--soft);font-weight:600}
 
 @media print{
@@ -1456,15 +1558,32 @@ export function renderClinicalReportHTML(data: ClinicalReportData, opts: { name?
   if (data.subject.heightText) sub.push(esc(data.subject.heightText));
   if (data.subject.weightLb != null) sub.push(`${esc(data.subject.weightLb)} lb`);
 
-  const bodyComp = data.bodyComp
+  const bodyComp = hasSection(data, "body_composition") && data.bodyComp
     ? `<div class="cap bodycomp"><b>${esc(data.bodyComp.label)}${data.bodyComp.asOf ? ` · ${esc(fmtDate(data.bodyComp.asOf))}` : ""}:</b> ${esc(data.bodyComp.summary)}</div>`
     : "";
 
-  const supps = data.supplements.length
+  const supps = hasSection(data, "supplements") && data.supplements.length
     ? `<section class="suppwrap"><h2 style="font-family:Georgia,serif;font-size:14px;border-bottom:1px solid var(--line);padding-bottom:4px;margin:0 0 6px">Supplements</h2>
        <ul class="supps">${data.supplements
          .map((s) => `<li>${esc(s.name)}${[s.dose, s.frequency].filter(Boolean).length ? ` — ${esc([s.dose, s.frequency].filter(Boolean).join(", "))}` : ""}</li>`)
          .join("")}</ul></section>`
+    : "";
+
+  const questions = hasSection(data, "visit_questions") && data.visitQuestions.length
+    ? `<section class="visitq"><h2>Questions for the visit</h2>
+       <ul class="vq-list">${data.visitQuestions.map((q) => `<li>${esc(q.text)}</li>`).join("")}</ul></section>`
+    : "";
+
+  const sources = hasSection(data, "sources") && data.sources.length
+    ? `<div class="srcs"><b>Source documents</b>: ${sourceLines(data.sources).map(esc).join("; ")}</div>`
+    : "";
+
+  const findings = hasSection(data, "findings") ? findingsBox(data.groups) : "";
+  const panels = hasSection(data, "panels") ? data.groups.map(groupTable).join("\n") : "";
+  // "Findings only" hides the panels, so it is offered only when both are in the packet.
+  const toggle = hasSection(data, "findings") && hasSection(data, "panels");
+  const legend = hasSection(data, "findings") || hasSection(data, "panels")
+    ? `<b>†&nbsp;Target/reference</b>: <b>optimal</b> bands are evidence-anchored preventive / longevity references; <b>ref</b> means the source lab's printed reference interval, or a curated adult reference interval when the upload omitted one; context labels (for example DEXA context, fixed trait, qualitative) are not targets. `
     : "";
 
   const plain = renderClinicalReportText(data, opts);
@@ -1479,8 +1598,8 @@ export function renderClinicalReportHTML(data: ClinicalReportData, opts: { name?
 </head>
 <body>
 <div class="toolbar no-print">
-  <button class="btn" id="toggleBtn">Findings only</button>
-  <span class="hint">Use the bottom bar to copy the MyChart text or save the full report as PDF. Findings-only keeps the discussion list in view.</span>
+  ${toggle ? `<button class="btn" id="toggleBtn">Findings only</button>
+  <span class="hint">Use the bottom bar to copy the MyChart text or save the full report as PDF. Findings-only keeps the discussion list in view.</span>` : `<span class="hint">Use the bottom bar to copy the MyChart text or save the report as PDF.</span>`}
 </div>
 <div class="wrap body" id="body">
   <div class="head">
@@ -1495,13 +1614,15 @@ export function renderClinicalReportHTML(data: ClinicalReportData, opts: { name?
     </div>
   </div>
 
-  ${findingsBox(data.groups)}
+  ${findings}
+  ${questions}
   ${bodyComp}
-  ${data.groups.map(groupTable).join("\n")}
+  ${panels}
   ${supps}
 
   <div class="foot">
-    <b>†&nbsp;Target/reference</b>: <b>optimal</b> bands are evidence-anchored preventive / longevity references; <b>ref</b> means the source lab's printed reference interval, or a curated adult reference interval when the upload omitted one; context labels (for example DEXA context, fixed trait, qualitative) are not targets. This summary is informational and is not medical advice. No 0–100 scores are used.
+    ${legend}This summary is informational and is not medical advice. No 0–100 scores are used.
+    ${sources}
   </div>
 </div>
 <div class="actionbar no-print" role="region" aria-label="Report export actions">

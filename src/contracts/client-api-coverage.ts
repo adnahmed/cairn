@@ -236,6 +236,10 @@ export const CLIENT_API_CONTRACT_PATHS = [
   "/agent-jobs/:id/cancel",
   "/agents/:name/info",
   "/agents/:name/models",
+  "/records/search",
+  "/health/visit-questions",
+  "/health/evidence-wanted",
+  "/health-report.json",
 ] as const satisfies readonly ClientApiContractPattern[];
 
 export const CLIENT_API_UNKNOWN_WAIVERS = [] as const satisfies readonly ClientApiUnknownWaiver[];

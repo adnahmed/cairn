@@ -1,0 +1,153 @@
+// Visit questions and "evidence the team would like" (v2 wave 3).
+//   - each doctor-loop follow-up proposes ONE question (the loop is already collapsed
+//     per panel), plus any clinical ask the team holds for a doctor, printed as written
+//   - the evidence read is at most ONE calm line, or null — pull, never push
+// Every fixture is synthetic: invented names, dates and values.
+import { beforeEach, test } from "node:test";
+import assert from "node:assert/strict";
+import { localDaysAgo, marker, repo, resetTables, seedHealthDoc } from "./_seed.js";
+import {
+  visitQuestionsRead,
+  resolveVisitQuestions,
+  parseVisitQuestionList,
+} from "../dist/domain/health/visit-questions.js";
+import { evidenceWantedRead } from "../dist/domain/health/evidence-wanted.js";
+import { registerConnectedBrainTools } from "../dist/surfaces/mcp/connected-brain.js";
+
+beforeEach(() => {
+  resetTables(
+    "health_documents",
+    "health_directives",
+    "health_reviews",
+    "attention_schedule",
+    "profile",
+    "brain_decisions",
+    "bodyweight_log"
+  );
+});
+
+function seedLipidFollowUp() {
+  seedHealthDoc("2026-01-01", [
+    marker("ApoB", 125, { unit: "mg/dL", flag: "high" }),
+    marker("LDL-C", 160, { unit: "mg/dL", flag: "high" }),
+  ]);
+  repo.refreshDoctorLoopAttention();
+}
+
+function seedClinicalAsk(text) {
+  return repo.recordDecision({
+    effective_date: localDaysAgo(1),
+    kind: "lifestyle_adjustment",
+    domain: "health",
+    summary: "Synthetic clinical hold",
+    rationale: "Synthetic rationale.",
+    source: "test",
+    source_ref_type: null,
+    source_ref_key: null,
+    status: "review",
+    autonomy_tier: "clinician",
+    risk_class: "clinical",
+    reversible: true,
+    context: { clinical: true },
+    action: { user_explanation: text },
+    specialist: null,
+    applied_at: null,
+    reverted_at: null,
+    superseded_by: null,
+    evaluator_version: null,
+  }).decision;
+}
+
+test("each doctor-loop follow-up appears once, worded as a calm question", () => {
+  seedLipidFollowUp();
+  const read = visitQuestionsRead({ asOf: "2026-05-01" });
+  const loop = read.questions.filter((q) => q.source === "doctor_loop");
+  const ids = loop.map((q) => q.id);
+  assert.equal(new Set(ids).size, ids.length, "no follow-up is asked twice");
+  const lipids = loop.filter((q) => q.id === "loop:panel:lipids");
+  assert.equal(lipids.length, 1, "ApoB and LDL-C share one lipid-panel question");
+  assert.match(lipids[0].text, /^Is it time to recheck .+\?$/);
+  const texts = read.questions.map((q) => q.text.toLowerCase());
+  assert.equal(new Set(texts).size, texts.length, "no question text repeats");
+  assert.match(read.frame, /not medical advice/i);
+  for (const q of read.questions)
+    assert.doesNotMatch(q.text, /\bmust\b|\b\d{1,3}\s*\/\s*100\b/i, "no gate words, no scores");
+});
+
+test("a follow-up a year out is not a question for this visit", () => {
+  seedLipidFollowUp();
+  // Right after the draw the lipid recheck is ~12 weeks out (inside the horizon).
+  const soon = visitQuestionsRead({ asOf: "2026-01-02" });
+  assert.ok(
+    soon.questions.some((q) => q.id === "loop:panel:lipids"),
+    "an opening recheck is askable"
+  );
+  // Pushed far past the horizon (as of long before the draw) it is not.
+  const early = visitQuestionsRead({ asOf: "2025-01-01" });
+  assert.ok(!early.questions.some((q) => q.id === "loop:panel:lipids"));
+});
+
+test("a clinical ask the team holds for a doctor leads, printed as written", () => {
+  seedLipidFollowUp();
+  const text = "Synthetic note: ask whether the new routine changes when the next draw should be.";
+  const decision = seedClinicalAsk(text);
+  const read = visitQuestionsRead({ asOf: "2026-05-01" });
+  assert.equal(read.questions[0].source, "clinical_ask");
+  assert.equal(read.questions[0].id, `ask:${decision.id}`);
+  assert.equal(read.questions[0].text, text);
+  assert.equal(read.questions.filter((q) => q.source === "clinical_ask").length, 1);
+});
+
+test("the athlete's final list replaces the proposals and matches proposals by text", () => {
+  seedLipidFollowUp();
+  const proposed = visitQuestionsRead({ asOf: "2026-05-01" }).questions;
+  const keep = proposed[0].text;
+  const out = resolveVisitQuestions([keep, "My own synthetic question?", keep], { asOf: "2026-05-01" });
+  assert.equal(out.length, 2, "a repeated line is kept once");
+  assert.equal(out[0].id, proposed[0].id, "a kept proposal keeps its id");
+  assert.equal(out[1].source, "athlete");
+  assert.equal(parseVisitQuestionList(undefined), undefined, "not sent → proposals stand");
+  assert.deepEqual(parseVisitQuestionList(""), [], "sent empty → no questions");
+  assert.deepEqual(parseVisitQuestionList(["a?", 3, "  b? "]), ["a?", "b?"]);
+});
+
+test("evidence wanted: one calm line for the overdue recheck, else nothing", () => {
+  seedLipidFollowUp();
+  const due = evidenceWantedRead({ asOf: "2026-05-01" });
+  assert.ok(due.item, "an overdue lipid recheck is named");
+  assert.equal(due.item.key, "panel:lipids");
+  assert.equal(due.item.kind, "recheck");
+  assert.match(due.item.line, /^When it suits you, /);
+  assert.doesNotMatch(due.item.line, /\bmust\b|overdue|urgent/i, "calm, never a nag");
+  assert.equal(Array.isArray(due.item), false, "at most one item");
+
+  const notYet = evidenceWantedRead({ asOf: "2026-01-15" });
+  assert.equal(notYet.item, null, "nothing is overdue two weeks after the draw");
+  assert.match(notYet.frame, /Nothing waits on it/);
+});
+
+test("evidence wanted falls back to an off reading past its own marker's window — never a genetic one", () => {
+  seedHealthDoc("2025-01-01", [
+    marker("hs-CRP", 3.4, { unit: "mg/L", flag: "high" }), // fast class: past validity after ~6 months
+    marker("Lp(a)", 180, { unit: "nmol/L", flag: "high" }), // genetic: never ages out
+  ]);
+  const read = evidenceWantedRead({ asOf: "2026-06-01" });
+  assert.ok(read.item);
+  assert.match(read.item.key, /^aging:/);
+  assert.match(read.item.label, /crp/i);
+  assert.equal(read.item.since, "2025-01-01");
+
+  resetTables("health_documents");
+  seedHealthDoc("2025-01-01", [marker("Lp(a)", 180, { unit: "nmol/L", flag: "high" })]);
+  assert.equal(evidenceWantedRead({ asOf: "2026-06-01" }).item, null, "a genetic marker is never evidence wanted");
+});
+
+test("the MCP tools mirror the reads", async () => {
+  seedLipidFollowUp();
+  const tools = new Map();
+  registerConnectedBrainTools({ tool: (name, _d, _s, handler) => tools.set(name, handler) });
+  const q = JSON.parse((await tools.get("get_visit_questions")({ as_of: "2026-05-01" })).content[0].text);
+  assert.ok(q.questions.some((x) => x.id === "loop:panel:lipids"));
+  const e = JSON.parse((await tools.get("get_evidence_wanted")({ as_of: "2026-05-01" })).content[0].text);
+  assert.equal(e.item.key, "panel:lipids");
+});
