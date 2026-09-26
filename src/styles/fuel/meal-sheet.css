@@ -1,0 +1,58 @@
+/* -------------------------------------------------------------------
+   33 · Meal detail bottom sheet + recipe
+   ------------------------------------------------------------------- */
+body.sheet-open{overflow:hidden}
+.meal-row[data-di]{cursor:pointer}
+.sheet{position:fixed;inset:0;z-index:var(--z-sheet);display:flex;align-items:flex-end;justify-content:center;
+  background:transparent;transition:background var(--dur-2) ease}
+.sheet.sheet-in{background:rgba(33,29,23,.45);background:color-mix(in srgb,var(--ink) 45%,transparent)}
+.sheet-card{background:var(--card);border-radius:22px 22px 0 0;width:100%;max-width:680px;
+  max-height:88dvh;display:flex;flex-direction:column;position:relative;box-shadow:var(--shadow-lg);
+  transform:translateY(100%);transition:transform var(--dur-3) var(--ease)}
+.sheet-in .sheet-card{transform:translateY(0)}
+.sheet-grab{width:40px;height:4px;border-radius:99px;background:var(--line-2);margin:10px auto 0;flex:0 0 auto}
+/* framed dismiss → .xbtn + a card-2 circle chrome */
+.sheet-x{position:absolute;top:14px;right:14px;z-index:2;background:var(--card-2);
+  border:1px solid var(--line);border-radius:var(--radius-pill);width:32px;height:32px;font-size:.85rem}
+.sheet-scroll{overflow-y:auto;overscroll-behavior:contain;text-align:center;
+  padding:6px 22px calc(28px + env(safe-area-inset-bottom))}
+.sheet-hero{width:min(46vw,180px);margin:8px auto 0}
+.sheet-art{width:100%;height:auto;aspect-ratio:1;
+  filter:drop-shadow(0 16px 24px rgba(72,58,35,.18))}
+.sheet-kicker{margin-top:12px;letter-spacing:.2em;color:var(--accent)}
+.sheet-title{font-family:var(--font-display);font-weight:580;font-variation-settings:"opsz" 80;
+  font-size:1.55rem;line-height:1.15;letter-spacing:-.01em;margin-top:4px}
+.sheet-items{font-size:.86rem;color:var(--ink-2);margin:5px auto 0;max-width:420px}
+.sheet-macros{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin-top:14px}
+.sheet-chip{display:inline-flex;align-items:baseline;gap:5px;background:var(--card-2);
+  border:1px solid var(--line);border-radius:var(--radius-pill);padding:5px 13px}
+.sheet-chip .numeral{font-size:.95rem;font-weight:600}
+.sheet-section{margin:24px auto 0;max-width:430px;text-align:left}
+.sheet-section>.lbl{display:block;margin-bottom:8px}
+.sheet-section-c{text-align:center}
+.sheet-recipe-cta{margin-top:4px}
+.sheet-recipe-note{font-size:.74rem;color:var(--muted);margin-top:9px}
+/* recipe being written (durable background job): spinner + evolving caption */
+.sheet-recipe-loading{display:flex;flex-direction:column;align-items:center;gap:11px;padding:8px 0}
+.sheet-recipe-load-line{color:var(--ink-2);font-family:var(--font-display);font-style:italic;font-size:.95rem}
+.recipe-lede{font-family:var(--font-display);font-style:italic;font-weight:480;
+  font-variation-settings:"opsz" 40;font-size:1.02rem;color:var(--ink-2);line-height:1.55;
+  margin:20px auto 0;max-width:430px}
+.recipe-meta{display:flex;justify-content:center;gap:7px;margin-top:12px}
+.recipe-ing{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+  padding:8px 0;border-top:1px solid var(--line);font-size:.88rem}
+.recipe-ing:first-child{border-top:none}
+.recipe-ing-item{color:var(--ink-2);min-width:0}
+.recipe-ing-qty{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
+  color:var(--ink);white-space:nowrap;font-variant-numeric:lining-nums}
+.recipe-steps{list-style:none;counter-reset:step;margin:0;padding:0}
+.recipe-steps li{counter-increment:step;position:relative;padding:10px 0 10px 38px;
+  border-top:1px solid var(--line);font-size:.88rem;color:var(--ink-2);line-height:1.55}
+.recipe-steps li:first-child{border-top:none}
+.recipe-steps li::before{content:counter(step);position:absolute;left:2px;top:8px;
+  font-family:var(--font-display);font-weight:600;font-variation-settings:"opsz" 144;
+  font-size:1.25rem;color:var(--accent);font-variant-numeric:lining-nums}
+.recipe-tips{display:grid;gap:8px}
+.recipe-tip{background:var(--card-2);border-radius:var(--radius-sm);padding:10px 13px;
+  font-size:.82rem;color:var(--ink-2);line-height:1.5}
+

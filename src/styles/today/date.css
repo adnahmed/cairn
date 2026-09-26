@@ -1,0 +1,54 @@
+/* -------------------------------------------------------------------
+   31 · Today header date control + back-to-today pill
+   ------------------------------------------------------------------- */
+header{position:relative}
+#header-title.hdr-tappable{position:relative;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none}
+.hdr-chev{display:inline-block;font-size:.85rem;color:var(--muted);margin-left:9px;
+  vertical-align:6px;transition:transform var(--dur-2) var(--ease)}
+
+/* Today: the date control stays reachable — the header pins to the top of the
+   scroll. At rest it's the full editorial header; once the page scrolls it
+   condenses to a slim blurred band (kicker recedes, date shrinks) so it leads
+   without crowding the read. */
+body[data-tab="today"] header{
+  position:sticky;top:0;z-index:var(--z-header);
+  transition:padding var(--dur-2) var(--ease);
+}
+body[data-tab="today"] header::after{
+  content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:rgba(252,250,244,.86);
+  backdrop-filter:blur(14px) saturate(1.1);-webkit-backdrop-filter:blur(14px) saturate(1.1);
+  border-bottom:1px solid var(--line);
+  opacity:0;transition:opacity var(--dur-2) var(--ease);
+}
+body[data-tab="today"] header #header-title{transition:font-size var(--dur-2) var(--ease)}
+body[data-tab="today"] header.condensed{
+  padding-top:calc(env(safe-area-inset-top) + 11px);padding-bottom:11px;
+}
+body[data-tab="today"] header.condensed::after{opacity:1}
+body[data-tab="today"] header.condensed #header-title{font-size:1.5rem}
+/* full-size transparent overlay over the title — a real tap target that opens the
+   native date picker reliably (a genuine pointer event on a real input). */
+.hdr-datepick{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;
+  opacity:0;cursor:pointer;background:transparent;color:transparent;
+  -webkit-appearance:none;appearance:none}
+.hdr-datepick::-webkit-calendar-picker-indicator{opacity:0}
+.back-today{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;
+  padding:8px 15px;border-color:var(--accent);color:var(--accent)}
+
+/* -------------------------------------------------------------------
+   32 · View enter — subtle fade+rise on full content swaps
+   ------------------------------------------------------------------- */
+@keyframes viewin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+#view.view-in{animation:viewin var(--dur-2) var(--ease)}
+/* Skeleton → content: the content lands at partial opacity and settles in one short
+   fade, so it reads as a crossfade out of the skeleton rather than a blank-then-rise.
+   viewHydrate() switches the swapped cards' .reveal stagger off inline — one entrance,
+   never a fade AND a rise. Reduced motion: never added (JS guard + global kill). */
+@keyframes viewhydrate{from{opacity:.35}to{opacity:1}}
+#view.view-hydrate{animation:viewhydrate var(--dur-1) var(--ease)}
+
+/* artwork tiles always reserve a square so photo arrival never shifts layout */
+.artile{aspect-ratio:1}
+

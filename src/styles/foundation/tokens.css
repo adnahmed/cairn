@@ -1,0 +1,117 @@
+/* ===================================================================
+   CAIRN — "Atelier" design system
+   Warm-gallery / studio-catalog aesthetic. Frozen contract: docs/DESIGN.md
+   Display: system serif stack. UI: system sans stack.
+   =================================================================== */
+
+/* -------------------------------------------------------------------
+   01 · Tokens
+   ------------------------------------------------------------------- */
+:root{
+  color-scheme:light;
+
+  --paper:   #f4efe7;   /* page background, warm cream */
+  --card:    #fffdf8;   /* card surface */
+  --card-2:  #f8f3ea;   /* inset surfaces: inputs, wells, chips */
+  --ink:     #211d17;   /* primary text, near-black warm ink */
+  --ink-2:   #57503f;   /* secondary text */
+  --muted:   #746c5c;   /* tertiary text, labels — darkened to clear WCAG AA (4.5:1) on card-2/paper; was #8c8475 (3.35:1) */
+  --line:    #e7dfd2;   /* hairlines */
+  --line-2:  #d8cfbd;   /* stronger hairlines */
+  --faint:   #c0b6a0;   /* faint taupe — dismiss/× glyphs, ghosted marks */
+  --accent:  #b4552d;   /* terracotta — primary actions, highlights */
+  --accent-deep: #93421f;
+  --accent-wash: rgba(180,85,45,.1);  /* terracotta @ ~10% — chip/hover tint fill */
+  --on-accent: #fffdf8; /* cream ink/glyph on a saturated fill (accent/sage/warn/ink/gold) */
+  --sage:    #6e7f5c;   /* success, completion, "done" */
+  --sage-text: #5f6e4f; /* sage for SMALL TEXT on card/cream — meets 4.5:1 AA (plain --sage is ~4:1, borders/marks only) */
+  --sage-deep: #5a6a4a; /* darker sage — hover/pressed state for sage text actions */
+  --sage-bg: #eef0e6;
+  --warn:    #b3402e;   /* warnings, destructive */
+  --warn-bg: #f6e8e2;
+  --gold:    #c9a86a;   /* PR moments, gentle highlights — fills/marks, too light for text */
+  --gold-deep: #8a6d2e; /* readable amber for "watch" TEXT (marker value off-optimal) — AA on card */
+  --rust:    #965138;   /* muted terracotta — a provider sign-in / auth state, quieter than --accent */
+
+  /* Stone — warm neutrals from the mark. An expanded dark ramp that
+     pairs quietly with terracotta: richer near-black than ink for the
+     glyph and future dark surfaces, plus a taupe secondary. */
+  --stone-deep:  #2c2620;   /* charcoal stack, dark surfaces */
+  --stone:       #473f36;   /* flat mark, small sizes */
+  --stone-taupe: #7d6a56;   /* capstone, quiet secondary */
+
+  --shadow-sm: 0 1px 2px rgba(72,58,35,.07), 0 4px 14px rgba(72,58,35,.07);
+  --shadow-md: 0 2px 4px rgba(72,58,35,.08), 0 14px 36px rgba(72,58,35,.11);
+  --shadow-lg: 0 6px 16px rgba(72,58,35,.12), 0 28px 64px rgba(72,58,35,.18);
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-pill: 999px; /* fully rounded ends — chips, pills, bars, tracks */
+  --space-card: 10px; /* one vertical rhythm between sibling cards */
+
+  /* spacing — a 2px-step ladder for gaps, padding and margins, drawn from the
+     values the sheet already leans on. New CSS picks from here. */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 16px;
+  --space-9: 18px;    /* page gutter */
+  --space-10: 24px;
+
+  /* type — a short scale. The sheet still carries ~70 one-off rem sizes; new CSS
+     uses only these, and old sizes move onto them when their section is touched. */
+  --text-2xs: .62rem;  /* tracked caps labels (.lbl) */
+  --text-xs:  .72rem;  /* meta lines, chips, footnotes */
+  --text-sm:  .8rem;   /* secondary UI copy */
+  --text-md:  .9rem;   /* card body copy */
+  --text-base: 1rem;   /* body, inputs */
+  --text-lg:  1.25rem; /* card titles */
+  --text-xl:  1.6rem;  /* .numeral-lg, display leads */
+  --text-2xl: 2.05rem; /* h1 */
+  --text-3xl: 2.6rem;  /* .numeral-xl */
+
+  /* z layers — named app-level stacking, low to high. Stacking local to one
+     component (-1…4 inside its own positioned box) stays a raw number. */
+  --z-grain: 1;          /* body::before paper grain */
+  --z-list-head: 18;     /* sticky group heads inside a list */
+  --z-sticky: 20;        /* in-view sticky bars (.hread-nav, .stand-actionbar) */
+  --z-sticky-menu: 22;   /* a menu opening from a sticky bar */
+  --z-header: 25;        /* the pinned Today header; the chat-mode thread */
+  --z-pinned-under: 29;  /* a second pinned seg band, under the first */
+  --z-pinned: 30;        /* the pinned seg band; the chat-mode header */
+  --z-tabbar: 40;
+  --z-rest: 45;          /* the rest-timer bar */
+  --z-savebar: 46;       /* the save bar; the SWR refresh hairline */
+  --z-offline: 48;       /* the offline band */
+  --z-outbox: 49;        /* the "N to sync" pill */
+  --z-toast: 50;
+  --z-session-bar: 50;   /* the sticky session top bar */
+  --z-modal: 60;
+  --z-sheet: 65;
+  --z-detail: 70;        /* the detail overlay; the art redraw menu */
+  --z-dialog: 80;        /* blocking dialogs (BP sheet, agent sign-in) */
+  --z-review: 86;        /* the outbox review sheet */
+  --z-token: 90;         /* the token sheet — above everything */
+
+  /* motion tokens — one easing family, three speeds. Nothing snaps. */
+  --ease:  cubic-bezier(.22,1,.36,1);
+  --dur-1: 200ms;   /* presses, hovers, small state flips */
+  --dur-2: 320ms;   /* thumbs, sheets, overlays */
+  --dur-3: 450ms;   /* entrances, bars growing, photo fades */
+
+  /* tactile press — one intentional depth scale, keyed to target size.
+     The press deepens as the target shrinks, so the feedback reads the
+     same at any size. Apply as `transform:var(--press*)` in :active. */
+  --press-lg: scale(.99);   /* large surfaces — cards, rows, tap-entries */
+  --press:    scale(.97);   /* standard — buttons, pills, day/seg buttons */
+  --press-sm: scale(.94);   /* compact action buttons */
+  --press-xs: scale(.9);    /* tiny icon buttons — ×, dots, swatches, chevrons */
+
+  --font-display: ui-serif, 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+

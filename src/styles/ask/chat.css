@@ -1,0 +1,370 @@
+/* -------------------------------------------------------------------
+   16 · Chat
+   ------------------------------------------------------------------- */
+/* Flex viewport column: the log is the ONLY scroller and the composer dock is
+   always the bottom row, so the input bar can never scroll off — even under
+   iOS Display Zoom / Larger Text. Height is measured live in JS (measureChatTop);
+   this calc is just the pre-measure default to avoid a first-paint jump. */
+.chatview{display:flex;flex-direction:column;height:var(--chat-h,calc(100dvh - 240px))}
+/* the chat column reserves its own room above the tab bar — drop the body's
+   tab-bar padding so the page doesn't gain a stray scroll behind it */
+body.chat-mode{padding-bottom:var(--vvb,0px)}
+.chatlog-wrap{position:relative;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.chatlog{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  display:flex;flex-direction:column;gap:10px;padding:2px 1px 8px}
+.chatdock{flex:0 0 auto;padding-top:2px}
+/* Mobile: the chat column is BOTTOM-ANCHORED, not height-measured. It's fixed
+   between the header (top) and either the tab bar (--tabbar-h, keyboard closed)
+   or the KEYBOARD TOP (keyboard open). Subtle iOS truth: in a STANDALONE
+   installed PWA the soft keyboard shrinks only the VISUAL viewport — the LAYOUT
+   viewport (what position:fixed;bottom:0 anchors to) does NOT move — so a plain
+   bottom:0 sits BEHIND the keyboard (the reported bug). Instead we lift the whole
+   column by the keyboard-occluded height the guard already publishes as --vvb
+   (innerHeight - vv bottom; see app-mobile-viewport.js): the box shrinks so the
+   composer docks ON the keyboard top and the log shrinks with it. Because --vvb
+   is a direct geometry read, bottom:var(--vvb) is correct whether or not the
+   layout viewport also shrinks (in a plain browser tab it does, so --vvb
+   collapses to 0 and this equals the old bottom:0). The keyboard-open state drops
+   the .22s ease so the composer tracks the geometry frame-for-frame instead of
+   lagging behind it (a JS-driven position under a CSS ease is exactly what made
+   the old height-measured box drift from the native caret). --cvt/--chat-top/
+   --tabbar-h are kept current in JS (measureChatTop). Desktop keeps the in-flow
+   sidebar column (the base .chatview height:--chat-h above) untouched. */
+@media (max-width:959px){
+  body.chat-mode header{
+    position:fixed;top:var(--cvt,0px);left:0;right:0;z-index:var(--z-pinned);background:var(--paper);
+  }
+  body.chat-mode .chatview{
+    position:fixed;left:0;right:0;z-index:var(--z-header);
+    top:calc(var(--cvt,0px) + var(--chat-top,96px));
+    bottom:calc(var(--tabbar-h,64px) + var(--vvb,0px));   /* sit on the tab bar, tracking its --vvb correction */
+    height:auto;            /* top + bottom define the box — override the desktop height */
+    max-width:720px;margin:0 auto;padding:0 18px;
+    /* Match the tab bar's 220ms slide when the bottom re-anchors (calc→0), so the
+       composer eases with the bar instead of teleporting ~64px. Only this one-time
+       snap animates — while the keyboard tracks, `bottom` stays 0 (native). The
+       global reduced-motion reset zeroes this AND the tab-bar transform together. */
+    transition:bottom .22s ease;
+  }
+  /* Keyboard up (REAL geometry only — an intent tap that summons no keyboard must
+     not bounce the bar): the tab bar is dead weight while typing — slide it out so
+     the conversation + composer own the screen, and LIFT the column onto the
+     keyboard top (bottom:var(--vvb), not bottom:0, which would hide it behind the
+     keyboard in a standalone PWA — see the block comment above). transition:none so
+     the composer tracks the keyboard geometry instead of easing behind it. The
+     reassurance note hides too, reclaiming its lines for the log. */
+  body.chat-mode.kb-geometry-open .chatview{bottom:var(--vvb,0px);transition:none}
+  body.chat-mode.kb-geometry-open .tabbar{transform:translateY(110%);pointer-events:none}
+  body.chat-mode.kb-geometry-open .chatnote{display:none}
+}
+
+.bubble{position:relative;max-width:85%;padding:10px 14px;border-radius:16px;font-size:.9rem;
+  line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
+.bubble.user{align-self:flex-end;background:var(--ink);color:var(--paper);border-bottom-right-radius:5px}
+.bubble.assistant{align-self:flex-start;background:var(--card);box-shadow:var(--shadow-sm);
+  border-bottom-left-radius:5px}
+.bubble.pending{background:var(--card);box-shadow:var(--shadow-sm);color:var(--muted)}
+/* the live phase caption ("Thinking…" → "Drafting…") inside a pending bubble —
+   each swap settles in gently so the wait reads as motion, never a jump */
+.bubble.pending .typing-cap{display:inline-block;font-style:italic;
+  animation:capfade var(--dur-2) var(--ease)}
+.bubble.pending .typing-cap:empty{display:none}
+@keyframes capfade{from{opacity:.35}to{opacity:1}}
+/* quiet Stop control on a streaming/queued turn — a calm steer, never an alarm */
+.bubble.pending .turn-stop,.bubble.streaming .turn-stop{margin-left:10px;padding:0;border:none;background:none;
+  font-family:var(--font-ui);font-size:.68rem;font-weight:600;letter-spacing:.04em;
+  color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px;
+  vertical-align:middle}
+.bubble.pending .turn-stop:hover,.bubble.streaming .turn-stop:hover{color:var(--ink)}
+/* a turn rendering its reply token-by-token (true headless streaming) */
+.bubble.assistant.streaming{align-self:flex-start;background:var(--card);box-shadow:var(--shadow-sm);
+  border-bottom-left-radius:5px}
+.bubble.streaming .stream-text{white-space:normal}
+.bubble.streaming .turn-stop{display:inline-block;margin:6px 0 0}
+/* while a streamed reply's actions apply (seconds), the prose is already on screen —
+   show a calm "Saving…" footer and retire the blinking caret so it's not a silent blink */
+.bubble.streaming .stream-status{display:block;margin-top:6px;font-style:italic;font-size:.72rem;
+  letter-spacing:.02em;color:var(--muted)}
+.bubble.streaming-applying .stream-caret{display:none}
+/* blinking caret trailing the streamed text */
+.stream-caret{display:inline-block;width:2px;height:1.02em;margin-left:1px;border-radius:1px;
+  background:var(--accent);vertical-align:text-bottom;animation:streamcaret 1.1s steps(1) infinite}
+@keyframes streamcaret{0%,50%{opacity:1}50.01%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.stream-caret{animation:none;opacity:.6}}
+/* an agent-job card streaming its prose reading in place (session-suggest, health
+   synthesis, nutrition check-in, weekly read) before the final render swaps in */
+.job-stream-text{white-space:pre-wrap;color:var(--ink);font-size:.9rem;line-height:1.5}
+/* a stopped turn settles into a subtle in-place note */
+.bubble.turn-stopped{align-self:flex-start;background:var(--card);box-shadow:var(--shadow-sm);
+  border-bottom-left-radius:5px}
+.bubble.turn-stopped .turn-stopped-note{font-style:italic;font-size:.82rem;color:var(--muted)}
+.bubble.bubble-in{animation:bubblein .34s var(--ease) both}
+@keyframes bubblein{from{opacity:0;transform:translateY(7px) scale(.98)}to{opacity:1;transform:none}}
+
+/* grouping: consecutive same-role turns stack tight; only the run's last bubble
+   keeps the little tail + the timestamp. `.cont` continues a run, `.grouped` is
+   a non-last bubble (tail squared off). */
+.bubble.cont{margin-top:-5px}
+.bubble.grouped.user{border-bottom-right-radius:16px}
+.bubble.grouped.assistant{border-bottom-left-radius:16px}
+.bubble.cont.user{border-top-right-radius:7px}
+.bubble.cont.assistant{border-top-left-radius:7px}
+
+/* per-message clock time on the last bubble of a run (subtle, side-aligned) */
+.bubble-time{display:block;margin-top:5px;font-family:var(--font-ui);font-size:.58rem;
+  font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.bubble.user .bubble-time{text-align:right;color:#b8a78f}
+
+/* copy affordance on coach replies — hover-revealed on desktop, long-press on touch */
+.bubble-copy{position:absolute;top:6px;right:6px;width:26px;height:26px;display:flex;
+  align-items:center;justify-content:center;border:none;border-radius:8px;
+  background:var(--card-2);color:var(--muted);box-shadow:var(--shadow-sm);
+  opacity:0;transform:scale(.9);transition:opacity var(--dur-1) var(--ease),
+  transform var(--dur-1) var(--ease),color var(--dur-1) var(--ease)}
+.bubble-copy svg{width:14px;height:14px}
+@media (hover:hover){ .bubble.assistant:hover .bubble-copy{opacity:1;transform:none}
+  .bubble-copy:hover{color:var(--ink)} }
+@media (hover:none){ .bubble-copy{display:none} }
+
+/* rendered markdown inside assistant bubbles */
+.bubble-text.md{white-space:normal}
+.bubble-text.md>:first-child{margin-top:0}
+.bubble-text.md>:last-child{margin-bottom:0}
+.bubble-text.md p{margin:0 0 8px}
+.bubble-text.md ul,.bubble-text.md ol{margin:0 0 8px;padding-left:20px}
+.bubble-text.md li{margin:3px 0}
+.bubble-text.md h3,.bubble-text.md h4,.bubble-text.md h5,.bubble-text.md h6{
+  font-family:var(--font-display);font-weight:600;font-variation-settings:"opsz" 40;
+  line-height:1.25;margin:12px 0 6px}
+.bubble-text.md h3{font-size:1.05rem}
+.bubble-text.md h4{font-size:.98rem}
+.bubble-text.md h5,.bubble-text.md h6{font-size:.92rem}
+.bubble-text.md code{background:var(--card-2);border:1px solid var(--line);border-radius:6px;
+  padding:1px 5px;font-size:.85em;font-variant-numeric:lining-nums}
+.bubble-text.md pre{background:var(--card-2);border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;margin:0 0 8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.bubble-text.md pre code{background:none;border:none;padding:0;font-size:.82rem;white-space:pre}
+.bubble-text.md a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;word-break:break-word}
+.bubble-text.md img{max-width:100%;border-radius:10px;margin:4px 0}
+.bubble-text.md blockquote{border-left:3px solid var(--line-2);padding-left:10px;margin:0 0 8px;color:var(--ink-2)}
+.bubble-text.md hr{border:none;border-top:1px solid var(--line);margin:10px 0}
+.md-tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 8px;max-width:100%}
+.bubble-text.md table{border-collapse:collapse;font-size:.82rem;min-width:max-content}
+.bubble-text.md th,.bubble-text.md td{border:1px solid var(--line-2);padding:5px 9px;text-align:left;vertical-align:top}
+.bubble-text.md th{background:var(--card-2);font-family:var(--font-ui);font-weight:700;
+  font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.bubble-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.bubble-tag{display:inline-flex;align-items:center;background:var(--sage-bg);
+  color:var(--sage);border-radius:var(--radius-pill);padding:3px 9px;
+  font-family:var(--font-ui);font-size:.58rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;white-space:nowrap}
+.bubble.user .bubble-meta .bubble-tag{background:rgba(255,253,248,.14);color:#d8c9b2}
+/* A capture food log: the enriched chip carries a readable meal + macros, so drop
+   the all-caps pill treatment; while it fills in, a calm muted state + spinner dot. */
+.bubble-tag.capture-food{text-transform:none;letter-spacing:.01em;font-weight:650}
+.bubble-tag.capture-food.pending{background:var(--card-2);color:var(--muted);border:1px solid var(--line-2)}
+.bubble-tag.capture-food.pending .enr-dot{display:inline-block;width:7px;height:7px;margin-right:5px;
+  border-radius:50%;border:1.5px solid var(--accent);border-top-color:transparent;
+  animation:enrspin .7s linear infinite;vertical-align:-1px}
+@media (prefers-reduced-motion:reduce){.bubble-tag.capture-food.pending .enr-dot{animation:none;opacity:.6}}
+/* What the estimate was built from, settling under the chip once enrichment lands:
+   one quiet line per item (name · portion in words · a muted ~kcal), read-only and
+   phone-sized. No inputs, no totals line (the chip above carries the meal's total),
+   no provenance line — a correction is the next message, never a form. */
+.capture-review{margin-top:var(--space-3)}
+/* Only the review that lands WHILE you are looking settles in; one rendered from
+   history is already part of the message and must not re-animate on every paint. */
+.capture-review.settling{animation:settlein var(--dur-2) var(--ease)}
+.capture-items{list-style:none;margin:0;padding:0;font-size:var(--text-xs);line-height:1.5;color:var(--ink-2)}
+.capture-item{display:flex;align-items:baseline;gap:var(--space-2);min-width:0}
+.capture-item-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.capture-item-portion{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.capture-item-portion::before{content:"· "}
+.capture-item-kcal{flex:0 0 auto;margin-left:auto;padding-left:var(--space-3);color:var(--muted);
+  font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.capture-item-more{color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.capture-review.settling{animation:none}}
+.agentcheck{
+  display:inline-flex;align-items:center;gap:7px;margin-top:8px;max-width:100%;
+  background:var(--card-2);border:1px solid var(--line);color:var(--muted);
+  border-radius:var(--radius-pill);padding:5px 9px;font-family:var(--font-ui);
+  font-size:.66rem;font-weight:650;line-height:1.2;text-align:left;
+}
+.agentcheck:hover{border-color:var(--line-2);color:var(--ink)}
+.agentcheck span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agentcheck-dot{width:7px;height:7px;border-radius:var(--radius-pill);background:var(--rust);flex:0 0 auto}
+
+.draftbtn{
+  display:block;margin-top:9px;width:100%;background:transparent;
+  border:1px solid var(--accent);color:var(--accent);border-radius:var(--radius-pill);padding:9px 13px;
+  font-family:var(--font-ui);font-weight:600;font-size:.76rem;letter-spacing:.08em;
+  text-transform:uppercase;transition:background .15s,color .15s;
+}
+.draftbtn:hover{background:var(--accent);color:var(--on-accent)}
+/* an applied draft — calm, done, non-interactive (no hover, no pointer) */
+.draftbtn.applied{
+  border-color:var(--sage);background:var(--sage-bg);color:var(--sage);
+  cursor:default;text-transform:none;letter-spacing:.02em;
+}
+.draftbtn.applied:hover{background:var(--sage-bg);color:var(--sage)}
+.bubble.user .draftbtn.applied{
+  border-color:rgba(255,253,248,.22);background:rgba(255,253,248,.14);color:#d8c9b2;
+}
+
+/* photo attached to a chat turn (plate shots) */
+.bubble-img{max-width:min(220px,70vw);max-height:240px;border-radius:12px;display:block;margin-bottom:6px}
+.bubble.user .bubble-img{margin-left:auto}
+
+/* pre-send preview of the attached photo */
+.chat-preview[hidden]{display:none}
+.chat-preview{display:flex;align-items:center;gap:10px;margin-top:8px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:7px 10px;box-shadow:var(--shadow-sm)}
+.chat-preview img{width:42px;height:42px;object-fit:cover;border-radius:9px;flex:0 0 auto}
+.chat-preview-hint{flex:1;font-size:.78rem;color:var(--ink-2);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.chatfuel-slot:empty{display:none}
+.chatfuel-card{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  margin-top:8px;padding:9px 12px;background:var(--card);border:1px solid var(--line);
+  border-left:3px solid var(--sage);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
+  color:var(--ink);font-family:var(--font-ui);cursor:pointer}
+.chatfuel-card:active{transform:var(--press)}
+.chatfuel-mark{flex:0 0 auto;color:var(--sage);font-size:.82rem}
+.chatfuel-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.chatfuel-label{color:var(--muted)}
+.chatfuel-stats{font-size:.84rem;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chatfuel-go{flex:0 0 auto;color:var(--sage);font-weight:700}
+@media (hover:hover){.chatfuel-card:hover{background:var(--card-2)}}
+
+.chatbar{display:flex;gap:8px;align-items:flex-end;margin-top:8px}
+/* Single "+" attach control — opens the OS chooser (camera / library / files).
+   Attaching is occasional, so it stays compact and hands the width to the input. */
+.attachbtn{flex:0 0 auto;width:40px;height:40px;display:flex;align-items:center;justify-content:center;
+  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
+  box-shadow:var(--shadow-sm);transition:color .15s,border-color .15s,background .15s}
+.attachbtn svg{width:22px;height:22px}
+.attachbtn.has-img{color:var(--accent);border-color:var(--accent)}
+@media (hover:hover){ .attachbtn:hover{color:var(--ink);border-color:var(--ink)} }
+.chatbar textarea{flex:1;min-width:0;background:var(--card);border:1px solid var(--line-2);color:var(--ink);
+  border-radius:21px;padding:11px 16px;font-size:.92rem;line-height:1.4;box-shadow:var(--shadow-sm);
+  resize:none;max-height:140px;overflow-y:hidden;display:block}
+.chatbar .logbtn{border-radius:var(--radius-pill);font-size:1.1rem}
+/* Wraps the textarea so the reused .qlmic press-to-talk button (see the
+   "effortless capture" block below) can ride its trailing edge, same as it
+   once did on Today's quick-log field. */
+.chat-field{position:relative;display:flex;flex:1;min-width:0}
+.chat-field:has(#chatMic:not([hidden])) #chatInput{padding-right:42px}
+.chatnote{text-align:center;color:var(--muted);font-size:.72rem;margin-top:8px;line-height:1.45;text-wrap:balance}
+
+/* day dividers — slim centered date rules between conversation days */
+.chat-divider{display:flex;align-items:center;gap:12px;flex:0 0 auto;
+  margin:8px 0 0;-webkit-user-select:none;user-select:none}
+.chat-divider::before,.chat-divider::after{content:"";flex:1;height:1px;background:var(--line)}
+.chat-divider span{font-family:var(--font-ui);font-size:.58rem;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+
+/* collapsed history above the live stretch */
+.chat-earlier{display:flex;flex-direction:column;gap:10px;flex:0 0 auto}
+.chat-earlier[hidden]{display:none}
+.chat-earlierbar{display:flex;justify-content:center;flex:0 0 auto;padding:2px 0}
+.earlierbtn{background:var(--card);border:1px solid var(--line-2);color:var(--muted);
+  border-radius:var(--radius-pill);padding:7px 15px;font-family:var(--font-ui);font-size:.64rem;
+  font-weight:700;letter-spacing:.12em;text-transform:uppercase;box-shadow:var(--shadow-sm);
+  transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+@media (hover:hover){ .earlierbtn:hover{color:var(--ink);border-color:var(--ink)} }
+
+/* starter chips (empty chat) — pinned just above the chatbar, stagger in */
+.chatlog .empty,.chatlog .loadstate{margin:auto 0;flex:0 0 auto}
+.chat-chips{margin-top:auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
+  padding:10px 2px 2px;flex:0 0 auto}
+.chat-chip{background:var(--card);border:1px solid var(--line-2);color:var(--ink-2);
+  border-radius:var(--radius-pill);padding:10px 15px;font-size:.82rem;box-shadow:var(--shadow-sm);
+  animation:rise var(--dur-3) var(--ease) both;animation-delay:calc(var(--i,0) * 70ms);
+  transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+@media (hover:hover){ .chat-chip:hover{color:var(--accent);border-color:var(--accent)} }
+
+/* Chat header affordances: a history/search circle + the fresh-start button,
+   in one cluster anchored to the (position:relative) header. */
+.hdr-chat-actions{position:absolute;right:18px;bottom:14px;display:flex;align-items:center;gap:8px}
+@media (min-width:960px){ .hdr-chat-actions{right:48px;bottom:18px} }
+.hdrcircbtn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
+  box-shadow:var(--shadow-sm);
+  transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+.hdrcircbtn svg{width:17px;height:17px}
+@media (hover:hover){ .hdrcircbtn:hover{color:var(--ink);border-color:var(--ink)} }
+
+/* fresh-start (distill & archive) — inline two-tap confirm; lives in the cluster */
+.freshbtn{display:flex;align-items:center;gap:7px;
+  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
+  height:34px;padding:0 8px;box-shadow:var(--shadow-sm);
+  transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+.freshbtn[hidden]{display:none}
+.freshbtn svg{width:17px;height:17px;flex:0 0 auto}
+.freshbtn-txt{display:none;font-family:var(--font-ui);font-size:.6rem;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.freshbtn.armed{color:var(--accent);border-color:var(--accent);padding:0 13px}
+.freshbtn.armed .freshbtn-txt{display:inline}
+@media (hover:hover){ .freshbtn:hover{color:var(--ink);border-color:var(--ink)} }
+
+/* distilling transition while a fresh start runs */
+.distill{margin:auto;align-self:center;display:flex;align-items:center;gap:10px;
+  color:var(--ink-2);font-family:var(--font-display);font-style:italic;font-size:1.05rem;
+  animation:rise var(--dur-3) var(--ease) both}
+.distill-check{color:var(--sage);font-size:1.1rem}
+
+/* fresh-start settle pill — a quiet, self-dismissing confirmation in the chat
+   header actions row after a non-blocking fresh start (the composer never locks). */
+.fresh-pill{display:flex;align-items:center;gap:6px;white-space:nowrap;
+  padding:4px 11px;border-radius:var(--radius-pill);background:var(--card);border:1px solid var(--line-2);
+  color:var(--ink-2);font-family:var(--font-ui);font-size:.72rem;font-weight:600;
+  opacity:0;transform:translateY(-3px);transition:opacity var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.fresh-pill .distill-check{font-size:.9rem}
+.fresh-pill-in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){ .fresh-pill{transition:none;opacity:1;transform:none} }
+
+/* jump-to-latest pill — floats bottom-right of the log when scrolled up */
+.chat-jump{position:absolute;right:8px;bottom:10px;z-index:3;width:38px;height:38px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--card);border:1px solid var(--line-2);color:var(--ink-2);border-radius:var(--radius-pill);
+  box-shadow:var(--shadow-md);animation:settlein var(--dur-2) var(--ease) both;
+  transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+.chat-jump[hidden]{display:none}
+.chat-jump svg{width:20px;height:20px}
+@media (hover:hover){ .chat-jump:hover{color:var(--accent);border-color:var(--accent)} }
+
+/* ---- chat history / search overlay (read-only, in the .detail scaffold) ---- */
+.chat-hist{display:flex;flex-direction:column;gap:14px}
+.chat-hist-search{display:flex;align-items:center;gap:9px;background:var(--card-2);
+  border:1px solid var(--line);border-radius:var(--radius-pill);padding:10px 15px}
+.chat-hist-search svg{width:17px;height:17px;color:var(--muted);flex:0 0 auto}
+.chat-hist-search input{flex:1;background:none;border:none;color:var(--ink);font-size:.92rem;
+  min-width:0;outline:none}
+.chat-hist-body{min-height:120px}
+.chat-hist-list{display:flex;flex-direction:column;gap:8px}
+.chat-hist-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:13px 14px;box-shadow:var(--shadow-sm);
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.chat-hist-item:active{transform:var(--press-lg)}
+@media (hover:hover){ .chat-hist-item:hover{border-color:var(--line-2)} }
+.chat-hist-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.chat-hist-preview{color:var(--ink);font-size:.9rem;line-height:1.4;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chat-hist-preview mark{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent-deep);
+  border-radius:3px;padding:0 1px}
+.chat-hist-meta{font-family:var(--font-ui);font-size:.62rem;font-weight:600;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.chat-hist-chev{flex:0 0 auto;color:var(--line-2);font-size:1.4rem;line-height:1}
+.chat-hist-back{align-self:flex-start;background:none;border:none;color:var(--muted);
+  font-family:var(--font-ui);font-size:.8rem;font-weight:600;padding:2px 0;margin-bottom:2px}
+@media (hover:hover){ .chat-hist-back:hover{color:var(--ink)} }
+/* Read-only history convo grows to its full height inside .detail-scroll; it
+   must NOT inherit .chatlog's overflow/overscroll — as a no-room scroll container
+   those would swallow the touch gesture and the page wouldn't scroll at all. It
+   also lives inside .detail-scroll, which is text-align:center for the art/title
+   sheets; reset to left so the bubbles read like the live chat, not centered. */
+.chat-hist-convo{height:auto;flex:none;overflow:visible;overscroll-behavior:auto;
+  text-align:left;gap:10px;display:flex;flex-direction:column}
+

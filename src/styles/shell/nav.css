@@ -1,0 +1,29 @@
+/* =====================================================================
+   Five-home navigation (v2 wave 5 stream A): the one-time "what moved here"
+   line under a home's title (#movedNote, src/client/app/moved-note.ts). Quiet
+   muted prose with a plain "Got it"; it settles in with the shared settlein
+   keyframe (the global reduced-motion reset zeroes it) and steps aside while
+   Today's pinned header is condensed.
+   ===================================================================== */
+.moved-note{display:block;margin:var(--space-3) 0 0;font-size:var(--text-xs);line-height:1.5;color:var(--muted);
+  animation:settlein var(--dur-2) var(--ease) both}
+.moved-note[hidden]{display:none}
+.moved-note-text{margin-right:var(--space-4)}
+/* Inline with the sentence, but still a 44px target: the negative block margin keeps
+   the tall hit area from growing the line. */
+.moved-note-dismiss{display:inline-flex;align-items:center;min-height:44px;margin:-14px 0;
+  font-size:var(--text-xs);vertical-align:baseline}
+body[data-tab="today"] header.condensed .moved-note{display:none}
+/* A header that carries controls (Ask's Changes / history / fresh-start cluster)
+   lays them on the TITLE's row and gives the moved-here line a full-width row of its
+   own below — it never competes with, or slides under, the controls. */
+header:has(> .hdr-chat-actions){display:grid;grid-template-columns:minmax(0,1fr) auto;
+  column-gap:var(--space-4);align-items:center}
+header:has(> .hdr-chat-actions) > #header-title{grid-column:1;grid-row:1;min-width:0}
+header:has(> .hdr-chat-actions) > .hdr-chat-actions{position:static;grid-column:2;grid-row:1}
+header:has(> .hdr-chat-actions) > .moved-note{grid-column:1 / -1;grid-row:2}
+/* The You landing's groups, under the cairn-stack. */
+.you-group{margin-top:var(--space-10)}
+.you-group:first-child{margin-top:0}
+.you-group-h{margin:0 0 var(--space-5)}
+

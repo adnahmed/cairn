@@ -1,0 +1,82 @@
+/* -------------------------------------------------------------------
+   02 · Reset & base
+   ------------------------------------------------------------------- */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:var(--font-ui); line-height:1.55; font-size:16px;
+  padding-bottom:calc(92px + max(env(safe-area-inset-bottom),6px) + var(--vvb,0px)); min-height:100dvh;
+}
+/* paper grain — fixed noise wash over everything, barely-there */
+body::before{
+  content:""; position:fixed; inset:0; z-index:var(--z-grain); pointer-events:none;
+  opacity:.035;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+img,svg{display:block;max-width:100%}
+button{font-family:inherit;color:inherit;cursor:pointer}
+button:not(:disabled):active{transform:var(--press)}
+input,select,textarea{font-family:var(--font-ui);color:var(--ink)}
+/* no double-tap-to-zoom on controls (iOS) — taps fire immediately, page never zooms */
+button,input,select,textarea,a{touch-action:manipulation}
+::placeholder{color:#b3aa97;opacity:1}
+::selection{background:var(--accent);color:var(--on-accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+/* Programmatic focus never paints the keyboard ring. A tab switch moves focus onto
+   #view or the new view's first heading (tabindex="-1" reading positions, not
+   controls); where an engine still matches :focus-visible after a TAP, the switch
+   marks the target data-focus-quiet (removed on blur). A keyboard-driven switch
+   leaves no mark, so the ring still shows for keyboard users. */
+#view:focus:not(:focus-visible),[tabindex="-1"]:focus:not(:focus-visible){outline:none}
+[data-focus-quiet]:focus{outline:none}
+
+/* iOS Safari auto-zooms the page when a focused control's font-size is under
+   16px (chat input, quick-log, plan editor…). On touch devices pin every form
+   control to 16px so focusing never zooms; desktop keeps the designed sizes. */
+@media (hover:none) and (pointer:coarse){
+  input:not([type="checkbox"]):not([type="radio"]),select,textarea{font-size:16px !important}
+}
+
+/* strip number-input spinners everywhere */
+input[type="number"]{-moz-appearance:textfield;appearance:textfield}
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+
+/* quiet warm scrollbars where they appear */
+*{scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:99px;border:3px solid var(--paper)}
+::-webkit-scrollbar-thumb:hover{background:#c4b9a2}
+
+/* screen-reader-only — visually hidden, still in the accessibility tree.
+   Never display:none/visibility:hidden; those pull the text from assistive tech too. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+/* -------------------------------------------------------------------
+   03 · Typography primitives
+   ------------------------------------------------------------------- */
+header{padding:calc(env(safe-area-inset-top) + 26px) 18px 14px;max-width:680px;margin:0 auto}
+h1{
+  font-family:var(--font-display);font-weight:580;font-size:var(--text-2xl);line-height:1.12;
+  font-variation-settings:"opsz" 60;letter-spacing:-.01em;color:var(--ink);margin-top:4px;
+}
+h1 i,h1 em{font-style:italic;font-weight:480}
+main{max-width:680px;margin:0 auto;padding:0 18px;position:relative}
+
+/* tracked caps label — the "PROTEIN ───" style */
+.lbl{
+  font-family:var(--font-ui);text-transform:uppercase;letter-spacing:.18em;
+  font-size:var(--text-2xs);font-weight:600;color:var(--muted);
+}
+
+/* Display serif numerals */
+.numeral{
+  font-family:var(--font-display);font-weight:580;
+  font-variation-settings:"opsz" 144;line-height:1.05;color:var(--ink);
+  font-variant-numeric:lining-nums;
+}
+.numeral-xl{font-size:var(--text-3xl);font-weight:600;letter-spacing:-.015em}
+.numeral-lg{font-size:var(--text-xl)}
+

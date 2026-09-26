@@ -1,0 +1,581 @@
+/* -------------------------------------------------------------------
+   31 · Me · Health — the whole picture (Read · Markers · Records)
+   ------------------------------------------------------------------- */
+/* The Health inner seg is now a SINGLE level (Read / Markers / Records). It still
+   carries its own .hseg / hseg-thumb view-transition-name so the thumb never
+   collides with the Me seg thumb, and a small top offset stacks it under the Me
+   seg when both are pinned. No more four-way / brain-vs-markers confusion. */
+/* Base: the inner Health seg stacks under the Me seg when both pin (the +56px offset). */
+.hsegwrap{top:calc(env(safe-area-inset-top,0px) + 56px);z-index:var(--z-pinned-under);margin-top:-6px}
+.hseg{margin-top:0}
+/* On the Health sub-view two sticky seg bars (the Me seg + this inner Health seg)
+   would otherwise stack ~92px of chrome before any content. Let the Me seg yield its
+   sticky slot so only the Health seg pins, and raise the Health seg to the header top
+   (the header is position:relative on Me, so it scrolls away — no collision). Both
+   rules are gated together on :has(+ .hsegwrap): scoped to Health only (Profile/
+   Memory/Life/Family keep their single pinned Me seg), and a browser without :has
+   support falls back cleanly to the original two-bar behavior above. */
+.segwrap:has(+ .hsegwrap){position:static}
+.segwrap:has(+ .hsegwrap) + .hsegwrap{top:env(safe-area-inset-top,0px)}
+/* Me is no longer a bar tab — it's reached only contextually (Settings → You, or a
+   Stand tool), so its obsolete top-level section nav is hidden: you land straight
+   on the view. The Health sub-nav (.hsegwrap) stays; back is the bottom bar. */
+body[data-tab="me"] .segwrap:not(.hsegwrap):not(.prog-subwrap){display:none}
+.hseg .seg-thumb{view-transition-name:hseg-thumb}
+#hPicture{margin-top:2px}
+#hContent{min-width:0}
+
+
+/* ME → Health → Read — the whole-picture depth as ONE editorial column. It used to be
+   inlined under Standing as a 1.4fr/1fr two-column read, which left a tall empty gutter
+   whenever the directives list ran far longer than the narrative (the "breaks"). A
+   single column removes the gutter entirely and reads calmly on phone and desktop. */
+.hread{display:flex;flex-direction:column;gap:16px;min-width:0}
+.hread>*{min-width:0}
+/* a jump must land BELOW the sticky Health seg + jump nav, not hidden under them */
+.hread>[id]{scroll-margin-top:calc(env(safe-area-inset-top,0px) + 104px)}
+/* the in-page jump nav — chips that scroll to a section. STICKY so it stays reachable
+   through the long read (scrolling out and back to it was the complaint): pinned just
+   under the single Health seg (the Me seg yields its sticky slot on the Health sub-view
+   — see .segwrap:has(+ .hsegwrap)), the same +56px offset the Markers group headers use,
+   with the same cream blur so content scrolls cleanly under it. It scrolls horizontally
+   on a narrow phone so it stays ONE row tall instead of wrapping and eating the view. */
+.hread-nav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 56px);z-index:var(--z-sticky);
+  display:flex;gap:7px;align-items:center;margin:0 -4px 4px;padding:8px 4px;
+  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  background:rgba(252,250,244,.94);backdrop-filter:blur(8px) saturate(1.05);
+  -webkit-backdrop-filter:blur(8px) saturate(1.05)}
+.hread-nav::-webkit-scrollbar{display:none}
+.hread-chip{flex:0 0 auto;white-space:nowrap;border:1px solid var(--line-2);
+  background:var(--card);color:var(--ink-2);border-radius:var(--radius-pill);padding:7px 13px;
+  font-family:var(--font-ui);font-size:.76rem;font-weight:650;letter-spacing:.01em;
+  cursor:pointer;transition:border-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease)}
+.hread-chip:hover{border-color:var(--ink-2);color:var(--ink)}
+.hread-chip.active{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.hread-chip:active{transform:var(--press)}
+
+/* Standing → the jump-off into the relocated full health read (Health → Read) */
+.hread-jump{display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+  margin-top:16px;padding:15px 18px;background:var(--card);border:1px solid var(--line);
+  border-left:3px solid var(--sage);border-radius:var(--radius);box-shadow:var(--shadow-sm);
+  cursor:pointer;transition:box-shadow var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.hread-jump:hover{box-shadow:var(--shadow-md)}
+.hread-jump:active{transform:var(--press)}
+.hread-jump-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
+.hread-jump-title{font-family:var(--font-display);font-variation-settings:"opsz" 40;
+  font-weight:560;font-size:1.06rem;line-height:1.2;color:var(--ink)}
+.hread-jump-sub{font-size:.84rem;color:var(--muted);line-height:1.42}
+.hread-jump-arrow{flex:0 0 auto;font-size:1.2rem;color:var(--sage);font-weight:700}
+/* the "see every trend →" link out of the what-matters-now list to the Markers home */
+/* accent trend-link → .linkbtn.linkbtn-sm; delta = spacing only */
+.hb-mk-allbtn{margin-top:12px;padding:4px 0;font-family:var(--font-ui);letter-spacing:.01em}
+
+/* defensive wrapping — long marker names/values or agent prose must never break
+   out of the card on narrow screens (the Health analysis overflow fix) */
+.hpic{overflow:hidden}
+.hpic-headline,.hfocus-title,.hfocus-why,.hfocus-act,
+.hwatch-name,.hwatch-why,.hwatch-act,.hfu-what,.himpact-t,
+.hwins li,.hnotworried-markers,.hnotworried-note,.hdoc .sess-line{overflow-wrap:anywhere;word-break:break-word}
+.hfu-what{min-width:0}
+.hm-name,.hm-val{overflow-wrap:anywhere;word-break:break-word}
+
+/* the review card */
+/* the elite-coach whole-picture synthesis — leads the Read tab */
+.hsyn{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:18px;margin:0 0 14px;border-left:3px solid var(--accent)}
+.hsyn-kicker{display:block;color:var(--muted);margin-bottom:6px}
+.hsyn-headline{font-family:var(--font-display);font-weight:530;font-variation-settings:"opsz" 80;
+  font-size:1.22rem;line-height:1.28;color:var(--ink);margin:0 0 8px}
+.hsyn-story{font-size:.95rem;line-height:1.55;color:var(--ink-2);margin:0 0 12px}
+.hsyn-invite{font-size:.92rem;color:var(--ink-2);margin:0 0 12px}
+.hsyn-prios{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
+.hsyn-prio{padding:9px 11px;background:var(--card-2);border-radius:var(--radius-sm)}
+.hsyn-ptop{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.hsyn-plabel{font-weight:600;font-size:.86rem;color:var(--ink)}
+.hsyn-pwhy{font-size:.82rem;color:var(--muted);line-height:1.45;margin:2px 0 0}
+.hsyn-pmove{display:block;font-size:.85rem;color:var(--ink-2);margin-top:4px}
+.hsyn-pmove-k{color:var(--sage-text);margin-right:5px}
+.hsyn-precheck{display:block;font-size:.82rem;line-height:1.4;color:var(--muted);margin-top:4px}
+.hsyn-precheck-k{color:var(--sage-text);margin-right:5px}
+/* "ask the coach about this" deep-links — layout only; the look is .linkbtn-plain.linkbtn-sm */
+.hsyn-ask{flex:0 0 auto}
+.hsyn-foot-r{display:flex;align-items:center;gap:10px}
+.hmk-ask{display:inline-flex;align-items:center;margin:2px 0 12px;min-height:30px}
+.hmk-ask-arw{margin-left:1px}
+/* A marker's live directive, in its own words — one quiet tinted line under the
+   chart, left-aligned like the reading it belongs to; tap leads to Connections. */
+.hmk-directive{display:flex;align-items:flex-start;gap:8px;width:100%;margin:2px 0 10px;
+  padding:9px 12px;border:0;border-left:2px solid var(--accent);border-radius:var(--radius-sm);
+  background:color-mix(in srgb,var(--accent) 9%,var(--card));color:var(--ink);
+  font:inherit;font-size:.84rem;line-height:1.45;text-align:left;cursor:pointer;
+  transition:background var(--dur-1) var(--ease)}
+.hmk-directive:hover{background:color-mix(in srgb,var(--accent) 14%,var(--card))}
+.hmk-directive:active{transform:var(--press-sm)}
+.hmk-directive-arw{margin-left:auto;padding-left:8px;color:var(--accent);flex:0 0 auto}
+.hsyn-onechange{margin:4px 0 12px;padding:11px 13px;
+  background:color-mix(in srgb,var(--accent) 9%,var(--card))}
+.hsyn-onechange .lbl{display:block;color:var(--accent);margin-bottom:3px}
+.hsyn-onechange span:last-child{font-size:.9rem;color:var(--ink);line-height:1.45}
+.hsyn-focus{margin-top:4px;border-top:1px solid var(--line);padding-top:12px}
+.hsyn-tier-lbl{display:block;color:var(--muted);margin:10px 0 6px;letter-spacing:.04em}
+.hsyn-tier-lbl:first-child{margin-top:0}
+.hsyn-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px}
+.hsyn-cap{flex-basis:100%;color:var(--accent)}
+.hsyn-gen{margin-top:4px}
+
+/* Health Standing — pull-based age/reference comparison, no 0-100 grade */
+.hstand{display:grid;gap:14px}
+.hstand-busy{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:18px}
+.hstand-hero{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;background:var(--card);
+  box-shadow:var(--shadow-sm);border-radius:var(--radius);padding:18px;border-left:3px solid var(--sage)}
+.hstand-hero h2{font-family:var(--font-display);font-weight:530;font-variation-settings:"opsz" 72;
+  font-size:1.25rem;line-height:1.25;color:var(--ink);margin:5px 0 13px;overflow-wrap:anywhere}
+.hstand-ages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-width:560px}
+.hstand-ages span{display:flex;flex-direction:column;gap:2px;min-width:0;border-top:1px solid var(--line);
+  padding-top:8px}
+.hstand-ages b{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 80;
+  font-size:1.65rem;line-height:1;color:var(--ink)}
+.hstand-ages em{font-style:normal;font-size:.72rem;color:var(--muted);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.hstand-conf{display:inline-block;margin-top:11px;font-size:.68rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--sage)}
+.hstand-ref{min-width:0}
+.hstand-refgrid{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.hstand-refbtn{border:1px solid var(--line-2);background:transparent;color:var(--ink-2);
+  border-radius:var(--radius-pill);padding:7px 11px;font-family:var(--font-ui);font-size:.72rem;font-weight:650;
+  letter-spacing:.02em;cursor:pointer}
+.hstand-refbtn.active{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.hstand-refbtn:active{transform:var(--press)}
+/* the visible read of the selected "compare against" group — lives in the always-on hero */
+.hstand-refsum{margin-top:14px;display:grid;gap:9px;max-width:440px}
+.hstand-refsum-head{display:block;color:var(--muted)}
+.hstand-refsum-empty{margin-top:13px;line-height:1.5}
+.hstand-refsum-row{display:grid;grid-template-columns:minmax(64px,auto) 1fr auto;align-items:center;gap:11px}
+.hstand-refsum-metric{font-size:.82rem;color:var(--ink-2);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.hstand-refsum-bar{min-width:0}
+.hstand-refsum-read{font-size:.82rem;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.hstand-refsum-read b{font-family:var(--font-display);font-variation-settings:"opsz" 32;font-weight:600;
+  color:var(--ink)}
+.hstand-grid{display:grid;gap:14px}
+.hstand-panel{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:16px 18px;min-width:0}
+.hstand-panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  margin-bottom:12px;color:var(--muted)}
+.hstand-comp{border-top:1px solid var(--line);padding:13px 0}
+.hstand-comp:first-of-type{border-top:none;padding-top:0}
+.hstand-comp-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  margin-bottom:9px;min-width:0}
+.hstand-comp-head b{font-size:.92rem;color:var(--ink)}
+.hstand-eq{flex:0 0 auto;font-size:.72rem;color:var(--muted)}
+.hstand-comp-bar{margin:9px 0 8px}
+.hstand-comp-read{font-size:.86rem;color:var(--ink-2);line-height:1.4}
+.hstand-comp-read b{font-family:var(--font-display);font-variation-settings:"opsz" 32;font-weight:600;color:var(--ink)}
+.hstand-where{margin-top:7px;font-size:.8rem;color:var(--muted);line-height:1.45;
+  display:flex;flex-wrap:wrap;gap:5px;align-items:baseline}
+.hstand-where b{color:var(--ink-2);font-weight:680;font-variant-numeric:tabular-nums}
+.hstand-where .lbl{color:var(--muted)}
+.hstand-where-arrow{color:var(--sage);font-weight:700}
+.hstand-where-top{color:var(--sage)}
+.hstand-where-top .hstand-where-arrow{color:var(--gold)}
+.hstand-comp-ref{margin-top:6px;font-size:.74rem;color:var(--muted)}
+.hstand-source{margin-top:8px;color:var(--muted)}
+.hstand-empty,.bp-empty{font-size:.85rem;color:var(--muted);line-height:1.5;padding:8px 0}
+.hstand-dims{display:grid;grid-template-columns:1fr;gap:12px}
+.hstand-dim{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:15px 17px;min-width:0;border-left:3px solid var(--line-2)}
+.hstand-dim.hstand-strong{border-left-color:var(--sage)}
+.hstand-dim.hstand-steady{border-left-color:var(--gold)}
+.hstand-dim.hstand-watch{border-left-color:var(--warn)}
+.hstand-dim-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
+.hstand-tone-dot{width:8px;height:8px;border-radius:50%;background:var(--line-2);flex:0 0 auto}
+.hstand-strong .hstand-tone-dot{background:var(--sage)}
+.hstand-steady .hstand-tone-dot{background:var(--gold)}
+.hstand-watch .hstand-tone-dot{background:var(--warn)}
+.hstand-dim h3{font-size:.98rem;line-height:1.25;margin:0 0 6px;color:var(--ink);overflow-wrap:anywhere}
+.hstand-dim p{font-size:.84rem;line-height:1.48;color:var(--muted);margin:0}
+.hstand-measures{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.hstand-measure{display:inline-flex;align-items:baseline;gap:5px;border:1px solid var(--line);
+  border-radius:var(--radius-pill);padding:5px 9px;background:var(--card-2);max-width:100%}
+.hstand-measure b{font-size:.85rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.hstand-measure em{font-style:normal;font-size:.7rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.bp-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.bp-form .form-input{min-width:0;font-size:.84rem;padding:9px 10px}
+.bp-form #bpAt,.bp-form #bpNote,.bp-form .logbtn{grid-column:1/-1}
+.bp-form .logbtn{width:100%;height:44px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:12px;font-family:var(--font-ui);font-size:.74rem;font-weight:750;
+  letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;margin-top:2px}
+.bp-recent{display:grid;gap:8px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}
+.bp-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;min-width:0}
+.bp-row b{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
+  font-size:1rem;color:var(--ink);white-space:nowrap}
+.bp-row div{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px 9px;font-size:.72rem;color:var(--muted);
+  min-width:0;text-align:right}
+
+/* ---- momentum-led standing read ---- */
+/* the three-age strip: calendar → direction → biological (lab-preferred) */
+.hstand-hero-main{min-width:0}
+.hstand-age-mid{align-items:center!important;text-align:center;border-top-color:transparent!important;
+  justify-content:center}
+.hstand-age-arrow{font-family:var(--font-display);font-size:1.5rem;line-height:1;color:var(--muted)}
+.hstand-hero-younger .hstand-age-arrow{color:var(--sage)}
+.hstand-hero-older .hstand-age-arrow{color:var(--accent)}
+.hstand-hero-younger .hstand-age-bio b{color:var(--sage)}
+.hstand-deltachip{display:inline-block;margin-top:5px;font-size:.62rem;font-weight:700;letter-spacing:.04em;
+  padding:2px 7px;border-radius:var(--radius-pill);width:max-content}
+.hstand-deltachip.is-younger{background:var(--sage-bg);color:var(--sage)}
+.hstand-deltachip.is-older{background:var(--warn-bg);color:var(--warn)}
+/* Plain-language biological-age read: the hero leads with DIRECTION, never a number. */
+.hstand-heroline{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;margin:10px 0 0;
+  font-size:.95rem;line-height:1.5;color:var(--ink)}
+.hstand-heroarrow{font-family:var(--font-display);font-size:1.25rem;line-height:1;color:var(--muted)}
+.hstand-heroword{font-weight:640;letter-spacing:-.01em}
+.hstand-heroread{color:var(--muted)}
+.hstand-hero-younger .hstand-heroarrow,.hstand-hero-younger .hstand-heroword{color:var(--sage)}
+.hstand-hero-older .hstand-heroarrow,.hstand-hero-older .hstand-heroword{color:var(--accent)}
+.hstand-eq-est{color:var(--accent-deep);font-weight:600}
+
+/* this-quarter momentum chips — the wins in motion */
+.hstand-momentum{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);padding:16px 18px}
+.hstand-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.hstand-chip{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600;
+  padding:7px 13px;border-radius:var(--radius-pill);background:var(--card-2);color:var(--ink-2);border:1px solid var(--line)}
+
+/* the one lever — a terracotta well naming the single highest-leverage move
+   (→ .well-accent; delta = padding only) */
+.hstand-lever{padding:16px 18px}
+.hstand-lever h3{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 56;
+  font-size:1.18rem;line-height:1.2;color:var(--ink);margin:7px 0 4px}
+.hstand-lever p{font-size:.86rem;line-height:1.5;color:var(--ink-2);margin:0 0 9px}
+.hstand-lever-move{background:var(--card-2);border-radius:var(--radius-sm);padding:9px 12px;margin:0 0 11px!important;
+  color:var(--ink)!important}
+.hstand-lever-move .lbl{display:block;margin-bottom:3px;color:var(--accent-deep)}
+
+/* live body composition — the DEXA anchor projected onto today's weight */
+.hstand-bc-big{display:flex;align-items:baseline;gap:8px;margin-top:4px}
+.hstand-bc-big b{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 96;
+  font-size:2.3rem;line-height:1;color:var(--ink)}
+.hstand-bc-unit{font-size:.82rem;color:var(--muted)}
+.hstand-bc-from{font-size:.82rem;color:var(--muted);margin-top:8px}
+.hstand-bc-from b{font-family:var(--font-display);color:var(--ink-2)}
+.hstand-bc-win{display:inline-block;margin-top:10px;font-size:.82rem;font-weight:700;color:var(--sage);
+  background:var(--sage-bg);border-radius:var(--radius-pill);padding:5px 12px}
+.hstand-bc-note{font-size:.8rem;line-height:1.45;color:var(--ink-2);margin-top:11px}
+/* the regional DEXA read — visceral fat, bone density, lean index, fat distribution */
+.hstand-bc-regional{margin-top:13px;display:grid;gap:9px;padding-top:12px;border-top:1px solid var(--line)}
+.hstand-bc-rnote{display:flex;gap:9px;align-items:flex-start;font-size:.82rem;line-height:1.45;color:var(--ink-2)}
+.hstand-bc-rdot{width:7px;height:7px;border-radius:50%;background:var(--line-2);margin-top:6px;flex:0 0 auto}
+.hstand-bc-rnote.hstand-strong .hstand-bc-rdot{background:var(--sage)}
+.hstand-bc-rnote.hstand-steady .hstand-bc-rdot{background:var(--gold)}
+.hstand-bc-rnote.hstand-watch .hstand-bc-rdot{background:var(--warn)}
+
+/* blood pressure that READS — interpretation + trajectory, capture behind a tap */
+.hstand-bp-cat{flex:0 0 auto;font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 9px;border-radius:var(--radius-pill);background:var(--card-2);color:var(--muted)}
+.hstand-bp-cat.hstand-strong{background:var(--sage-bg);color:var(--sage)}
+.hstand-bp-cat.hstand-steady{background:var(--card-2);color:var(--accent-deep)}
+.hstand-bp-cat.hstand-watch{background:var(--warn-bg);color:var(--warn)}
+.hstand-bp-read{font-size:.88rem;line-height:1.5;color:var(--ink);margin-top:11px}
+.hstand-bp-traj{display:flex;align-items:center;gap:10px;margin-top:11px;font-family:var(--font-display);
+  font-variation-settings:"opsz" 48;font-size:1.08rem;color:var(--muted)}
+.hstand-bp-traj .hstand-bp-was{text-decoration:line-through;text-decoration-color:var(--line-2)}
+.hstand-bp-arrow{color:var(--sage)}
+.hstand-bp-now{color:var(--ink);font-weight:560}
+.hstand-bp-log{width:100%;margin-top:13px;justify-content:center}
+
+/* the holistic balance line — permission to live */
+.hstand-balance{background:var(--sage-bg);border-radius:var(--radius);padding:15px 18px}
+.hstand-balance p{font-size:.88rem;line-height:1.55;color:var(--ink-2);margin:7px 0 0;font-style:italic}
+
+/* Cardiovascular risk (AHA PREVENT 2023) — a validated clinical % + vascular age,
+   ALWAYS shown paired with the enhancer overlay (never a standalone "younger!" headline;
+   see hrisk-enh-lede-tension for the honesty guard). Informational, not medical advice. */
+.hrisk{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:18px;display:grid;gap:16px}
+.hrisk > .lbl{color:var(--muted)}
+.hrisk-vage{display:flex;align-items:baseline;gap:12px}
+.hrisk-vage-num{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 96;
+  font-size:2.6rem;line-height:1;color:var(--ink)}
+.hrisk-vage-label{font-size:.86rem;color:var(--ink-2);display:flex;flex-direction:column;gap:2px}
+.hrisk-vage-sub{font-size:.74rem;color:var(--muted)}
+/* the enhancer overlay — the residual risk a base % misses (ApoB/Lp(a)/hs-CRP/fitness/family) */
+.hrisk-enh{display:grid;gap:11px}
+.hrisk-enh-lede{font-size:.86rem;line-height:1.5;color:var(--ink-2);margin:0}
+.hrisk-enh-lede-tension{color:var(--accent-deep);font-weight:600}
+.hrisk-enh-row{background:var(--card-2);border-radius:var(--radius-sm);padding:12px 14px}
+.hrisk-enh-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px}
+.hrisk-enh-top b{font-size:.9rem;color:var(--ink)}
+.hrisk-enh-find{font-size:.76rem;color:var(--muted)}
+.hrisk-enh-why{font-size:.82rem;line-height:1.5;color:var(--ink-2);margin:6px 0 0}
+.hrisk-enh-lever{font-size:.82rem;color:var(--ink);margin:8px 0 0;background:var(--card);
+  border-radius:var(--radius-sm);padding:8px 11px}
+.hrisk-enh-lever .lbl{display:block;margin-bottom:3px;color:var(--accent-deep)}
+/* the clinical read: total-CVD leads (primary), ASCVD + heart-failure secondary */
+.hrisk-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px}
+.hrisk-stat{border-top:1px solid var(--line);padding-top:9px;display:flex;flex-direction:column;gap:2px}
+.hrisk-stat-primary{border-top-color:var(--accent)}
+.hrisk-stat-num{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 56;
+  font-size:1.5rem;color:var(--ink)}
+.hrisk-stat-primary .hrisk-stat-num{color:var(--accent-deep)}
+.hrisk-stat-sub{font-size:.72rem;color:var(--muted)}
+/* data-bound risk ribbon: current PREVENT path plus a lever-target path.
+   The lower path is visual only; no invented optimized clinical % is printed. */
+.hrisk-viz{border:1px solid var(--line);border-radius:var(--radius-sm);background:linear-gradient(180deg,var(--card-2),var(--card));
+  padding:13px 13px 12px;overflow:hidden}
+.hrisk-viz-provisional{border-style:dashed}
+.hrisk-viz-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:4px}
+.hrisk-viz-top b{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 40;
+  font-size:1.02rem;color:var(--ink)}
+.hrisk-viz-top span{font-size:.72rem;color:var(--muted);text-align:right}
+.hrisk-viz-svg{display:block;width:100%;height:auto;min-height:176px}
+.hrisk-viz-grid{fill:none;stroke:var(--line);stroke-width:1;stroke-dasharray:3 7}
+.hrisk-viz-band{fill:url(#hriskRibbon)}
+.hrisk-viz-current,.hrisk-viz-optimized{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.hrisk-viz-current{stroke:var(--accent-deep);stroke-width:3.2}
+.hrisk-viz-optimized{stroke:var(--sage);stroke-width:2.4;stroke-dasharray:8 7}
+/* a small, static, purely decorative heart — fixed geometry, NEVER data-bound,
+   parked in the top-left corner clear of the trajectory lines and axis row */
+.hrisk-viz-motif{opacity:.5}
+.hrisk-viz-heart{fill:var(--accent);opacity:.5}
+.hrisk-viz-points circle{fill:var(--card);stroke:var(--accent-deep);stroke-width:1.6}
+.hrisk-viz-point-opt{stroke:var(--sage)!important}
+.hrisk-viz-axis{font-family:var(--font-ui);font-size:.62rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;fill:var(--muted)}
+.hrisk-viz-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:2px}
+.hrisk-viz-legend span{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;color:var(--ink-2)}
+.hrisk-viz-key{width:18px;height:0;border-top:3px solid var(--accent-deep);border-radius:var(--radius-pill)}
+.hrisk-viz-key-optimized{border-top-color:var(--sage);border-top-style:dashed}
+.hrisk-viz-note{margin:8px 0 0;font-size:.74rem;line-height:1.45;color:var(--muted)}
+/* calm interpretation well — what the % actually means, with the ACC/AHA band as
+   a small category pill (a clinical category, NOT a 0-100 wellness grade) */
+.hrisk-interp{background:var(--card-2);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;display:grid;gap:7px}
+.hrisk-interp-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.hrisk-interp-line{margin:0;font-size:.86rem;line-height:1.5;color:var(--ink-2)}
+.hrisk-cat{flex:0 0 auto;font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  border-radius:var(--radius-pill);padding:3px 9px;white-space:nowrap}
+.hrisk-cat-low{color:var(--sage);background:var(--sage-bg)}
+.hrisk-cat-borderline{color:var(--gold-deep);background:var(--card)}
+.hrisk-cat-intermediate{color:var(--accent-deep);background:var(--card)}
+.hrisk-cat-high{color:var(--warn);background:var(--warn-bg)}
+/* a brief, gentle acknowledgement pulse on the risk card after a sharpen flag
+   autosaves — reassures the tap registered even when the numbers don't move */
+.hrisk-flash{animation:hriskFlash 1.3s ease-out}
+@keyframes hriskFlash{
+  0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--sage) 32%,transparent)}
+  30%{box-shadow:0 0 0 5px color-mix(in srgb,var(--sage) 14%,transparent)}
+  100%{box-shadow:0 0 0 0 transparent}
+}
+@media (prefers-reduced-motion:reduce){.hrisk-flash{animation:none}}
+/* the compact "what moves it" lever strip */
+.hrisk-levers{border-top:1px solid var(--line);padding-top:12px}
+.hrisk-lev-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.hrisk-lev-chip{font-size:.78rem;color:var(--ink-2);background:var(--card-2);border-radius:var(--radius-pill);
+  padding:6px 11px;border:1px solid var(--line)}
+.hrisk-lev-chip b{color:var(--ink);font-weight:600}
+/* provisional-read assumptions + the calm "sharpen it" nudge into Me → Profile */
+.hrisk-provisional{border-top:1px solid var(--line);padding-top:12px}
+.hrisk-badge{display:inline-block;font-size:.62rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--gold-deep);background:var(--card-2);border-radius:var(--radius-pill);
+  padding:3px 9px}
+.hrisk-assumptions{margin:10px 0 0;padding-left:18px;display:grid;gap:5px}
+.hrisk-assumptions li{font-size:.8rem;line-height:1.45;color:var(--ink-2)}
+.hrisk-sharpen{display:inline-block;margin-top:10px;font-size:.82rem}
+.hrisk-frame{font-size:.74rem;line-height:1.5;color:var(--muted);margin:0;border-top:1px solid var(--line);
+  padding-top:12px}
+/* insufficient-inputs — calm, never an error tone */
+.hrisk-missing{gap:10px}
+.hrisk-missing-lead{font-size:.92rem;color:var(--ink-2);margin:0}
+.hrisk-missing-list{margin:4px 0 0;padding-left:18px;display:grid;gap:4px}
+.hrisk-missing-list li{font-size:.82rem;color:var(--ink-2)}
+.hrisk-missing-note{font-size:.82rem;color:var(--muted);margin:4px 0 0}
+
+/* relocated BP capture sheet */
+.bpsheet-ov{position:fixed;inset:0;z-index:var(--z-dialog);background:rgba(33,29,23,.42);background:color-mix(in srgb,var(--ink) 42%,transparent);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;padding:18px;animation:detailin var(--dur-2) var(--ease)}
+.bpsheet{width:100%;max-width:440px;background:var(--card);border-radius:var(--radius);
+  box-shadow:var(--shadow-md);padding:20px;max-height:90vh;overflow:auto;animation:dlgin var(--dur-2) var(--ease)}
+.bpsheet-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.bpsheet-hd h3{font-family:var(--font-display);font-weight:560;font-size:1.25rem;color:var(--ink);margin:0}
+/* dismiss → .xbtn; delta = size */
+.bpsheet-x{font-size:1.05rem;width:30px;height:30px;border-radius:50%}
+.bpsheet-form{display:grid;gap:11px}
+.bpsheet-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:9px}
+.bpsheet-form label{display:flex;flex-direction:column;gap:5px;font-size:.66rem;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.bpsheet-form .form-input{min-width:0;font-size:.9rem;padding:9px 10px}
+.bpsheet-ft{display:flex;justify-content:flex-end;gap:9px;margin-top:5px}
+.bpsheet-ft .logbtn{height:40px;min-width:96px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:12px;font-size:.72rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase;
+  white-space:nowrap;padding:0 22px}
+
+.hpic{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:18px;margin-bottom:2px}
+.hpic-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.hpic-headline{font-family:var(--font-display);font-weight:530;font-variation-settings:"opsz" 80;
+  font-size:1.35rem;line-height:1.22;letter-spacing:-.01em;color:var(--ink);margin:8px 0 2px}
+/* one "As of 2 days ago" caption under the headline — the panel date, shown once */
+.hpic-asof{display:block;margin:0 0 4px;color:var(--muted)}
+.hpic-sub{display:block;margin:18px 0 9px;padding-top:14px;border-top:1px solid var(--line)}
+.hpic-when{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hpic-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  margin-top:18px;padding-top:12px;border-top:1px solid var(--line)}
+.hpic-refresh{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;background:transparent;
+  border:1px solid var(--line-2);color:var(--ink-2);border-radius:var(--radius-pill);padding:7px 14px;
+  font-family:var(--font-ui);font-size:.72rem;font-weight:600;letter-spacing:.06em;cursor:pointer;
+  transition:border-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease),
+    transform var(--dur-1) var(--ease)}
+.hpic-refresh:hover{border-color:var(--ink);color:var(--ink)}
+.hpic-refresh:active{transform:var(--press)}
+.hpic-refresh-stale{border-color:var(--accent);color:var(--accent-deep)}
+.hpic-err{margin-top:12px;background:var(--warn-bg);color:var(--warn);
+  border-radius:var(--radius-sm);padding:9px 12px;font-size:.8rem;line-height:1.45}
+
+/* focus chips */
+.hfocus-list{display:grid;gap:8px}
+.hfocus{background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:11px 13px}
+.hfocus-title{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 40;
+  font-size:1.02rem;line-height:1.25;color:var(--ink)}
+.hfocus-why{font-size:.8rem;color:var(--ink-2);margin-top:3px;line-height:1.45}
+.hfocus-act{font-size:.8rem;color:var(--accent-deep);font-weight:600;margin-top:6px;line-height:1.4}
+
+/* watchlist */
+.hwatch-list{display:grid;gap:11px}
+.hwatch{display:flex;gap:10px;align-items:flex-start}
+.hwatch .hdot{margin-top:5px}
+.hwatch-main{min-width:0}
+.hwatch-line{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.hwatch-name{font-weight:600;font-size:.9rem;color:var(--ink)}
+.hwatch-st{font-family:var(--font-ui);font-size:.56rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted)}
+.hwatch-why{font-size:.8rem;color:var(--ink-2);line-height:1.45;margin-top:1px}
+.hwatch-act{font-size:.8rem;color:var(--accent-deep);font-weight:600;margin-top:3px;line-height:1.4}
+
+/* status dots — colors mirror the marker flag pills */
+.hdot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;display:inline-block}
+.hdot-warn{background:var(--warn)}
+.hdot-watch{background:var(--gold)}
+.hdot-ok{background:var(--sage)}
+.hdot-mute{background:var(--line-2)}
+
+/* wins — a quiet positive list */
+.hwins{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.hwins li{position:relative;padding-left:20px;font-size:.84rem;color:var(--ink-2);line-height:1.45}
+.hwins li::before{content:"✓";position:absolute;left:0;top:0;color:var(--sage);font-weight:700}
+
+/* not-worried — the de-escalation passage: a calm, quiet note, deliberately NOT styled
+   like a watch item (no dot, no warn color — this is the reassurance, not a flag) */
+.hnotworried{display:grid;gap:4px}
+.hnotworried-markers{font-size:.8rem;font-weight:600;color:var(--ink-2)}
+.hnotworried-note{font-size:.84rem;color:var(--ink-2);line-height:1.5}
+
+/* follow-ups */
+.hfu-list{display:grid;gap:7px}
+/* what (left) keeps a ≥60% share and wraps at word boundaries; when (right) shrinks
+   & wraps instead of forcing its full width — on narrow screens the long timeline
+   label drops to its own right-aligned line rather than collapsing the what column. */
+.hfu{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline}
+.hfu-what{flex:1 1 60%;min-width:0;font-size:.84rem;color:var(--ink-2);line-height:1.4}
+.hfu-when{flex:0 1 auto;margin-left:auto;text-align:right;font-family:var(--font-ui);font-size:.62rem;
+  font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+/* training / nutrition impact lines */
+.himpacts{display:grid;gap:9px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.himpact{display:grid;grid-template-columns:76px 1fr;gap:10px;align-items:baseline}
+.himpact-t{font-size:.82rem;color:var(--ink-2);line-height:1.45}
+
+/* busy / skeleton shimmer */
+.hshimmer{height:13px;border-radius:7px;margin:12px 0 0;
+  background:linear-gradient(90deg,var(--card-2) 30%,#efe7d6 45%,var(--card-2) 60%);
+  background-size:300% 100%}
+.hshimmer-lg{height:22px;width:72%;margin-top:14px}
+.hshimmer-sm{width:46%}
+@media (prefers-reduced-motion: no-preference){.hshimmer{animation:hshine 1.5s linear infinite}}
+@keyframes hshine{from{background-position:120% 0}to{background-position:-120% 0}}
+.hpic-busynote{margin-top:16px;font-size:.8rem;color:var(--muted);line-height:1.5}
+
+/* skeleton-first paint — card silhouettes built from .hshimmer so every tab
+   shows its shape instantly, then hydrates. Reuses the shimmer primitive; never
+   a one-off spinner. A gentle fade-out would be ideal but the real content
+   simply replaces these, so they just hold the space calmly. */
+.skel-card,.skel-brief{background:var(--card);box-shadow:var(--shadow-sm);
+  border-radius:var(--radius);padding:18px;margin-bottom:12px}
+.skel-card .hshimmer:first-child,.skel-brief .hshimmer:first-child{margin-top:0}
+.skel-brief{border-left:3px solid var(--line-2)}
+.today-skel,.skel-region{opacity:.9}
+.skel-region{margin-top:12px}
+
+/* empty-state hero + build-my-picture CTA */
+.hpic-hero{text-align:center;padding:34px 22px 26px}
+.hpic-hero-art{margin:0 auto 14px}
+.hpic-hero-title{font-family:var(--font-display);font-style:italic;font-weight:520;
+  font-variation-settings:"opsz" 60;font-size:1.25rem;color:var(--ink)}
+.hpic-hero-sub{font-size:.86rem;color:var(--muted);line-height:1.55;max-width:340px;margin:7px auto 0}
+.hpic-cta-btn{width:100%;max-width:340px;height:46px;margin:18px auto 0;display:block;
+  font-family:var(--font-ui);font-weight:600;letter-spacing:.08em;font-size:.8rem;border-radius:var(--radius-pill)}
+.hpic-build{text-align:center;padding:26px 20px 22px}
+.hpic-build .hpic-headline{margin-top:10px}
+
+/* markers — grouped ledger cards, expandable progress-chart rows */
+/* catalog controls — a search field over ~180 markers + the out-of-range pill.
+   Rendered once and left in place so the search field keeps focus while typing. */
+.hmk-controls{display:flex;align-items:center;gap:9px;margin:0 0 12px;flex-wrap:wrap}
+.hmk-search{position:relative;flex:1 1 200px;min-width:160px}
+.hmk-search-i{position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  width:16px;height:16px;color:var(--muted);pointer-events:none}
+.hmk-search-in{width:100%;height:40px;padding:0 12px 0 34px;border:1px solid var(--line-2);
+  border-radius:var(--radius-pill);background:var(--card-2);color:var(--ink);font-family:var(--font-ui);
+  font-size:.85rem;transition:border-color .15s,background .15s}
+.hmk-search-in::placeholder{color:var(--muted)}
+.hmk-search-in:focus{outline:none;border-color:var(--ink-2);background:var(--card)}
+.hmk-search-in::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;
+  width:15px;height:15px;background:var(--muted);cursor:pointer;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2l8 8M10 2l-8 8' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat}
+/* out-of-range quick filter — one calm pill (the .ghostbtn family) */
+.hmk-filter-toggle{display:inline-flex;align-items:center;gap:7px;cursor:pointer;flex:0 0 auto;
+  background:transparent;border:1px solid var(--line-2);color:var(--ink-2);height:40px;
+  border-radius:var(--radius-pill);padding:0 14px;font-family:var(--font-ui);font-weight:600;
+  font-size:.76rem;letter-spacing:.04em;white-space:nowrap;
+  transition:border-color .15s,color .15s,background .15s}
+.hmk-filter-toggle:hover{border-color:var(--ink);color:var(--ink)}
+.hmk-filter-toggle.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.hmk-status{font-size:.74rem;color:var(--muted);margin:0 2px 10px}
+.hmk-empty{padding:22px 4px;color:var(--muted);font-size:.86rem;line-height:1.5}
+/* quiet out-of-range count on a sticky group head */
+.hmk-headcount{margin-left:7px;padding:1px 7px;border-radius:var(--radius-pill);font-size:.66rem;font-weight:650;
+  letter-spacing:.03em;color:var(--warn);background:rgba(179,64,46,.1);vertical-align:1px}
+.hmk-groups{display:grid;gap:18px}
+.hmk-section{min-width:0}
+/* clear breathing room between clinical groups so each panel reads as its own
+   story (not one continuous list) — applies to the Markers catalog + Stand detail. */
+.hmk-section + .hmk-section{margin-top:28px}
+/* a calm catalog section heading per health group ("Lipids & Cardiovascular").
+   Pins just under the single Health seg (the Me seg yields its sticky slot on the
+   Health sub-view — see .segwrap:has(+ .hsegwrap)), so the offset is one seg, not two. */
+.hmk-grouphead{position:sticky;top:calc(env(safe-area-inset-top,0px) + 56px);z-index:var(--z-list-head);
+  display:inline-flex;max-width:100%;margin:0 0 7px;padding:7px 10px 6px;
+  color:var(--ink-2);background:rgba(252,250,244,.92);border:1px solid var(--line);
+  border-radius:var(--radius-sm);backdrop-filter:blur(8px) saturate(1.05);
+  -webkit-backdrop-filter:blur(8px) saturate(1.05)}
+.hmk-groupnote{margin:0 2px 8px;color:var(--muted);font-size:.76rem;line-height:1.45}
+.hmk-card{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:4px 0;overflow:hidden}
+.hmk-subhead{padding:10px 16px 7px;border-top:1px solid var(--line);color:var(--muted);
+  font-size:.66rem;font-weight:650;letter-spacing:.08em;text-transform:uppercase}
+.hmk-subhead:first-child{border-top:none}
+.hmk-subhead+.hmk{border-top:none}
+.hmk{border-top:1px solid var(--line)}
+.hmk:first-child{border-top:none}
+.hmk-row{display:flex;align-items:center;gap:10px;width:100%;padding:13px 16px;
+  background:transparent;border:none;text-align:left;color:var(--ink);font:inherit}
+button.hmk-row{cursor:pointer;transition:background var(--dur-1) var(--ease)}
+button.hmk-row:active{background:var(--card-2)}
+.hmk-id{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.hmk-name{font-size:.9rem;font-weight:500;color:var(--ink);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmk-when{font-size:.68rem;color:var(--muted);letter-spacing:.01em}
+.hmk-right{display:flex;align-items:baseline;gap:9px;flex:0 0 auto}
+.hmk-val{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
+  font-size:1.05rem;font-variant-numeric:lining-nums;color:var(--ink)}

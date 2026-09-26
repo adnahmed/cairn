@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
 import ts from "typescript";
+import { buildStyles } from "./build-styles.mjs";
 
 const currentFile = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(currentFile), "..");
@@ -799,6 +800,7 @@ export function buildClient() {
   buildBundles();
   pruneOrphanedOutputs();
   pruneBundleIntermediates();
+  buildStyles();
   precompressAssets();
 }
 
@@ -862,8 +864,9 @@ export function pruneBundleIntermediates() {
 
 /**
  * Assets index.html loads, each of which gets a `.br` and `.gz` sibling.
- * public/index.html, public/styles.css and public/art.js are hand-authored (not
- * emitted by this script) but are still part of the shell, so they are compressed
+ * public/index.html and public/art.js are hand-authored and public/styles.css is
+ * concatenated from src/styles/ by scripts/build-styles.mjs (not emitted by the
+ * transpile step), but they are still part of the shell, so they are compressed
  * here too — this is the one place that knows what a deploy actually serves.
  */
 const PRECOMPRESS_EXTRA = ["public/index.html", "public/styles.css", "public/art.js", "public/cairn-body-figure.js"];

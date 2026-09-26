@@ -11,7 +11,7 @@ ENV NPM_CONFIG_AUDIT=false \
 COPY package*.json tsconfig.json tsconfig.client.build.json ./
 # BuildKit cache mount keeps ~/.npm warm across rebuilds (big win on the Pi).
 RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci
-COPY scripts/build-client.mjs ./scripts/build-client.mjs
+COPY scripts/build-client.mjs scripts/build-styles.mjs ./scripts/
 COPY src ./src
 # The bundling step concatenates every generated client output PLUS the one
 # hand-written classic shim, public/js/10-boot.js (everything else in public/js is

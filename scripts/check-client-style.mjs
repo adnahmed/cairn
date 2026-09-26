@@ -214,7 +214,7 @@ function check(files, baseline) {
       failures.push(`${rel} is over the ${HARD_LINE_LIMIT}-line hard ceiling`);
     }
     for (const [key, label] of [
-      ["hex", "hex color literal(s); use a class or var(--token) from styles.css §01"],
+      ["hex", "hex color literal(s); use a class or var(--token) from src/styles/foundation/tokens.css"],
       ["style", "presentational inline style(s); inline style carries data only (custom properties, data geometry)"],
     ]) {
       const allowed = base[key] ?? 0;

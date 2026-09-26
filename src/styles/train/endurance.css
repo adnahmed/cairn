@@ -1,0 +1,253 @@
+/* -------------------------------------------------------------------
+   37 · Runner / endurance surfaces — meets you in your sport (calm,
+        no scores). Discipline selector, planned cardio (Plan + Today),
+        and the Progress → Endurance read. Existing tokens only.
+   ------------------------------------------------------------------- */
+
+/* Discipline segmented control (Profile + onboarding) — hand-built seg, the
+   classic background-swap active state (matches onboarding's days/week).
+   .triflag-seg (Profile → cardiovascular risk inputs: smoking/BP-meds/statin)
+   reuses the same pill so "Not set" reads as calm and un-alarming as the rest. */
+.disc-seg,.goalmode-seg,.triflag-seg{display:flex;gap:0;background:var(--card-2);border:1px solid var(--line);
+  border-radius:var(--radius-pill);padding:3px;width:100%}
+.disc-seg .segbtn,.goalmode-seg .segbtn,.triflag-seg .segbtn{flex:1;border:none;background:transparent;color:var(--ink-2);
+  border-radius:var(--radius-pill);padding:9px 8px;font-family:var(--font-ui);font-weight:600;
+  font-size:.78rem;letter-spacing:.02em;transition:background var(--dur-1) var(--ease),color var(--dur-1) var(--ease)}
+.disc-seg .segbtn.active,.goalmode-seg .segbtn.active,.triflag-seg .segbtn.active{background:var(--ink);color:var(--paper)}
+/* Activity level — 5 human-labelled pills retain the calm segmented-button look. */
+.actlevel-seg{margin:2px 0 16px}
+.actlevel-seg .segbtn{flex:0 0 auto;border:1px solid var(--line);background:var(--card-2);color:var(--ink-2);
+  border-radius:var(--radius-pill);padding:8px 13px;font-family:var(--font-ui);font-weight:600;
+  font-size:.78rem;letter-spacing:.02em;transition:background var(--dur-1) var(--ease),color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+.actlevel-seg .segbtn.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.actlevel-desc{color:var(--muted)}
+
+/* Plan editor — the day's add-row of ghost buttons. */
+.pday-add{display:flex;gap:8px;flex-wrap:wrap}
+.pday-add .ghostbtn{flex:0 0 auto}
+
+/* Sync trust: a quiet "synced 2h ago · Sync now" line. Shared by Today's run card
+   and the Endurance view. A stale dot warms toward the accent when this morning's
+   run may not be in yet — calm, never alarming. */
+.cardio-sync{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;
+  padding-top:11px;border-top:1px solid var(--line)}
+.cardio-sync-dot{width:7px;height:7px;border-radius:50%;background:var(--sage);flex:none;
+  transition:background var(--dur-1) var(--ease)}
+.cardio-sync-dot.err{background:var(--warn)}
+.cardio-sync-dot.stale{background:var(--accent)}
+.cardio-sync-dot.pulse{background:var(--accent);animation:syncpulse .9s var(--ease) infinite alternate}
+.cardio-sync-text{flex:1;min-width:0;color:var(--muted);font-size:.74rem;letter-spacing:.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* accent action → .linkbtn.linkbtn-plain; delta = layout + disabled */
+.cardio-sync-go{flex:0 0 auto;font-size:.74rem;letter-spacing:.02em;padding:2px 2px}
+.cardio-sync-go:disabled{color:var(--muted);cursor:default}
+/* A quiet note under the sync row — a write-back that stopped landing, a watch that
+   stopped sending sleep. It wraps (unlike the single-line status above it) because
+   the sentence matters more than the row height, and it is never a warning colour. */
+.cardio-sync-note{margin-top:5px;color:var(--muted);font-size:.72rem;line-height:1.4}
+
+/* Day-type-aware lead: a run-led session head (no focus pill — there's no set-by-set
+   logging to focus into). Otherwise inherits the .session-head layout unchanged. */
+.session-head-run{align-items:flex-start}
+
+/* Progress → Endurance read. */
+/* Race countdown / standing-goal banner — a warm editorial card at the top of the */
+/* endurance view. The big serif name + count anchor the build without a score. */
+.end-goal{margin:14px 0 4px;padding:16px 18px;border-radius:var(--radius);
+  background:var(--sage-bg);border:1px solid var(--line-2)}
+.end-goal-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.end-goal-phase{font-family:var(--font-ui);font-size:.62rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--sage);background:var(--paper);border-radius:var(--radius-pill);padding:3px 10px}
+.end-goal-name{font-family:var(--font-display);font-variation-settings:"opsz" 72;font-weight:560;
+  font-size:1.42rem;color:var(--ink);margin-top:6px;line-height:1.15}
+.end-goal-sub{font-size:.86rem;color:var(--ink-2);margin-top:4px}
+.end-goal-count{font-family:var(--font-display);font-weight:600;font-variation-settings:"opsz" 96;
+  font-size:1.1rem;color:var(--sage);margin-top:10px;font-variant-numeric:lining-nums}
+
+/* Run compliance — "32 of 40 km this week" near the race banner. A ratio in plain
+   words, never a 0–100 grade. Sits on the same hairline-divided row family as .end-line. */
+.end-compliance{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:11px 0 4px;margin-top:6px}
+.end-compliance .lbl{flex:0 0 auto}
+.end-compliance-v{font-family:var(--font-display);font-variation-settings:"opsz" 60;font-weight:560;
+  color:var(--accent);font-size:1.02rem;font-variant-numeric:lining-nums}
+
+.hyb-card{
+  margin:14px 0 8px;padding:14px 16px;border-radius:var(--radius);
+  background:var(--card);box-shadow:var(--shadow-sm);border-left:3px solid var(--sage);
+}
+.hyb-watch{border-left-color:var(--gold)}
+.hyb-shift-legs,.hyb-fuel-protect{border-left-color:var(--accent)}
+.hyb-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
+.hyb-pill{
+  flex:0 0 auto;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-2);background:var(--card-2);border:1px solid var(--line);
+  border-radius:var(--radius-pill);padding:3px 9px;font-weight:700;
+}
+.hyb-shift-legs .hyb-pill,.hyb-fuel-protect .hyb-pill{color:var(--accent);background:var(--accent-bg)}
+.hyb-watch .hyb-pill{color:var(--gold);background:var(--gold-bg)}
+.hyb-title{font-size:.96rem;line-height:1.45;color:var(--ink);font-weight:560;margin-bottom:10px}
+.hyb-line{display:flex;align-items:baseline;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.hyb-line .lbl{flex:0 0 auto;min-width:98px}
+.hyb-line span:last-child{flex:1;min-width:0;color:var(--ink-2);font-size:.86rem;line-height:1.45}
+.hyb-fuel span:last-child{color:var(--accent)}
+.hyb-tags{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0 2px}
+.hyb-tags span{
+  font-size:.74rem;color:var(--ink-2);background:var(--card-2);
+  border:1px solid var(--line);border-radius:var(--radius-pill);padding:3px 9px;white-space:nowrap;
+}
+
+.end-line,.end-pace{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:11px 0;border-top:1px solid var(--line)}
+.end-line .lbl,.end-pace .lbl{flex:0 0 auto}
+.end-line-v{font-family:var(--font-display);font-variation-settings:"opsz" 60;font-weight:560;
+  color:var(--ink);font-size:1rem;font-variant-numeric:lining-nums}
+.end-pace-read{flex:1;min-width:0;color:var(--ink-2);font-size:.92rem}
+.end-pace-num{font-family:var(--font-display);font-weight:600;font-variation-settings:"opsz" 144;
+  color:var(--accent);font-size:1.35rem;font-variant-numeric:lining-nums}
+.end-pace-unit{font-size:.6em;color:var(--muted);font-family:var(--font-ui);letter-spacing:.04em}
+.end-zones{margin:16px 0 4px}
+.end-prs{margin-top:20px}
+.end-prs-head{margin-bottom:10px}
+.end-pr-card{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:6px 16px}
+.end-pr{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 0;border-top:1px solid var(--line)}
+.end-pr:first-child{border-top:none}
+.end-pr-id{min-width:0}
+.end-pr-label{display:block;font-size:.9rem;font-weight:500;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.end-pr-when{display:block;margin-top:1px}
+.end-pr-val{font-family:var(--font-display);font-weight:600;font-variation-settings:"opsz" 144;
+  color:var(--accent);font-size:1.25rem;white-space:nowrap;font-variant-numeric:lining-nums;flex:0 0 auto}
+/* Per-sport label above a bests card — bests are read within their own modality. */
+.end-pr-sport{font-family:var(--font-display);font-weight:600;font-size:1rem;color:var(--ink);
+  margin:0 0 8px}
+.end-pr-more+.end-pr-sport,.end-pr-card+.end-pr-sport{margin-top:16px}
+/* Cross-training bests — present but quiet (mirrors the "Show earlier" disclosure). */
+.end-pr-more{margin-top:16px}
+.end-pr-more>summary{
+  list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--font-ui);font-size:.74rem;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);padding:6px 2px}
+.end-pr-more>summary::-webkit-details-marker{display:none}
+.end-pr-more>summary::before{content:"▸";font-size:.7rem;transition:transform .15s ease}
+.end-pr-more[open]>summary::before{transform:rotate(90deg)}
+.end-pr-more>summary:hover{color:var(--ink-2)}
+.end-pr-more-body{margin-top:8px}
+.end-pr-more-body .end-pr-sport:first-child{margin-top:4px}
+
+/* ===== Plan → Endurance (the running plan home) ============================ */
+/* The periodized ramp toward race day — a calm vertical timeline, current phase in
+   sage, earlier phases faded. No numbers, no grade; just where you are on the arc. */
+.end-ramp{margin:20px 0 4px}
+.end-ramp-h{margin-bottom:12px}
+.ramp-list{list-style:none;margin:0;padding:0}
+.ramp-step{display:flex;gap:12px;padding:0 0 16px;position:relative}
+.ramp-step:last-child{padding-bottom:0}
+.ramp-step::before{content:"";position:absolute;left:5px;top:13px;bottom:-1px;width:2px;background:var(--line-2)}
+.ramp-step:last-child::before{display:none}
+.ramp-dot{flex:0 0 auto;width:12px;height:12px;border-radius:50%;margin-top:3px;
+  background:var(--paper);border:2px solid var(--line-2);z-index:1}
+.ramp-step.is-done .ramp-dot{background:var(--line-2);border-color:var(--line-2)}
+.ramp-step.is-current .ramp-dot{background:var(--sage);border-color:var(--sage);box-shadow:0 0 0 4px var(--sage-bg)}
+.ramp-body{min-width:0;flex:1}
+.ramp-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ramp-name{font-family:var(--font-display);font-variation-settings:"opsz" 48;font-weight:560;
+  font-size:1.04rem;color:var(--ink)}
+.ramp-step.is-done .ramp-name,.ramp-step.is-done .ramp-desc{color:var(--muted)}
+.ramp-when{flex:0 0 auto}
+.ramp-here{font-family:var(--font-ui);font-size:.58rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--sage);background:var(--sage-bg);border-radius:var(--radius-pill);padding:2px 8px}
+.ramp-desc{font-size:.85rem;color:var(--ink-2);margin-top:2px;line-height:1.4}
+/* honest caveat under the ramp — it's the typical arc, not a logged history */
+.end-ramp-cap{margin:12px 0 0;font-size:.78rem;color:var(--muted);line-height:1.5;font-style:italic}
+.end-ramp-note{margin:16px 0 4px;font-size:.88rem;color:var(--ink-2);line-height:1.5}
+/* one-line lead distinguishing the planning home from Progress→Endurance analytics */
+.end-lead{margin:8px 0 4px;font-size:.9rem;color:var(--ink-2);line-height:1.5}
+/* The Plan → Endurance briefing: one coach sentence, then the next run in
+   full (setup / expect / sits-by via the reading-grammar rows), then the next
+   two as compact rows (a three-run review), then later sessions behind a fold.
+   The race itself is the race view (.race-view-*). Units toggle sits on .end-brief-bar. */
+.end-brief{display:flex;flex-direction:column;gap:var(--space-card)}
+.end-brief-bar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.end-brief-lead{margin:0;font-size:.95rem;line-height:1.45;color:var(--ink);min-width:0;flex:1}
+.end-brief-lead .lbl{display:block;margin-bottom:6px}
+.end-units{display:flex;gap:4px;flex:0 0 auto;padding-top:2px}
+.end-unit-btn{
+  font-family:var(--font-ui);font-size:.68rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;padding:3px 9px;border-radius:var(--radius-pill);border:1px solid var(--line);
+  background:transparent;color:var(--muted);cursor:pointer}
+.end-unit-btn.on{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.end-unit-btn:hover:not(.on){color:var(--ink-2);border-color:var(--ink-2)}
+.end-next{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:16px 18px}
+.end-next-kicker{display:block;margin-bottom:8px}
+.end-next-when{font-size:.86rem;color:var(--ink-2);margin-bottom:2px}
+.end-next-name{font-family:var(--font-display);font-variation-settings:"opsz" 72;font-weight:560;
+  font-size:1.34rem;line-height:1.15;color:var(--ink)}
+.end-next-pres{margin-top:6px;font-size:1.02rem;color:var(--accent);font-variant-numeric:lining-nums}
+.end-next .read-contribs{margin-top:14px}
+.end-then{padding:2px 2px 0}
+.end-then-rows{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.end-then-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:10px 12px;background:var(--card-2);border-radius:var(--radius-sm);
+  border-left:3px solid var(--line-2)}
+.end-then-row.wrun-easy,.end-then-row.wrun-long{border-left-color:var(--sage)}
+.end-then-row.wrun-quality{border-left-color:var(--gold)}
+.end-then-when{flex:0 0 auto;font-size:.8rem;color:var(--muted)}
+.end-then-name{flex:1 1 auto;font-weight:500;color:var(--ink)}
+.end-then-pres{margin-left:auto;font-size:.92rem;color:var(--ink-2);font-variant-numeric:lining-nums}
+.end-later,.end-week-fold{margin:0;display:flex;flex-direction:column;gap:8px}
+.end-later>summary,.end-week-fold>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.end-later>summary::-webkit-details-marker,.end-week-fold>summary::-webkit-details-marker{display:none}
+.end-later>summary::before,.end-week-fold>summary::before{content:"▸";font-size:.65rem;color:var(--muted);transition:transform .15s ease}
+.end-later[open]>summary::before,.end-week-fold[open]>summary::before{transform:rotate(90deg)}
+.end-later>summary:hover .lbl,.end-week-fold>summary:hover .lbl{color:var(--ink-2)}
+.end-shape-fold{margin:0;display:flex;flex-direction:column;gap:8px}
+.end-shape-fold>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.end-shape-fold>summary::-webkit-details-marker{display:none}
+.end-shape-fold>summary::before{content:"▸";font-size:.65rem;color:var(--muted);transition:transform .15s ease}
+.end-shape-fold[open]>summary::before{transform:rotate(90deg)}
+.end-shape-fold>summary:hover .lbl{color:var(--ink-2)}
+.end-shape-fold .end-shape{margin:0}
+
+/* weekly volume at a glance — plain words, never a score */
+.end-runs-total{margin:2px 0 6px;font-size:.92rem;color:var(--accent);font-variant-numeric:lining-nums}
+
+/* This week's prescribed runs + the shape-your-running composer. */
+.end-runs,.end-runs-empty{margin:20px 0 4px}
+.end-runs-h,.end-shape-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+/* accent inline link → .linkbtn; delta = type only */
+.end-link{font-family:var(--font-ui);font-size:.8rem}
+.end-run-row{display:flex;align-items:center;gap:9px;padding:10px 0}
+.end-run-row+.end-run-row{border-top:1px solid var(--line)}
+.end-run-main{flex:1;min-width:0;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.end-run-name{font-weight:500;color:var(--ink)}
+.end-run-day{flex:0 0 auto}
+.end-run-pres{font-family:var(--font-display);font-variation-settings:"opsz" 48;font-weight:560;
+  color:var(--accent);font-size:.98rem;white-space:nowrap;font-variant-numeric:lining-nums}
+.end-runs-empty p{margin:6px 0 0;font-size:.88rem;color:var(--ink-2);line-height:1.5}
+
+.end-shape{margin:24px 0 4px;padding:16px 18px;border-radius:var(--radius);
+  background:var(--card);box-shadow:var(--shadow-sm)}
+.end-shape-sub{margin:0 0 12px;font-size:.85rem;color:var(--ink-2);line-height:1.5}
+.end-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.end-chip{font-family:var(--font-ui);font-size:.82rem;color:var(--ink);background:var(--paper);
+  border:1px solid var(--line-2);border-radius:var(--radius-pill);padding:7px 14px;cursor:pointer;
+  transition:background .15s,border-color .15s}
+.end-chip:hover{background:var(--sage-bg);border-color:var(--sage)}
+.end-shape .form-textarea{width:100%;margin-bottom:10px}
+.end-shape-status{margin-top:10px;font-size:.82rem;color:var(--muted);line-height:1.5}
+.end-draft-card{margin-top:14px}
+/* Trailing breathing room so the composer's button never crowds the fixed tab bar
+   (the composer is the last card in the view, so it otherwise sits right above it). */
+#endPlanBody{padding-bottom:24px}
+
+/* Mobile (≤680px): the cardio editor's km/min/zone wrap stays usable. */
+@media (max-width:680px){
+  .pi-nums-cardio{flex-wrap:wrap}
+  .pi-nums-cardio input{min-width:64px;flex:1}
+  .pi-nums-cardio .delbtn{flex:0 0 auto}
+}
+

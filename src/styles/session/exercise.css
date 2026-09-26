@@ -1,0 +1,291 @@
+/* -------------------------------------------------------------------
+   08 · Exercise cards (Today)
+   ------------------------------------------------------------------- */
+.ex{border-radius:var(--radius);padding:15px 16px;margin-bottom:13px;position:relative;overflow:hidden}
+.ex-top{display:flex;align-items:center;gap:12px}
+/* .ex-top-main wraps the name + prescription so a long name never overlaps the
+   prescription: they share a wrapping flex row, and once the name takes more than
+   one line the prescription drops to its own (still right-aligned) line beneath it.
+   Short names keep today's look — name and prescription on one line — because the
+   row simply never needs to wrap. Only the reps/timed card uses this wrapper; the
+   cardio variants keep their own single-line ellipsizing name. */
+.ex-top-main{display:flex;flex:1;min-width:0;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.ex-top-main .ex-name{flex:1 1 auto;min-width:150px}
+.ex-top-main .ex-sets{flex:0 0 auto;margin-left:auto}
+.ex-name{
+  font-family:var(--font-display);font-weight:540;font-size:1.15rem;line-height:1.3;
+  font-variation-settings:"opsz" 32;background:none;border:none;color:var(--ink);
+  padding:0;text-align:left;
+}
+.guide-i{color:var(--accent);font-size:.78rem;font-family:var(--font-ui);white-space:nowrap}
+.ex-sets{font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);white-space:nowrap}
+.ex-target{
+  font-family:var(--font-display);font-weight:600;font-variation-settings:"opsz" 144;
+  color:var(--accent);font-size:1.2rem;font-variant-numeric:lining-nums;
+}
+.ex-note{margin-top:9px;font-size:.8rem;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+.ex-lastset{margin-top:6px;font-size:.78rem;color:var(--muted);transition:color var(--dur-1) var(--ease)}
+.ex-lastset.ex-lastset-beat{color:var(--sage-text);font-weight:600}
+.ex-flag{margin-top:9px;background:var(--warn-bg);border:none;border-left:3px solid var(--warn);
+  border-radius:8px;padding:8px 11px;font-size:.78rem;color:var(--warn)}
+
+/* One easing stated once for the whole session, instead of on every card. */
+.session-eased{margin:0 0 12px;color:var(--muted)}
+
+/* Why today's session is shaped the way it is — the envelope's own sentence, under
+   the day header. A shorter plan with no reason reads as the app losing track; this
+   is that reason, said once, in the quiet register. */
+.session-cap{margin:0 0 12px;color:var(--muted)}
+
+/* Same for the decision's own narration: it describes the session, so it sits above
+   the cards once. This is CONTEXT, not a caution — it prints on ordinary days, and in
+   warn red every one of them read as an alarm. It takes the quiet inset-surface
+   register .session-eased sits in; .ex-flag keeps the red for a real per-lift flag. */
+.session-brain{margin:0 0 12px;color:var(--ink-2);border-left:3px solid var(--line-2);
+  border-radius:8px;background:var(--card-2);padding:8px 11px}
+/* Several applied changes fold into ONE line ("2 changes today · see") and one long
+   change into its short label, so the first lift stays above the fold. The expansion
+   settles in with the house motion; every Undo stays one tap in. */
+.session-brain-one{display:flex;align-items:flex-start;gap:6px}
+.session-brain-one>.session-brain-fold{flex:1;min-width:0}
+.session-brain-fold>summary{list-style:none;cursor:pointer}
+.session-brain-fold>summary::-webkit-details-marker{display:none}
+.session-brain-fold>summary:hover .session-brain-see{color:var(--ink-2)}
+.session-brain-fold .sb-open,.session-brain-fold[open] .sb-closed{display:none}
+.session-brain-fold[open] .sb-open{display:inline}
+.session-brain-more{margin:6px 0 0;padding:0;list-style:none;color:var(--ink-2);line-height:1.45}
+.session-brain-more li+li{margin-top:5px}
+.session-brain-fold[open] .session-brain-more{animation:settlein var(--dur-2) var(--ease) both}
+@media (prefers-reduced-motion:reduce){.session-brain-fold[open] .session-brain-more{animation:none}}
+
+/* set progress + completion */
+.ex-meta{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:5px}
+.ex-prog{font-family:var(--font-display);font-variation-settings:"opsz" 60;font-weight:600;
+  font-size:.85rem;color:var(--muted);font-variant-numeric:lining-nums}
+.ex-prog span{font-family:var(--font-ui);font-weight:600;text-transform:uppercase;
+  letter-spacing:.12em;font-size:.58rem}
+.ex-prog.done{color:var(--sage)}
+.ex-prog.done::before{content:"✓ ";font-family:var(--font-ui)}
+.ex-offplan{color:var(--accent-deep);text-transform:uppercase;letter-spacing:.14em;
+  font-size:.58rem;font-weight:700}
+.ex-complete{box-shadow:var(--shadow-sm),inset 3px 0 0 var(--sage)}
+.ex-complete .ex-name,.ex-complete .ex-target{opacity:.62}
+.ex-complete .ex-art,.ex-complete .qlent-art{filter:saturate(.55);opacity:.75}
+
+/* logged set chips — cream pills */
+.logged{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.logged:empty{display:none}
+.chip{
+  display:inline-flex;align-items:center;gap:4px;
+  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
+  font-size:.82rem;font-variant-numeric:lining-nums;
+  background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-pill);
+  padding:4px 11px;color:var(--ink);
+}
+.chip span{color:var(--muted)}
+/* a set that is already on the card but not yet acknowledged by the server:
+   present and readable, just quieter — never a doubt about whether it saved */
+.chip[data-pending="1"]{opacity:.62;border-style:dashed}
+.chip[data-pending="1"] .chip-x,.chip[data-pending="1"] [data-del]{display:none}
+.chip-n{color:var(--accent);font-weight:620;margin-right:1px}
+/* destructive remove → .xbtn; delta = faint glyph that warms to --warn */
+.chip-x{color:var(--faint);font-size:1rem;padding:0 0 0 4px}
+.chip-x:active,.chip-x:hover{color:var(--warn)}
+
+/* set logging row */
+.logrow{display:flex;gap:7px;margin-top:10px;align-items:center}
+/* persistent caps over the wells — a prefilled value hides the placeholder, and
+   three bare numbers do not say which is weight, reps or RIR */
+.logcaps{display:flex;gap:7px;margin-top:10px}
+.logcaps span{flex:1 1 0;min-width:0;text-align:center;font-family:var(--font-ui);font-size:.58rem;
+  font-weight:600;letter-spacing:.14em;color:var(--muted)}
+.logcaps i{flex:0 0 44px}
+/* timed row: WT · TIME · stopwatch · + — the first spacer sits over the stopwatch */
+.logcaps-timed i:first-of-type{flex-basis:56px}
+.logcaps + .logrow{margin-top:4px}
+.logrow input{
+  width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
+  border-radius:10px;padding:10px 8px;text-align:center;
+  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:1rem;font-weight:520;
+}
+.logrow input::placeholder{font-family:var(--font-ui);font-size:.62rem;
+  letter-spacing:.14em;font-weight:600}
+.logrow input:focus,.wt-inline input:focus,.chatbar input:focus,.chatbar textarea:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent);
+}
+.timerbtn{
+  flex:0 0 auto;min-width:56px;height:44px;padding:0 9px;border:1px solid var(--line);border-radius:var(--radius-pill);
+  background:var(--card-2);color:var(--muted);font-family:var(--font-ui);font-size:.72rem;font-weight:700;
+  letter-spacing:.02em;
+}
+.timerbtn[data-stopwatch-state="running"]{border-color:var(--accent);color:var(--accent-deep);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.timerbtn:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+
+/* primary action button — solid terracotta, cream glyph */
+.logbtn{
+  flex:0 0 auto;background:var(--accent);color:var(--on-accent);border:none;border-radius:var(--radius-pill);
+  width:44px;height:42px;font-size:1.35rem;font-weight:700;line-height:1;
+  box-shadow:0 1px 2px rgba(147,66,31,.3),0 4px 12px rgba(147,66,31,.22);
+  transition:background .15s,box-shadow var(--dur-1),transform .12s;
+}
+.logbtn:hover{background:var(--accent-deep)}
+.logbtn:active{transform:var(--press)}
+.logbtn:disabled{opacity:.5;cursor:default}
+
+/* add off-plan exercise */
+.addex{margin:4px 0 13px}
+.addex-btn{width:100%;text-align:center}
+.addex-form[hidden]{display:none}
+.addex-row{display:flex;gap:8px;align-items:center}
+.addex-row input{
+  flex:1;min-width:0;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--radius-sm);padding:11px 13px;font-size:.9rem;
+}
+.addex-row .addex-cancel{flex:0 0 auto;margin-top:0}
+/* Reps / Timed toggle */
+.addex-mode{display:flex;gap:6px;margin-top:8px}
+.modebtn{
+  flex:0 0 auto;background:transparent;border:1px solid var(--line-2);color:var(--muted);
+  border-radius:var(--radius-pill);padding:6px 14px;font-family:var(--font-ui);font-weight:600;
+  font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;
+  transition:background var(--dur-1),color var(--dur-1),border-color var(--dur-1);
+}
+.modebtn.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+/* skip ("not today") — quiet dismiss in the card header */
+.ex-skip{
+  flex:0 0 auto;background:none;border:none;color:var(--faint);font-size:.9rem;line-height:1;
+  width:28px;height:28px;border-radius:var(--radius-pill);display:grid;place-items:center;padding:0;
+  transition:color var(--dur-1),background var(--dur-1),transform var(--dur-1) var(--ease);
+}
+.ex-skip:hover{color:var(--ink-2);background:var(--card-2)}
+.ex-skip:active{transform:var(--press-xs)}
+
+/* skipped exercises — one slim, muted line at the very bottom of Today */
+.skipline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 2px 14px;padding:0 4px}
+.skipline-empty{display:none}
+.skipline-names{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.skip-name{
+  background:none;border:1px dashed var(--line-2);border-radius:var(--radius-pill);color:var(--muted);
+  font-family:var(--font-ui);font-weight:600;font-size:.74rem;padding:4px 11px;
+  display:inline-flex;align-items:center;gap:6px;text-decoration:line-through;
+  transition:color var(--dur-1),border-color var(--dur-1),transform var(--dur-1) var(--ease);
+}
+.skip-name:hover{color:var(--ink-2);border-color:var(--ink-2)}
+.skip-name:active{transform:var(--press)}
+.skip-undo{display:inline-block;color:var(--accent);font-size:.82rem} /* inline-block escapes the strikethrough */
+
+/* finish workout */
+.finish{margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
+.finish-stat{font-family:var(--font-display);font-variation-settings:"opsz" 40;
+  font-size:.92rem;color:var(--ink-2);font-variant-numeric:lining-nums}
+
+/* Finish micro-exit: the logging surface lifts away before the "done" card reveals. */
+@keyframes slideOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-18px) scale(.98)}}
+.slide-out{animation:slideOut var(--dur-2) var(--ease) both;pointer-events:none}
+
+/* Finished-workout "done" card — calm wrap-up, no score, two soft ways forward. */
+.sessiondone{
+  margin-top:16px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:26px 22px;text-align:center;
+  box-shadow:var(--shadow-sm);
+}
+.done-mark{
+  width:42px;height:42px;margin:0 auto 12px;border-radius:var(--radius-pill);
+  display:grid;place-items:center;font-size:1.15rem;
+  background:color-mix(in srgb,var(--sage) 16%,transparent);color:var(--sage);
+}
+.done-kicker{margin-bottom:6px}
+.done-title{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 60;
+  font-size:1.35rem;line-height:1.15;margin:0 0 12px}
+.done-chips{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:4px}
+.done-chip{font-family:var(--font-ui);font-weight:600;font-size:.78rem;color:var(--ink-2);
+  background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-pill);padding:5px 12px;
+  font-variant-numeric:lining-nums tabular-nums}
+.done-chip.done-chip-pr{background:var(--accent-wash);color:var(--accent-deep);
+  border:1px solid color-mix(in srgb,var(--accent) 22%, transparent);font-weight:600}
+.done-analysis{
+  margin:18px auto 0;max-width:460px;text-align:left;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:14px 2px 12px;
+}
+.done-analysis-head{display:block;margin-bottom:12px}
+.done-analysis-head .lbl{display:block;margin-bottom:5px}
+.done-analysis-head strong{
+  font-family:var(--font-display);font-weight:540;font-size:.98rem;line-height:1.25;color:var(--ink);
+  display:block;text-align:left;
+}
+.done-head-lbl.done-head-pr{color:var(--gold-deep)}
+.done-pr-spark{color:var(--gold);margin-right:.15em;font-size:.9em}
+.done-pr-more{color:var(--muted);font-weight:400;font-size:.82em;margin-left:.35em}
+/* The PR figure supports the lift name, never leads it — muted + lighter. */
+.done-head-stat{color:var(--muted);font-weight:400;font-size:.88em}
+.done-head-vs{color:var(--muted);font-weight:400}
+.done-analysis-list{display:flex;flex-direction:column;gap:10px}
+.done-analysis-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.done-analysis-name{min-width:0;flex:1 1 auto;display:flex;align-items:baseline;gap:7px}
+.done-analysis-name span{
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--font-ui);font-size:.82rem;font-weight:650;color:var(--ink-2);
+}
+.done-analysis-name em{font-style:normal;font-size:.72rem;color:var(--muted);white-space:nowrap}
+.done-analysis-exlink{appearance:none;background:none;border:0;padding:0;margin:0;font:inherit;
+  color:inherit;text-align:left;cursor:pointer;transition:transform var(--dur-1) var(--ease)}
+.done-analysis-exlink:active{transform:var(--press-sm)}
+@media (hover:hover){.done-analysis-exlink:hover>span{text-decoration:underline;
+  text-decoration-color:var(--line-2);text-underline-offset:2px}}
+.done-analysis-meta{flex:0 0 auto;font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums;
+  white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.done-analysis-delta{font-size:.72rem;font-weight:600}
+.done-delta-up{color:var(--sage-text)}
+.done-delta-down,.done-delta-even,.done-delta-flat,.done-delta-new{color:var(--muted);font-weight:400}
+.done-week{margin-top:6px;font-size:.72rem;color:var(--muted)}
+.done-notes{margin-top:12px;color:var(--muted);font-style:italic;font-size:.9rem}
+.done-feedback{margin-top:14px}
+.done-actions{display:flex;justify-content:center;gap:10px;margin-top:20px;flex-wrap:wrap}
+
+/* -------------------------------------------------------------------
+   09 · Rest timer (floats above tab bar)
+   ------------------------------------------------------------------- */
+.rest{
+  position:fixed;left:0;right:0;bottom:calc(46px + env(safe-area-inset-bottom) + var(--vvb,0px));z-index:var(--z-rest);
+  /* Paper-toned (not card-white) so the unfilled track blends with the page —
+     a card-white bg read as a jarring white block to the right of the fill. */
+  background:rgba(244,239,231,.95);border-top:1px solid var(--line-2);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  box-shadow:0 -6px 24px rgba(72,58,35,.1);
+  transform:translateY(calc(100% + 46px + env(safe-area-inset-bottom,0px) + var(--vvb,0px)));
+  transition:transform .3s var(--ease);overflow:hidden;pointer-events:none;
+}
+.rest.show{transform:translateY(0);pointer-events:auto}
+/* Countdown progress as a slim line along the bottom edge — a full-height tint
+   left a hard vertical seam at the fill's edge that read as the bar background
+   only covering part of the width. The bar bg now stays one uniform full-width
+   tone; this line drains left-anchored as the rest winds down. */
+.rest-fill{position:absolute;left:0;bottom:0;height:3px;background:color-mix(in srgb,var(--accent) 50%,transparent);
+  border-top-right-radius:2px;border-bottom-right-radius:2px;transition:width 1s linear}
+.rest-row{position:relative;display:flex;align-items:center;gap:10px;justify-content:center;
+  padding:10px 14px;max-width:680px;margin:0 auto}
+.rest-time{
+  font-family:var(--font-display);font-weight:620;font-variation-settings:"opsz" 144;
+  font-size:1.18rem;color:var(--accent);min-width:104px;text-align:center;
+  font-variant-numeric:lining-nums tabular-nums;
+}
+.rest-btn{background:var(--card-2);border:1px solid var(--line-2);color:var(--ink);
+  border-radius:var(--radius-pill);padding:6px 14px;font-size:.8rem;font-weight:600}
+.rest-skip{color:var(--muted)}
+
+/* The countdown has landed and the bar has flipped to a quiet count-UP of the
+   rest actually taken ("Rested 2:40") — the readout that matters on a heavy
+   lift. Same bar, same geometry: the line simply settles full-width in the
+   hairline tone instead of the terracotta, the clock drops to secondary ink,
+   and the ±15 buttons retire (there is no deadline left to move). */
+.rest.rested .rest-fill{background:var(--line-2);transition:none}
+.rest.rested .rest-time{color:var(--ink-2)}
+.rest.rested .rest-btn:not(.rest-skip){visibility:hidden}
+
+/* while the rest bar is up, give the page enough bottom clearance that the
+   content above it (FINISH row, chatbar) can always scroll clear of the bar */
+body.resting{padding-bottom:calc(152px + max(env(safe-area-inset-bottom),6px) + var(--vvb,0px))}
+

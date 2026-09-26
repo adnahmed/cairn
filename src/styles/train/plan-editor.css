@@ -1,0 +1,110 @@
+/* -------------------------------------------------------------------
+   11 · Program gallery (Plan tab)
+   ------------------------------------------------------------------- */
+.prog-day{border-radius:var(--radius);padding:16px 17px 14px;margin-bottom:14px}
+.prog-head{display:flex;align-items:flex-start;gap:10px}
+.prog-head-main{flex:1;min-width:0}
+.prog-num,.prog-head-main .lbl{font-family:var(--font-ui);font-weight:700;text-transform:uppercase;
+  letter-spacing:.18em;font-size:.6rem;color:var(--accent)}
+.prog-name{
+  font-family:var(--font-display);font-style:italic;font-weight:520;
+  font-variation-settings:"opsz" 50;font-size:1.3rem;color:var(--ink);
+}
+.prog-focus{width:100%;font-size:.8rem;color:var(--muted);margin-top:1px}
+
+/* contact-strip of the day's exercise art, overlapping */
+.prog-strip{display:flex;align-items:center;padding:10px 0 4px}
+.prog-strip>*{margin-left:-10px}
+.prog-strip>*:first-child{margin-left:0}
+/* photos overlap like a contact sheet: circle-clip + a card-colored ring */
+.strip-tile{border-radius:50%;background:var(--card);box-shadow:0 0 0 3px var(--card)}
+
+.prog-list{margin-top:6px}
+.prog-row{
+  display:grid;grid-template-columns:auto 1fr auto;gap:11px;align-items:center;
+  padding:8px 0;border-top:1px solid var(--line);
+}
+.prog-row:first-child{border-top:none}
+.prog-row-main{min-width:0}
+.prog-row-name{font-size:.9rem;font-weight:500;color:var(--ink);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prog-row-hint{font-size:.74rem;color:var(--muted);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prog-nums,.prog-row-nums{
+  font-family:var(--font-display);font-variation-settings:"opsz" 60;font-weight:560;
+  font-size:.92rem;color:var(--ink-2);white-space:nowrap;text-align:right;
+  font-variant-numeric:lining-nums;
+}
+.prog-nums span,.prog-row-nums span{color:var(--muted);font-size:.8rem}
+.prog-row-wt{display:block;font-size:.8rem;color:var(--accent);margin-top:1px}
+.prog-head .prog-edit{margin-top:2px;flex:0 0 auto}
+
+/* -------------------------------------------------------------------
+   12 · Plan editor (inset-well restyle, same selectors)
+   ------------------------------------------------------------------- */
+.pday{border-radius:var(--radius);padding:13px 14px;margin-bottom:13px}
+.pday-head .pday-done{margin-top:0;flex:0 0 auto}
+.pday-head{display:flex;gap:8px;align-items:center}
+.pday-name{
+  flex:1;background:transparent;border:none;color:var(--ink);
+  font-family:var(--font-display);font-weight:540;font-variation-settings:"opsz" 32;
+  font-size:1.12rem;padding:2px 0;
+}
+.pday-focus{width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink-2);
+  border-radius:9px;padding:8px 10px;font-size:.8rem;margin:8px 0 10px}
+.pitem{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
+.pi-ex{width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
+  border-radius:9px;padding:8px 10px;font-size:.9rem;font-weight:500;margin-bottom:6px}
+.pi-row1{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.pi-row1 .pi-ex{margin-bottom:0}
+.pi-ord{display:flex;gap:4px;flex:0 0 auto}
+.pi-ord .ordbtn{width:30px;height:32px}
+.pi-nums{display:flex;gap:5px;align-items:center}
+.pi-nums input{
+  width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
+  border-radius:9px;padding:8px 4px;text-align:center;
+  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:.9rem;
+}
+.pi-nums input::placeholder{font-family:var(--font-ui);font-size:.6rem;letter-spacing:.08em}
+.pi-note{width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink-2);
+  border-radius:9px;padding:8px 10px;font-size:.8rem;margin-top:6px}
+
+/* utility buttons */
+.delbtn{flex:0 0 auto;background:var(--card-2);border:1px solid var(--line);color:var(--warn);
+  border-radius:9px;width:34px;height:32px;font-size:.8rem}
+.ghostbtn{
+  background:transparent;border:1px solid var(--line-2);color:var(--ink-2);
+  border-radius:var(--radius-pill);padding:9px 15px;font-family:var(--font-ui);font-weight:600;
+  font-size:.76rem;letter-spacing:.06em;margin-top:4px;
+  transition:border-color .15s,color .15s,background .15s;
+}
+.ghostbtn:hover{border-color:var(--ink);color:var(--ink)}
+.iconbtn{background:var(--card-2);border:1px solid var(--line);color:var(--muted);
+  border-radius:9px;min-width:30px;height:30px;font-size:.88rem;padding:0 7px}
+.iconbtn:hover{color:var(--ink);border-color:var(--line-2)}
+.ordbtn{background:var(--card-2);border:1px solid var(--line);color:var(--ink-2);
+  border-radius:9px;width:30px;height:30px;font-size:.92rem}
+.ordbtn:disabled{opacity:.3;cursor:default}
+
+/* -------------------------------------------------------------------
+   13 · Session / generic entry cards
+   ------------------------------------------------------------------- */
+.sess{border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+.sess-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.sess-date{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 32;
+  font-size:1.05rem;color:var(--ink)}
+.sess-day{font-size:.68rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.sess-line{font-size:.85rem;color:var(--ink-2);margin-top:6px}
+.sess-line b{font-family:var(--font-display);font-variation-settings:"opsz" 40;
+  color:var(--ink);font-weight:580;font-variant-numeric:lining-nums}
+
+/* food-note entries (Me) */
+.fnent .fnent-badge{flex:0 0 auto}
+.fnent .sess-head{align-items:center}
+.fnent-done{box-shadow:var(--shadow-sm),inset 3px 0 0 var(--sage)}
+.fn-macros{
+  display:inline-block;font-family:var(--font-display);font-variation-settings:"opsz" 60;
+  font-weight:580;font-size:.9rem;color:var(--accent);margin-top:6px;
+  font-variant-numeric:lining-nums;line-height:1.35;
+}
+

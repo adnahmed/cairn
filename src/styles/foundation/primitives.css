@@ -1,0 +1,134 @@
+/* -------------------------------------------------------------------
+   04c · Interaction primitives — the reusable building blocks
+   Defined HERE, ABOVE every component, so a component can safely layer
+   its own delta on top (a later, equal-specificity rule wins). New
+   surfaces should REUSE these, not hand-roll another accent link,
+   spined well, or × glyph. Frozen contract: docs/DESIGN.md.
+
+     Text buttons
+       .linkbtn         borderless accent text-button, underlined
+       .linkbtn-plain   — modifier: no underline (standalone "Ask →")
+       .linkbtn-sm      — modifier: smaller (.76rem)
+       .linkbtn-quiet   muted sibling (→ ink-2 on hover), for the calm
+                         "why this" / "details" disclosures
+     Spined wells (the "one lever / one change" callout)
+       .well-accent     card + 3px terracotta spine + radius + shadow
+       .well-accent-sm  — 2px spine + small radius (inline mini-well,
+                          no card bg/shadow; the site adds its own)
+       .well-accent-sage — modifier: sage spine (calm / done / weekly)
+     Close / dismiss
+       .xbtn            bare-glyph × (muted → ink, tiny tactile press);
+                        a framed variant just adds bg/border on top
+   ------------------------------------------------------------------- */
+.linkbtn{background:none;border:none;padding:0;font:inherit;color:var(--accent-deep);
+  font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;
+  text-decoration-color:var(--line-2);
+  transition:color var(--dur-1) var(--ease),text-decoration-color var(--dur-1) var(--ease)}
+.linkbtn:hover{text-decoration-color:var(--accent)}
+.linkbtn:active{transform:var(--press-sm)}
+.linkbtn-sm{font-size:.76rem}
+.linkbtn-plain{color:var(--accent);text-decoration:none}
+.linkbtn-plain:hover{color:var(--accent-deep)}
+.linkbtn-quiet{background:none;border:none;padding:0;font:inherit;cursor:pointer;
+  color:var(--muted);font-weight:600;text-decoration:underline;text-underline-offset:3px;
+  text-decoration-color:var(--line-2);
+  transition:color var(--dur-1) var(--ease),text-decoration-color var(--dur-1) var(--ease)}
+.linkbtn-quiet:hover{color:var(--ink-2)}
+.linkbtn-quiet:active{transform:var(--press-sm)}
+
+.well-accent{background:var(--card);border-left:3px solid var(--accent);
+  border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.well-accent-sm{border-left:2px solid var(--accent);border-radius:var(--radius-sm)}
+.well-accent-sage{border-left-color:var(--sage)}
+
+.xbtn{background:transparent;border:none;color:var(--muted);line-height:1;cursor:pointer;
+  transition:color var(--dur-1) var(--ease)}
+.xbtn:hover{color:var(--ink)}
+.xbtn:active{transform:var(--press-xs)}
+
+/* -------------------------------------------------------------------
+   04d · Reading-layer primitives — the one scoreless reading grammar
+   Defined HERE, ABOVE every component, so the reading surfaces (Brief,
+   Energy Balance, Stand, Train) all compose against these rather than
+   reinventing a read. Emitted by src/client/ui-reads.ts (CairnUiReads).
+   Constitution (VISION.md Amendment 2, docs/DESIGN.md): plain-language
+   leads; state is against the athlete's OWN baseline range in words, never
+   a 0–100 score / grade / population-relative geometry; terracotta reads
+   STRICTLY as attention/a lever, never punishment; no numbers in the read.
+   These are static display primitives — no motion of their own; they inherit
+   the global reduced-motion discipline. Where a consumer makes one tappable it
+   layers the press with the --press* tokens (§ motion tokens).
+
+     .read-band       personal-baseline band (a soft sage range region =
+                      the athlete's own range, an ink dot = today, .hot =
+                      terracotta lever, a plain-language phrase). Fluid —
+                      reads at card width or in a narrow inline slot; the
+                      .read-band-inline modifier lays it out on one row.
+     .read-contribs   contributor rows (.read-contrib): a state pip
+                      (.ok sage / .watch terracotta / .quiet neutral outline
+                      = thin-data "the read is looser"), label, state line.
+     .level-chip      qualitative capacity/benchmark chip (sage-soft ground,
+                      sage text), optional muted .level-chip-detail.
+     .trend-lead      trend-first headline: serif name + directional phrase
+                      (.toward sage / .away terracotta / .stable muted).
+     .strength-line   today's lift in the server's one line + optional caveat
+                      and folded original list (.strength-line-orig).
+   ------------------------------------------------------------------- */
+.read-band{display:flex;flex-direction:column;gap:6px}
+.read-band-label{display:block}
+.read-band-track{position:relative;height:8px;border-radius:99px;background:var(--card-2)}
+.read-band-range{position:absolute;top:0;bottom:0;border-radius:99px;background:var(--sage-bg);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sage) 22%,transparent)}
+.read-band-dot{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;
+  background:var(--ink);border:2.5px solid var(--card);transform:translate(-50%,-50%);
+  box-shadow:var(--shadow-sm)}
+.read-band.hot .read-band-dot{background:var(--accent)}
+.read-band-phrase{font-size:.85rem;line-height:1.45;color:var(--ink-2)}
+/* compact one-row layout for tight inline placements */
+.read-band-inline{flex-direction:row;align-items:center;gap:10px}
+.read-band-inline .read-band-track{flex:1;min-width:0}
+.read-band-inline .read-band-label,.read-band-inline .read-band-phrase{flex:0 0 auto}
+
+.read-contribs{display:flex;flex-direction:column;gap:9px}
+.read-contrib{display:flex;align-items:baseline;gap:9px}
+.read-contrib-pip{flex:0 0 auto;width:9px;height:9px;border-radius:50%;
+  transform:translateY(1px);background:var(--stone-taupe)}
+.read-contrib-pip.ok{background:var(--sage)}
+.read-contrib-pip.watch{background:var(--accent)}
+.read-contrib-pip.quiet{background:transparent;box-shadow:inset 0 0 0 1.5px var(--line-2)}
+.read-contrib-label{flex:0 0 auto;font-weight:600;color:var(--ink);font-size:.85rem}
+.read-contrib-state{min-width:0;color:var(--ink-2);font-size:.85rem;line-height:1.45}
+
+.level-chip{display:inline-flex;align-items:baseline;gap:6px;font-size:.74rem;font-weight:700;
+  text-transform:capitalize;letter-spacing:.02em;padding:2px 10px;border-radius:var(--radius-pill);
+  background:var(--sage-bg);color:var(--sage-text)}
+.level-chip-detail{font-weight:600;font-size:.68rem;text-transform:none;letter-spacing:0;
+  color:var(--muted)}
+
+/* the attributed specialist voice on a Learned outcome ("Lab reader: …") — a
+   level chip for the specialist, the recommendation in quiet plain words. */
+.learned-voice{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin-top:6px}
+.learned-voice-name{font-family:var(--font-ui);font-size:.72rem;font-weight:700;letter-spacing:.04em;color:var(--muted)}
+.learned-voice-text{font-size:.86rem;color:var(--ink-2);line-height:1.45}
+
+.trend-lead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.trend-lead-name{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
+  font-size:1.05rem;color:var(--ink);line-height:1.25}
+.trend-lead-phrase{font-size:.85rem;font-weight:600;color:var(--muted)}
+.trend-lead-phrase.toward{color:var(--sage-text)}
+.trend-lead-phrase.away{color:var(--accent-deep)}
+.trend-lead-phrase.stable{color:var(--muted)}
+
+/* today's lift — the ONE server line (plan day name · state off the log) every
+   strength surface prints verbatim; a rest/easy read is a quiet caveat under it,
+   never a replacement title. A reshaped day folds the plan's own list away. */
+.strength-line{display:flex;flex-direction:column;gap:3px;min-width:0}
+.strength-line-k{display:block}
+.strength-line-t{font-weight:650;font-size:.9rem;color:var(--ink);line-height:1.35}
+.strength-line[data-strength-state="logged"] .strength-line-t{color:var(--sage-text)}
+.strength-line-caveat{font-size:.82rem;color:var(--ink-2);line-height:1.45}
+.strength-line-orig{font-size:.8rem;color:var(--muted);line-height:1.45}
+.strength-line-orig summary{cursor:pointer;color:var(--muted);width:max-content}
+.strength-line-orig summary:hover{color:var(--ink-2)}
+.strength-line-orig span{display:block;margin-top:3px;color:var(--ink-2)}
+

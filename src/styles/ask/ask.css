@@ -1,0 +1,92 @@
+/* =====================================================================
+   Ask (v2 wave 5 stream D): the header's "Changes" door and the what-if
+   ripple card (.ripple-*), inline at the foot of the thread. The change in
+   words, then the six stones as a mini pebble row — each shows where it
+   stands and where it would likely sit, in the server's words and the
+   reading layer's tones — then one line of why per stone that moves, with
+   the team's confidence as a word. No number anywhere. The answer's one
+   entrance: the stones settle, then a single ring spreads from each stone
+   that moves (the ripple). Reduced motion paints it still.
+   ===================================================================== */
+.hdr-changes{height:34px;padding:0 13px;display:flex;align-items:center;
+  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
+  box-shadow:var(--shadow-sm);font-family:var(--font-ui);font-size:.6rem;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;
+  transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+.hdr-changes:active{transform:var(--press-sm)}
+@media (hover:hover){ .hdr-changes:hover{color:var(--ink);border-color:var(--ink)} }
+.chat-chip-whatif{border-style:dashed}
+
+.ripple-slot{flex:0 0 auto;margin:var(--space-4) 0;animation:settlein var(--dur-3) var(--ease) both}
+.ripple-card{background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
+  padding:var(--space-6) var(--space-7);display:flex;flex-direction:column;gap:var(--space-3)}
+.ripple-kicker{margin:0}
+.ripple-question{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink-2);font-style:italic}
+.ripple-ask{display:flex;flex-direction:column;gap:var(--space-3);margin:0}
+.ripple-input{width:100%;min-height:64px;resize:vertical;font-family:var(--font-ui);font-size:var(--text-md);
+  line-height:1.45;padding:var(--space-4) var(--space-5);border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:var(--card-2);color:var(--ink)}
+.ripple-hint,.ripple-caption,.ripple-still,.ripple-note{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--muted)}
+.ripple-change{margin:0;font-size:var(--text-md);font-weight:600;line-height:1.4;color:var(--ink)}
+.ripple-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-6);margin-top:var(--space-2)}
+.ripple-actions .pillbtn{min-height:44px}
+.ripple-actions .linkbtn-quiet,.ripple-changes{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
+.ripple-do[aria-busy="true"]{opacity:.55;pointer-events:none}
+
+/* The mini pebble row: six stones, the same shapes and tones as the strip. */
+.ripple-wave{container-type:inline-size;margin:var(--space-2) calc(-1 * var(--space-2)) 0}
+.ripple-stones{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.ripple-stone{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:var(--space-1);
+  padding:var(--space-2) 1px;text-align:center}
+.ripple-stone-mark{position:relative;display:block;flex:none;width:24px;height:17px;margin:0 0 var(--space-1);
+  border-radius:52% 48% 46% 54% / 60% 56% 44% 40%;background:var(--stone-taupe)}
+.ripple-stone:nth-child(2) .ripple-stone-mark{width:22px;border-radius:46% 54% 50% 50% / 56% 62% 38% 44%}
+.ripple-stone:nth-child(3) .ripple-stone-mark{width:25px;height:16px;border-radius:55% 45% 52% 48% / 62% 54% 46% 38%}
+.ripple-stone:nth-child(4) .ripple-stone-mark{width:23px;border-radius:48% 52% 44% 56% / 58% 60% 40% 42%}
+.ripple-stone:nth-child(5) .ripple-stone-mark{width:24px;height:18px;border-radius:50% 50% 55% 45% / 54% 58% 42% 46%}
+.ripple-stone:nth-child(6) .ripple-stone-mark{width:21px;border-radius:53% 47% 48% 52% / 64% 56% 44% 36%}
+.ripple-ok .ripple-stone-mark{background:var(--sage)}
+.ripple-watch .ripple-stone-mark{background:var(--accent)}
+.ripple-quiet .ripple-stone-mark{background:transparent;box-shadow:inset 0 0 0 1.5px var(--line-2)}
+.ripple-stone:not(.is-moved){opacity:.62}
+.ripple-stone-label{max-width:100%;font-size:var(--text-2xs);font-weight:600;line-height:1.2;color:var(--muted);overflow-wrap:anywhere}
+.ripple-stone-word{max-width:100%;display:flex;flex-direction:column;align-items:center;
+  font-size:clamp(.6rem,3.1cqi,var(--text-xs));font-weight:600;line-height:1.2;color:var(--ink-2);hyphens:auto;overflow-wrap:anywhere}
+.ripple-stone-was{font-weight:500;color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-2)}
+.ripple-stone-to{display:none}
+.ripple-ok .ripple-stone-now{color:var(--sage-text)}
+.ripple-watch .ripple-stone-now{color:var(--accent-deep)}
+.ripple-quiet .ripple-stone-now{color:var(--muted)}
+.ripple-stones-skel .ripple-stone-mark.hshimmer{height:17px}
+.ripple-stones-skel .ripple-stone-ghost{margin:0;width:70%;height:var(--space-4)}
+
+/* The ripple: stones settle in order, then one ring spreads from each that moves. */
+.ripple-stone-mark::after{content:"";position:absolute;inset:-3px;border-radius:50%;
+  border:1.5px solid currentColor;opacity:0;pointer-events:none}
+.ripple-ok .ripple-stone-mark::after{color:var(--sage)}
+.ripple-watch .ripple-stone-mark::after{color:var(--accent)}
+.ripple-quiet .ripple-stone-mark::after{color:var(--line-2)}
+@keyframes ripple-ring{0%{opacity:.55;transform:scale(.7)}100%{opacity:0;transform:scale(2.1)}}
+.ripple-wave.is-entering .ripple-stone-mark{animation:pebble-settle var(--dur-3) var(--ease) both;
+  animation-delay:calc(min(var(--i,0),12) * 60ms)}
+.ripple-wave.is-entering .is-moved .ripple-stone-mark::after{animation:ripple-ring var(--dur-3) var(--ease) 1 both;
+  animation-delay:calc(var(--dur-3) + min(var(--i,0),12) * 60ms)}
+
+/* One line of why per stone that moves. */
+.ripple-whys{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.ripple-why{font-size:var(--text-sm);line-height:1.5;color:var(--ink-2)}
+.ripple-why-k{font-weight:600;color:var(--ink)}
+.ripple-why-conf{font-size:var(--text-xs);color:var(--muted);letter-spacing:.04em}
+
+/* After "Do it": the Changes feed's own row (and Undo), or the framing line. */
+.ripple-handed[hidden]{display:none}
+.ripple-handed{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2);
+  border-top:1px solid var(--line);padding-top:var(--space-4);margin-top:var(--space-2)}
+.ripple-handed .chfeed-rows{align-self:stretch}
+.ripple-handed .chfeed-row{box-shadow:none;padding:0;background:transparent}
+.ripple-handed-line{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink-2)}
+@media (prefers-reduced-motion:reduce){
+  .ripple-slot{animation:none}
+  .ripple-wave.is-entering .ripple-stone-mark,.ripple-wave.is-entering .is-moved .ripple-stone-mark::after{animation:none}
+}
+
