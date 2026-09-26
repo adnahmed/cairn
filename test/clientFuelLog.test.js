@@ -53,7 +53,7 @@ test("the Log button is a real 44px-class button that opens the composer in food
   const { host, composer } = mount(win);
   const btn = host.querySelector("[data-fuel-log-toggle]");
   assert.equal(btn.getAttribute("type"), "button");
-  assert.equal(btn.textContent, "Log food");
+  assert.equal(btn.getAttribute("aria-label"), "Log food");
   assert.equal(btn.getAttribute("aria-expanded"), "false");
   assert.equal(composer.mounts.length, 0, "the composer mounts on first open, not before");
   await btn.click();

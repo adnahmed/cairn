@@ -1725,7 +1725,7 @@ body.resting{padding-bottom:calc(152px + max(env(safe-area-inset-bottom),6px) + 
 body.chat-mode{padding-bottom:var(--vvb,0px)}
 .chatlog-wrap{position:relative;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .chatlog{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
-  display:flex;flex-direction:column;gap:10px;padding:2px 1px 8px}
+  display:flex;flex-direction:column;gap:var(--space-5);padding:2px 1px var(--space-4)}
 .chatdock{flex:0 0 auto;padding-top:2px}
 /* Mobile: the chat column is BOTTOM-ANCHORED, not height-measured. It's fixed
    between the header (top) and either the tab bar (--tabbar-h, keyboard closed)
@@ -1772,12 +1772,20 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   body.chat-mode.kb-geometry-open .chatnote{display:none}
 }
 
-.bubble{position:relative;max-width:85%;padding:10px 14px;border-radius:16px;font-size:.9rem;
+/* Atelier v2 thread: my words are ink bubbles on the right; the team's are surface
+   bubbles on the left, one hairline, led by a dot + mono speaker. Phone-compact:
+   .88rem copy, 9px/13px padding, the tail squared on the speaking side. */
+.bubble{position:relative;max-width:86%;padding:9px 13px;border-radius:17px;font-size:var(--text-md);
   line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
-.bubble.user{align-self:flex-end;background:var(--ink);color:var(--paper);border-bottom-right-radius:5px}
-.bubble.assistant{align-self:flex-start;background:var(--card);box-shadow:var(--shadow-sm);
+.bubble.user{align-self:flex-end;background:var(--ink);color:var(--on-ink);border-bottom-right-radius:5px}
+.bubble.assistant{align-self:flex-start;background:var(--surface);border:1px solid var(--line);
   border-bottom-left-radius:5px}
-.bubble.pending{background:var(--card);box-shadow:var(--shadow-sm);color:var(--muted)}
+.bubble.pending{background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+/* who is speaking on a team reply: a stone dot + a mono name */
+.bubble-who{display:flex;align-items:center;gap:var(--space-3);margin:0 0 var(--space-2);
+  color:var(--muted);white-space:nowrap}
+.bubble-who .dot{width:7px;height:7px}
+.bubble-who .dot.is-team{background:var(--ink)}
 /* the live phase caption ("Thinking…" → "Drafting…") inside a pending bubble —
    each swap settles in gently so the wait reads as motion, never a jump */
 .bubble.pending .typing-cap{display:inline-block;font-style:italic;
@@ -1791,7 +1799,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   vertical-align:middle}
 .bubble.pending .turn-stop:hover,.bubble.streaming .turn-stop:hover{color:var(--ink)}
 /* a turn rendering its reply token-by-token (true headless streaming) */
-.bubble.assistant.streaming{align-self:flex-start;background:var(--card);box-shadow:var(--shadow-sm);
+.bubble.assistant.streaming{align-self:flex-start;background:var(--surface);border:1px solid var(--line);
   border-bottom-left-radius:5px}
 .bubble.streaming .stream-text{white-space:normal}
 .bubble.streaming .turn-stop{display:inline-block;margin:6px 0 0}
@@ -1809,24 +1817,24 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
    synthesis, nutrition check-in, weekly read) before the final render swaps in */
 .job-stream-text{white-space:pre-wrap;color:var(--ink);font-size:.9rem;line-height:1.5}
 /* a stopped turn settles into a subtle in-place note */
-.bubble.turn-stopped{align-self:flex-start;background:var(--card);box-shadow:var(--shadow-sm);
+.bubble.turn-stopped{align-self:flex-start;background:var(--surface);border:1px solid var(--line);
   border-bottom-left-radius:5px}
 .bubble.turn-stopped .turn-stopped-note{font-style:italic;font-size:.82rem;color:var(--muted)}
-.bubble.bubble-in{animation:bubblein .34s var(--ease) both}
+.bubble.bubble-in{animation:bubblein var(--dur-in) var(--ease) both}
 @keyframes bubblein{from{opacity:0;transform:translateY(7px) scale(.98)}to{opacity:1;transform:none}}
 
 /* grouping: consecutive same-role turns stack tight; only the run's last bubble
    keeps the little tail + the timestamp. `.cont` continues a run, `.grouped` is
    a non-last bubble (tail squared off). */
-.bubble.cont{margin-top:-5px}
-.bubble.grouped.user{border-bottom-right-radius:16px}
-.bubble.grouped.assistant{border-bottom-left-radius:16px}
+.bubble.cont{margin-top:calc(var(--space-4) * -1)}
+.bubble.grouped.user{border-bottom-right-radius:17px}
+.bubble.grouped.assistant{border-bottom-left-radius:17px}
 .bubble.cont.user{border-top-right-radius:7px}
 .bubble.cont.assistant{border-top-left-radius:7px}
 
 /* per-message clock time on the last bubble of a run (subtle, side-aligned) */
-.bubble-time{display:block;margin-top:5px;font-family:var(--font-ui);font-size:.58rem;
-  font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.bubble-time{display:block;margin-top:var(--space-2);font-family:var(--font-mono);font-size:.56rem;
+  font-weight:400;letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted)}
 .bubble.user .bubble-time{text-align:right;color:color-mix(in srgb,var(--on-ink) 66%,var(--ink))}
 
 /* copy affordance on coach replies — hover-revealed on desktop, long-press on touch */
@@ -1867,15 +1875,18 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .bubble-text.md th,.bubble-text.md td{border:1px solid var(--line-2);padding:5px 9px;text-align:left;vertical-align:top}
 .bubble-text.md th{background:var(--card-2);font-family:var(--font-ui);font-weight:700;
   font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
-.bubble-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.bubble-tag{display:inline-flex;align-items:center;background:var(--sage-bg);
-  color:var(--sage);border-radius:var(--radius-pill);padding:3px 9px;
-  font-family:var(--font-ui);font-size:.58rem;font-weight:700;letter-spacing:.1em;
+.bubble-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:var(--space-4)}
+.bubble-tag{display:inline-flex;align-items:center;background:var(--surface2);
+  color:var(--ink2);border-radius:var(--radius-pill);padding:3px 9px;
+  font-family:var(--font-mono);font-size:.56rem;font-weight:400;letter-spacing:var(--tracking-mono);
   text-transform:uppercase;white-space:nowrap}
 .bubble.user .bubble-meta .bubble-tag{background:color-mix(in srgb,var(--on-ink) 14%,transparent);color:color-mix(in srgb,var(--on-ink) 84%,var(--ink))}
 /* A capture food log: the enriched chip carries a readable meal + macros, so drop
    the all-caps pill treatment; while it fills in, a calm muted state + spinner dot. */
-.bubble-tag.capture-food{text-transform:none;letter-spacing:.01em;font-weight:650}
+/* the logged meal: one compact line in the fuel stone's wash, the meal and its numbers */
+.bubble-tag.capture-food{font-family:var(--font-ui);font-size:var(--text-xs);text-transform:none;letter-spacing:0;
+  font-weight:600;background:color-mix(in srgb,var(--s-fuel) 26%,var(--surface));color:var(--d-fuel);
+  white-space:normal;font-variant-numeric:tabular-nums}
 .bubble-tag.capture-food.pending{background:var(--card-2);color:var(--muted);border:1px solid var(--line-2)}
 .bubble-tag.capture-food.pending .enr-dot{display:inline-block;width:7px;height:7px;margin-right:5px;
   border-radius:50%;border:1.5px solid var(--accent);border-top-color:transparent;
@@ -1885,7 +1896,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
    one quiet line per item (name · portion in words · a muted ~kcal), read-only and
    phone-sized. No inputs, no totals line (the chip above carries the meal's total),
    no provenance line — a correction is the next message, never a form. */
-.capture-review{margin-top:var(--space-3)}
+.capture-review{margin-top:var(--space-3);padding-top:var(--space-3);border-top:1px solid var(--line)}
 /* Only the review that lands WHILE you are looking settles in; one rendered from
    history is already part of the message and must not re-animate on every paint. */
 .capture-review.settling{animation:settlein var(--dur-2) var(--ease)}
@@ -1926,80 +1937,94 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .chatfuel-slot:empty{display:none}
-.chatfuel-card{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  margin-top:8px;padding:9px 12px;background:var(--card);border:1px solid var(--line);
-  border-left:3px solid var(--sage);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
-  color:var(--ink);font-family:var(--font-ui);cursor:pointer}
-.chatfuel-card:active{transform:var(--press)}
-.chatfuel-mark{flex:0 0 auto;color:var(--sage);font-size:.82rem}
-.chatfuel-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.chatfuel-label{color:var(--muted)}
-.chatfuel-stats{font-size:.84rem;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chatfuel-go{flex:0 0 auto;color:var(--sage);font-weight:700}
-@media (hover:hover){.chatfuel-card:hover{background:var(--card-2)}}
+/* Today's fuel, one compact line above the composer: a fuel dot, the day's figures,
+   a chevron to review them. */
+.chatfuel-card{display:flex;align-items:center;gap:var(--space-4);width:100%;text-align:left;
+  margin-top:var(--space-3);padding:7px 12px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius-pill);color:var(--ink);font-family:var(--font-ui);cursor:pointer;
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.chatfuel-card:active{transform:var(--press-lg)}
+.chatfuel-mark{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:var(--s-fuel);
+  font-size:0;line-height:0;overflow:hidden}
+.chatfuel-main{flex:1;min-width:0;display:flex;align-items:baseline;gap:var(--space-4)}
+.chatfuel-label{flex:0 0 auto;color:var(--muted)}
+.chatfuel-stats{min-width:0;font-size:var(--text-xs);color:var(--ink2);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-variant-numeric:tabular-nums}
+.chatfuel-go{flex:0 0 auto;color:var(--muted);font-size:var(--text-sm)}
+@media (hover:hover){.chatfuel-card:hover{border-color:var(--line-strong)}}
+@media (max-width:400px){.chatfuel-label{display:none}}
 
-.chatbar{display:flex;gap:8px;align-items:flex-end;margin-top:8px}
+/* the composer bar: attach, the field, send — one row, pill-rounded, hairline */
+.chatbar{display:flex;gap:var(--space-4);align-items:flex-end;margin-top:var(--space-3)}
 /* Single "+" attach control — opens the OS chooser (camera / library / files).
    Attaching is occasional, so it stays compact and hands the width to the input. */
 .attachbtn{flex:0 0 auto;width:40px;height:40px;display:flex;align-items:center;justify-content:center;
-  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
-  box-shadow:var(--shadow-sm);transition:color .15s,border-color .15s,background .15s}
-.attachbtn svg{width:22px;height:22px}
-.attachbtn.has-img{color:var(--accent);border-color:var(--accent)}
-@media (hover:hover){ .attachbtn:hover{color:var(--ink);border-color:var(--ink)} }
-.chatbar textarea{flex:1;min-width:0;background:var(--card);border:1px solid var(--line-2);color:var(--ink);
-  border-radius:21px;padding:11px 16px;font-size:.92rem;line-height:1.4;box-shadow:var(--shadow-sm);
-  resize:none;max-height:140px;overflow-y:hidden;display:block}
-.chatbar .logbtn{border-radius:var(--radius-pill);font-size:1.1rem}
+  background:var(--surface);border:1px solid var(--line);color:var(--muted);border-radius:var(--radius-pill);
+  transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.attachbtn:active{transform:var(--press)}
+.attachbtn svg{width:20px;height:20px}
+.attachbtn.has-img{color:var(--dawn);border-color:var(--dawn)}
+@media (hover:hover){ .attachbtn:hover{color:var(--ink);border-color:var(--line-strong)} }
+.chatbar textarea{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);color:var(--ink);
+  border-radius:20px;padding:9px 15px;font-family:var(--font-ui);font-size:var(--text-base);line-height:1.4;
+  min-height:40px;resize:none;max-height:140px;overflow-y:hidden;display:block;
+  transition:border-color var(--dur-1) var(--ease)}
+.chatbar textarea::placeholder{color:var(--muted)}
+.chatbar textarea:focus{outline:none;border-color:var(--dawn)}
+.chatbar .logbtn{width:40px;height:40px;border-radius:var(--radius-pill);font-size:1.05rem}
 /* Wraps the textarea so the reused .qlmic press-to-talk button (see the
    "effortless capture" block below) can ride its trailing edge, same as it
    once did on Today's quick-log field. */
 .chat-field{position:relative;display:flex;flex:1;min-width:0}
 .chat-field:has(#chatMic:not([hidden])) #chatInput{padding-right:42px}
-.chatnote{text-align:center;color:var(--muted);font-size:.72rem;margin-top:8px;line-height:1.45;text-wrap:balance}
+/* The reassurance line speaks only to an empty thread; once the conversation is
+   going it steps aside and hands its lines to the log. */
+.chatnote{text-align:center;color:var(--muted);font-size:var(--text-xs);margin-top:var(--space-4);line-height:1.45;text-wrap:balance}
+.chatview:has(.chatlog .bubble) .chatdock > .chatnote{display:none}
 
 /* day dividers — slim centered date rules between conversation days */
 .chat-divider{display:flex;align-items:center;gap:12px;flex:0 0 auto;
   margin:8px 0 0;-webkit-user-select:none;user-select:none}
 .chat-divider::before,.chat-divider::after{content:"";flex:1;height:1px;background:var(--line)}
-.chat-divider span{font-family:var(--font-ui);font-size:.58rem;font-weight:700;
-  letter-spacing:.18em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.chat-divider span{font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:400;
+  letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted);white-space:nowrap}
 
 /* collapsed history above the live stretch */
-.chat-earlier{display:flex;flex-direction:column;gap:10px;flex:0 0 auto}
+.chat-earlier{display:flex;flex-direction:column;gap:var(--space-5);flex:0 0 auto}
 .chat-earlier[hidden]{display:none}
 .chat-earlierbar{display:flex;justify-content:center;flex:0 0 auto;padding:2px 0}
-.earlierbtn{background:var(--card);border:1px solid var(--line-2);color:var(--muted);
-  border-radius:var(--radius-pill);padding:7px 15px;font-family:var(--font-ui);font-size:.64rem;
-  font-weight:700;letter-spacing:.12em;text-transform:uppercase;box-shadow:var(--shadow-sm);
+.earlierbtn{background:var(--surface);border:1px solid var(--line);color:var(--muted);
+  border-radius:var(--radius-pill);padding:6px 13px;font-family:var(--font-mono);font-size:var(--text-2xs);
+  font-weight:400;letter-spacing:var(--tracking-mono);text-transform:uppercase;
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
 @media (hover:hover){ .earlierbtn:hover{color:var(--ink);border-color:var(--ink)} }
 
 /* starter chips (empty chat) — pinned just above the chatbar, stagger in */
 .chatlog .empty,.chatlog .loadstate{margin:auto 0;flex:0 0 auto}
-.chat-chips{margin-top:auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
-  padding:10px 2px 2px;flex:0 0 auto}
-.chat-chip{background:var(--card);border:1px solid var(--line-2);color:var(--ink-2);
-  border-radius:var(--radius-pill);padding:10px 15px;font-size:.82rem;box-shadow:var(--shadow-sm);
+/* starter chips: small, fully rounded, laid at the foot of an empty thread */
+.chat-chips{margin-top:auto;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;
+  padding:var(--space-5) 0 var(--space-1);flex:0 0 auto}
+.chat-chip{background:var(--surface);border:1px solid var(--line);color:var(--ink2);
+  border-radius:var(--radius-pill);padding:7px 12px;font-family:var(--font-ui);font-size:var(--text-sm);line-height:1.3;
   animation:rise var(--dur-3) var(--ease) both;animation-delay:calc(var(--i,0) * 70ms);
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
-@media (hover:hover){ .chat-chip:hover{color:var(--accent);border-color:var(--accent)} }
+.chat-chip:active{transform:var(--press)}
+@media (hover:hover){ .chat-chip:hover{color:var(--ink);border-color:var(--line-strong)} }
 
 /* Chat header affordances: a history/search circle + the fresh-start button,
    in one cluster anchored to the (position:relative) header. */
 .hdr-chat-actions{position:absolute;right:18px;bottom:14px;display:flex;align-items:center;gap:8px}
 @media (min-width:960px){ .hdr-chat-actions{right:48px;bottom:18px} }
 .hdrcircbtn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;
-  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
-  box-shadow:var(--shadow-sm);
+  background:var(--surface);border:1px solid var(--line);color:var(--muted);border-radius:var(--radius-pill);
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
 .hdrcircbtn svg{width:17px;height:17px}
 @media (hover:hover){ .hdrcircbtn:hover{color:var(--ink);border-color:var(--ink)} }
 
 /* fresh-start (distill & archive) — inline two-tap confirm; lives in the cluster */
 .freshbtn{display:flex;align-items:center;gap:7px;
-  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
-  height:34px;padding:0 8px;box-shadow:var(--shadow-sm);
+  background:var(--surface);border:1px solid var(--line);color:var(--muted);border-radius:var(--radius-pill);
+  height:34px;padding:0 8px;
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
 .freshbtn[hidden]{display:none}
 .freshbtn svg{width:17px;height:17px;flex:0 0 auto}
@@ -2991,12 +3016,13 @@ body.resting .savebar{bottom:calc(114px + max(env(safe-area-inset-bottom),6px) +
 .food-journal{margin-top:0;padding-top:0;border-top:0}
 
 /* collapsed history of past plans */
-.mp-history{margin-top:22px;border-top:1px solid var(--line);padding-top:14px}
-.mp-history summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px}
-.mp-history summary::-webkit-details-marker{display:none}
-.mp-history summary::after{content:"▾";color:var(--muted);font-size:.7rem;
-  transition:transform var(--dur-1) ease}
-.mp-history[open] summary::after{transform:rotate(180deg)}
+.mp-history{margin-top:var(--space-9);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.mp-history > summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:var(--space-3);min-height:44px;color:var(--muted)}
+.mp-history > summary::-webkit-details-marker{display:none}
+.mp-history > summary::after{content:"›";margin-left:auto;font-family:var(--font-ui);font-size:1rem;letter-spacing:0;
+  transition:transform var(--dur-1) var(--ease)}
+.mp-history[open] > summary::after{transform:rotate(90deg)}
+.mp-history[open]{padding-bottom:var(--space-6)}
 
 /* ── Exercise "How to" — the optional imported guide (free-exercise-db) ────────
    Collapsed by default: one quiet summary row, opened on tap. Absent entirely
@@ -4019,45 +4045,43 @@ body.swr-busy::after{
 .symptom-history-row:first-child{border-top:0}
 .symptom-history-row .linkbtn{flex:0 0 auto;min-height:30px;padding:5px 1px}
 
-/* Energy Balance (Progress) — a calm editorial read, never a dashboard. */
+/* Energy Balance (Progress, and Fuel's foot) — a calm editorial read, never a
+   dashboard. Atelier v2: one surface card, a mono kicker behind a small dot, the
+   read in the serif voice. A lever read (dropping faster than lean-safe) says so
+   with a dawn dot in the kicker, never a painted edge. */
 .eb-ctx{color:var(--muted);margin-top:11px}
 .eb-card{
-  background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
-  padding:17px 19px 15px;margin:0 0 14px;border-left:3px solid var(--sage);
-  position:relative;overflow:hidden;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:var(--space-7) var(--space-8) var(--space-7);margin:0 0 var(--space-7);position:relative;
 }
-.eb-card::before{content:"";position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--sage) 7%,transparent), transparent 62%)}
-.eb-kicker{display:flex;align-items:center;gap:7px;color:var(--muted);margin-bottom:9px;position:relative}
-.eb-glyph{color:var(--sage);font-size:.8rem;line-height:1}
-.eb-lead{font-family:var(--font-display);font-weight:480;font-variation-settings:"opsz" 40;
-  font-size:1.1rem;line-height:1.42;color:var(--ink);margin:0;max-width:46ch;position:relative}
-.eb-body{font-size:.86rem;color:var(--ink-2);line-height:1.55;margin:9px 0 0;max-width:48ch;position:relative}
+.eb-kicker{display:flex;align-items:center;gap:var(--space-3);color:var(--muted);margin-bottom:var(--space-4)}
+.eb-glyph{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--s-fuel);
+  font-size:0;line-height:0;color:transparent;overflow:hidden;flex:0 0 auto}
+.eb-lead{font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.3;
+  color:var(--ink);margin:0;max-width:46ch;text-wrap:pretty}
+.eb-body{font-size:var(--text-sm);color:var(--ink2);line-height:1.55;margin:var(--space-4) 0 0;max-width:48ch}
 /* The goal-aware cut-quality line — is the cut preserving muscle? A calm second read
-   under the lead, set off with a quiet sage rule so it reads as its own quality note. */
-.eb-quality{font-size:.9rem;color:var(--ink);line-height:1.5;margin:10px 0 0;max-width:48ch;
-  padding-left:11px;border-left:2px solid var(--sage);position:relative}
+   under the lead, in the body's own register. */
+.eb-quality{font-size:var(--text-sm);color:var(--ink);line-height:1.5;margin:var(--space-5) 0 0;max-width:48ch}
 /* Confidence as geometry: the maintenance-zone band widens (renderer) AND softens
    (here) as the read loosens — uncertainty shown as WIDTH, never a number or score.
    Composes the §04d .read-band; high confidence keeps the primitive's crisp default. */
-.eb-zone{margin:14px 0 2px;display:flex;flex-direction:column;gap:11px;position:relative}
-.eb-zone .read-band-track{height:10px}
+.eb-zone{margin:var(--space-7) 0 2px;display:flex;flex-direction:column;gap:var(--space-4)}
+.eb-zone .read-band-track{height:8px;background:var(--well)}
 .eb-zone--medium .read-band-range{opacity:.82}
 .eb-zone--low .read-band-range{opacity:.5;box-shadow:none;
   background:linear-gradient(90deg,transparent,var(--sage-bg) 20%,var(--sage-bg) 80%,transparent)}
-/* Lever read (dropping faster than lean-safe): terracotta = attention/a lever, never punishment. */
-.eb-card--lever{border-left-color:var(--accent)}
-.eb-card--lever::before{background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--accent) 8%,transparent), transparent 62%)}
-.eb-card--lever .eb-glyph{color:var(--accent)}
+.eb-card--lever .eb-glyph{background:var(--dawn)}
 /* The numeric hero, demoted BELOW the verbal read — a quiet reference strip, not a masthead. */
 #energyHero .phero{padding:2px 2px 4px}
 #energyHero .phero-title{font-family:var(--font-ui);font-variation-settings:normal;font-weight:600;
   font-size:.68rem;text-transform:uppercase;letter-spacing:.16em;color:var(--muted)}
-#energyHero .phero-stats{margin-top:9px;gap:22px}
-#energyHero .phero-n{font-size:1.3rem}
-.eb-foot{display:flex;align-items:center;flex-wrap:wrap;gap:11px;margin-top:15px;position:relative}
-.eb-checkin{flex:none}
-.eb-note,.eb-advisory{color:var(--muted);text-transform:none;letter-spacing:.02em;font-size:.72rem}
+#energyHero .phero-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:var(--space-4);gap:var(--space-6)}
+#energyHero .phero-n{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1.1}
+#energyHero .phero-stat .lbl{line-height:1.5}
+.eb-foot{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3) var(--space-6);margin-top:var(--space-7)}
+.eb-checkin{flex:none;margin-top:0}
+.eb-note,.eb-advisory{font-family:var(--font-ui);color:var(--muted);text-transform:none;letter-spacing:0;font-size:var(--text-xs)}
 .eb-advisory{margin-top:11px;font-style:italic}
 
 /* check-in result (under the Energy card) */
@@ -7008,41 +7032,63 @@ body[data-tab="session"] .tabbar{display:none}
 /* -------------------------------------------------------------------
    41 · Plan → Changes — the Changes feed (.chfeed-*) + ask cards (.askcard-*)
    ------------------------------------------------------------------- */
-/* The screen shell (coach-meals-screen.ts renderCoach). */
-.changes-lede{color:var(--muted);margin:var(--space-1) var(--space-1) var(--space-8);line-height:1.5}
-.changes-h{margin:var(--space-10) 0 var(--space-4)}
+/* The screen shell (coach-meals-screen.ts renderCoach). Atelier v2: one short
+   lede, the feed as hairline rows in one card, and the older histories folded
+   away until asked for. */
+.changes-lede{color:var(--ink2);font-size:var(--text-sm);margin:var(--space-2) var(--space-1) var(--space-4);line-height:1.5}
+.changes-h{margin:var(--space-9) 0 var(--space-4)}
 .changes-asks:empty,.changes-feed-slot:empty{display:none}
-.changes-manual{margin-top:var(--space-10)}
-.changes-manual-note{color:var(--muted);margin:var(--space-5) var(--space-1) var(--space-8);line-height:1.5}
+.changes-fold,.changes-manual{margin-top:var(--space-2);border-top:1px solid var(--line)}
+.changes-fold:first-of-type{margin-top:var(--space-9)}
+.changes-fold > summary,.changes-manual > summary{display:flex;align-items:center;gap:var(--space-3);min-height:44px;
+  cursor:pointer;list-style:none;color:var(--muted)}
+.changes-fold > summary::-webkit-details-marker,.changes-manual > summary::-webkit-details-marker{display:none}
+.changes-fold > summary::after,.changes-manual > summary::after{content:"›";margin-left:auto;font-family:var(--font-ui);
+  font-size:1rem;letter-spacing:0;transition:transform var(--dur-1) var(--ease)}
+.changes-fold[open] > summary::after,.changes-manual[open] > summary::after{transform:rotate(90deg)}
+.changes-fold[open]{padding-bottom:var(--space-6)}
+.changes-manual{border-bottom:1px solid var(--line)}
+.changes-manual-note{color:var(--muted);font-size:var(--text-sm);margin:var(--space-2) var(--space-1) var(--space-6);line-height:1.5}
 .changes-status{margin-top:var(--space-5);color:var(--muted);font-size:var(--text-sm)}
+/* the empty feed: a quiet line, not a hero */
+.chfeed-empty.empty-state{padding:var(--space-7) var(--space-8);background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);text-align:left;box-shadow:none}
+.chfeed-empty .empty-state-line{font-family:var(--font-display);font-style:normal;font-weight:400;font-size:var(--text-lg);color:var(--ink);margin:0}
+.chfeed-empty .hpic-hero-sub{font-size:var(--text-sm);margin:var(--space-2) 0 0;max-width:none;color:var(--ink2)}
 
-/* The feed: day groups, newest first; one row per change. */
+/* The feed: day groups, newest first; one hairline row per change, the stone's dot
+   leading, Undo as a quiet link at the row's foot. */
 .chfeed{display:flex;flex-direction:column;gap:var(--space-8)}
 .chfeed-day{display:flex;flex-direction:column;gap:var(--space-4)}
 .chfeed-day-label{margin:0}
-.chfeed-rows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-4)}
-.chfeed-row{background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
-  padding:var(--space-6) var(--space-7);display:flex;flex-direction:column;gap:var(--space-2)}
-.chfeed-row.is-reverted,.chfeed-row.is-held{box-shadow:none;border:1px solid var(--line)}
-.chfeed-row.is-reverted .chfeed-title,.chfeed-row.is-held .chfeed-title{color:var(--ink-2)}
-.chfeed-head{display:flex;align-items:baseline;gap:var(--space-4)}
+.chfeed-rows{list-style:none;margin:0;padding:0 var(--space-7);display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.chfeed-row{padding:var(--space-6) 0 var(--space-6) calc(9px + var(--space-5));border-top:1px solid var(--line);
+  display:flex;flex-direction:column;gap:var(--space-2)}
+.chfeed-row:first-child{border-top:0}
+.chfeed-row.is-reverted .chfeed-title,.chfeed-row.is-held .chfeed-title{color:var(--muted);text-decoration:line-through;
+  text-decoration-color:var(--line-strong)}
+.chfeed-head{position:relative;display:flex;align-items:baseline;gap:var(--space-4)}
+.chfeed-dot{position:absolute;left:calc(-9px - var(--space-5));top:.42em}
+.chfeed-dot.is-team{background:var(--ink)}
 .chfeed-title{margin:0;flex:1;min-width:0;font-size:var(--text-md);font-weight:600;line-height:1.4;color:var(--ink)}
-.chfeed-new{flex:none;font-size:var(--text-xs);font-weight:600;color:var(--accent-deep);
-  background:var(--accent-wash);border-radius:var(--radius-pill);padding:var(--space-1) var(--space-4)}
-.chfeed-why{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink-2)}
+.chfeed-new{flex:none;font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--dawn-deep);background:var(--dawn-wash);border-radius:var(--radius-pill);padding:3px 7px}
+.chfeed-why{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink2)}
 .chfeed-outcome{margin:0;font-size:var(--text-sm);line-height:1.45}
 .chfeed-outcome::first-letter{text-transform:uppercase}
-.chfeed-outcome-ok{color:var(--sage-text)}
-.chfeed-outcome-watch{color:var(--gold-deep)}
+.chfeed-outcome-ok{color:var(--d-endurance)}
+.chfeed-outcome-watch{color:var(--dawn-deep)}
 .chfeed-outcome-quiet{color:var(--muted)}
-.chfeed-meta{margin:0;font-size:var(--text-xs);color:var(--muted);line-height:1.45}
-.chfeed-conf-k{letter-spacing:.04em}
-.chfeed-undo{align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;
-  margin:calc(var(--space-5) * -1) 0 calc(var(--space-5) * -1);font-size:var(--text-sm)}
+.chfeed-meta{margin:0;font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--muted);line-height:1.6}
+.chfeed-conf-k{letter-spacing:inherit}
+.chfeed-undo{align-self:flex-start;min-height:40px;display:inline-flex;align-items:center;
+  margin:calc(var(--space-4) * -1) 0 calc(var(--space-5) * -1);font-size:var(--text-sm)}
 .chfeed-undo[aria-busy="true"]{opacity:.55;pointer-events:none}
-/* The change the athlete just made settles: its accent washes in once and fades
-   back to the card over --dur-3. Silenced with every other keyframe under §30. */
-@keyframes chfeed-settle{from{background:var(--accent-wash)}to{background:var(--card)}}
+/* The change the athlete just made settles: its dawn washes in once and fades back
+   to the surface over --dur-3. Silenced with every other keyframe under §30. */
+@keyframes chfeed-settle{from{background:var(--dawn-wash)}to{background:transparent}}
 .chfeed-row.is-settled{animation:chfeed-settle var(--dur-3) var(--ease) 1}
 .chfeed-error{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2);
   padding:var(--space-6) var(--space-2)}
@@ -7050,7 +7096,7 @@ body[data-tab="session"] .tabbar{display:none}
 .chfeed-retry{min-height:44px;display:inline-flex;align-items:center}
 
 /* Ask cards: what is left to ask — calm, collapsed behind a quiet count. */
-.askcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);
+.askcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
   padding:var(--space-5) var(--space-7);display:flex;flex-direction:column;gap:var(--space-2)}
 .askcard-line{margin:0;font-size:var(--text-md);line-height:1.45;color:var(--ink)}
 .askcard-why{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--muted)}
@@ -7121,56 +7167,96 @@ body[data-tab="session"] .tabbar{display:none}
 /* -------------------------------------------------------------------
    43 · Fuel — Plan → Food (.fuel-today-*, .fuel-log-*, .fuel-meal-*, .idea-card-*)
    ------------------------------------------------------------------- */
-/* Today so far, protein first: numbers with units, never a score. A day still being
-   eaten reads "In progress" in sage, never a red/low tone. */
+/* Atelier v2. Fuel reads top to bottom as the day does: where today's food stands
+   (one card, protein as the lead meter), where you write what you ate, what you have
+   logged (hairline rows in portion words), then ideas for the rest of today. */
 .fuel-slot:empty{display:none}
-.fuel-today{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
-  padding:var(--space-8);margin-bottom:var(--space-card)}
-.fuel-today-skel{margin-bottom:var(--space-card)}
-.fuel-today-head{display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-4)}
+.fuel-slot + .fuel-slot{margin-top:var(--space-8)}
+
+/* ---- Today so far: one card, protein leads as a meter in the fuel stone's hue ---- */
+.fuel-today{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:var(--space-7) var(--space-8) var(--space-8)}
+.fuel-today-skel{min-height:132px}
+.fuel-today-head{display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-5)}
 .fuel-today-title{margin:0}
-.fuel-today-state{margin-left:auto;font-size:var(--text-xs);color:var(--sage-text)}
-.fuel-today-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4);margin:0}
-.fuel-today-num{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.fuel-today-state{margin-left:auto;font-size:var(--text-xs);color:var(--muted)}
+.fuel-today-nums{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5) var(--space-8);margin:0}
+.fuel-today-num{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:var(--space-1) var(--space-4);
+  min-width:0;padding-top:var(--space-5);border-top:1px solid var(--line)}
 .fuel-today-num dd{margin:0}
-.fuel-today-unit{font-size:var(--text-sm);color:var(--muted)}
-.fuel-today-sub{font-size:var(--text-xs);color:var(--muted)}
-.fuel-today-value.is-unknown{font-size:var(--text-xl);color:var(--muted)}
-.fuel-today-line{margin:var(--space-3) 0 0;font-size:var(--text-md);color:var(--ink-2);line-height:1.45}
-.fuel-today-togo{color:var(--sage-text);font-weight:600}
-.fuel-today-band,.fuel-today-pending{font-size:var(--text-sm);color:var(--muted)}
-.fuel-today-empty{margin:0;font-size:var(--text-md);color:var(--ink-2);line-height:1.5}
+.fuel-today-k{font-size:var(--text-sm);color:var(--ink2)}
+.fuel-today-num .numeral-lg{font-family:var(--font-ui);font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.fuel-today-unit{font-size:var(--text-xs);color:var(--muted)}
+.fuel-today-value{white-space:nowrap;font-variant-numeric:tabular-nums}
+.fuel-today-value.is-unknown{font-size:var(--text-md);color:var(--muted)}
+.fuel-today-sub{grid-column:1/-1;font-size:var(--text-xs);color:var(--muted)}
+/* protein: the whole row, the serif figure, the meter under it */
+.fuel-today-num.is-anchor{grid-column:1/-1;padding-top:0;border-top:0}
+.fuel-today-num.is-anchor .fuel-today-k{font-size:var(--text-md);color:var(--ink)}
+.fuel-today-num.is-anchor .numeral-lg{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1}
+.fuel-today-num.is-anchor .fuel-today-unit{font-size:var(--text-sm)}
+.fuel-today-meter{grid-column:1/-1;margin-top:var(--space-3)}
+.fuel-today-track{display:block;position:relative;height:6px;border-radius:var(--radius-pill);background:var(--well);overflow:hidden}
+.fuel-today-fill{position:absolute;inset:0 auto 0 0;border-radius:var(--radius-pill);background:var(--s-fuel);
+  transition:width var(--dur-3) var(--ease)}
+.fuel-today-num.is-anchor .fuel-today-sub{grid-column:1}
+.fuel-today-line{margin:var(--space-5) 0 0;font-size:var(--text-sm);color:var(--ink2);line-height:1.5}
+.fuel-today-nums + .fuel-today-line{margin-top:var(--space-6)}
+.fuel-today-togo{grid-column:2;font-size:var(--text-xs);color:var(--d-fuel);font-weight:600;white-space:nowrap}
+.fuel-today-togo .numeral,.fuel-today-line .numeral{font-family:var(--font-ui);font-weight:600;color:inherit;
+  font-size:inherit;font-variant-numeric:tabular-nums}
+.fuel-today-band,.fuel-today-pending{font-size:var(--text-xs);color:var(--muted)}
+.fuel-today-empty{margin:0;font-size:var(--text-md);color:var(--ink2);line-height:1.5}
 .fuel-today-retry,.idea-cards-retry{min-height:44px}
-/* Log food: the shared composer opens under the button (grid-rows 0fr→1fr). */
-.fuel-log{margin-bottom:var(--space-card)}
-.fuel-log-toggle{width:100%;min-height:44px}
+
+/* ---- Log what you ate: a quiet field that opens the shared composer in its place ---- */
+.fuel-log-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-4)}
+.fuel-log-title{margin:0}
+.fuel-log-toggle{flex:1 1 100%;display:flex;align-items:flex-start;min-height:64px;margin-top:var(--space-4);
+  padding:var(--space-6) var(--space-7);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);
+  font-family:var(--font-ui);font-size:var(--text-base);line-height:1.45;text-align:left;color:var(--muted);cursor:text;
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.fuel-log-toggle:hover{border-color:var(--line-strong)}
+.fuel-log-toggle:active{transform:var(--press-lg)}
+.fuel-log-toggle:focus-visible{border-color:var(--dawn)}
+.fuel-log-fold{display:none}
+/* open: the field gives way to the composer, the control folds to a small "Close" */
+.fuel-log.is-open .fuel-log-toggle{flex:0 0 auto;margin:0 0 0 auto;min-height:32px;padding:var(--space-2) 0;
+  background:none;border:0;border-radius:0;font-size:var(--text-sm);font-weight:600;color:var(--muted);cursor:pointer;
+  text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.fuel-log.is-open .fuel-log-faux{display:none}
+.fuel-log.is-open .fuel-log-fold{display:inline}
 .fuel-log-panel,.fuel-meal-panel{display:grid;grid-template-rows:0fr;visibility:hidden;
   transition:grid-template-rows var(--dur-2) var(--ease),visibility var(--dur-2)}
 .fuel-log.is-open .fuel-log-panel,.fuel-meal.is-open .fuel-meal-panel{grid-template-rows:1fr;visibility:visible}
 .fuel-log-panel-in,.fuel-meal-panel-in{overflow:hidden;min-height:0}
-.fuel-log-composer{padding-top:var(--space-5)}
-.fuel-log-hint{margin:var(--space-3) 0 0;font-size:var(--text-xs);color:var(--muted)}
-/* The day's meals: a quiet row that opens into the meal card. */
-.fuel-meals{margin-bottom:var(--space-card)}
-.fuel-meals-title{margin:0 0 var(--space-3)}
-.fuel-meals-list{list-style:none;margin:0;padding:0;background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius)}
+.fuel-log-composer{padding-top:var(--space-3)}
+.fuel-log-composer .chatbar{margin-top:0;align-items:flex-end}
+.fuel-log-composer .chatbar textarea{min-height:96px;border-radius:var(--radius-md);padding:var(--space-6) var(--space-7)}
+.fuel-log-hint{margin:var(--space-4) var(--space-1) 0;font-size:var(--text-xs);color:var(--muted);line-height:1.5}
+
+/* ---- Logged today: hairline rows in one card, each opening into its meal card ---- */
+.fuel-meals-title{margin:0 0 var(--space-4)}
+.fuel-meals-list{list-style:none;margin:0;padding:0 var(--space-7);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 .fuel-meal{border-top:1px solid var(--line)}
 .fuel-meal:first-child{border-top:none}
-.fuel-meal-head{display:flex;align-items:center;gap:var(--space-5);width:100%;min-height:56px;
-  padding:var(--space-5) var(--space-7);background:none;border:none;text-align:left;color:var(--ink);
+.fuel-meal-head{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:baseline;gap:0 var(--space-4);width:100%;
+  min-height:52px;padding:var(--space-6) 0;background:none;border:none;text-align:left;color:var(--ink);
   font-family:var(--font-ui);cursor:pointer;transition:transform var(--dur-1) var(--ease)}
-.fuel-meal-head:active{transform:var(--press)}
-.fuel-meal-art{flex:0 0 auto;width:34px;height:34px;border-radius:var(--radius-sm);overflow:hidden;
-  display:flex;align-items:center;justify-content:center;background:var(--card-2)}
-.fuel-meal-art svg{width:100%;height:100%}
-.fuel-meal-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-1)}
-.fuel-meal-name{font-size:var(--text-md);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fuel-meal-meta{font-size:var(--text-xs);color:var(--muted)}
-.fuel-meal-nums{flex:0 0 auto;font-size:var(--text-sm);color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.fuel-meal-head:active{transform:var(--press-lg)}
+/* the name and its numbers share the first line; meta, then the items in portion
+   words, run the full width under them */
+.fuel-meal-main{display:contents}
+.fuel-meal-meta{grid-column:1 / -1;grid-row:2}
+.fuel-meal-items{grid-column:1 / -1;grid-row:3}
+.fuel-meal-name{grid-column:1;grid-row:1;min-width:0;font-size:var(--text-md);font-weight:600;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fuel-meal-meta{margin-top:var(--space-1);font-size:var(--text-xs);color:var(--muted)}
+.fuel-meal-items{margin-top:var(--space-1);font-size:var(--text-xs);color:var(--ink2);line-height:1.45}
+.fuel-meal-nums{font-size:var(--text-sm);color:var(--ink2);white-space:nowrap;font-variant-numeric:tabular-nums}
 .fuel-meal-nums.is-pending{color:var(--muted);font-style:italic}
-.fuel-meal-chev{flex:0 0 auto;color:var(--muted);transition:transform var(--dur-1) var(--ease)}
+.fuel-meal-chev{color:var(--muted);transition:transform var(--dur-1) var(--ease)}
 .fuel-meal.is-open .fuel-meal-chev{transform:rotate(90deg)}
-.fuel-meal-panel-in{padding:0 var(--space-7)}
+.fuel-meal.is-open .fuel-meal-items{display:none}
 .fuel-meal.is-open .fuel-meal-panel-in{padding-bottom:var(--space-6)}
 .fuel-meal-note,.fuel-meal-raw{margin:var(--space-3) 0 0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
 .fuel-meal-actions{display:flex;justify-content:flex-end}
@@ -7179,25 +7265,34 @@ body[data-tab="session"] .tabbar{display:none}
 .fuel-meal-fix-nums input{font-variant-numeric:tabular-nums}
 .fuel-meal-fix-actions{display:flex;justify-content:flex-start;margin-top:var(--space-2)}
 .fuel-meal-remove{min-height:44px;font-size:var(--text-sm)}
-.fuel-meals-empty{margin:0 0 var(--space-card);font-size:var(--text-md);color:var(--muted)}
-/* Ideas: a dashed edge, never the logged card's solid one — an idea is not a meal eaten. */
-.idea-cards{margin-bottom:var(--space-card)}
+.fuel-meals-empty{margin:0;font-size:var(--text-md);color:var(--muted)}
+
+/* ---- Ideas for the rest of today: a swipeable row of cards, serif titles. An idea
+   is labelled one, carries no done state, and never reads as a meal eaten. ---- */
 .idea-cards-title{margin:0 0 var(--space-2)}
-.idea-cards-words{margin:0 0 var(--space-4);font-size:var(--text-sm);color:var(--muted);line-height:1.45}
-.idea-cards-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-card)}
-.idea-card{display:flex;flex-direction:column;gap:var(--space-2);background:var(--card);
-  border:1px dashed var(--line-2);border-radius:var(--radius);padding:var(--space-7) var(--space-8)}
-.idea-card-head{display:flex;align-items:baseline;gap:var(--space-4)}
-.idea-card-portion{font-size:var(--text-xs);color:var(--muted)}
-.idea-card-title{margin:0;font-size:var(--text-base);font-weight:600;color:var(--ink)}
-.idea-card-nums{margin:0;font-size:var(--text-sm);color:var(--ink-2);font-variant-numeric:tabular-nums}
-.idea-card-why{margin:0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
-.idea-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-5);margin-top:var(--space-3)}
-.idea-card-start,.idea-card-another{min-height:44px}
+.idea-cards-words{margin:0 0 var(--space-5);font-size:var(--text-xs);color:var(--muted);line-height:1.5}
+.idea-cards-list{list-style:none;margin:0 calc(-1 * var(--gutter));padding:0 var(--gutter) var(--space-2);
+  display:grid;grid-auto-flow:column;grid-auto-columns:minmax(252px,82%);gap:var(--space-5);
+  overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:var(--gutter);scrollbar-width:none}
+.idea-cards-list::-webkit-scrollbar{display:none}
+.idea-cards-list:has(> .idea-card:only-child){grid-auto-columns:100%}
+.idea-card{scroll-snap-align:start;display:flex;flex-direction:column;gap:var(--space-2);min-width:0;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-6) var(--space-7)}
+.idea-card-head{display:flex;align-items:baseline;gap:var(--space-4);min-width:0}
+.idea-card-kind{flex:0 0 auto;color:var(--d-fuel)}
+.idea-card-portion{min-width:0;font-size:var(--text-xs);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idea-card-title{margin:var(--space-1) 0 0;font-family:var(--font-display);font-weight:400;font-size:1.05rem;line-height:1.25;color:var(--ink)}
+.idea-card-nums{margin:0;font-size:var(--text-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.idea-card-why{flex:1 1 auto;margin:0;font-size:var(--text-sm);color:var(--ink2);line-height:1.45}
+.idea-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-6);margin-top:var(--space-3)}
+.idea-card-start{padding:7px 13px;font-size:var(--text-sm)}
+.idea-card-start,.idea-card-another{min-height:40px}
+.idea-card-another{font-size:var(--text-sm)}
 .idea-card-another[disabled]{opacity:.55;cursor:default}
 .idea-card-another[aria-busy="true"]{cursor:wait}
 .idea-card-status{margin:0;font-size:var(--text-xs);color:var(--muted)}
 .idea-card-status:empty{display:none}
+
 /* The meal-plan journal, kept as history at Fuel's foot (meal-plan-client.ts). */
 .fuel-history{margin-top:var(--space-8)}
 .fuel-history-h{margin:var(--space-8) 0 var(--space-3)}
@@ -7571,97 +7666,125 @@ header:has(> .hdr-chat-actions) > .moved-note{grid-column:1 / -1;grid-row:2}
 .you-group-h{margin:0 0 var(--space-5)}
 
 /* =====================================================================
-   Ask (v2 wave 5 stream D): the header's "Changes" door and the what-if
-   ripple card (.ripple-*), inline at the foot of the thread. The change in
-   words, then the six stones as a mini pebble row — each shows where it
-   stands and where it would likely sit, in the server's words and the
-   reading layer's tones — then one line of why per stone that moves, with
-   the team's confidence as a word. No number anywhere. The answer's one
-   entrance: the stones settle, then a single ring spreads from each stone
-   that moves (the ripple). Reduced motion paints it still.
+   Ask (v2 wave 5 stream D; Atelier v2, wave 6): the header's "Changes" door and
+   the what-if ripple card (.ripple-*), inline at the foot of the thread and laid
+   out as the thread is — the question as the athlete's own ink bubble on the
+   right, the team's answer as a wide surface bubble on the left. The answer is the
+   change in words, then one row per stone: its dot in its OWN hue, its name, the
+   why, and now → then in the server's words. Tone colours the word only, never
+   the stone. No number anywhere. One entrance: the rows settle in order, then a
+   single ring spreads from each dot that moves. Reduced motion paints it still.
    ===================================================================== */
 .hdr-changes{height:34px;padding:0 13px;display:flex;align-items:center;
-  background:var(--card);border:1px solid var(--line-2);color:var(--muted);border-radius:var(--radius-pill);
-  box-shadow:var(--shadow-sm);font-family:var(--font-ui);font-size:.6rem;font-weight:700;
-  letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;
+  background:var(--surface);border:1px solid var(--line);color:var(--ink2);border-radius:var(--radius-pill);
+  font-family:var(--font-ui);font-size:var(--text-sm);font-weight:500;white-space:nowrap;
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
 .hdr-changes:active{transform:var(--press-sm)}
-@media (hover:hover){ .hdr-changes:hover{color:var(--ink);border-color:var(--ink)} }
+@media (hover:hover){ .hdr-changes:hover{color:var(--ink);border-color:var(--line-strong)} }
 .chat-chip-whatif{border-style:dashed}
 
-.ripple-slot{flex:0 0 auto;margin:var(--space-4) 0;animation:settlein var(--dur-3) var(--ease) both}
-.ripple-card{background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
-  padding:var(--space-6) var(--space-7);display:flex;flex-direction:column;gap:var(--space-3)}
+.ripple-slot{flex:0 0 auto;margin:var(--space-2) 0;animation:settlein var(--dur-3) var(--ease) both}
+.ripple-card{display:flex;flex-direction:column;gap:var(--space-5)}
 .ripple-kicker{margin:0}
-.ripple-question{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink-2);font-style:italic}
+
+/* the athlete's side: the question as their own ink bubble */
+.ripple-me{align-self:flex-end;max-width:86%;background:var(--ink);color:var(--on-ink);
+  border-radius:17px;border-bottom-right-radius:5px;padding:9px 13px;display:flex;flex-direction:column;gap:var(--space-1)}
+.ripple-me .ripple-kicker{color:color-mix(in srgb,var(--on-ink) 62%,var(--ink))}
+.ripple-question{margin:0;font-size:var(--text-md);line-height:1.5;color:inherit}
+
+/* the team's side: a wide surface bubble, led by the speaker */
+.ripple-team{align-self:stretch;background:var(--surface);border:1px solid var(--line);
+  border-radius:17px;border-bottom-left-radius:5px;padding:var(--space-5) var(--space-7) var(--space-6);
+  display:flex;flex-direction:column;gap:var(--space-3)}
+.ripple-who{display:flex;align-items:center;gap:var(--space-3);color:var(--muted)}
+.ripple-who .dot{width:7px;height:7px}
+.ripple-who .dot.is-team{background:var(--ink)}
+
+/* step one: the question, typed in its own quiet box (nothing is sent until asked) */
+.ripple-card[data-ripple-state="ask"]{background:var(--surface);border:1px dashed var(--line-strong);
+  border-radius:17px;padding:var(--space-6) var(--space-7)}
 .ripple-ask{display:flex;flex-direction:column;gap:var(--space-3);margin:0}
-.ripple-input{width:100%;min-height:64px;resize:vertical;font-family:var(--font-ui);font-size:var(--text-md);
+.ripple-input{width:100%;min-height:52px;resize:vertical;font-family:var(--font-ui);font-size:var(--text-md);
   line-height:1.45;padding:var(--space-4) var(--space-5);border:1px solid var(--line);border-radius:var(--radius-sm);
-  background:var(--card-2);color:var(--ink)}
-.ripple-hint,.ripple-caption,.ripple-still,.ripple-note{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--muted)}
-.ripple-change{margin:0;font-size:var(--text-md);font-weight:600;line-height:1.4;color:var(--ink)}
-.ripple-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-6);margin-top:var(--space-2)}
-.ripple-actions .pillbtn{min-height:44px}
-.ripple-actions .linkbtn-quiet,.ripple-changes{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
+  background:var(--ground);color:var(--ink)}
+.ripple-input:focus{outline:none;border-color:var(--dawn)}
+.ripple-hint,.ripple-caption,.ripple-still,.ripple-note{margin:0;font-size:var(--text-xs);line-height:1.5;color:var(--muted)}
+.ripple-caption{font-size:var(--text-sm)}
+.ripple-change{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.3;color:var(--ink);text-wrap:pretty}
+.ripple-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-6);margin-top:var(--space-2)}
+.ripple-actions .pillbtn{min-height:40px;padding:7px 15px}
+.ripple-actions .linkbtn-quiet,.ripple-changes{min-height:40px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
+.ripple-do{background:var(--dawn);border-color:var(--dawn);color:var(--on-accent)}
+.ripple-do:hover{background:var(--dawn-deep);border-color:var(--dawn-deep);color:var(--on-accent)}
 .ripple-do[aria-busy="true"]{opacity:.55;pointer-events:none}
 
-/* The mini pebble row: six stones, the same shapes and tones as the strip. */
-.ripple-wave{container-type:inline-size;margin:var(--space-2) calc(-1 * var(--space-2)) 0}
-.ripple-stones{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
-.ripple-stone{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:var(--space-1);
-  padding:var(--space-2) 1px;text-align:center}
-.ripple-stone-mark{position:relative;display:block;flex:none;width:24px;height:17px;margin:0 0 var(--space-1);
-  border-radius:52% 48% 46% 54% / 60% 56% 44% 40%;background:var(--stone-taupe)}
-.ripple-stone:nth-child(2) .ripple-stone-mark{width:22px;border-radius:46% 54% 50% 50% / 56% 62% 38% 44%}
-.ripple-stone:nth-child(3) .ripple-stone-mark{width:25px;height:16px;border-radius:55% 45% 52% 48% / 62% 54% 46% 38%}
-.ripple-stone:nth-child(4) .ripple-stone-mark{width:23px;border-radius:48% 52% 44% 56% / 58% 60% 40% 42%}
-.ripple-stone:nth-child(5) .ripple-stone-mark{width:24px;height:18px;border-radius:50% 50% 55% 45% / 54% 58% 42% 46%}
-.ripple-stone:nth-child(6) .ripple-stone-mark{width:21px;border-radius:53% 47% 48% 52% / 64% 56% 44% 36%}
-.ripple-ok .ripple-stone-mark{background:var(--sage)}
-.ripple-watch .ripple-stone-mark{background:var(--accent)}
-.ripple-quiet .ripple-stone-mark{background:transparent;box-shadow:inset 0 0 0 1.5px var(--line-2)}
-.ripple-stone:not(.is-moved){opacity:.62}
-.ripple-stone-label{max-width:100%;font-size:var(--text-2xs);font-weight:600;line-height:1.2;color:var(--muted);overflow-wrap:anywhere}
-.ripple-stone-word{max-width:100%;display:flex;flex-direction:column;align-items:center;
-  font-size:clamp(.6rem,3.1cqi,var(--text-xs));font-weight:600;line-height:1.2;color:var(--ink-2);hyphens:auto;overflow-wrap:anywhere}
-.ripple-stone-was{font-weight:500;color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-2)}
-.ripple-stone-to{display:none}
-.ripple-ok .ripple-stone-now{color:var(--sage-text)}
-.ripple-watch .ripple-stone-now{color:var(--accent-deep)}
+/* The ripple: one hairline row per stone — dot, name + why, now → then. */
+.ripple-wave{margin:0}
+.ripple-stones{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.ripple-stone{position:relative;min-width:0;display:grid;grid-template-columns:9px minmax(0,1fr) auto;
+  gap:var(--space-1) var(--space-5);align-items:baseline;padding:var(--space-4) 0;border-top:1px solid var(--line);
+  font-size:var(--text-sm);line-height:1.45}
+.ripple-stone:first-child{border-top:0}
+.ripple-stone-mark{position:relative;display:block;width:8px;height:8px;border-radius:50%;
+  background:var(--c,var(--stone-taupe));align-self:center}
+.ripple-stone.is-moved .ripple-stone-mark{align-self:start;margin-top:.42em}
+.ripple-stone-head{min-width:0;color:var(--ink2)}
+.ripple-stone-label{font-weight:600;color:var(--ink)}
+.ripple-stone-word{text-align:right;white-space:nowrap;color:var(--ink2)}
+.ripple-stone-was{color:var(--muted)}
+.ripple-stone-to{color:var(--muted)}
+/* a stone that moves: the why reads across, now → then drops to its own line */
+.ripple-stone.is-moved .ripple-stone-word{grid-column:2 / -1;text-align:left;white-space:normal}
+.ripple-stone.is-moved .ripple-stone-word::before{content:"→ ";color:var(--muted)}
+.ripple-stone.is-moved .ripple-stone-was + .ripple-stone-to{display:inline}
+.ripple-stone.is-moved:has(.ripple-stone-was) .ripple-stone-word::before{content:""}
+/* a stone that holds: one quiet line */
+.ripple-stone:not(.is-moved){padding:var(--space-2) 0;font-size:var(--text-xs)}
+.ripple-stone:not(.is-moved) .ripple-stone-label{font-weight:500;color:var(--ink2)}
+.ripple-stone:not(.is-moved) .ripple-stone-mark{width:6px;height:6px;opacity:.8}
+.ripple-stone:not(.is-moved) .ripple-stone-now{color:var(--muted)}
+/* the tone colours the word only: the stone's own deep hue when it reads fine, dawn
+   when it asks for a look, muted when the read is thin */
+.ripple-ok .ripple-stone-now{color:var(--cd,var(--ink))}
+.ripple-watch .ripple-stone-now{color:var(--dawn-deep)}
 .ripple-quiet .ripple-stone-now{color:var(--muted)}
-.ripple-stones-skel .ripple-stone-mark.hshimmer{height:17px}
-.ripple-stones-skel .ripple-stone-ghost{margin:0;width:70%;height:var(--space-4)}
+.ripple-stone.is-moved .ripple-stone-now{font-weight:600}
+.ripple-stones-skel .ripple-stone{grid-template-columns:9px minmax(0,1fr);border-top:0}
+.ripple-stones-skel .ripple-stone-mark.hshimmer{width:8px;height:8px;margin:0}
+.ripple-stones-skel .ripple-stone-ghost{margin:0;width:78%;height:var(--space-4)}
+.ripple-stones-skel .ripple-stone:nth-child(2) .ripple-stone-ghost{width:62%}
+.ripple-stones-skel .ripple-stone:nth-child(3) .ripple-stone-ghost{width:70%}
 
-/* The ripple: stones settle in order, then one ring spreads from each that moves. */
-.ripple-stone-mark::after{content:"";position:absolute;inset:-3px;border-radius:50%;
-  border:1.5px solid currentColor;opacity:0;pointer-events:none}
-.ripple-ok .ripple-stone-mark::after{color:var(--sage)}
-.ripple-watch .ripple-stone-mark::after{color:var(--accent)}
-.ripple-quiet .ripple-stone-mark::after{color:var(--line-2)}
-@keyframes ripple-ring{0%{opacity:.55;transform:scale(.7)}100%{opacity:0;transform:scale(2.1)}}
-.ripple-wave.is-entering .ripple-stone-mark{animation:pebble-settle var(--dur-3) var(--ease) both;
-  animation-delay:calc(min(var(--i,0),12) * 60ms)}
-.ripple-wave.is-entering .is-moved .ripple-stone-mark::after{animation:ripple-ring var(--dur-3) var(--ease) 1 both;
-  animation-delay:calc(var(--dur-3) + min(var(--i,0),12) * 60ms)}
-
-/* One line of why per stone that moves. */
-.ripple-whys{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
-.ripple-why{font-size:var(--text-sm);line-height:1.5;color:var(--ink-2)}
+/* the why, inline in its row */
+.ripple-why{color:var(--ink2)}
 .ripple-why-k{font-weight:600;color:var(--ink)}
-.ripple-why-conf{font-size:var(--text-xs);color:var(--muted);letter-spacing:.04em}
+.ripple-why-conf{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--muted);white-space:nowrap}
+
+/* The ripple: rows settle in order, then one ring spreads from each dot that moves. */
+.ripple-stone-mark::after{content:"";position:absolute;inset:-3px;border-radius:50%;
+  border:1.5px solid var(--c,var(--stone-taupe));opacity:0;pointer-events:none}
+@keyframes ripple-ring{0%{opacity:.55;transform:scale(.7)}100%{opacity:0;transform:scale(2.4)}}
+.ripple-wave.is-entering .ripple-stone{animation:in var(--dur-in) var(--ease) both;
+  animation-delay:calc(min(var(--i,0),12) * 50ms)}
+.ripple-wave.is-entering .is-moved .ripple-stone-mark::after{animation:ripple-ring var(--dur-3) var(--ease) 1 both;
+  animation-delay:calc(var(--dur-in) + min(var(--i,0),12) * 50ms)}
 
 /* After "Do it": the Changes feed's own row (and Undo), or the framing line. */
 .ripple-handed[hidden]{display:none}
 .ripple-handed{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2);
   border-top:1px solid var(--line);padding-top:var(--space-4);margin-top:var(--space-2)}
-.ripple-handed .chfeed-rows{align-self:stretch}
-.ripple-handed .chfeed-row{box-shadow:none;padding:0;background:transparent}
-.ripple-handed-line{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink-2)}
+.ripple-handed .chfeed-rows{align-self:stretch;border:0;padding:0;background:transparent}
+.ripple-handed .chfeed-row{padding:0;border:0}
+.ripple-handed-line{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink2)}
 @media (prefers-reduced-motion:reduce){
   .ripple-slot{animation:none}
-  .ripple-wave.is-entering .ripple-stone-mark,.ripple-wave.is-entering .is-moved .ripple-stone-mark::after{animation:none}
+  .ripple-wave.is-entering .ripple-stone,.ripple-wave.is-entering .is-moved .ripple-stone-mark::after{animation:none}
 }
-
+/* the ghost rows while the team reads: dot and line on one axis */
+.ripple-stones-skel .ripple-stone{align-items:center;padding:var(--space-3) 0}
+.ripple-stones-skel .ripple-stone .ripple-stone-ghost.hshimmer{margin:0}
 /* =====================================================================
    Horizon (v2 wave 5 stream C): what is ahead, on one line of time. Three
    lanes (.horizon-lane-card) — the race, the goal line, labs and scans —

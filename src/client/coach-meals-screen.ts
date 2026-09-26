@@ -70,14 +70,18 @@ async function renderCoach(): Promise<void> {
   view.innerHTML =
     homeBackHtml("ask", "Ask") +
     `
-    <p class="changes-lede sess-line">Your expert team adapts training and meals in the background, then leaves a clear record here. Most changes need nothing from you: they arrive at the right boundary with a heads-up and Undo. Talk to the team anytime in <button class="linkbtn linkbtn-plain" id="changesToChat" type="button">Ask</button>.</p>
+    <p class="changes-lede sess-line">What the team changed, why, and an Undo. Most changes need nothing from you. Talk to the team anytime in <button class="linkbtn linkbtn-plain" id="changesToChat" type="button">Ask</button>.</p>
     <div id="changesAsksSlot" class="changes-asks"></div>
     <h1 class="lbl changes-h">What the team changed</h1>
     <div id="changesFeedSlot" class="changes-feed-slot"></div>
-    <h1 class="lbl changes-h">Program change history</h1>
-    <div id="proplist"></div>
-    <h1 class="lbl changes-h">Meal-plan change history</h1>
-    <div id="meallist"></div>
+    <details class="changes-fold">
+      <summary class="lbl">Program change history</summary>
+      <div id="proplist"></div>
+    </details>
+    <details class="changes-fold">
+      <summary class="lbl">Meal-plan change history</summary>
+      <div id="meallist"></div>
+    </details>
     <details class="changes-manual">
       <summary class="lbl">Manual review</summary>
       <p class="sess-line changes-manual-note">The team reviews your signals automatically. Use these controls only when you want an extra review or want to give a specific direction.</p>

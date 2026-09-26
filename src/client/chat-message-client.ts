@@ -312,7 +312,7 @@ function appendMsg(
   const time = `<span class="bubble-time">${escHtml(chatClock(m.created_at))}</span>`;
   const canCopy = role === "assistant" && !hideText && !!m.content;
   const copyBtn = canCopy ? `<button class="bubble-copy" aria-label="Copy reply" title="Copy">${COPY_ICON}</button>` : "";
-  el.innerHTML = `${copyBtn}${photo}${body}${extra}${time}`;
+  el.innerHTML = `${copyBtn}${role === "assistant" && !cont ? CairnChatSpeaker.forTurn(chatMessageApplied(meta.applied), drafts) : ""}${photo}${body}${extra}${time}`;
   if (before) host.insertBefore(el, before);
   else host.appendChild(el);
   el.querySelectorAll("[data-apply]").forEach((b) => {

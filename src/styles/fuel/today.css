@@ -1,56 +1,96 @@
 /* -------------------------------------------------------------------
    43 · Fuel — Plan → Food (.fuel-today-*, .fuel-log-*, .fuel-meal-*, .idea-card-*)
    ------------------------------------------------------------------- */
-/* Today so far, protein first: numbers with units, never a score. A day still being
-   eaten reads "In progress" in sage, never a red/low tone. */
+/* Atelier v2. Fuel reads top to bottom as the day does: where today's food stands
+   (one card, protein as the lead meter), where you write what you ate, what you have
+   logged (hairline rows in portion words), then ideas for the rest of today. */
 .fuel-slot:empty{display:none}
-.fuel-today{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
-  padding:var(--space-8);margin-bottom:var(--space-card)}
-.fuel-today-skel{margin-bottom:var(--space-card)}
-.fuel-today-head{display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-4)}
+.fuel-slot + .fuel-slot{margin-top:var(--space-8)}
+
+/* ---- Today so far: one card, protein leads as a meter in the fuel stone's hue ---- */
+.fuel-today{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:var(--space-7) var(--space-8) var(--space-8)}
+.fuel-today-skel{min-height:132px}
+.fuel-today-head{display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-5)}
 .fuel-today-title{margin:0}
-.fuel-today-state{margin-left:auto;font-size:var(--text-xs);color:var(--sage-text)}
-.fuel-today-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4);margin:0}
-.fuel-today-num{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.fuel-today-state{margin-left:auto;font-size:var(--text-xs);color:var(--muted)}
+.fuel-today-nums{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5) var(--space-8);margin:0}
+.fuel-today-num{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:var(--space-1) var(--space-4);
+  min-width:0;padding-top:var(--space-5);border-top:1px solid var(--line)}
 .fuel-today-num dd{margin:0}
-.fuel-today-unit{font-size:var(--text-sm);color:var(--muted)}
-.fuel-today-sub{font-size:var(--text-xs);color:var(--muted)}
-.fuel-today-value.is-unknown{font-size:var(--text-xl);color:var(--muted)}
-.fuel-today-line{margin:var(--space-3) 0 0;font-size:var(--text-md);color:var(--ink-2);line-height:1.45}
-.fuel-today-togo{color:var(--sage-text);font-weight:600}
-.fuel-today-band,.fuel-today-pending{font-size:var(--text-sm);color:var(--muted)}
-.fuel-today-empty{margin:0;font-size:var(--text-md);color:var(--ink-2);line-height:1.5}
+.fuel-today-k{font-size:var(--text-sm);color:var(--ink2)}
+.fuel-today-num .numeral-lg{font-family:var(--font-ui);font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.fuel-today-unit{font-size:var(--text-xs);color:var(--muted)}
+.fuel-today-value{white-space:nowrap;font-variant-numeric:tabular-nums}
+.fuel-today-value.is-unknown{font-size:var(--text-md);color:var(--muted)}
+.fuel-today-sub{grid-column:1/-1;font-size:var(--text-xs);color:var(--muted)}
+/* protein: the whole row, the serif figure, the meter under it */
+.fuel-today-num.is-anchor{grid-column:1/-1;padding-top:0;border-top:0}
+.fuel-today-num.is-anchor .fuel-today-k{font-size:var(--text-md);color:var(--ink)}
+.fuel-today-num.is-anchor .numeral-lg{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1}
+.fuel-today-num.is-anchor .fuel-today-unit{font-size:var(--text-sm)}
+.fuel-today-meter{grid-column:1/-1;margin-top:var(--space-3)}
+.fuel-today-track{display:block;position:relative;height:6px;border-radius:var(--radius-pill);background:var(--well);overflow:hidden}
+.fuel-today-fill{position:absolute;inset:0 auto 0 0;border-radius:var(--radius-pill);background:var(--s-fuel);
+  transition:width var(--dur-3) var(--ease)}
+.fuel-today-num.is-anchor .fuel-today-sub{grid-column:1}
+.fuel-today-line{margin:var(--space-5) 0 0;font-size:var(--text-sm);color:var(--ink2);line-height:1.5}
+.fuel-today-nums + .fuel-today-line{margin-top:var(--space-6)}
+.fuel-today-togo{grid-column:2;font-size:var(--text-xs);color:var(--d-fuel);font-weight:600;white-space:nowrap}
+.fuel-today-togo .numeral,.fuel-today-line .numeral{font-family:var(--font-ui);font-weight:600;color:inherit;
+  font-size:inherit;font-variant-numeric:tabular-nums}
+.fuel-today-band,.fuel-today-pending{font-size:var(--text-xs);color:var(--muted)}
+.fuel-today-empty{margin:0;font-size:var(--text-md);color:var(--ink2);line-height:1.5}
 .fuel-today-retry,.idea-cards-retry{min-height:44px}
-/* Log food: the shared composer opens under the button (grid-rows 0fr→1fr). */
-.fuel-log{margin-bottom:var(--space-card)}
-.fuel-log-toggle{width:100%;min-height:44px}
+
+/* ---- Log what you ate: a quiet field that opens the shared composer in its place ---- */
+.fuel-log-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-4)}
+.fuel-log-title{margin:0}
+.fuel-log-toggle{flex:1 1 100%;display:flex;align-items:flex-start;min-height:64px;margin-top:var(--space-4);
+  padding:var(--space-6) var(--space-7);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);
+  font-family:var(--font-ui);font-size:var(--text-base);line-height:1.45;text-align:left;color:var(--muted);cursor:text;
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.fuel-log-toggle:hover{border-color:var(--line-strong)}
+.fuel-log-toggle:active{transform:var(--press-lg)}
+.fuel-log-toggle:focus-visible{border-color:var(--dawn)}
+.fuel-log-fold{display:none}
+/* open: the field gives way to the composer, the control folds to a small "Close" */
+.fuel-log.is-open .fuel-log-toggle{flex:0 0 auto;margin:0 0 0 auto;min-height:32px;padding:var(--space-2) 0;
+  background:none;border:0;border-radius:0;font-size:var(--text-sm);font-weight:600;color:var(--muted);cursor:pointer;
+  text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.fuel-log.is-open .fuel-log-faux{display:none}
+.fuel-log.is-open .fuel-log-fold{display:inline}
 .fuel-log-panel,.fuel-meal-panel{display:grid;grid-template-rows:0fr;visibility:hidden;
   transition:grid-template-rows var(--dur-2) var(--ease),visibility var(--dur-2)}
 .fuel-log.is-open .fuel-log-panel,.fuel-meal.is-open .fuel-meal-panel{grid-template-rows:1fr;visibility:visible}
 .fuel-log-panel-in,.fuel-meal-panel-in{overflow:hidden;min-height:0}
-.fuel-log-composer{padding-top:var(--space-5)}
-.fuel-log-hint{margin:var(--space-3) 0 0;font-size:var(--text-xs);color:var(--muted)}
-/* The day's meals: a quiet row that opens into the meal card. */
-.fuel-meals{margin-bottom:var(--space-card)}
-.fuel-meals-title{margin:0 0 var(--space-3)}
-.fuel-meals-list{list-style:none;margin:0;padding:0;background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius)}
+.fuel-log-composer{padding-top:var(--space-3)}
+.fuel-log-composer .chatbar{margin-top:0;align-items:flex-end}
+.fuel-log-composer .chatbar textarea{min-height:96px;border-radius:var(--radius-md);padding:var(--space-6) var(--space-7)}
+.fuel-log-hint{margin:var(--space-4) var(--space-1) 0;font-size:var(--text-xs);color:var(--muted);line-height:1.5}
+
+/* ---- Logged today: hairline rows in one card, each opening into its meal card ---- */
+.fuel-meals-title{margin:0 0 var(--space-4)}
+.fuel-meals-list{list-style:none;margin:0;padding:0 var(--space-7);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 .fuel-meal{border-top:1px solid var(--line)}
 .fuel-meal:first-child{border-top:none}
-.fuel-meal-head{display:flex;align-items:center;gap:var(--space-5);width:100%;min-height:56px;
-  padding:var(--space-5) var(--space-7);background:none;border:none;text-align:left;color:var(--ink);
+.fuel-meal-head{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:baseline;gap:0 var(--space-4);width:100%;
+  min-height:52px;padding:var(--space-6) 0;background:none;border:none;text-align:left;color:var(--ink);
   font-family:var(--font-ui);cursor:pointer;transition:transform var(--dur-1) var(--ease)}
-.fuel-meal-head:active{transform:var(--press)}
-.fuel-meal-art{flex:0 0 auto;width:34px;height:34px;border-radius:var(--radius-sm);overflow:hidden;
-  display:flex;align-items:center;justify-content:center;background:var(--card-2)}
-.fuel-meal-art svg{width:100%;height:100%}
-.fuel-meal-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-1)}
-.fuel-meal-name{font-size:var(--text-md);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fuel-meal-meta{font-size:var(--text-xs);color:var(--muted)}
-.fuel-meal-nums{flex:0 0 auto;font-size:var(--text-sm);color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.fuel-meal-head:active{transform:var(--press-lg)}
+/* the name and its numbers share the first line; meta, then the items in portion
+   words, run the full width under them */
+.fuel-meal-main{display:contents}
+.fuel-meal-meta{grid-column:1 / -1;grid-row:2}
+.fuel-meal-items{grid-column:1 / -1;grid-row:3}
+.fuel-meal-name{grid-column:1;grid-row:1;min-width:0;font-size:var(--text-md);font-weight:600;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fuel-meal-meta{margin-top:var(--space-1);font-size:var(--text-xs);color:var(--muted)}
+.fuel-meal-items{margin-top:var(--space-1);font-size:var(--text-xs);color:var(--ink2);line-height:1.45}
+.fuel-meal-nums{font-size:var(--text-sm);color:var(--ink2);white-space:nowrap;font-variant-numeric:tabular-nums}
 .fuel-meal-nums.is-pending{color:var(--muted);font-style:italic}
-.fuel-meal-chev{flex:0 0 auto;color:var(--muted);transition:transform var(--dur-1) var(--ease)}
+.fuel-meal-chev{color:var(--muted);transition:transform var(--dur-1) var(--ease)}
 .fuel-meal.is-open .fuel-meal-chev{transform:rotate(90deg)}
-.fuel-meal-panel-in{padding:0 var(--space-7)}
+.fuel-meal.is-open .fuel-meal-items{display:none}
 .fuel-meal.is-open .fuel-meal-panel-in{padding-bottom:var(--space-6)}
 .fuel-meal-note,.fuel-meal-raw{margin:var(--space-3) 0 0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
 .fuel-meal-actions{display:flex;justify-content:flex-end}
@@ -59,25 +99,34 @@
 .fuel-meal-fix-nums input{font-variant-numeric:tabular-nums}
 .fuel-meal-fix-actions{display:flex;justify-content:flex-start;margin-top:var(--space-2)}
 .fuel-meal-remove{min-height:44px;font-size:var(--text-sm)}
-.fuel-meals-empty{margin:0 0 var(--space-card);font-size:var(--text-md);color:var(--muted)}
-/* Ideas: a dashed edge, never the logged card's solid one — an idea is not a meal eaten. */
-.idea-cards{margin-bottom:var(--space-card)}
+.fuel-meals-empty{margin:0;font-size:var(--text-md);color:var(--muted)}
+
+/* ---- Ideas for the rest of today: a swipeable row of cards, serif titles. An idea
+   is labelled one, carries no done state, and never reads as a meal eaten. ---- */
 .idea-cards-title{margin:0 0 var(--space-2)}
-.idea-cards-words{margin:0 0 var(--space-4);font-size:var(--text-sm);color:var(--muted);line-height:1.45}
-.idea-cards-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-card)}
-.idea-card{display:flex;flex-direction:column;gap:var(--space-2);background:var(--card);
-  border:1px dashed var(--line-2);border-radius:var(--radius);padding:var(--space-7) var(--space-8)}
-.idea-card-head{display:flex;align-items:baseline;gap:var(--space-4)}
-.idea-card-portion{font-size:var(--text-xs);color:var(--muted)}
-.idea-card-title{margin:0;font-size:var(--text-base);font-weight:600;color:var(--ink)}
-.idea-card-nums{margin:0;font-size:var(--text-sm);color:var(--ink-2);font-variant-numeric:tabular-nums}
-.idea-card-why{margin:0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
-.idea-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-5);margin-top:var(--space-3)}
-.idea-card-start,.idea-card-another{min-height:44px}
+.idea-cards-words{margin:0 0 var(--space-5);font-size:var(--text-xs);color:var(--muted);line-height:1.5}
+.idea-cards-list{list-style:none;margin:0 calc(-1 * var(--gutter));padding:0 var(--gutter) var(--space-2);
+  display:grid;grid-auto-flow:column;grid-auto-columns:minmax(252px,82%);gap:var(--space-5);
+  overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:var(--gutter);scrollbar-width:none}
+.idea-cards-list::-webkit-scrollbar{display:none}
+.idea-cards-list:has(> .idea-card:only-child){grid-auto-columns:100%}
+.idea-card{scroll-snap-align:start;display:flex;flex-direction:column;gap:var(--space-2);min-width:0;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-6) var(--space-7)}
+.idea-card-head{display:flex;align-items:baseline;gap:var(--space-4);min-width:0}
+.idea-card-kind{flex:0 0 auto;color:var(--d-fuel)}
+.idea-card-portion{min-width:0;font-size:var(--text-xs);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idea-card-title{margin:var(--space-1) 0 0;font-family:var(--font-display);font-weight:400;font-size:1.05rem;line-height:1.25;color:var(--ink)}
+.idea-card-nums{margin:0;font-size:var(--text-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.idea-card-why{flex:1 1 auto;margin:0;font-size:var(--text-sm);color:var(--ink2);line-height:1.45}
+.idea-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-6);margin-top:var(--space-3)}
+.idea-card-start{padding:7px 13px;font-size:var(--text-sm)}
+.idea-card-start,.idea-card-another{min-height:40px}
+.idea-card-another{font-size:var(--text-sm)}
 .idea-card-another[disabled]{opacity:.55;cursor:default}
 .idea-card-another[aria-busy="true"]{cursor:wait}
 .idea-card-status{margin:0;font-size:var(--text-xs);color:var(--muted)}
 .idea-card-status:empty{display:none}
+
 /* The meal-plan journal, kept as history at Fuel's foot (meal-plan-client.ts). */
 .fuel-history{margin-top:var(--space-8)}
 .fuel-history-h{margin:var(--space-8) 0 var(--space-3)}

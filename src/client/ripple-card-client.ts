@@ -1,11 +1,12 @@
 // @ts-check
-// The what-if ripple card, the view (v2 wave 5, "Ask"): inline in the Ask thread. The
-// athlete asks a hypothetical in words; the team's answer is ONE change in plain words
-// and its ripple across the six stones — a mini pebble row where each stone shows where
-// it stands now and where it would likely sit, in the server's words and tones — then a
-// line of why for each stone that moves, with the team's confidence as a word. No
-// number, no score, no ranking. "Do it" hands the change to the team; "Not now" puts
-// the card away. Pure strings; wired by CairnRippleCardController.
+// The what-if ripple card, the view (v2 wave 5, "Ask"; Atelier v2 in wave 6): inline in
+// the Ask thread, laid out as the thread itself is. The athlete's question sits as their
+// own ink bubble on the right; the team's answer is a wide surface bubble on the left —
+// ONE change in plain words, then its ripple as rows, one per stone: the stone's dot in
+// its own hue, its name, the why in a sentence and "now → then" in the server's words,
+// with the team's confidence as a word. A stone that holds steady is one quiet line. No
+// number, no score, no ranking. "Do it" hands the change to the team; "Not now" puts the
+// card away. Pure strings; wired by CairnRippleCardController.
 {
   type BrainChange = import("../contracts/brain-changes.js").ClientBrainChange;
 
@@ -15,11 +16,17 @@
     return `<section class="ripple-card" data-ripple-state="${escAttr(state)}" aria-label="What if"${extra}>${inner}</section>`;
   }
 
+  /** The question as the athlete's own bubble: "What if" leads it, their words follow. */
   function questionHtml(question: string): string {
     const body = CairnRippleCardModel.questionBody(question);
-    return body
-      ? `<p class="ripple-kicker lbl">What if</p><p class="ripple-question">${escHtml(body)}</p>`
-      : `<p class="ripple-kicker lbl">What if</p>`;
+    return `<div class="ripple-me"><p class="ripple-kicker lbl">What if</p>${
+      body ? `<p class="ripple-question">${escHtml(body)}</p>` : ""
+    }</div>`;
+  }
+
+  /** The team's side of the exchange: who is speaking, then the answer. */
+  function teamHtml(inner: string): string {
+    return `<div class="ripple-team"><div class="ripple-who lbl"><span class="dot is-team" aria-hidden="true"></span>Team</div>${inner}</div>`;
   }
 
   /** Step one: the question, in the athlete's words. Nothing is sent until they ask. */
@@ -30,7 +37,7 @@
       `<form class="ripple-ask" data-ripple-ask>
         <label class="ripple-kicker lbl" for="rippleAskInput">What if</label>
         <textarea id="rippleAskInput" class="ripple-input" rows="2" maxlength="1000" placeholder="…I ran four days a week instead of three?" data-ripple-input>${escHtml(draft)}</textarea>
-        <p class="ripple-hint">The team reads it against today and shows what it would touch. Nothing changes unless you say so.</p>
+        <p class="ripple-hint">The team shows what it would touch. Nothing changes unless you say so.</p>
         <div class="ripple-actions">
           <button class="pillbtn pill-accent ripple-go" type="submit" data-ripple-go>Ask the team</button>
           <button class="linkbtn-quiet ripple-later" type="button" data-ripple-later>Not now</button>
@@ -39,10 +46,10 @@
     );
   }
 
-  /** Six ghost stones in the ripple's own shape while the team reads it. */
+  /** Ghost rows in the ripple's own shape while the team reads it. */
   function ghostStonesHtml(): string {
     const items = Array.from(
-      { length: 6 },
+      { length: 3 },
       () =>
         `<li class="ripple-stone"><span class="ripple-stone-mark hshimmer" aria-hidden="true"></span><span class="ripple-stone-ghost hshimmer hshimmer-sm" aria-hidden="true"></span></li>`
     ).join("");
@@ -64,7 +71,7 @@
     const caption = captionFor(phase);
     return shell(
       "thinking",
-      `${questionHtml(question)}${ghostStonesHtml()}<p class="ripple-caption" role="status">${escHtml(caption)}</p>`,
+      `${questionHtml(question)}${teamHtml(`<p class="ripple-caption" role="status">${escHtml(caption)}</p>${ghostStonesHtml()}`)}`,
       ` aria-busy="true"`
     );
   }
@@ -75,39 +82,48 @@
       : `${stone.label}: ${stone.after.word}`;
   }
 
+  /** The stone's key as a class, only for the six the stone palette knows. */
+  const STONE_KEYS = new Set(["strength", "endurance", "recovery", "fuel", "body", "heart"]);
+
+  function whyHtml(stone: ClientRippleStone): string {
+    return `<span class="ripple-why"><span class="ripple-why-k ripple-stone-label">${escHtml(stone.label)}</span> <span class="ripple-why-t">${escHtml(
+      stone.why
+    )}</span> <span class="ripple-why-conf" data-conf="${escAttr(stone.confidence)}">${escHtml(stone.confidence)}</span></span>`;
+  }
+
+  /**
+   * One row: the stone's dot, its name (with the why, when it moves), and where it
+   * stands now → where it would likely sit, in the server's words. The tone rides as a
+   * class and colours only the word, never the stone.
+   */
   function stoneHtml(stone: ClientRippleStone, index: number): string {
-    const shift =
-      stone.moved && stone.after.word !== stone.before.word
-        ? `<span class="ripple-stone-was">${escHtml(stone.before.word)}</span><span class="ripple-stone-to" aria-hidden="true">→</span>`
-        : "";
-    const cls = `ripple-stone ripple-${stone.after.tone}${stone.moved ? " is-moved" : ""}`;
+    const shifted = stone.moved && stone.after.word !== stone.before.word;
+    const shift = shifted
+      ? `<span class="ripple-stone-was">${escHtml(stone.before.word)}</span><span class="ripple-stone-to" aria-hidden="true"> → </span>`
+      : "";
+    const hue = STONE_KEYS.has(stone.key) ? ` stone-${stone.key}` : "";
+    const cls = `ripple-stone ripple-${stone.after.tone}${stone.moved ? " is-moved" : ""}${hue}`;
+    const head =
+      stone.moved && stone.why ? whyHtml(stone) : `<span class="ripple-stone-label">${escHtml(stone.label)}</span>`;
     return `<li class="${cls}" style="--i:${index}" data-ripple-stone="${escAttr(stone.key)}" aria-label="${escAttr(stoneLabel(stone))}">
       <span class="ripple-stone-mark" aria-hidden="true"></span>
-      <span class="ripple-stone-label" aria-hidden="true">${escHtml(stone.label)}</span>
+      <span class="ripple-stone-head" aria-hidden="true">${head}</span>
       <span class="ripple-stone-word" aria-hidden="true">${shift}<span class="ripple-stone-now">${escHtml(stone.after.word)}</span></span>
     </li>`;
   }
 
-  /** The mini pebble row: all six stones, in the server's order. */
+  /** The ripple: one row per stone, in the server's order. */
   function stonesHtml(stones: ClientRippleStone[]): string {
     if (!stones.length) return "";
     return `<ul class="ripple-stones" aria-label="What it would touch">${stones.map(stoneHtml).join("")}</ul>`;
   }
 
-  /** One line of why per stone that moves, with the team's confidence as a word. */
+  /** When nothing is expected to move, one calm line says so (the rows stay quiet). */
   function whysHtml(stones: ClientRippleStone[]): string {
     // No stones read is an absence, not a claim that nothing moves: say nothing.
     if (!stones.length) return "";
     const moved = stones.filter((s) => s.moved && s.why);
-    if (!moved.length) return `<p class="ripple-still">The team doesn't expect much to move from this.</p>`;
-    return `<ul class="ripple-whys">${moved
-      .map(
-        (s) =>
-          `<li class="ripple-why"><span class="ripple-why-k">${escHtml(s.label)}</span> <span class="ripple-why-t">${escHtml(
-            s.why
-          )}</span> <span class="ripple-why-conf" data-conf="${escAttr(s.confidence)}">${escHtml(s.confidence)}</span></li>`
-      )
-      .join("")}</ul>`;
+    return moved.length ? "" : `<p class="ripple-still">The team doesn't expect much to move from this.</p>`;
   }
 
   function noteHtml(answer: ClientRippleAnswer): string {
@@ -134,13 +150,13 @@
     const enter = opts.enter ? " is-entering" : "";
     return shell(
       "answer",
-      `${questionHtml(answer.question)}
+      `${questionHtml(answer.question)}${teamHtml(`
       <p class="ripple-change">${escHtml(answer.summary)}</p>
       <div class="ripple-wave${enter}">${stonesHtml(answer.stones)}</div>
       ${whysHtml(answer.stones)}
       ${noteHtml(answer)}
       ${actionsHtml(answer)}
-      <div class="ripple-handed" data-ripple-handed hidden></div>`
+      <div class="ripple-handed" data-ripple-handed hidden></div>`)}`
     );
   }
 
@@ -151,8 +167,8 @@
     const line = `${said.charAt(0).toUpperCase()}${said.slice(1)}. Nothing changed.`;
     return shell(
       "failed",
-      `${questionHtml(question)}<p class="ripple-caption" role="status">${escHtml(line)}</p>
-      <div class="ripple-actions"><button class="pillbtn ripple-retry" type="button" data-ripple-retry>Ask again</button><button class="linkbtn-quiet ripple-later" type="button" data-ripple-later>Not now</button></div>`
+      `${questionHtml(question)}${teamHtml(`<p class="ripple-caption" role="status">${escHtml(line)}</p>
+      <div class="ripple-actions"><button class="pillbtn ripple-retry" type="button" data-ripple-retry>Ask again</button><button class="linkbtn-quiet ripple-later" type="button" data-ripple-later>Not now</button></div>`)}`
     );
   }
 

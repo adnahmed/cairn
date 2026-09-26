@@ -63,12 +63,13 @@
 .food-journal{margin-top:0;padding-top:0;border-top:0}
 
 /* collapsed history of past plans */
-.mp-history{margin-top:22px;border-top:1px solid var(--line);padding-top:14px}
-.mp-history summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px}
-.mp-history summary::-webkit-details-marker{display:none}
-.mp-history summary::after{content:"▾";color:var(--muted);font-size:.7rem;
-  transition:transform var(--dur-1) ease}
-.mp-history[open] summary::after{transform:rotate(180deg)}
+.mp-history{margin-top:var(--space-9);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.mp-history > summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:var(--space-3);min-height:44px;color:var(--muted)}
+.mp-history > summary::-webkit-details-marker{display:none}
+.mp-history > summary::after{content:"›";margin-left:auto;font-family:var(--font-ui);font-size:1rem;letter-spacing:0;
+  transition:transform var(--dur-1) var(--ease)}
+.mp-history[open] > summary::after{transform:rotate(90deg)}
+.mp-history[open]{padding-bottom:var(--space-6)}
 
 /* ── Exercise "How to" — the optional imported guide (free-exercise-db) ────────
    Collapsed by default: one quiet summary row, opened on tap. Absent entirely
