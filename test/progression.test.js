@@ -1236,6 +1236,28 @@ test("the training phase changes the prescription — same logs, different answe
   assert.equal(deload.suggested.weight, 185, "an easy week adds nothing");
 });
 
+// The day-level advice (block phase, fuel, cut, calibration, light week) follows the
+// READ date, the same day its words follow — a read computed for a day inside a
+// recovery week reasons as that week even when the wall clock sits outside it.
+test("planDayProgression reasons as of its read date, not the wall clock", () => {
+  seedCappedBenchWeek(8);
+  blocks.createBlock({ goal: "Build", focus: "strength", total_weeks: 6, week_index: 1 });
+  const start = addDaysISO(localDateISO(), 2);
+  db.prepare(
+    `INSERT INTO recovery_cycles (status, effective_on, recheck_on, exit_on, overlay_json, reason)
+     VALUES ('active', ?, ?, ?, '{}', 'test')`
+  ).run(start, addDaysISO(start, 4), addDaysISO(start, 7));
+  const inside = addDaysISO(start, 1);
+
+  const live = planDayProgression(1).find((p) => p.exercise === "Barbell Bench Press");
+  assert.equal(live.block_phase, "accumulation", "today sits outside the recovery week");
+  const read = planDayProgression(1, { readDate: inside }).find((p) => p.exercise === "Barbell Bench Press");
+  assert.equal(read.block_phase, "deload", "a read for a day inside the recovery week reasons as that week");
+  assert.equal(read.action, "hold");
+  const again = planDayProgression(1, { readDate: localDateISO() }).find((p) => p.exercise === "Barbell Bench Press");
+  assert.deepEqual(again, live, "naming today as the read date is the live read");
+});
+
 test("a volume phase paces the step down when it IS earned", () => {
   seedCappedBenchWeek(9); // a clean rep ON TOP of the 6–8 range, every set
   blocks.createBlock({ goal: "Build", focus: "strength", total_weeks: 6, week_index: 1 });
