@@ -1068,7 +1068,7 @@ async function smokeHealthInnerNavigation(cdp, base) {
       return true;
     })()`);
     await waitForCondition(cdp, "Stand marker control routes to Markers", `(() => {
-      const content = document.querySelector("#standResults");
+      const content = document.querySelector("#standRecords");
       return {
         ok: Boolean(
           window.state?.tab === "stand" &&
@@ -1107,7 +1107,7 @@ async function smokeHealthInnerNavigation(cdp, base) {
         window.state?.standSeg === "domain" &&
         location.pathname === "/app/you/domain" &&
         new URLSearchParams(location.search).get("id") &&
-        document.querySelector("#standResults")
+        document.querySelector("#standRecords")
       ),
       href: location.pathname + location.search,
       standSeg: window.state && window.state.standSeg
