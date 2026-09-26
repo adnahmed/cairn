@@ -8,7 +8,9 @@
 // spawns), drives headless Chrome over CDP, and opens every home and leaf route in a
 // fresh browser context twice: COLD (empty HTTP cache, no service worker) and WARM
 // (the second visit, once the service worker controls the page and the SWR cache is
-// filled). Each route is measured `--runs` times (default 3).
+// filled, every SWR row aged past its freshness window so the visit paints from cache
+// and revalidates the same way on any machine). Each route is measured `--runs` times
+// (default 3).
 //
 // GATE — deterministic measures only, against the checked-in scripts/perf-budget.json:
 //   - api      /api calls per load (art images, telemetry and event streams excluded)
@@ -203,6 +205,21 @@ async function waitForServiceWorker(send) {
   ).catch(() => false);
 }
 
+/**
+ * Age every SWR row past its freshness window before the warm visit. How long the
+ * service-worker wait took decides whether a row is still inside a `freshFor` window
+ * (15 s, 60 s, …) when the warm load starts, so without this the warm api count moved
+ * with the machine's speed and the gate flaked. Aged, the warm visit is always the
+ * same load — a later open, painting from cache and revalidating every row.
+ */
+const SWR_AGE_MS = 10 * 60 * 1000;
+async function ageSwrCache(send) {
+  return evaluate(
+    send,
+    `(() => { let n = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith("cairn.swr.v1.")) continue; try { const o = JSON.parse(localStorage.getItem(k)); if (o && typeof o.ts === "number") { o.ts -= ${SWR_AGE_MS}; localStorage.setItem(k, JSON.stringify(o)); n++; } } catch {} } return n; })()`
+  ).catch(() => 0);
+}
+
 // ---------- one load ----------
 /** Serial /api rounds: each call's round is 1 + the deepest round of a call that ended before it began. */
 export function serialRounds(calls) {
@@ -301,6 +318,7 @@ async function measureRoute(cdp, base, route) {
     const cold = await measureLoad(cdp, page, base, route);
     await setThrottle(page.send, false);
     const swReady = await waitForServiceWorker(page.send);
+    await ageSwrCache(page.send);
     await setThrottle(page.send, true);
     const warm = await measureLoad(cdp, page, base, route);
     warm.swReady = swReady;

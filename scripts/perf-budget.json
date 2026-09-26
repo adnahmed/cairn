@@ -36,7 +36,7 @@
         "css": 62464
       },
       "warm": {
-        "api": 6,
+        "api": 8,
         "rounds": 2,
         "cls": 0.005
       }
@@ -50,7 +50,7 @@
         "css": 62464
       },
       "warm": {
-        "api": 10,
+        "api": 11,
         "rounds": 3,
         "cls": 0.005
       }
@@ -64,8 +64,8 @@
         "css": 62464
       },
       "warm": {
-        "api": 7,
-        "rounds": 2,
+        "api": 8,
+        "rounds": 1,
         "cls": 0.005
       }
     },
@@ -93,7 +93,7 @@
       },
       "warm": {
         "api": 9,
-        "rounds": 2,
+        "rounds": 1,
         "cls": 0.005
       }
     },
@@ -120,7 +120,7 @@
         "css": 62464
       },
       "warm": {
-        "api": 4,
+        "api": 6,
         "rounds": 1,
         "cls": 0.005
       }
@@ -134,7 +134,7 @@
         "css": 62464
       },
       "warm": {
-        "api": 4,
+        "api": 6,
         "rounds": 1,
         "cls": 0.005
       }
@@ -162,7 +162,7 @@
         "css": 62464
       },
       "warm": {
-        "api": 4,
+        "api": 5,
         "rounds": 1,
         "cls": 0.005
       }
@@ -176,7 +176,7 @@
         "css": 62464
       },
       "warm": {
-        "api": 4,
+        "api": 5,
         "rounds": 1,
         "cls": 0.005
       }
@@ -213,12 +213,12 @@
       "cold": {
         "api": 6,
         "rounds": 2,
-        "cls": 0.12,
+        "cls": 0.005,
         "js": 309248,
         "css": 62464
       },
       "warm": {
-        "api": 4,
+        "api": 6,
         "rounds": 1,
         "cls": 0.005
       }
@@ -232,8 +232,8 @@
         "css": 62464
       },
       "warm": {
-        "api": 8,
-        "rounds": 1,
+        "api": 10,
+        "rounds": 2,
         "cls": 0.005
       }
     },
@@ -288,7 +288,7 @@
         "css": 62464
       },
       "warm": {
-        "api": 4,
+        "api": 5,
         "rounds": 1,
         "cls": 0.005
       }
@@ -302,7 +302,7 @@
         "css": 62464
       },
       "warm": {
-        "api": 4,
+        "api": 5,
         "rounds": 1,
         "cls": 0.005
       }
@@ -312,11 +312,11 @@
         "api": 14,
         "rounds": 3,
         "cls": 0.005,
-        "js": 398336,
-        "css": 62464,
         "knownDupes": [
           "/api/agent-jobs"
-        ]
+        ],
+        "js": 398336,
+        "css": 62464
       },
       "warm": {
         "api": 13,
@@ -329,11 +329,11 @@
         "api": 15,
         "rounds": 2,
         "cls": 0.005,
-        "js": 398336,
-        "css": 62464,
         "knownDupes": [
           "/api/agent-jobs"
-        ]
+        ],
+        "js": 398336,
+        "css": 62464
       },
       "warm": {
         "api": 14,
@@ -346,11 +346,11 @@
         "api": 15,
         "rounds": 3,
         "cls": 0.005,
-        "js": 398336,
-        "css": 62464,
         "knownDupes": [
           "/api/agent-jobs"
-        ]
+        ],
+        "js": 398336,
+        "css": 62464
       },
       "warm": {
         "api": 14,
@@ -363,11 +363,11 @@
         "api": 17,
         "rounds": 3,
         "cls": 0.008,
-        "js": 398336,
-        "css": 62464,
         "knownDupes": [
           "/api/agent-jobs"
-        ]
+        ],
+        "js": 398336,
+        "css": 62464
       },
       "warm": {
         "api": 16,
@@ -394,11 +394,11 @@
         "api": 8,
         "rounds": 2,
         "cls": 0.005,
-        "js": 398336,
-        "css": 62464,
         "knownDupes": [
           "/api/agent-jobs"
-        ]
+        ],
+        "js": 398336,
+        "css": 62464
       },
       "warm": {
         "api": 7,
@@ -411,14 +411,14 @@
         "api": 6,
         "rounds": 2,
         "cls": 0.053,
-        "js": 398336,
-        "css": 62464,
         "knownDupes": [
           "/api/agent-jobs"
-        ]
+        ],
+        "js": 398336,
+        "css": 62464
       },
       "warm": {
-        "api": 4,
+        "api": 5,
         "rounds": 1,
         "cls": 0.005
       }
