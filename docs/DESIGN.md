@@ -23,23 +23,25 @@ The palette is named for what it is. The v1 names every older section reads (`--
 | `--surface` | `#f7f4ee` | `#1a2024` | cards, sheets, the tab bar (`--card`) |
 | `--surface2` | `#ece7dd` | `#21282d` | wells, tracks, quiet chips (`--card-2`) |
 | `--line` / `--line-strong` | `#d5cec0` / `#c3bbab` | `#2e373d` / `#3d474e` | hairlines / a firmer one (`--line-2`) |
-| `--ink` / `--ink2` / `--muted` | `#191d20` / `#454b50` / `#626762` | `#ece6da` / `#b0b3ad` / `#80877f` | text, primary → tertiary |
+| `--ink` / `--ink2` / `--muted` | `#191d20` / `#454b50` / `#5d625d` | `#ece6da` / `#b0b3ad` / `#91988f` | text, primary → tertiary |
 | `--on-ink` | `= --ground` | `= --ground` | text on a solid ink fill |
-| `--dawn` / `--dawn-deep` / `--dawn-wash` | `#b8611a` / `#95490c` / 12% | `#f0aa62` / `#f6c28e` / 13% | the ONE accent (`--accent*`) |
+| `--dawn` / `--dawn-deep` / `--dawn-wash` | `#984b0e` / `#843f0a` / 12% | `#f0aa62` / `#f6c28e` / 13% | the ONE accent (`--accent*`) |
 | `--on-accent` | `#fbf8f2` | `#12161a` | glyph on a saturated fill |
 
-`--muted` is the brief's `#6c716c` nudged to `#626762` so small text clears WCAG AA (4.5:1) on
-`--ground`.
+`--muted` is the brief's `#6c716c` nudged to `#5d625d` (dark `#91988f`), and `--dawn` the brief's
+`#b8611a` deepened to `#984b0e`, so small text clears WCAG AA (4.5:1) on every neutral it sits on —
+`--ground`, `--surface`, `--surface2` and `--well` — and `--on-accent` clears it on a `--dawn` fill.
+`test/tokenContrast.test.js` computes every pair from `tokens.css` in both themes.
 
 **The six stones.** Each has a muted hue (`--s-*`, a fill) and a deep text variant (`--d-*`, a
 word). A stone's hue is its identity and never changes with its state.
 
 | Stone | `--s-*` light / dark | `--d-*` light / dark |
 |---|---|---|
-| strength | `#a2b2bf` / `#8fa1b0` | `#4f6577` / `#a9bccb` |
-| endurance | `#97b89f` / `#80a68c` | `#46735a` / `#9cc4a8` |
-| recovery | `#aca4cf` / `#9990c3` | `#655c96` / `#b7aee0` |
-| fuel | `#dbb882` / `#d1a86d` | `#8e6424` / `#e6c08a` |
+| strength | `#a2b2bf` / `#8fa1b0` | `#4c6174` / `#a9bccb` |
+| endurance | `#97b89f` / `#80a68c` | `#40694f` / `#9cc4a8` |
+| recovery | `#aca4cf` / `#9990c3` | `#615893` / `#b7aee0` |
+| fuel | `#dbb882` / `#d1a86d` | `#83591c` / `#e6c08a` |
 | body | `#cfa18b` / `#c3907a` | `#8d5238` / `#dcab94` |
 | heart | `#dc877b` / `#d4756a` | `#a53d35` / `#ee9184` |
 
@@ -1023,8 +1025,12 @@ them. Progress's `emptyStateHtml(svg, line)` is a thin entry point onto the same
   segmented control is `role="group"` with an `aria-label`.
 - Tap targets are at least 44px (§38). The focus ring shows for keyboard users and stays quiet for
   pointer users (**Motion tokens**, "Programmatic focus is quiet").
-- Small text uses the AA text tokens (`--muted`, `--sage-text`, `--gold-deep`), never `--sage` or
-  `--gold`.
+- Small text uses the AA text tokens (`--muted`, `--dawn`, the `--d-*` stone words, `--sage-text`,
+  `--gold-deep`), never `--sage`, `--gold` or an `--s-*` fill. Each clears 4.5:1 on `--ground`,
+  `--surface`, `--surface2` and `--well` in both themes (`test/tokenContrast.test.js`).
+- Text on an accent fill is `var(--on-accent)`, never `#fff`: the dark accent is light. No new colour
+  literal lands outside `tokens.css`: `scripts/check-client-style.mjs` ratchets the hex count of every
+  stylesheet partial as well as every client module.
 - Color is never the only signal. A dot or pip carries its meaning in `aria-label`/`title` and in a
   visible phrase.
 - Async status uses `role="status"` with `aria-live="polite"` (`loadingStateHtml`,

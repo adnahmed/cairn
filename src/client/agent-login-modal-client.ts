@@ -40,7 +40,7 @@
 .agent-login-link{display:flex;gap:8px;flex-wrap:wrap}
 .agent-login-link[hidden]{display:none}
 .agent-login-link-open{text-decoration:none;text-align:center;display:inline-block;
-  background:var(--accent,#b4552d);color:#fffdf8;border-color:var(--accent,#b4552d)}
+  background:var(--accent,#b4552d);color:var(--on-accent,#fffdf8);border-color:var(--accent,#b4552d)}
 .agent-login-link-open:hover{background:var(--accent,#b4552d);opacity:.92}
 .agent-login-paste{display:flex;gap:8px}
 .agent-login-paste[hidden]{display:none}

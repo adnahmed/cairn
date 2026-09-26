@@ -499,7 +499,7 @@
 .agenda-title{font-size:.98rem;line-height:1.4;color:var(--ink)}
 .agenda-body{margin-top:5px;color:var(--ink-2);font-size:.86rem;line-height:1.5}
 .agenda-foot{margin-top:11px;display:flex;gap:8px;flex-wrap:wrap}
-.agenda-act{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);
+.agenda-act{background:var(--accent);color:var(--on-accent);border:none;border-radius:var(--radius-sm);
   padding:8px 14px;font-family:var(--font-ui);font-weight:600;font-size:.88rem;cursor:pointer}
 .agenda-act:hover{background:var(--accent-deep)}
 .agenda-act:active{transform:var(--press)}

@@ -27,20 +27,22 @@
   --line-strong: #c3bbab;/* a firmer hairline: input borders, dividers that must read */
   --ink:      #191d20;   /* primary text */
   --ink2:     #454b50;   /* secondary text */
-  --muted:    #626762;   /* tertiary text, labels. The brief's #6c716c nudged to clear AA 4.5:1 on --ground */
+  --muted:    #5d625d;   /* tertiary text, labels. The brief's #6c716c nudged to clear AA 4.5:1 on every neutral, --well included */
   --faint-ink:#a9a79f;   /* dismiss glyphs, ghosted marks, placeholders */
   --on-ink:   var(--ground); /* text on a solid ink fill (the solid button, a selected segment) */
 
   /* one accent: dawn */
-  --dawn:      #b8611a;
-  --dawn-deep: #95490c;
-  --dawn-wash: rgba(184,97,26,.12);
+  /* the brief's #b8611a deepened so dawn clears AA as small text on --ground and
+     under --on-accent as a fill (test/tokenContrast.test.js) */
+  --dawn:      #984b0e;
+  --dawn-deep: #843f0a;   /* the hover and pressed fill, and the firmest dawn word */
+  --dawn-wash: rgba(152,75,14,.12);
 
   /* the six stones — each keeps its OWN hue; tone is never a stone's fill */
-  --s-strength:  #a2b2bf;  --d-strength:  #4f6577;
-  --s-endurance: #97b89f;  --d-endurance: #46735a;
-  --s-recovery:  #aca4cf;  --d-recovery:  #655c96;
-  --s-fuel:      #dbb882;  --d-fuel:      #8e6424;
+  --s-strength:  #a2b2bf;  --d-strength:  #4c6174;
+  --s-endurance: #97b89f;  --d-endurance: #40694f;
+  --s-recovery:  #aca4cf;  --d-recovery:  #615893;
+  --s-fuel:      #dbb882;  --d-fuel:      #83591c;
   --s-body:      #cfa18b;  --d-body:      #8d5238;
   --s-heart:     #dc877b;  --d-heart:     #a53d35;
   --on-stone:    #15191c;  /* a glyph or initial on a stone fill */
@@ -61,7 +63,7 @@
   --accent-wash: var(--dawn-wash);
   --on-accent: #fbf8f2;  /* ink/glyph on a saturated fill (dawn / sage / warn / ink / gold) */
   --sage:    #5b8467;    /* done, completion — marks and borders */
-  --sage-text: var(--d-endurance); /* sage for small text, AA on surface */
+  --sage-text: var(--d-endurance); /* sage for small text, AA on ground, surface and well */
   --sage-deep: #37604a;
   --sage-bg: color-mix(in srgb, var(--s-endurance) 22%, var(--surface));
   --warn:    var(--d-heart);
@@ -171,7 +173,7 @@
     --line-strong: #3d474e;
     --ink:      #ece6da;
     --ink2:     #b0b3ad;
-    --muted:    #80877f;
+    --muted:    #91988f;
     --faint-ink:#5d655f;
     --dawn:      #f0aa62;
     --dawn-deep: #f6c28e;
@@ -209,7 +211,7 @@
   --line-strong: #3d474e;
   --ink:      #ece6da;
   --ink2:     #b0b3ad;
-  --muted:    #80877f;
+  --muted:    #91988f;
   --faint-ink:#5d655f;
   --dawn:      #f0aa62;
   --dawn-deep: #f6c28e;

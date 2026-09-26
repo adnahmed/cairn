@@ -131,7 +131,7 @@ body[data-tab="session"] .tabbar{display:none}
 .sess-launch-meta{margin-top:6px;color:var(--ink-2);font-size:.85rem}
 .sess-launch-cta{
   flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;
-  padding:11px 18px;border-radius:var(--radius-pill);background:var(--accent);color:#fff;
+  padding:11px 18px;border-radius:var(--radius-pill);background:var(--accent);color:var(--on-accent);
   font-family:var(--font-ui);font-weight:600;font-size:.9rem;letter-spacing:.01em;
 }
 .sess-launch-arrow{transition:transform var(--dur-1) var(--ease)}

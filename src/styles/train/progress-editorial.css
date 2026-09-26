@@ -62,11 +62,13 @@
   font-size:.8rem;color:var(--ink-2);font-variant-numeric:lining-nums;
   transition:transform var(--dur-1) var(--ease)}
 .cal-pad,.cal-out{background:transparent}
-.cal-out{color:#c9c0ad}
+.cal-out{color:var(--faint-ink)}
+/* heat levels are dawn washed into the surface, so they follow the theme; the day
+   number on each clears AA in both (ink-2 on the palest, ink above it) */
 .cl0{background:var(--card-2)}
-.cl1{background:#f4e2d5}
-.cl2{background:#eac3a7}
-.cl3{background:#d49270;color:var(--on-accent)}
+.cl1{background:color-mix(in srgb,var(--dawn) 18%,var(--surface))}
+.cl2{background:color-mix(in srgb,var(--dawn) 32%,var(--surface));color:var(--ink)}
+.cl3{background:color-mix(in srgb,var(--dawn) 46%,var(--surface));color:var(--ink)}
 .cl4{background:var(--accent);color:var(--on-accent)}
 .cal-today{outline:2px solid var(--accent);outline-offset:1.5px}
 .cal-has{cursor:pointer}

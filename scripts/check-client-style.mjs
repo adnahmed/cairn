@@ -15,6 +15,11 @@
 //             file may shrink but never grow, and 600 is the hard ceiling for any
 //             file the baseline does not already hold above it.
 //
+// The stylesheet partials (`src/styles/**/*.css`) are held to the hex count too: a
+// colour is a token from `src/styles/foundation/tokens.css` (the one file exempt), so
+// a literal like `color:#fff` on an accent fill cannot come back and vanish in dark.
+// Partials carry no line or inline-style metric.
+//
 // A file absent from the baseline is held to 0 hex, 0 presentational styles and
 // the 400-line soft limit. When a number drops, the check still passes and says so;
 // run `--update` to lock the lower number in (that rewrite is the only way to
@@ -27,6 +32,9 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CLIENT_DIR = "src/client";
+const STYLES_DIR = "src/styles";
+/** The palette itself: the only stylesheet that writes a colour literal. */
+const STYLES_HEX_EXEMPT = new Set(["src/styles/foundation/tokens.css"]);
 const BASELINE_FILE = "scripts/client-style-baseline.json";
 const SOFT_LINE_LIMIT = 400;
 const HARD_LINE_LIMIT = 600;
@@ -56,6 +64,16 @@ function listClientFiles(dir) {
     const rel = `${dir}/${entry.name}`;
     if (entry.isDirectory()) out.push(...listClientFiles(rel));
     else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) out.push(rel);
+  }
+  return out.sort();
+}
+
+function listStyleFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(path.join(root, dir), { withFileTypes: true })) {
+    const rel = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) out.push(...listStyleFiles(rel));
+    else if (entry.name.endsWith(".css")) out.push(rel);
   }
   return out.sort();
 }
@@ -145,6 +163,11 @@ function measure() {
       hex: HEX_EXEMPT.has(rel) ? 0 : (src.match(HEX_RE) || []).length,
       style: presentationalStyleCount(src),
     };
+  }
+  for (const rel of listStyleFiles(STYLES_DIR)) {
+    if (STYLES_HEX_EXEMPT.has(rel)) continue;
+    const src = readFileSync(path.join(root, rel), "utf8");
+    files[rel] = { lines: 0, hex: (src.match(HEX_RE) || []).length, style: 0 };
   }
   return files;
 }

@@ -75,7 +75,7 @@
 .supp-sub{font-size:.8rem;color:var(--muted);line-height:1.5;margin:7px 0 12px;max-width:46ch}
 .supp-empty{font-size:.83rem;color:var(--muted);margin:0 0 12px}
 .supp-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:13px}
-.supp-chip{display:inline-flex;align-items:center;gap:7px;background:var(--paper,#f3ede1);
+.supp-chip{display:inline-flex;align-items:center;gap:7px;background:var(--paper);
   border:1px solid var(--line,rgba(0,0,0,.08));border-radius:var(--radius-pill);padding:5px 6px 5px 12px}
 .supp-name{font-size:.84rem;font-weight:600;color:var(--ink)}
 .supp-meta{font-size:.72rem;color:var(--muted)}
