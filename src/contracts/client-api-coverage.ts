@@ -139,6 +139,8 @@ export const CLIENT_API_CONTRACT_PATHS = [
   "/food-notes",
   "/food-notes/:id",
   "/frequent-foods",
+  "/nutrition/intake-band",
+  "/fuel/ideas",
   "/proposals",
   "/proposals/:id/apply",
   "/proposals/:id/discard",

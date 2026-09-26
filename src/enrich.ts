@@ -21,7 +21,7 @@ import type { ImagingStudyRevisionState } from "./repo/imaging.js";
 import { isNonAnalyteMarkerName } from "./repo/marker-canon.js";
 import { addMemory } from "./repo/memory.js";
 import { recordArtUsage } from "./repo/art-ledger.js";
-import { getFoodNote, setFoodNoteEnrichStatus, updateFoodNoteParsed } from "./repo/nutrition.js";
+import { foodNoteEditedByPerson, getFoodNote, setFoodNoteEnrichStatus, updateFoodNoteParsed } from "./repo/nutrition.js";
 import { deriveDirectives } from "./repo/propagation.js";
 import { getRecentSessions, getSessionDetail, importGarminActivitySets } from "./repo/sessions.js";
 import type { GarminSetImportInput } from "./repo/sessions.js";
@@ -683,6 +683,11 @@ async function processJob(job: Job): Promise<void> {
   if (job.kind === "exercise_art") return processExerciseArtJob(job.id);
   if (job.kind === "symptom") return processSymptomJob(job.id);
 
+  // A person already corrected this meal: their edit is the record, so no agent
+  // turn is spent re-estimating it (and none could be written — updateFoodNoteParsed
+  // refuses the note). The edit already settled the status to 'done'.
+  if (job.kind === "food" && foodNoteEditedByPerson(job.id)) return;
+
   // Check enablement BEFORE picking an agent: pickAgentOrder() advances the
   // round-robin cursor as a side effect, so calling it for a job we then skip
   // would burn rotation state against a phantom invocation.
@@ -949,6 +954,14 @@ async function processJob(job: Job): Promise<void> {
       `[enrich] imaging#${job.id}: analysis became stale (${healthApply.reason}); ` +
         (settled.requeued ? "queued one fresh pass." : "kept user state; manual retry needed.")
     );
+    return;
+  }
+  // The person corrected the meal while the agent was still reading it: their edit
+  // stands, the late estimate is dropped, and the row settles rather than warning
+  // about a "wrong shape" answer it never had.
+  if (job.kind === "food" && foodNoteEditedByPerson(job.id)) {
+    log.info(`[enrich] food#${job.id}: edited by a person while enriching — kept their edit.`);
+    markStatus(job, "done");
     return;
   }
   const appliedFields = job.kind === "health" ? healthApply?.status === "applied" : applyStructured(job, parsed.structured);
@@ -1671,6 +1684,8 @@ export async function processFoodPhotoJob(id: number): Promise<void> {
   }
   const row = getFoodNote(id) as any;
   if (!row) return; // deleted while queued — nothing to enrich, no status to set
+  // A person already corrected this plate: their edit is the record (see processJob).
+  if (foodNoteEditedByPerson(id)) return;
   const fp = (row.image_path ?? "").toString().trim();
   if (!fp) {
     // No photo on the note (e.g. enqueued for the wrong kind) — fall back to the
@@ -1712,7 +1727,7 @@ export async function processFoodPhotoJob(id: number): Promise<void> {
     }
   }
 
-  if (!wrote && order.length) {
+  if (!wrote && order.length && !foodNoteEditedByPerson(id)) {
     try {
       const fb = await runAgentWithFallback(order, buildFoodPhotoPrompt(fp, hint || undefined), {
         timeoutMs: ENRICH_TIMEOUT_MS,
@@ -1727,6 +1742,12 @@ export async function processFoodPhotoJob(id: number): Promise<void> {
     }
   }
 
+  if (!wrote && foodNoteEditedByPerson(id)) {
+    // Edited by a person while the vision read ran: their edit stands, nothing failed.
+    log.info(`[enrich] food_photo#${id}: edited by a person while enriching — kept their edit.`);
+    setFoodNoteEnrichStatus(id, "done");
+    return;
+  }
   if (!wrote && (!parsed || typeof parsed !== "object")) {
     // Vision read failed / wrong shape: keep the as-logged note (its instant
     // summary stands), just no macro estimate this run. A re-trigger can retry.
@@ -1795,6 +1816,7 @@ function mimeForImage(fp: string): string {
 // offline test can exercise the coerce/clamp + merge discipline directly (the
 // agent never runs in the harness).
 export function applyFoodPhoto(id: number, parsed: any): boolean {
+  if (foodNoteEditedByPerson(id)) return false; // a person's edit wins (repo/nutrition.ts)
   const cur = (getFoodNote(id) as any)?.parsed ?? {};
   const merged: Record<string, any> = { ...cur };
   let changed = false;
@@ -1855,7 +1877,7 @@ export function applyFoodPhoto(id: number, parsed: any): boolean {
     merged.basis = provenance.basis;
   }
 
-  if (changed) updateFoodNoteParsed(id, merged);
+  if (changed) return updateFoodNoteParsed(id, merged) != null;
   return changed;
 }
 
@@ -2382,6 +2404,17 @@ function applyStructured(job: Job, structured: any): boolean {
     return false;
   }
 
+  return applyFoodEstimate(job.id, structured);
+}
+
+// The text enricher's food write. Exported (like applyFoodPhoto) so the offline
+// tests can drive the merge — and the person-edit race — without an agent.
+// Returns true only when an estimate was actually written.
+export function applyFoodEstimate(id: number, structured: any): boolean {
+  if (!structured || typeof structured !== "object") return false;
+  // A person's edit wins (repo/nutrition.ts foodNoteEditedByPerson).
+  if (foodNoteEditedByPerson(id)) return false;
+  const job = { id };
   // food: merge the agent's coerced estimate over the existing parsed_json blob,
   // through the SHARED food-capture coercion (src/foodCapture.ts) so this path, the
   // photo path and chat's log_food agree on one shape.
@@ -2448,7 +2481,7 @@ function applyStructured(job: Job, structured: any): boolean {
     merged.confidence = provenance.confidence;
     merged.basis = provenance.basis;
   }
-  if (changed) updateFoodNoteParsed(job.id, merged);
+  if (changed) return updateFoodNoteParsed(job.id, merged) != null;
   return changed;
 }
 

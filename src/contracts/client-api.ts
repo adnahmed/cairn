@@ -17,6 +17,7 @@ import type {
   ClientTodayAgendaCandidate,
   ISODateString,
 } from "./client.js";
+import type { ClientFuelIdeas, ClientIntakeBand } from "./fuel.js";
 
 export type ClientJsonObject = Record<string, unknown>;
 export type ClientJsonArray = ClientJsonObject[];
@@ -3556,6 +3557,8 @@ export interface ClientApiResponses {
   "/api/mealplans": ClientMealPlan[];
   "/api/food-notes": ClientFoodNote[] | ClientFoodNote;
   "/api/frequent-foods": ClientFrequentFood[];
+  "/api/nutrition/intake-band": ClientIntakeBand;
+  "/api/fuel/ideas": ClientFuelIdeas;
   "/api/proposals": ClientProposal[];
   "/api/program/evolve": ClientProposalResult | ClientAgentJobEnvelope;
   // The blank-slate first week. Same envelope as evolve — it enqueues a durable job,

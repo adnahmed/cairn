@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**348 routes** across 117 groups.
+**350 routes** across 118 groups.
 
 ## `/activities`
 
@@ -319,7 +319,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | POST | `/api/food-notes` | Optional `date` (YYYY-MM-DD local day) backdates the entry — "I remembered last night's dinner" — and optional `eaten_at` ("HH:MM", 24-hour local) states when it was eaten. Both omitted keeps the old behavior exactly: today, no time. A date in the future or a malformed time is a 400 with the reason, never a silent fallback to today (which would file the meal on the wrong day). |
 | DELETE | `/api/food-notes/:id` |  |
 | GET | `/api/food-notes/:id` | Single food note row, hydrated (poll fallback for watching enrichment_status). |
-| PUT | `/api/food-notes/:id` | Manual correction of a logged food note (fix a macro, rename it, change the meal slot, move it to the day it was actually eaten, "I changed my mind"). Stamps enrichment terminal so it isn't re-clobbered. 404 on unknown id.  `date` moves the entry to another local day and `eaten_at` corrects the stated time (send it blank to unstate a time). Omitting either leaves it alone, so correcting a macro never restamps the clock. Same strict validation as the POST. |
+| PUT | `/api/food-notes/:id` | Manual correction of a logged food note (fix a macro, rename it, change the meal slot, move it to the day it was actually eaten, "I changed my mind"). Stamps enrichment terminal so it isn't re-clobbered. 404 on unknown id.  `date` moves the entry to another local day and `eaten_at` corrects the stated time (send it blank to unstate a time). Omitting either leaves it alone, so correcting a macro never restamps the clock. Same strict validation as the POST.  `ingredients` replaces the meal's ingredient rows (foodCapture.ts row shape, plus an optional numeric `grams` per row): add a row, drop a row, change grams — the totals are recomputed from the rows deterministically, in this one call, with no agent turn. An edit to the estimate (rows, items, summary, any macro) locks the note against a late enrichment pass (`person_edited_at`); moving the slot, day or time locks nothing. An empty `ingredients` list clears the rows and keeps the meal totals. With `ingredients`, the response carries `ingredient_edit` — what the totals could and could not follow, with `words` to say when a row's amount changed but the total could not move with it. |
 | GET | `/api/food-notes/:id/stream` | Live enrichment status for one food note (Server-Sent Events) — the SSE-first path the PWA uses instead of polling; snapshot then transitions, close on terminal. EventSource can't set headers, so the PWA reaches this with ?token=. |
 
 ## `/frequent-foods`
@@ -327,6 +327,12 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/frequent-foods` | One-tap "frequents": the foods most often logged near a time of day (±2h), most-frequent first (max 8), with macros carried from the latest occurrence when present. ?hour= overrides the server clock (the PWA passes the device hour so frequents match the user's local time-of-day, not UTC). |
+
+## `/fuel`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/fuel/ideas` | Three deterministic ideas for the rest of the day from the athlete's own staples, sized inside the observed band, protein first (src/repo/fuel-ideas.ts). Ideas, not a plan: nothing is logged or drafted, and no agent turn runs. ?hour= is the device's local hour (for "what you usually eat now"); ?exclude=key,key skips ideas already shown ("Another idea"); ?date= overrides today. |
 
 ## `/garmin`
 
@@ -552,6 +558,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | POST | `/api/nutrition/fueling-feedback` | Save today's (or ?date=) one-tap fueling read. Adherence-neutral; energy/hunger are the 1-3 running-low/steady/plenty scale, coerced/clamped at the trust boundary. Returns the saved row. Body: { date?, energy, hunger?, note? }. |
 | GET | `/api/nutrition/fueling-followup` | Fueling follow-through. After a nutrition-target change applies, Today quietly offers a one-tap "how's fueling feeling?" read on days the athlete logs food, only inside the change's 7-day window. Read-only due-check + recent reads; `due:false` is the calm common answer, returned at status 200 like the other nutrition reads (never a 404). |
 | GET | `/api/nutrition/goal-pace` | Goal-pace series behind the motivational weight-progress chart: the canonical weigh-in points, the recent-trend line (with a short forward projection), and the straight line to the goal. Read-only, null-safe; ?days= clamps to 14–365. |
+| GET | `/api/nutrition/intake-band` | The protein anchor and the observed intake band (src/repo/intake-band.ts): where the athlete's weight turned, read ONLY off complete logged days plus the bodyweight response over the same weeks. An observation — never a target, never a maintenance measurement; it bounds energy only and never trims protein. Too few complete days → `status:"too_few_days"`, `band:null`, and the words say so. ?date= overrides today. |
 | GET | `/api/nutrition/progress` | Meaning-first multi-week recorded-intake read. The domain clamps ?days= to 14–90, returns every local calendar day with honest unknowns, names record observation density (not full-day completeness), and conditions every target comparison/advice on the records reflecting most of the day. |
 | POST | `/api/nutrition/target` | THE ATHLETE'S OWN NUMBER: a direct set of the calorie target, effective today, stamped `source: "user"` — the provenance every downstream read (the next check-in's `previous`, the fuel card, the goal math) keys off. Every other way a target moves is Cairn's, so without this the only lever the athlete holds over a drifting number is arguing with the coach about it. The lean-safe kcal/protein floors still run inside setNutritionTarget; a number outside 1200-6000 kcal is a 400 with the reason rather than a silent clamp, because a typed number quietly changed underneath a person is worse than one they were told was refused. Stating a number also SUPERSEDES any automated change still waiting for a food-day boundary (`userSetNutritionTarget`) — the athlete outranks the machine, so nothing lands on top of their choice tomorrow. Body: { target_kcal, protein_g?, carbs_g?, fat_g?, note? }. Returns the saved row. |
 

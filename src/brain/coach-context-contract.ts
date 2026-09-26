@@ -5,6 +5,7 @@ import type { EnduranceCapacityRead } from "../repo/endurance-capacity.js";
 import type { ResolvedTrainingIntent } from "../repo/training-intent.js";
 import type { EffectiveLocationContext } from "../repo/location-context.js";
 import type { FuelDemandWeek } from "../repo/fuel-demand.js";
+import type { ClientIntakeBand } from "../contracts/fuel.js";
 
 export type CoachRecord = Record<string, any>;
 export type CoachGoalMode = "lose" | "maintain" | "gain";
@@ -352,6 +353,12 @@ export interface CoachContextEnvelope {
   // authoritative, and this read only says which days are asking for more. Additive +
   // optional, so partial context builders and imported DBs never synthesize it.
   fuel_demand?: FuelDemandWeek | null;
+  // The protein anchor and the OBSERVED intake band (src/repo/intake-band.ts): where
+  // this athlete's weight turned, read only off complete logged days plus the
+  // bodyweight response over the same weeks. Protein first; the band bounds energy
+  // only. An observation — never a target and never a maintenance measurement, so it
+  // never moves `capProtectiveRaise` or the accepted target. Additive + optional.
+  intake_band?: ClientIntakeBand | null;
   family: CoachFamilyMember[];
   body_composition: CoachRecord | null;
   body_metrics: CoachRecord | null;

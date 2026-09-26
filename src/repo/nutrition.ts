@@ -40,6 +40,13 @@ import { nutritionRelevantDirectives } from "./nutrition-progress.js";
 import { log } from "../log.js";
 import { round1 } from "../lib/numbers.js";
 import { dailySiteSeries } from "./measurement-series.js";
+import {
+  clampFoodMacro,
+  FOOD_MACRO_KEYS,
+  foodItemLabel,
+  type FoodIngredientRecompute,
+  recomputeFoodIngredients,
+} from "../foodCapture.js";
 
 // ---------- accepted nutrition targets (adaptive-nutrition loop OUTPUT) ----------
 // Persist an accepted target so the fuel card / goal math / next check-in read the
@@ -2200,9 +2207,29 @@ export function deleteFoodNote(id: number) {
   return { deleted: true, id };
 }
 
-// Overwrite the parsed_json blob with the enricher's structured estimate.
+// A PERSON'S EDIT WINS. Once the athlete corrects a note (updateFoodNote — the meal
+// card, the edit sheet, a chat or MCP correction in their words) `person_edited_at`
+// is stamped, and no background enrichment pass may write that note's estimate
+// again: an agent that was still reading the plate when the person fixed a row
+// must not land a minute later and put the old grams back. Enrichers ask this
+// before they spend an agent turn, and updateFoodNoteParsed enforces it at the
+// write itself, so a pass already in flight cannot slip past.
+export function foodNoteEditedByPerson(id: number): boolean {
+  const row = db.prepare(`SELECT person_edited_at FROM food_notes WHERE id = ?`).get(id) as any;
+  return !!row?.person_edited_at;
+}
+
+// Overwrite the parsed_json blob with the enricher's structured estimate. The ONLY
+// writer the enrichment passes use. Refuses (returns null, writes nothing) on a note
+// a person has edited — see foodNoteEditedByPerson.
 export function updateFoodNoteParsed(id: number, parsed: any) {
-  db.prepare(`UPDATE food_notes SET parsed_json = ? WHERE id = ?`).run(parsed ? JSON.stringify(parsed) : null, id);
+  const wrote = db
+    .prepare(`UPDATE food_notes SET parsed_json = ? WHERE id = ? AND person_edited_at IS NULL`)
+    .run(parsed ? JSON.stringify(parsed) : null, id);
+  if (Number(wrote.changes) !== 1) {
+    log.info(`[food] note#${id}: kept the person's edit; a late enrichment estimate was not written.`);
+    return null;
+  }
   bumpFoodDataVersion(); // enrichment can revise kcal in place (backstop can't see it)
   const updated = getFoodNote(id);
   if (updated) {
@@ -2219,7 +2246,11 @@ export function updateFoodNoteParsed(id: number, parsed: any) {
 }
 
 export function setFoodNoteEnrichStatus(id: number, status: string) {
-  db.prepare(`UPDATE food_notes SET enrichment_status = ? WHERE id = ?`).run(status, id);
+  // A note a person has edited is settled: an enrichment pass that started before
+  // the edit can report in_progress/failed all it likes, the row stays 'done'.
+  db.prepare(
+    `UPDATE food_notes SET enrichment_status = CASE WHEN person_edited_at IS NOT NULL THEN 'done' ELSE ? END WHERE id = ?`
+  ).run(status, id);
   const row = getFoodNote(id);
   emitEnrichTransition("food", id, row); // wake any SSE watcher on this row
   return row;
@@ -2391,6 +2422,14 @@ export function getDayIntake(date?: string) {
       // (foodCapture.ts's ingredient-row shape) — threaded through so the EDIT
       // sheet for this same entry can show it too, instead of five bare inputs.
       items: p.items ?? null,
+      // The structured ingredient rows (foodCapture.ts row shape: item, amount,
+      // macros, basis, and `confidence:"low"` on a row with no estimate) — what the
+      // meal card edits in place through PUT /food-notes/:id `ingredients`.
+      ingredients: Array.isArray(p.ingredients) ? p.ingredients : null,
+      confidence: p.confidence ?? null,
+      basis: p.basis ?? null,
+      // True once a person has corrected this entry; enrichment never rewrites it.
+      person_edited: !!r.person_edited_at,
       // The verbatim capture text ("as logged"), never a derived/re-typed copy.
       raw: r.raw_output ?? null,
       enrichment_status: r.enrichment_status ?? null,
@@ -2467,11 +2506,67 @@ export function getDayIntake(date?: string) {
   return { date: d, totals, known, entries, count: entries.length, target, remaining };
 }
 
+// The fields that ARE the meal's estimate. Editing any of them is a person's
+// correction of what was eaten, and locks the note against enrichment; the rest
+// (meal slot, date, eaten_at, notes) only file the entry.
+export const FOOD_ESTIMATE_FIELDS = ["ingredients", "items", "summary", ...FOOD_MACRO_KEYS] as const;
+
+// What a row edit could and could not do, returned on the PUT/MCP response as
+// `ingredient_edit` (never stored). `words` is null when there is nothing to say.
+export interface FoodIngredientEditResult {
+  scaled: number;
+  unestimated: number;
+  unfollowed: number;
+  cleared: boolean;
+  words: string | null;
+}
+
+// The estimate fields of a parsed blob, normalized so an absent value and an explicit
+// null compare equal.
+function foodEstimateSnapshot(p: any): string {
+  return JSON.stringify(FOOD_ESTIMATE_FIELDS.map((key) => p?.[key] ?? null));
+}
+
+export function foodIngredientEditResult(r: FoodIngredientRecompute): FoodIngredientEditResult {
+  let words: string | null = null;
+  if (r.cleared) {
+    words = "The breakdown is cleared; the meal's totals stay as they were logged.";
+  } else if (r.unfollowed > 0) {
+    words =
+      r.unfollowed === 1
+        ? "The total couldn't follow the new amount on one row that has no numbers of its own — add them to count it."
+        : `The total couldn't follow the new amounts on ${r.unfollowed} rows that have no numbers of their own — add them to count them.`;
+  } else if (r.unestimated > 0) {
+    words =
+      r.unestimated === 1
+        ? "One row has no numbers yet, so the total counts only what is known."
+        : `${r.unestimated} rows have no numbers yet, so the total counts only what is known.`;
+  }
+  return { scaled: r.scaled, unestimated: r.unestimated, unfollowed: r.unfollowed, cleared: r.cleared, words };
+}
+
 // Manual correction of a logged food note (fix a macro, rename it, change the meal
-// slot, or just "I changed my mind"). Coerced/clamped at the trust boundary like
-// coerceMeal, merged over the existing parsed blob. STAMPS enrichment_status
-// terminal ('done') so a still-queued background enricher can't later clobber the
+// slot, edit its ingredient rows, or just "I changed my mind"). Coerced/clamped at
+// the trust boundary like coerceMeal, merged over the existing parsed blob.
+//
+// An edit to the ESTIMATE (FOOD_ESTIMATE_FIELDS: the rows, items, summary or any
+// macro) stamps enrichment_status terminal ('done') AND `person_edited_at`, so
+// neither a still-queued nor an already-running enricher can later clobber the
 // correction — a manual edit is authoritative (mirrors updateTarget's manual path).
+// An edit that only files the entry — its meal slot, day, time or free-text note —
+// locks nothing and leaves the enrichment status alone: "2 eggs and toast" moved to
+// 07:30 while its estimate is still queued must still get its estimate, or the day
+// would read partial for good.
+//
+// `date`/`eaten_at` are validated BEFORE anything is written, so a REST 400 leaves
+// the row exactly as it was.
+//
+// `ingredients` is the full replacement row list (foodCapture.ts row shape, plus an
+// optional numeric `grams` per row). The totals are recomputed from the rows by
+// recomputeFoodIngredients — per-gram scaling off each row's own estimate, a row
+// with no nutrition flagged low confidence and totalling only what is known — with
+// no agent turn. A meal-level macro sent in the SAME call still wins over the sum
+// (a stated total always wins, as everywhere in foodCapture).
 // Returns the hydrated row, or null on unknown id.
 export function updateFoodNote(id: number, fields: any) {
   const row = getFoodNote(id);
@@ -2479,45 +2574,13 @@ export function updateFoodNote(id: number, fields: any) {
   const f = fields && typeof fields === "object" ? fields : {};
   const parsed: any = { ...(row.parsed && typeof row.parsed === "object" ? row.parsed : {}) };
 
-  const numField = (key: string, max: number) => {
-    if (f[key] === undefined) return;
-    if (f[key] === null || f[key] === "") {
-      parsed[key] = null;
-      return;
-    }
-    const n = Number(f[key]);
-    parsed[key] = Number.isFinite(n) ? Math.min(max, Math.max(0, Math.round(n))) : null;
-  };
-  if (f.summary !== undefined) parsed.summary = capStr(f.summary, 200);
-  if (f.items !== undefined) {
-    parsed.items = Array.isArray(f.items)
-      ? f.items
-          .slice(0, 30)
-          .map((s: any) => capStr(s, 80))
-          .filter(Boolean)
-      : capStr(f.items, 300);
-  }
-  if (f.notes !== undefined) parsed.notes = f.notes == null ? null : capStr(f.notes, 500);
-  numField("kcal", 5000);
-  numField("protein_g", 500);
-  numField("carbs_g", 1000);
-  numField("fat_g", 500);
-  numField("fiber_g", 200);
-
-  db.prepare(`UPDATE food_notes SET parsed_json = ?, enrichment_status = 'done' WHERE id = ?`).run(
-    JSON.stringify(parsed),
-    id
-  );
-  if (f.meal !== undefined && f.meal !== null && String(f.meal).trim()) {
-    db.prepare(`UPDATE food_notes SET meal = ? WHERE id = ?`).run(String(f.meal).trim().slice(0, 40), id);
-  }
-
   // Correcting WHEN it happened — "that was last night's dinner, not this
-  // morning's". Each field moves ONLY when the caller actually sent it, so fixing a
-  // macro never restamps the clock, and an untouched year-old row is never
-  // re-validated against the backdate bound just because someone edited its kcal.
-  // A stated time never re-infers the meal label either: the row already carries a
-  // label, and silently relabeling it here would overwrite what someone chose.
+  // morning's". Resolved (and, for REST, validated) before any write. Each field
+  // moves ONLY when the caller actually sent it, so fixing a macro never restamps
+  // the clock, and an untouched year-old row is never re-validated against the
+  // backdate bound just because someone edited its kcal. A stated time never
+  // re-infers the meal label either: the row already carries a label, and silently
+  // relabeling it here would overwrite what someone chose.
   const previousDate = String(row.date || localDateISO());
   const previousTime: string | null = row.eaten_at ?? null;
   const lenient = f.lenient !== false; // see FoodNoteWhen.lenient — REST opts out
@@ -2546,8 +2609,82 @@ export function updateFoodNote(id: number, fields: any) {
       else log.warn(`[food] note#${id}: keeping the stored time — ${FOOD_NOTE_TIME_PROBLEM}`);
     }
   }
-  if (nextDate !== previousDate || nextTime !== previousTime) {
-    db.prepare(`UPDATE food_notes SET date = ?, eaten_at = ? WHERE id = ?`).run(nextDate, nextTime, id);
+
+  const estimateBefore = foodEstimateSnapshot(parsed);
+  let ingredientEdit: FoodIngredientEditResult | null = null;
+  if (f.ingredients !== undefined) {
+    // null clears the breakdown the same way an empty list does: the rows go and the
+    // meal totals stay exactly as stored (foodCapture rule 6), so clearing the rows
+    // is never read as "nothing was eaten" — deleting the note is how that is said.
+    const recomputed = recomputeFoodIngredients(parsed, Array.isArray(f.ingredients) ? f.ingredients : []);
+    ingredientEdit = foodIngredientEditResult(recomputed);
+    parsed.ingredients = recomputed.ingredients;
+    if (f.items === undefined) {
+      parsed.items = recomputed.ingredients.map((r) => foodItemLabel(r)).filter(Boolean);
+    }
+    for (const key of FOOD_MACRO_KEYS) {
+      const total = recomputed.totals[key];
+      if (total !== undefined) parsed[key] = clampFoodMacro(key, total);
+    }
+    // A row with no estimate means the meal total is a floor, not the meal —
+    // the honest band for that is low, never the band the agent gave the rest.
+    if (recomputed.unestimated > 0) parsed.confidence = "low";
+  }
+
+  const numField = (key: string, max: number) => {
+    if (f[key] === undefined) return;
+    if (f[key] === null || f[key] === "") {
+      parsed[key] = null;
+      return;
+    }
+    const n = Number(f[key]);
+    parsed[key] = Number.isFinite(n) ? Math.min(max, Math.max(0, Math.round(n))) : null;
+  };
+  if (f.summary !== undefined) parsed.summary = capStr(f.summary, 200);
+  if (f.items !== undefined) {
+    parsed.items = Array.isArray(f.items)
+      ? f.items
+          .slice(0, 30)
+          .map((s: any) => capStr(s, 80))
+          .filter(Boolean)
+      : capStr(f.items, 300);
+  }
+  if (f.notes !== undefined) parsed.notes = f.notes == null ? null : capStr(f.notes, 500);
+  numField("kcal", 5000);
+  numField("protein_g", 500);
+  numField("carbs_g", 1000);
+  numField("fat_g", 500);
+  numField("fiber_g", 200);
+
+  // Only a CHANGED estimate is a correction: a sheet that echoes the stored numbers
+  // back beside a new meal slot has not corrected anything.
+  const editsEstimate =
+    FOOD_ESTIMATE_FIELDS.some((key) => f[key] !== undefined) && foodEstimateSnapshot(parsed) !== estimateBefore;
+
+  // One unit: the estimate, the slot and the clock land together or not at all. A
+  // SAVEPOINT (not BEGIN) so a caller already inside a transaction nests cleanly.
+  db.exec("SAVEPOINT food_note_edit");
+  try {
+    if (editsEstimate) {
+      db.prepare(
+        `UPDATE food_notes SET parsed_json = ?, enrichment_status = 'done', person_edited_at = datetime('now') WHERE id = ?`
+      ).run(JSON.stringify(parsed), id);
+    } else {
+      // Filing only (slot, day, time, note): the estimate is untouched, so a queued
+      // or running enrichment pass may still write it — nothing is locked.
+      db.prepare(`UPDATE food_notes SET parsed_json = ? WHERE id = ?`).run(JSON.stringify(parsed), id);
+    }
+    if (f.meal !== undefined && f.meal !== null && String(f.meal).trim()) {
+      db.prepare(`UPDATE food_notes SET meal = ? WHERE id = ?`).run(String(f.meal).trim().slice(0, 40), id);
+    }
+    if (nextDate !== previousDate || nextTime !== previousTime) {
+      db.prepare(`UPDATE food_notes SET date = ?, eaten_at = ? WHERE id = ?`).run(nextDate, nextTime, id);
+    }
+    db.exec("RELEASE food_note_edit");
+  } catch (e) {
+    db.exec("ROLLBACK TO food_note_edit");
+    db.exec("RELEASE food_note_edit");
+    throw e;
   }
 
   bumpFoodDataVersion(); // an in-place kcal correction the SQL backstop can't see
@@ -2566,7 +2703,8 @@ export function updateFoodNote(id: number, fields: any) {
     emitBrainEvent({ kind: "food_corrected", domain: "nutrition", date: previousDate, entity_id: id });
     invalidateDayReadForDate(previousDate);
   }
-  return updated;
+  // What the row edit could and could not do, for the caller to say (never stored).
+  return ingredientEdit ? { ...updated, ingredient_edit: ingredientEdit } : updated;
 }
 
 export function hydrate(row: any) {
@@ -2604,7 +2742,7 @@ export interface FrequentFood {
 // toLowerCase() so "Chicken & rice", "chicken and rice " and "the chicken &
 // rice." all group together — but conservative on purpose (no stemming, no
 // synonym table) so genuinely different meals stay distinct.
-function frequentFoodKey(s: string): string {
+export function frequentFoodKey(s: string): string {
   return String(s)
     .toLowerCase()
     .replace(/[.,;:!?]+$/g, "") // trailing punctuation

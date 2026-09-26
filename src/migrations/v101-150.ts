@@ -540,4 +540,14 @@ export const MIGRATIONS_101_150: Migration[] = [
       }
     },
   },
+  {
+    version: 116,
+    name: "food-note-person-edit-lock",
+    // A person's edit wins over a late enrichment pass. `person_edited_at` is stamped
+    // by updateFoodNote (the meal card's row edits, the edit sheet, a chat/MCP
+    // correction), and updateFoodNoteParsed — the one writer every enricher uses —
+    // refuses a note that carries it. NULL keeps every existing note enrichable
+    // exactly as before. Two-step: the column also lives in db.ts's create block.
+    up: (db) => addColumn(db, "food_notes", "person_edited_at TEXT"),
+  },
 ];

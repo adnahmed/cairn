@@ -24,6 +24,8 @@ import { queueMcpAgentJob } from "./background.js";
 import { currentUnderfuelingRead } from "../../domain/brain/underfueling-service.js";
 import { userSetNutritionTarget } from "../../domain/brain/autonomy-service.js";
 import { cutQualityRead } from "../../repo/cut-quality.js";
+import { intakeBand } from "../../repo/intake-band.js";
+import { fuelIdeas } from "../../repo/fuel-ideas.js";
 
 export function registerNutritionTools(server: McpToolRegistrar) {
   server.tool(
@@ -247,7 +249,7 @@ export function registerNutritionTools(server: McpToolRegistrar) {
 
   server.tool(
     "update_food_note",
-    "Correct a logged food note (fix a macro, rename it, change the meal slot, move it to the day it was actually eaten, 'I changed my mind'). Pass the id + any subset of { meal, summary, kcal, protein_g, carbs_g, fat_g, fiber_g, notes, items, date, eaten_at }. Coerced/clamped; omitting a field leaves it alone, while passing a macro or the note as null clears the stored value. Marks the note's enrichment terminal so a background enricher can't later overwrite the correction. Returns the updated row, or an error when the id is unknown.",
+    "Correct a logged food note (fix a macro, rename it, change the meal slot, move it to the day it was actually eaten, 'I changed my mind'). Pass the id + any subset of { meal, summary, kcal, protein_g, carbs_g, fat_g, fiber_g, notes, items, ingredients, date, eaten_at }. Coerced/clamped; omitting a field leaves it alone, while passing a macro or the note as null clears the stored value. `ingredients` edits the rows (add, remove, change grams) and recomputes the totals deterministically; a meal-level macro sent in the same call wins over the sum; an empty list (or null) clears the rows and keeps the meal totals. The response then carries `ingredient_edit` (scaled / unestimated / unfollowed rows, and `words` when a changed amount could not move the total). A correction of the estimate (rows, items, summary, any macro) locks the note so a background enricher — queued or already running — can never overwrite it; moving only the meal slot, date or time locks nothing, so a pending estimate still lands. Returns the updated row, or an error when the id is unknown.",
     {
       id: z.number().int().describe("id of the food_notes row to correct, from log_food_note or list_food_notes"),
       meal: z.string().optional().describe("new meal label. Omit to leave it alone; a blank/whitespace-only value is ignored (the stored label is never cleared this way)"),
@@ -259,6 +261,27 @@ export function registerNutritionTools(server: McpToolRegistrar) {
       fiber_g: z.number().nullable().optional().describe("fiber in grams, clamped to 0-200 and rounded. Omit to leave it alone; pass null to clear the stored value"),
       notes: z.string().nullable().optional().describe("free-text note, trimmed and capped at 500 characters. Omit to leave it alone; pass null to clear the stored note, or an empty string to overwrite it with an empty string"),
       items: z.array(z.string()).optional().describe("replacement list of ingredient/item strings, capped to the first 30 entries at 80 characters each. Omit to leave the stored items alone; this replaces the whole list, it does not merge"),
+      ingredients: z
+        .array(
+          z
+            .object({
+              item: z.string(),
+              amount: z.string().nullable().optional(),
+              grams: z.number().positive().nullable().optional(),
+              kcal: z.number().nullable().optional(),
+              protein_g: z.number().nullable().optional(),
+              carbs_g: z.number().nullable().optional(),
+              fat_g: z.number().nullable().optional(),
+              fiber_g: z.number().nullable().optional(),
+              basis: z.string().nullable().optional(),
+            })
+            .passthrough()
+        )
+        .nullable()
+        .optional()
+        .describe(
+          "The full replacement list of ingredient rows (send every row that should remain, as returned in parsed.ingredients). Change a row's `grams` and its macros scale from its own estimate; a new row without macros is kept, flagged low confidence, and totals only what is known. The meal totals are recomputed from the rows with no agent turn. Omit to leave the rows alone."
+        ),
       date: z
         .string()
         .optional()
@@ -281,6 +304,25 @@ export function registerNutritionTools(server: McpToolRegistrar) {
 
   server.tool("delete_food_note", "Delete a logged food note by id.", { id: z.number().int() }, async ({ id }) =>
     asText(deleteFoodNote(id))
+  );
+
+  server.tool(
+    "get_intake_band",
+    "The protein anchor and the observed intake band: where the athlete's weight turned, read ONLY from days the food log reads complete (partial days are absent, never low) plus the bodyweight response over the same weeks. Returns the protein anchor first, the observed kcal range with confidence words, the energy ceiling ideas are sized within, and the per-week read. An observation — never a target and never a maintenance measurement; it bounds energy only and never trims protein. With too few complete days there is no band and the words say so.",
+    { date: z.string().optional().describe("YYYY-MM-DD; defaults to today") },
+    async ({ date }) => asText(intakeBand(date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined))
+  );
+
+  server.tool(
+    "get_fuel_ideas",
+    "Three deterministic ideas for the rest of the day, built from the athlete's own staples (foods logged on several days), sized to fit the room left inside the observed intake band, protein first — an idea never trades protein away to fit the band. Ideas, never a meal plan and never logged: each carries a `prefill` for the food composer. No agent turn.",
+    {
+      date: z.string().optional().describe("YYYY-MM-DD; defaults to today"),
+      hour: z.number().int().min(0).max(23).optional().describe("the local hour, for what is usually eaten now"),
+      exclude: z.array(z.string()).optional().describe("idea keys already shown, to get different ones"),
+    },
+    async ({ date, hour, exclude }) =>
+      asText(fuelIdeas(date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined, { hour, exclude: exclude ?? [] }))
   );
 
   server.tool(

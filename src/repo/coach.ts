@@ -127,6 +127,7 @@ import { dayLoad } from "./training-read.js";
 import { currentUnderfuelingRead } from "./underfueling-snapshot.js";
 import { energyDeficiencyForCoach } from "./energy-deficiency-snapshot.js";
 import { cutQualityRead } from "./cut-quality.js";
+import { intakeBand } from "./intake-band.js";
 import { getTrainingIntent } from "./training-intent.js";
 import { getEnduranceCapacity } from "./endurance-capacity.js";
 import { round1 } from "../lib/numbers.js";
@@ -728,6 +729,7 @@ function buildNutritionSlice(
   | "cut_quality"
   | "energy_deficiency"
   | "fuel_demand"
+  | "intake_band"
 > {
   const { profile, journeyView, expenditureView, underfuelingView, cutQualityView, today, runPlanView, flexibleTrainingAgendaView } =
     signals;
@@ -786,6 +788,15 @@ function buildNutritionSlice(
           agenda: flexibleTrainingAgendaView,
           carbBasis: carbBasis(dayIntakeTarget(goal), profile, today),
         });
+      } catch {
+        return null;
+      }
+    }),
+    // Protein anchor first, then the energy range this athlete's own complete days and
+    // weigh-ins showed. Observation only: the accepted target above stays authoritative.
+    intake_band: brainSignal(`intake_band:${today}`, () => {
+      try {
+        return intakeBand(today, { goal });
       } catch {
         return null;
       }
