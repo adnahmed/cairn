@@ -136,6 +136,10 @@ export const TODAY_STONE_LINES = {
   } satisfies Record<RaceWeekKind, readonly string[]>,
   running: ["Recent runs are on record.", "You've been running lately."],
   fuel_complete: ["Today reads as a full day of eating.", "Today's meals cover the whole day."],
+  fuel_settled: [
+    "Your intake and weight trend agree on your energy balance.",
+    "Your energy balance has a settled read.",
+  ],
   fuel_partial: ["Today's log is still filling in.", "Meals so far are on record; the day isn't finished yet."],
   body_toward: ["Your weight is moving the way you're aiming.", "The recent weigh-ins are heading toward your goal."],
   body_holding: ["Your weight has been holding level lately.", "The recent weigh-ins are sitting level."],
@@ -163,6 +167,12 @@ export const TODAY_STONE_LINES = {
 // activity the Brief already weighs — neither may name the Strength stone.
 const ENDURANCE_FIELDS = new Set(["run_intensity_discipline", "endurance_hold_directive"]);
 const FUEL_TRAINING_FIELDS = new Set(["fuel_protection"]);
+// The energy-balance estimate says how settled the TDEE picture is, not how fuelling is
+// going: its voice is always "not settled yet", and its caution is a data-quality flag
+// (a partial intake window, an implausible outcome). It never brakes Fuel — "refuel" off
+// a thin log would infer under-eating from missing logs — and never lends its voice to
+// a calm word; only a settled (supporting) estimate names the stone, in its own line.
+const ENERGY_ESTIMATE_FIELD = "expenditure";
 const NOT_STRENGTH_FIELDS = new Set([...ENDURANCE_FIELDS, ...FUEL_TRAINING_FIELDS, "generic_activity_load"]);
 const STRENGTH_HEALTH_FIELDS = new Set(["active_injury", "joint_pain"]);
 const RECOVERY_HEALTH_FIELDS = new Set(["illness", "active_health_constraint"]);
@@ -309,9 +319,10 @@ function enduranceStone(state: UnifiedSignalState | null, ctx: Voiced): TodaySto
 function fuelStone(state: UnifiedSignalState | null, ctx: Voiced): TodayStone {
   const W = TODAY_STONE_WORDS.fuel;
   const lead = strongest([
-    ...freshEvidence(state, "energy_fueling"),
+    ...freshEvidence(state, "energy_fueling", (item) => item.field !== ENERGY_ESTIMATE_FIELD),
     ...freshEvidence(state, "training_load_tolerance", (item) => FUEL_TRAINING_FIELDS.has(item.field)),
   ]);
+  const estimate = strongest(freshEvidence(state, "energy_fueling", (item) => item.field === ENERGY_ESTIMATE_FIELD));
   // A measured fuelling brake is read off closed, credible days — never off today's
   // unfinished log — so it may speak on a partial day. Same key as the conductor's
   // fueling card, so one signal reads as one observation across the two.
@@ -322,6 +333,9 @@ function fuelStone(state: UnifiedSignalState | null, ctx: Voiced): TodayStone {
     return stone("fuel", W.fueled, "ok", pick(TODAY_STONE_LINES.fuel_complete, ctx.date, "fuel"));
   if (today) return stone("fuel", W.in_progress, "quiet", pick(TODAY_STONE_LINES.fuel_partial, ctx.date, "fuel"));
   if (lead) return stone("fuel", W.steady, "ok", voiceLine(lead, ctx, SIGNAL_VOICE_KEYS.fueling));
+  // Only a settled estimate is something to read; an unsettled one is quiet.
+  if (estimate?.direction === "support")
+    return stone("fuel", W.steady, "ok", pick(TODAY_STONE_LINES.fuel_settled, ctx.date, "fuel"));
   return quietStone("fuel");
 }
 

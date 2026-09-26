@@ -178,6 +178,24 @@ test("a partial intake day is in progress, never low; a complete day reads fuele
   assert.equal(fuel.tone, "ok");
 });
 
+test("the energy-balance estimate never names Fuel on its own: unsettled reads quiet, never refuel", () => {
+  repo.setProfile({ age: 35, sex: "male", height_cm: 180, weight_lb: 184, goal_weight_lb: 170 });
+  for (let d = 1; d <= 14; d++) seedWeight(localDaysAgo(d), 184);
+  // A thin log inside the window: one morning meal on a past day, nothing today.
+  seedIntake(3, 450, {}, { eatenAt: "08:00" });
+  const est = dayPlanningSignalState(localDateISO()).dimensions.energy_fueling.evidence.find(
+    (item) => item.field === "expenditure"
+  );
+  assert.ok(est, "precondition: the estimate is on the state");
+  assert.notEqual(est.direction, "support", "precondition: the estimate is not settled");
+  const fuel = byKey(todayStones()).fuel;
+  // Its voice is always "not settled yet" — never under a calm word, and a data-quality
+  // caution is never a reason to eat more.
+  assert.equal(fuel.word, TODAY_STONE_WORDS.quiet);
+  assert.equal(fuel.tone, "quiet");
+  assert.equal(fuel.line, null);
+});
+
 test("Body reads the weight trend against the goal, and a stale weigh-in is quiet", () => {
   repo.setProfile({ age: 35, sex: "male", height_cm: 180, weight_lb: 184, goal_weight_lb: 170 });
   seedWeight(localDaysAgo(BODY_STONE_MAX_AGE_DAYS + 10), 184);
