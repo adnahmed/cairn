@@ -96,3 +96,32 @@ test("the primer's early read is spelled exactly as the primer asks it", () => {
   assert.equal(snap.primerPath("2026-09-26", 3), "/session-primer?date=2026-09-26&day=3");
   assert.equal(snap.primerPath("2026-09-26", null), "/session-primer?date=2026-09-26");
 });
+
+test("a saved paint never carries a typed-draft marker into the next entry", () => {
+  const snap = load();
+  const store = memoryStore();
+  const { peek } = cache({ [`today:session:${DATE}`]: { id: 1, sets: [] } });
+  snap.save(store, DATE, '<input class="in-w" value="185" data-dirty="1"><input class="in-r" value="5">', peek);
+  assert.equal(snap.load(store, DATE, peek), '<input class="in-w" value="185"><input class="in-r" value="5">');
+});
+
+// A repaint of the surface already on screen carries its primer card over (so the list
+// keeps its place without waiting on the primer again) — never another date's card.
+test("the primer card is carried only for the date the surface was painted for", () => {
+  const snap = load();
+  const slot = { innerHTML: '<div class="primer">Warm up the hinge</div>' };
+  const root = { querySelector: (sel) => (sel === ".sess-dest #sessionPrimerSlot" ? slot : null) };
+  assert.equal(snap.primerCarry(root, DATE), "", "nothing painted yet, nothing to carry");
+  snap.markPainted(DATE);
+  assert.equal(snap.primerCarry(root, "2026-09-27"), "");
+  const carried = snap.primerCarry(root, DATE);
+  assert.equal(carried, '<div class="primer">Warm up the hinge</div>');
+  // The new paint's slot is empty; the carried card fills it until hydrate replaces it.
+  slot.innerHTML = "";
+  snap.painted(root, DATE, carried);
+  assert.equal(slot.innerHTML, carried);
+  // A slot the hydrate already filled is never overwritten by the carry.
+  slot.innerHTML = "<div>fresh</div>";
+  snap.painted(root, DATE, carried);
+  assert.equal(slot.innerHTML, "<div>fresh</div>");
+});

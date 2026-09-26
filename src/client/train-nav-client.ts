@@ -62,7 +62,8 @@ function trainNavGroupLabel(group: string): string {
 // The Fuel group reads the trends (Intake, Energy); logging is a same-day act that
 // Today's Fuel owns. One quiet text link leads there, so the trends never strand
 // someone who came to log — a link, not a card: it must not read as a second place
-// to log, nor lead the screen above the read itself.
+// to log. It rides in the nav row (beside the crumb or group bar) as a wayfinding
+// line, never as content of its own above the read.
 function trainNavFuelPointerHtml(): string {
   const routes = typeof routeApi === "function" ? routeApi() : null;
   const href = routes?.routeToUrl({ tab: "plan", section: "food" }) || "/app/today/fuel";

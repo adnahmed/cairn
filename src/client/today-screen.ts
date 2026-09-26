@@ -1399,6 +1399,7 @@ async function renderSession(opts: any = {}): Promise<void> {
     if (snap) {
       todayView.classList.remove("today-soft");
       todayView.innerHTML = snap;
+      CairnSessionSnapshot.markPainted(enteredDate);
     }
   }
 
@@ -1418,10 +1419,8 @@ async function renderSession(opts: any = {}): Promise<void> {
     todayDeps().planSession(session, isToday, todayData)
   );
 
-  // The primer sits ABOVE the lift list, so it is asked as soon as the plan day is
-  // settled (the preparation above picks it), beside the strength line, and the first
-  // paint waits (briefly) for it: filled in afterwards it pushed the whole list down.
-  // The pre-asked read is handed to the primer only if it names the same day.
+  // The primer sits ABOVE the lift list: asked once the plan day is settled, handed to
+  // the primer only if it names the same day (see the wait below).
   const primerDayAtStart = todayState.day == null ? null : Number(todayState.day);
   const primerPath = CairnSessionSnapshot.primerPath(todayState.logDate, primerDayAtStart);
   const primerPending = todayApi(primerPath);
@@ -1483,7 +1482,10 @@ async function renderSession(opts: any = {}): Promise<void> {
   );
 
   const strengthLine = await strengthLinePromise;
-  await settledWithin([primerPending], CairnSessionSnapshot.PRIMER_WAIT_MS);
+  // A first paint waits (briefly) for the primer, or it pushes the list down on landing;
+  // a repaint of this date's surface (soft, Undo, Finish, snapshot) carries its card over.
+  const carriedPrimer = CairnSessionSnapshot.primerCarry(todayView, enteredDate);
+  if (!carriedPrimer) await settledWithin([primerPending], CairnSessionSnapshot.PRIMER_WAIT_MS);
   // The plan day's NAME is the title everywhere ("Pull"); its focus is the quiet
   // second half. The server line owns today's title when it speaks for the day this
   // session holds — or when the accepted session holds no lift at all (a rest/easy
@@ -1546,6 +1548,7 @@ async function renderSession(opts: any = {}): Promise<void> {
   // surface — the brain's proposals stay on Today. (Per-lift adapted target lines
   // still render; refreshAdaptedRx is already a no-op here since tab !== "today".)
   todayView.querySelector(".sess-dest .rx-banner")?.remove();
+  CairnSessionSnapshot.painted(todayView, enteredDate, carriedPrimer);
 
   CairnTodaySessionController.wireSessionSurface(
     { session, hasLoggedSets, lastSets: prep.lastSets },

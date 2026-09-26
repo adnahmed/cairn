@@ -1593,6 +1593,9 @@ declare global {
     storage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> | null;
     PRIMER_WAIT_MS: number;
     primerPath(date: string, dayNumber: number | null): string;
+    markPainted(date: string): void;
+    primerCarry(root: ParentNode, date: string): string;
+    painted(root: ParentNode, date: string, carried: string): void;
     shellHtml(
       inner: string,
       meta: {

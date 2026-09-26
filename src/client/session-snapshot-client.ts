@@ -10,6 +10,16 @@
 // a swap, an outbox replay, a plan save), the stamp stops matching, and the screen
 // waits for the truth instead. The real render always follows and settles on the live
 // content. Per-tab (sessionStorage); every storage access is guarded.
+//
+// Known limit: a logged set is DOM surgery that INVALIDATES today:session:<date>
+// (invalidateSetTruth), so after a set the stamp cannot match until a full render has
+// re-read the session and saved again. A mid-workout re-entry right after a set
+// therefore waits for the truth rather than repainting instantly — by design, since
+// the snapshot must never show a pre-write surface.
+//
+// The paint is inert markup until the real render lands. A typed-draft marker
+// (data-dirty) is stripped on save, so the next entry never reads the snapshot's
+// prefill as the athlete's own draft and writes it over the real prefill.
 {
   type Peek = (key: string) => { data: unknown } | null;
   type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -39,7 +49,7 @@
     const now = stamp(date, peek);
     try {
       if (!now) store.removeItem(KEY);
-      else store.setItem(KEY, JSON.stringify({ date, stamp: now, html }));
+      else store.setItem(KEY, JSON.stringify({ date, stamp: now, html: html.replace(/\sdata-dirty="[^"]*"/g, "") }));
     } catch {
       /* quota or blocked storage: skip */
     }
@@ -123,6 +133,38 @@
   </div>`;
   }
 
-  const CAIRN_SESSION_SNAPSHOT = { KEY, stamp, save, load, storage, PRIMER_WAIT_MS, primerPath, shellHtml };
+  // The date the Session surface on screen was last painted for (a real render or the
+  // snapshot), so a repaint carries the primer card over only for that same date.
+  let paintedDate: string | null = null;
+  function markPainted(date: string): void {
+    paintedDate = date;
+  }
+  /** The on-screen primer card for `date`'s surface, or "" when there is nothing to carry. */
+  function primerCarry(root: ParentNode, date: string): string {
+    if (!date || paintedDate !== date) return "";
+    return root.querySelector(".sess-dest #sessionPrimerSlot")?.innerHTML || "";
+  }
+  /** After a real paint: record its date and put the carried card in the new, empty slot
+   * until the primer's hydrate replaces it — so the list below never jumps. */
+  function painted(root: ParentNode, date: string, carried: string): void {
+    markPainted(date);
+    if (!carried) return;
+    const slot = root.querySelector(".sess-dest #sessionPrimerSlot");
+    if (slot && !slot.innerHTML) slot.innerHTML = carried;
+  }
+
+  const CAIRN_SESSION_SNAPSHOT = {
+    KEY,
+    stamp,
+    save,
+    load,
+    storage,
+    PRIMER_WAIT_MS,
+    primerPath,
+    shellHtml,
+    markPainted,
+    primerCarry,
+    painted,
+  };
   Object.assign(globalThis, { CairnSessionSnapshot: CAIRN_SESSION_SNAPSHOT });
 }
