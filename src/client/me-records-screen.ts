@@ -109,20 +109,10 @@ function lifeControllerDeps(): ClientLifeControllerDeps {
     invalidatePoll: () => {
       pollToken++;
     },
-    segBar,
+    segBar: aboutYouSegBar,
     toast,
-    wireSeg,
+    wireSeg: aboutYouWireSeg,
   };
-}
-
-// Life and Family live under the You home: their bar leads with one quiet step back
-// there, exactly as Profile and Memory do.
-function aboutYouSegBar(active: string, items: readonly ClientSegment[]): string {
-  return homeBackHtml("you", "You") + segBar(active, items);
-}
-function aboutYouWireSeg(handlers: Record<string, () => unknown>): void {
-  wireSeg(handlers);
-  wireHomeBack(view);
 }
 
 async function renderLife() {

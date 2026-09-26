@@ -223,7 +223,8 @@
 .hshare-copy{margin:6px 0 0;color:var(--muted);font-size:var(--text-md);line-height:1.5}
 .hshare-meta{margin-top:12px;color:var(--muted);font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);text-transform:uppercase}
 .hshare-actions{display:flex;align-items:center}
-.hshare-card .logbtn,.hshare-card .ghostbtn{width:100%;min-height:42px}
+/* small rounded buttons, never a full-width bar (the brief's button) */
+.hshare-card .logbtn,.hshare-card .ghostbtn{width:auto;justify-self:start;min-height:40px;padding:0 18px;font-size:.84rem}
 @media (prefers-reduced-motion: no-preference){
   .hchart-line{stroke-dasharray:680;stroke-dashoffset:680}
   .hmk.open .hchart-line{animation:sparkdraw .8s var(--ease) .1s forwards}

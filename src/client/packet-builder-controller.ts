@@ -168,6 +168,7 @@
       if (!group || !id || !sections || sections.includes(id) === on) return;
       sections = M.toggle(options, sections, id, on);
       touched = true;
+      group.classList.toggle("is-on", on);
       group.querySelectorAll<HTMLElement>("[data-packet-section]").forEach((b) => {
         const active = b === el;
         b.classList.toggle("active", active);

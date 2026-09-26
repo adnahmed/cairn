@@ -29,7 +29,7 @@
     // The open stone's chip is always in view, even when it sits past the phone's edge.
     function revealChip(): void {
       const strip = host.querySelector<HTMLElement>(".stone-detail-chips");
-      const chip = strip?.querySelector<HTMLElement>('[aria-pressed="true"]');
+      const chip = strip?.querySelector<HTMLElement>('[aria-current="page"]');
       if (!strip || !chip || typeof chip.offsetLeft !== "number") return;
       const over = chip.offsetLeft + chip.offsetWidth - (strip.scrollLeft + strip.clientWidth);
       if (over > 0) strip.scrollLeft = chip.offsetLeft - 16;

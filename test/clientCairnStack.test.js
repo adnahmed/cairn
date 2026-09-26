@@ -381,7 +381,7 @@ test("the detail switches between the six and names the stones it moves with, ea
   const chips = host.querySelectorAll(".stone-detail-chip");
   assert.equal(chips.length, 6);
   assert.deepEqual(
-    chips.filter((c) => c.getAttribute("aria-pressed") === "true").map((c) => c.getAttribute("data-stone-detail-open")),
+    chips.filter((c) => c.getAttribute("aria-current") === "page").map((c) => c.getAttribute("data-stone-detail-open")),
     ["heart"]
   );
   assert.deepEqual(
@@ -514,8 +514,20 @@ test("Health is Health: its title, its steps back, and no decade tile on its ove
 });
 
 test("About you and Settings step back to You", () => {
+  // One shared rule (ui-shell) leads every About-you bar with the step back; Profile and
+  // Memory (me-health-screen), Life and Family (me-records-screen) all route through it.
+  const shell = readFileSync(path.join(ROOT, "src/client/ui-shell.ts"), "utf8");
+  assert.match(shell, /function aboutYouSegBar[\s\S]*?homeBackHtml\("you", "You"\)/);
   const me = readFileSync(path.join(ROOT, "src/client/me-health-screen.ts"), "utf8");
-  assert.match(me, /isAboutYouBar\(items\) \? homeBackHtml\("you", "You"\)/);
+  assert.match(me, /segBar: aboutYouSegBar/);
+  assert.match(me, /wireSeg: aboutYouWireSeg/);
+  const records = readFileSync(path.join(ROOT, "src/client/me-records-screen.ts"), "utf8");
+  for (const fn of ["lifeControllerDeps", "familyControllerDeps"]) {
+    const body = records.slice(records.indexOf(`function ${fn}`));
+    const deps = body.slice(0, body.indexOf("\n}\n"));
+    assert.match(deps, /segBar: aboutYouSegBar/, `${fn} steps back to You`);
+    assert.match(deps, /wireSeg: aboutYouWireSeg/, `${fn} wires the step back`);
+  }
   const settings = readFileSync(path.join(ROOT, "src/client/settings-screen.ts"), "utf8");
   assert.match(settings, /homeBackHtml\("you", "You"\)/);
   assert.doesNotMatch(settings, /renderYouSlice/, "the old You slice is the You landing now");

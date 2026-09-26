@@ -57,7 +57,8 @@
           variant: "plain",
           pressed: true,
           attr: "packet-section",
-          className: "packet-seg",
+          // `is-on` paints the switch where :has() is missing; the controller keeps it in step.
+          className: on.has(o.id) ? "packet-seg is-on" : "packet-seg",
           attrs: { "data-packet-sec": o.id },
         });
         return `<li class="packet-toggle"><span class="packet-toggle-label">${escHtml(o.label)}</span>${seg}</li>`;

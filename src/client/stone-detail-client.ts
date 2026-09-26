@@ -15,10 +15,10 @@
       : `<button class="set-you-card stone-detail-link reveal" style="--i:${index}" type="button" data-stone-detail-go="${escAttr(link.key)}">${inner}</button>`;
   }
 
-  /** One of the six in the switcher: its own dot and name, the open one pressed. */
+  /** One of the six in the switcher: its own dot and name, the open one current. */
   function chipHtml(peer: ClientStonePeer, current: string): string {
     const on = peer.key === current;
-    return `<button class="stone-detail-chip ${CairnStone.hueClass(peer.key)}" type="button" data-stone-detail-open="${escAttr(peer.key)}" aria-pressed="${on}"><span class="dot" aria-hidden="true"></span>${escHtml(peer.name)}</button>`;
+    return `<button class="stone-detail-chip ${CairnStone.hueClass(peer.key)}" type="button" data-stone-detail-open="${escAttr(peer.key)}"${on ? ' aria-current="page"' : ""}><span class="dot" aria-hidden="true"></span>${escHtml(peer.name)}</button>`;
   }
 
   /** A stone this one moves with: its dot, its name and its own word for today. */

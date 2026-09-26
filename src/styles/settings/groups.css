@@ -4,9 +4,8 @@
    gets a display title + a hairline rule, so the long Settings view reads
    as a few clear sections instead of one flat stack of toggles.
    ------------------------------------------------------------------- */
-.set-lede{font-size:var(--text-sm);color:var(--muted);line-height:1.5;margin:4px 2px 0}
 .set-group{margin-top:30px}
-.set-group:first-child,.set-lede + .set-group{margin-top:20px}
+.set-group:first-child{margin-top:20px}
 .set-group-title{
   font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);
   letter-spacing:-.01em;color:var(--ink);
@@ -131,7 +130,9 @@
    folded behind a quiet disclosure so the first view is never a wall of prose. ---- */
 .set-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
   padding:14px;margin-top:var(--space-6)}
-.set-card-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-6);flex-wrap:wrap}
+/* The mono tag always sits under the name, so every source card's head reads alike
+   at any width (inline, a longer tag wrapped under one name and not another). */
+.set-card-head{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
 .set-card-h{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);letter-spacing:-.01em;color:var(--ink)}
 .set-card .syncrow{margin:6px 0 12px}
 .set-card .field{margin-bottom:12px}

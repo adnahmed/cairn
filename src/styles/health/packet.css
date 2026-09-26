@@ -81,7 +81,7 @@ ul.packet-rows{list-style:none;padding-left:0}
 .seg.packet-seg{position:relative;flex:0 0 auto;width:44px;height:26px;margin:0;padding:0;border:0;
   border-radius:var(--radius-pill);background:var(--line-strong);overflow:hidden;display:block;
   transition:background var(--dur-1) var(--ease)}
-.seg.packet-seg:has([data-packet-section="on"].active){background:var(--d-endurance)}
+.seg.packet-seg.is-on,.seg.packet-seg:has([data-packet-section="on"].active){background:var(--d-endurance)}
 .packet-seg .segbtn{position:absolute;inset:0;min-height:0;padding:0;font-size:0;color:transparent;
   background:transparent;border-radius:var(--radius-pill);flex:none}
 .packet-seg .segbtn.active{background:transparent;color:transparent;z-index:0;pointer-events:none}
@@ -90,7 +90,7 @@ ul.packet-rows{list-style:none;padding-left:0}
 .seg.packet-seg::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
   background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:1;pointer-events:none;
   transition:transform var(--dur-1) var(--ease)}
-.seg.packet-seg:has([data-packet-section="on"].active)::after{transform:translateX(18px)}
+.seg.packet-seg.is-on::after,.seg.packet-seg:has([data-packet-section="on"].active)::after{transform:translateX(18px)}
 .packet-seg:focus-within{outline:2px solid var(--dawn);outline-offset:2px}
 
 .packet-paper{--paper-bg:#fdfbf7;--paper-ink:#23201d;--paper-muted:#6b635c;--paper-rule:#e3dccf;
@@ -125,5 +125,6 @@ ul.packet-rows{list-style:none;padding-left:0}
 /* on Health's own Doctor packet view the page already names it: the card's own title steps aside */
 .stand-detail .packet-head .hshare-kicker,.stand-detail .packet-head .hshare-title{display:none}
 .stand-detail .packet-head .hshare-copy{margin-top:0}
-/* a long packet previews in its own well, so the page never becomes a scroll of paper */
-.packet-paper{max-height:560px;overflow:auto;overscroll-behavior:contain}
+/* on a wide screen a long packet previews in its own well; on a phone it stays in the
+   page's one scroll, so a thumb never gets caught inside the paper */
+@media (min-width:700px){.packet-paper{max-height:560px;overflow:auto;overscroll-behavior:contain}}
