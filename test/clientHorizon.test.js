@@ -1048,3 +1048,31 @@ test("the week view reads the plan week only once it is opened", async () => {
   await root.querySelector('[data-horizon-seg="week"]').click();
   assert.equal(calls.filter((p) => p === "/plan/week").length, 1);
 });
+
+test("a hidden Week panel holds no busy skeleton; opening it shows one until the week is read", async () => {
+  const win = load();
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.shellHtml();
+  const root = host.querySelector("[data-horizon]");
+  const week = root.querySelector('[data-horizon-panel="week"]');
+  assert.equal(week.hasAttribute("hidden"), true);
+  assert.equal(week.querySelector('[aria-busy="true"]'), null, "nothing hidden claims to be loading");
+  // Opened first, the week panel carries its skeleton in the shell itself.
+  const opened = createHost(win.document);
+  opened.innerHTML = win.CairnHorizon.shellHtml("week");
+  assert.ok(opened.querySelector('[data-horizon-panel="week"] [aria-busy="true"]'));
+
+  let answer = null;
+  const { load: base } = reads();
+  const loader = (path) => (path === "/plan/week" ? new Promise((resolve) => (answer = resolve)) : base(path));
+  win.CairnHorizonController.mount(root, { today: TODAY, load: loader, navigate: () => {} });
+  await flush();
+  await root.querySelector('[data-horizon-seg="week"]').click();
+  await flush();
+  assert.ok(week.querySelector('[aria-busy="true"]'), "the skeleton stands while the week is read");
+  answer(planWeek());
+  await flush();
+  await flush();
+  assert.equal(week.querySelector('[aria-busy="true"]'), null);
+  assert.ok(week.querySelector(".horizon-days"));
+});

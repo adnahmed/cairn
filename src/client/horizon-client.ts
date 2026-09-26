@@ -271,7 +271,10 @@
     const panels = SEGMENTS.map(([view]) => {
       const hidden = view === active ? "" : " hidden";
       if (view === "week") {
-        return `<div class="horizon-panel" role="tabpanel" id="horizonPanel-week" aria-labelledby="horizonTab-week" data-horizon-panel="week"${hidden}><div data-horizon-weekview>${weekSkeletonHtml()}</div></div>`;
+        // The week is read the first time it is SHOWN, so a hidden week panel holds no
+        // skeleton: a busy shimmer nobody can see would read as a load that never ends.
+        // The controller puts the skeleton in when the view opens.
+        return `<div class="horizon-panel" role="tabpanel" id="horizonPanel-week" aria-labelledby="horizonTab-week" data-horizon-panel="week"${hidden}><div data-horizon-weekview>${hidden ? "" : weekSkeletonHtml()}</div></div>`;
       }
       const lanes = KEYS.filter((key) => PANEL[key] === view)
         .map((key) => `<li class="horizon-lane" data-horizon-lane="${key}">${laneSkeletonHtml(key)}</li>`)
@@ -284,7 +287,7 @@
     </div>`;
   }
 
-  const CAIRN_HORIZON = { KEYS, PANEL, laneHtml, laneSkeletonHtml, seasonHtml, weekHtml, shellHtml };
+  const CAIRN_HORIZON = { KEYS, PANEL, laneHtml, laneSkeletonHtml, seasonHtml, weekHtml, weekSkeletonHtml, shellHtml };
 
   Object.assign(globalThis, { CairnHorizon: CAIRN_HORIZON });
 }

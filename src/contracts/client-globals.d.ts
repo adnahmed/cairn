@@ -6078,6 +6078,7 @@ declare global {
       laneSkeletonHtml(key: ClientHorizonLane["key"]): string;
       seasonHtml(season: ClientHorizonSeason | null): string;
       weekHtml(week: ClientHorizonWeek | null, opts?: { enter?: boolean }): string;
+      weekSkeletonHtml(): string;
       shellHtml(active?: ClientHorizonView): string;
     };
     CairnHorizonController: {
