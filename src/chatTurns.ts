@@ -56,6 +56,7 @@ import { normalizeFoodCaptureParsed } from "./foodCapture.js";
 import { recordBloodPressureReading } from "./domain/health/blood-pressure.js";
 import { pickDayVariant } from "./repo/brain/day-read-rules.js";
 import { applyProposalWithAutonomy, revertDecision } from "./domain/brain/autonomy-service.js";
+import { clinicalPlanProvenance, type ClinicalPlanProvenance } from "./domain/brain/clinical-provenance.js";
 // The re-ask lookup that used to live here moved beside the hand-off it guards, in
 // src/domain/brain/structure-request.ts — both doors (chat and the Plan tab) have to
 // resolve to the ONE standing flag, so one module owns both.
@@ -494,52 +495,9 @@ function proposalMeta(draft: unknown): { id: unknown; kind: "restructure" | "pla
   };
 }
 
-type ClinicalPlanSignal = {
-  label: string;
-  pattern: RegExp;
-};
-
-const CLINICAL_PLAN_SIGNALS: readonly ClinicalPlanSignal[] = [
-  { label: "imaging", pattern: /\b(?:mri|magnetic resonance|imaging|radiolog(?:y|ist|ical))\b/i },
-  { label: "ct", pattern: /\b(?:ct (?:scan|study|report)|computed tomography)\b/i },
-  { label: "xray", pattern: /\b(?:x[- ]?ray|radiograph)\b/i },
-  { label: "ultrasound", pattern: /\b(?:ultrasound|sonogram)\b/i },
-  { label: "scoliosis", pattern: /\bscoliosis\b/i },
-  { label: "injury", pattern: /\b(?:injur(?:y|ies|ed)|return[- ]to[- ]play)\b/i },
-  {
-    label: "rehab",
-    pattern: /\b(?:rehab(?:ilitation)?|physical therap(?:y|ist)|physiotherap(?:y|ist)|post[- ]?op(?:erative)?)\b/i,
-  },
-  {
-    label: "clinician",
-    pattern:
-      /\b(?:clinician|physician|doctor|orthop(?:edic|aedist|edist)|medical (?:finding|advice)|diagnos(?:is|ed)|prescribed)\b/i,
-  },
-  {
-    label: "clinical_finding",
-    pattern:
-      /\b(?:fracture|torn? (?:muscle|tendon|ligament)|herniated disc|disc (?:bulge|protrusion)|stenosis|lesion|impingement)\b/i,
-  },
-];
-
-const CLINICAL_STUDY_REFERENCE_KEY_RE =
-  /(?:^|_)(?:imaging|radiology|study|scan|xray|x_ray|mri|ct|ultrasound|health_document|source_document|clinical_finding|diagnosis)(?:_|$)/i;
-
-export type ClinicalPlanProvenance = {
-  server_owned: true;
-  source: "chat_clinical_detection" | "chat_clinical_lineage";
-  detected_from: Array<
-    | "user_message"
-    | "action_rationale_or_constraints"
-    | "study_reference"
-    | "attached_chat_image"
-    | "conversation_lineage"
-  >;
-  signals: string[];
-  study_reference_paths: string[];
-  attached_image: boolean;
-  lineage?: { turn_id: number; proposal_id: number | null; decision_id: number | null };
-};
+// The clinical detector moved to ./domain/brain/clinical-provenance.ts so the what-if
+// "do it" path shares it; re-exported here so every existing importer is unchanged.
+export { clinicalPlanProvenance, type ClinicalPlanProvenance };
 
 export type ClinicalConversationLineage = {
   server_owned: true;
@@ -549,70 +507,6 @@ export type ClinicalConversationLineage = {
   decision_id: number | null;
   provenance: ClinicalPlanProvenance;
 };
-
-function clinicalTextSignals(text: string): string[] {
-  return CLINICAL_PLAN_SIGNALS.filter((signal) => signal.pattern.test(text)).map((signal) => signal.label);
-}
-
-function actionClinicalEvidence(action: unknown): { text: string; referencePaths: string[] } {
-  const strings: string[] = [];
-  const referencePaths: string[] = [];
-  const visit = (value: unknown, pathParts: string[], depth: number): void => {
-    if (depth > 6 || strings.length >= 200) return;
-    if (typeof value === "string") {
-      strings.push(value.slice(0, 2_000));
-      return;
-    }
-    if (Array.isArray(value)) {
-      value.slice(0, 100).forEach((entry, index) => visit(entry, [...pathParts, String(index)], depth + 1));
-      return;
-    }
-    if (!value || typeof value !== "object") return;
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>).slice(0, 100)) {
-      const nextPath = [...pathParts, key];
-      if (CLINICAL_STUDY_REFERENCE_KEY_RE.test(key) && entry != null && entry !== "") {
-        referencePaths.push(nextPath.join(".").slice(0, 160));
-      }
-      visit(entry, nextPath, depth + 1);
-    }
-  };
-  visit(action, [], 0);
-  return { text: strings.join("\n"), referencePaths: [...new Set(referencePaths)].slice(0, 20) };
-}
-
-// Server-owned clinical classification for chat plan actions. The model cannot
-// opt out with a boolean: we inspect the athlete's words, action rationale and
-// constraints, and any study/document reference fields. Plan-action callers treat
-// an attached ad-hoc image as sufficient provenance so an unverified picture cannot
-// quietly rewrite training; prose-only turn persistence disables that image-only rule.
-export function clinicalPlanProvenance(input: {
-  message?: string | null;
-  action: unknown;
-  imagePath?: string | null;
-  imageAloneIsClinical?: boolean;
-}): ClinicalPlanProvenance | null {
-  const messageSignals = clinicalTextSignals(String(input.message ?? ""));
-  const actionEvidence = actionClinicalEvidence(input.action);
-  const actionSignals = clinicalTextSignals(actionEvidence.text);
-  const signals = [...new Set([...messageSignals, ...actionSignals])];
-  const imageAloneIsClinical = input.imageAloneIsClinical !== false;
-  if (!signals.length && !actionEvidence.referencePaths.length && !(input.imagePath && imageAloneIsClinical))
-    return null;
-
-  const detectedFrom: ClinicalPlanProvenance["detected_from"] = [];
-  if (messageSignals.length) detectedFrom.push("user_message");
-  if (actionSignals.length) detectedFrom.push("action_rationale_or_constraints");
-  if (actionEvidence.referencePaths.length) detectedFrom.push("study_reference");
-  if (input.imagePath) detectedFrom.push("attached_chat_image");
-  return {
-    server_owned: true,
-    source: "chat_clinical_detection",
-    detected_from: detectedFrom,
-    signals,
-    study_reference_paths: actionEvidence.referencePaths,
-    attached_image: Boolean(input.imagePath),
-  };
-}
 
 export function clinicalLineageForTurn(
   applied: Array<{ type: ChatActionType; result?: unknown; error?: string }>,
