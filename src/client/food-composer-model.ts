@@ -5,17 +5,15 @@
 // whose food rows follow the one src/foodCapture.ts contract); nothing here is a
 // second capture contract.
 
-// Food mode says "food" out loud: the chat router (src/chatRouting.ts) needs a
-// capture verb AND a food noun to read a message as a food log, and a pasted
-// "oats 60 g / milk 250 ml" names neither, so it would go to the coach as
-// conversation. "Log food: <the athlete's words>" is the explicit form, which the
-// instant capture lane takes when nothing else in the text (a time, a question)
-// asks for the agent. A leading "log"/"log food" the athlete typed is not doubled.
-const FOOD_COMPOSER_LOG_FOOD = /^log\s+food\b\s*:?\s*/i;
-const FOOD_COMPOSER_LOG = /^log\b\s*:?\s*/i;
-// A bare photo is not consent to log food (src/chat-intent.ts). From a surface
-// opened to log food it is, so the photo travels with the explicit words.
-const FOOD_COMPOSER_PHOTO_ONLY = "Log this meal";
+// Food mode says "food" out loud without putting words in the athlete's mouth: the
+// chat router (src/chatRouting.ts) needs a capture verb AND a food noun to read a
+// message as a food log, and a pasted "oats 60 g / milk 250 ml" names neither. So a
+// food-mode send carries the athlete's words unchanged plus `capture: "food"`; the
+// server frames the TURN as an explicit food log for routing and keeps the athlete's
+// own words in the chat history and on the food row (src/chat-intent.ts,
+// frameFoodCaptureMessage / foodCaptureWords). A bare photo from a surface opened to
+// log food is consent to log it for the same reason.
+const FOOD_COMPOSER_CAPTURE = "food";
 const FOOD_COMPOSER_TERMINAL = new Set(["done", "error", "canceled"]);
 const FOOD_COMPOSER_FOOD_ACTIONS = new Set(["log_food", "update_food_note"]);
 
@@ -27,16 +25,27 @@ function foodComposerModeOf(value: unknown): FoodComposerMode {
   return value === "food" ? "food" : "chat";
 }
 
-// The message a send carries. Chat sends the athlete's words exactly (trimmed at
-// the ends only, so a pasted multi-line meal keeps every line). Food mode frames
-// the same words as a food log, and never invents a time or a meal label (the one
-// direction of time inference stays the server's).
-function foodComposerMessage(text: unknown, options: { mode?: unknown; hasImage?: boolean } = {}): string {
-  const trimmed = String(text ?? "").trim();
-  if (foodComposerModeOf(options.mode) !== "food") return trimmed;
-  if (!trimmed) return options.hasImage ? FOOD_COMPOSER_PHOTO_ONLY : "";
-  const words = trimmed.replace(FOOD_COMPOSER_LOG_FOOD, "").replace(FOOD_COMPOSER_LOG, "").trim();
-  return words ? `Log food: ${words}` : options.hasImage ? FOOD_COMPOSER_PHOTO_ONLY : "";
+// The message a send carries: the athlete's words exactly, in either mode (trimmed
+// at the ends only, so a pasted multi-line meal keeps every line). Nothing here
+// invents a time or a meal label (the one direction of time inference stays the
+// server's).
+function foodComposerMessage(text: unknown): string {
+  return String(text ?? "").trim();
+}
+
+// The POST /api/chat body for one send. Food mode adds the capture flag; the text is
+// never rewritten on the client.
+function foodComposerRequestBody(
+  message: string,
+  options: { mode?: unknown; requestId: string; image?: FoodComposerImage | null }
+): FoodComposerRequestBody {
+  const body: FoodComposerRequestBody = { message, request_id: options.requestId };
+  if (foodComposerModeOf(options.mode) === "food") body.capture = FOOD_COMPOSER_CAPTURE;
+  if (options.image) {
+    body.image_base64 = options.image.base64;
+    body.image_mime = options.image.mime;
+  }
+  return body;
 }
 
 // What a "usual around now" chip drafts into the composer. Chat needs the capture
@@ -92,6 +101,7 @@ function foodComposerOutcome(turn: unknown): FoodComposerOutcome | null {
 
 const CAIRN_FOOD_COMPOSER_MODEL = {
   message: foodComposerMessage,
+  requestBody: foodComposerRequestBody,
   chipText: foodComposerChipText,
   mode: foodComposerModeOf,
   turnId: foodComposerTurnId,

@@ -64,6 +64,36 @@ export function isInstantFoodCaptureDecision(
   return true;
 }
 
+// A surface opened to log food (Fuel's composer) sends the athlete's words as they
+// typed them, with `capture: "food"` on the request. The router needs a capture verb
+// AND a food noun to read a message as a food log, and a pasted "oats 60 g / milk
+// 250 ml" names neither, so the TURN carries the explicit form "Log food: <words>"
+// (or "Log this meal" for a bare photo) for routing and the agent prompt. The chat
+// history keeps the athlete's own words; the food row's raw text and summary are
+// read back through foodCaptureWords, so neither ever says "Log food:".
+const FOOD_CAPTURE_FRAME = "Log food: ";
+const FOOD_CAPTURE_PHOTO_FRAME = "Log this meal";
+const FOOD_CAPTURE_LOG_FOOD_RE = /^log\s+food\b\s*:?\s*/i;
+const FOOD_CAPTURE_LOG_RE = /^log\b\s*:?\s*/i;
+
+export function frameFoodCaptureMessage(text: string | null | undefined, hasImage: boolean): string {
+  const trimmed = String(text ?? "").trim();
+  // A leading "log" / "log food" the athlete typed is not doubled.
+  const words = trimmed.replace(FOOD_CAPTURE_LOG_FOOD_RE, "").replace(FOOD_CAPTURE_LOG_RE, "").trim();
+  if (words) return `${FOOD_CAPTURE_FRAME}${words}`;
+  return hasImage ? FOOD_CAPTURE_PHOTO_FRAME : trimmed;
+}
+
+// The food itself, with the capture framing above removed — what a food row stores
+// as the athlete's words. Only the server's own exact framing is removed; anything
+// else the athlete wrote passes through untouched.
+export function foodCaptureWords(message: string | null | undefined, hasImage = false): string {
+  const text = String(message ?? "").trim();
+  if (text.startsWith(FOOD_CAPTURE_FRAME)) return text.slice(FOOD_CAPTURE_FRAME.length).trim();
+  if (hasImage && text === FOOD_CAPTURE_PHOTO_FRAME) return "";
+  return text;
+}
+
 const PHOTO_FOOD_HINT_RE =
   /\b(food|meal|breakfast|lunch|dinner|snack|plate|bowl|ate|eating|calor(?:y|ies)|macro|protein|carb|fat|fiber|weigh(?:ed)?|grams?|oz|serving|portion|recipe|restaurant|label|packag(?:e|ing)|menu)\b/i;
 const PHOTO_NON_FOOD_HINT_RE =

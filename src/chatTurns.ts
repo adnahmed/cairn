@@ -66,6 +66,7 @@ import { resolveChatProfile, type ChatLane, type ChatRoutingDecision } from "./c
 import { log } from "./log.js";
 import {
   carriesPlanApplyAffirmation,
+  foodCaptureWords,
   hasExplicitGoalIntentInContext,
   hasExplicitPlanEditIntent,
   hasExplicitPlanEditIntentInContext,
@@ -104,6 +105,8 @@ import {
 export {
   carriesPlanApplyAffirmation,
   draftsSessionPrescription,
+  foodCaptureWords,
+  frameFoodCaptureMessage,
   hasExplicitGoalIntent,
   hasExplicitGoalIntentInContext,
   hasExplicitPlanEditIntent,
@@ -260,9 +263,12 @@ export function completeInstantFoodCapture(id: number, rawMessage?: string) {
   }
   if (!isInstantFoodCaptureDecision(turn.routing, turn.message)) return null;
   const photo = turn.routing.reason_codes.includes("photo_food_default") && !!turn.image_path;
-  const exactText = String(rawMessage ?? turn.message ?? "");
+  // The food row keeps the athlete's words, never the "Log food:" framing a food
+  // surface put on the turn for routing (frameFoodCaptureMessage).
+  const exactText = foodCaptureWords(rawMessage ?? turn.message, !!turn.image_path);
   const meal = inferCaptureMeal(turn.message);
-  const summary = (String(turn.message ?? "").trim() || "Photo meal awaiting estimate").slice(0, 200);
+  const words = foodCaptureWords(turn.message, !!turn.image_path);
+  const summary = (words || "Photo meal awaiting estimate").slice(0, 200);
   const note = repo.addChatCaptureFoodNote({
     turn_id: id,
     meal,
@@ -1334,7 +1340,7 @@ function logPhotoFood(actions: ChatAction[], turn: any): { id: number; [key: str
   // here: this estimate came from LOOKING AT A PICTURE. The vision enrichment
   // refines it in place afterwards and re-stamps the same provenance.
   const parsedNote: Record<string, unknown> = normalizeFoodCaptureParsed(lf, {
-    summary: (lf?.summary ?? lf?.name ?? (message.trim() || "Photo meal")).toString(),
+    summary: (lf?.summary ?? lf?.name ?? (foodCaptureWords(message, true) || "Photo meal")).toString(),
     fallbackBasis: "photo",
   });
   // raw="" so addFoodNote does NOT queue the TEXT enricher (that would overwrite the
@@ -2439,7 +2445,7 @@ export function applyChatActions(
           // estimated_from_foods, never user_report. The model overrides it when
           // they did state one.
           const parsedNote = normalizeFoodCaptureParsed(a, {
-            summary: (a.summary ?? a.name ?? message ?? "meal").toString(),
+            summary: (a.summary ?? a.name ?? foodCaptureWords(message, !!ctx.imagePath)).toString(),
             fallbackBasis: "estimated_from_foods",
           });
           applied.push({

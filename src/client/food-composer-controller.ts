@@ -207,7 +207,7 @@ function wireFoodComposer(parts: FoodComposerParts, deps: FoodComposerDeps, sign
     if (sendInFlight) return;
     const text = input.value.trim();
     const img = attached;
-    const message = CairnFoodComposerModel.message(text, { mode, hasImage: !!img });
+    const message = CairnFoodComposerModel.message(text);
     if (!message && !img) return;
     if (retry && retry.text === text && retry.needsImage && !img) {
       deps.toast("Reattach the photo to retry this message");
@@ -234,11 +234,7 @@ function wireFoodComposer(parts: FoodComposerParts, deps: FoodComposerDeps, sign
     const receipt = deps.onSubmit?.({ message, image: img }) || null;
     if (deps.onLogged) setStatus("Logging it…");
     try {
-      const body: Record<string, unknown> = { message, request_id: attempt.requestId };
-      if (img) {
-        body.image_base64 = img.base64;
-        body.image_mime = img.mime;
-      }
+      const body = CairnFoodComposerModel.requestBody(message, { mode, requestId: attempt.requestId, image: img });
       const r = foodComposerRow(
         await deps.api("/chat", {
           method: "POST",
@@ -319,19 +315,6 @@ function wireFoodComposer(parts: FoodComposerParts, deps: FoodComposerDeps, sign
   const voice = (globalThis as unknown as { CairnCaptureVoice?: Window["CairnCaptureVoice"] }).CairnCaptureVoice;
   if (parts.mic && voice) voice.setup({ mic: parts.mic, input, signal });
 
-  const freq =
-    parts.freqSlot && deps.frequents !== false
-      ? CairnFoodComposerChips.wire(parts.freqSlot, input, deps, signal)
-      : null;
-
-  const fill = (value: string) => {
-    input.value = String(value ?? "");
-    deps.draft?.save(input.value);
-    autosize(input);
-    freq?.hide();
-    input.focus();
-  };
-
   // A pre-written prefill (a deep link, "Start from this") stays editable and is
   // never auto-sent; otherwise restore the retry text or the saved draft.
   if (deps.prefill) {
@@ -346,6 +329,22 @@ function wireFoodComposer(parts: FoodComposerParts, deps: FoodComposerDeps, sign
   autosize(input); // fit a restored multi-line draft
   // desktop only -- on mobile, auto-focus pops the keyboard over half the view
   if (deps.autofocus && foodComposerHoverPointer()) input.focus();
+
+  // The chips wire AFTER that programmatic autofocus, so opening the composer does
+  // not by itself fetch or show them: they appear when the athlete focuses the empty
+  // composer (Chat's behavior before the extraction, pinned by a desktop test).
+  const freq =
+    parts.freqSlot && deps.frequents !== false
+      ? CairnFoodComposerChips.wire(parts.freqSlot, input, deps, signal)
+      : null;
+
+  const fill = (value: string) => {
+    input.value = String(value ?? "");
+    deps.draft?.save(input.value);
+    autosize(input);
+    freq?.hide();
+    input.focus();
+  };
 
   return { send, clearAttachment, fill };
 }

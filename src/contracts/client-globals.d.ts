@@ -4982,7 +4982,11 @@ declare global {
     };
 
     CairnFoodComposerModel: {
-      message(text: unknown, options?: { mode?: unknown; hasImage?: boolean }): string;
+      message(text: unknown): string;
+      requestBody(
+        message: string,
+        options: { mode?: unknown; requestId: string; image?: FoodComposerImage | null }
+      ): FoodComposerRequestBody;
       chipText(summary: unknown, mode: unknown): string;
       mode(value: unknown): FoodComposerMode;
       turnId(turn: unknown): number | null;
@@ -5277,9 +5281,19 @@ declare global {
     freqSlot?: HTMLElement | null;
     status?: HTMLElement | null;
   };
+  // POST /api/chat body. `capture: "food"` marks a send from a surface opened to log
+  // food; the server frames the turn, the athlete's words are stored as typed.
+  type FoodComposerRequestBody = {
+    message: string;
+    request_id: string;
+    capture?: "food";
+    image_base64?: string;
+    image_mime?: string;
+  };
   type FoodComposerRetryEnvelope = { requestId: string; text: string; hasImage: boolean; expiresAt: number };
   type FoodComposerDeps = {
-    // "chat" sends the words as typed; "food" frames them as a food log. Default "chat".
+    // Both send the words as typed; "food" marks the send `capture: "food"` and follows
+    // the turn to its logged rows. Default "chat".
     mode?: FoodComposerMode;
     // Element ids are `<idPrefix>Input`, `<idPrefix>Send`, …; default "fcomp".
     idPrefix?: string;

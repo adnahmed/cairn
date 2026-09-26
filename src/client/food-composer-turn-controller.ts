@@ -33,6 +33,10 @@ async function followFoodComposerTurn(
     }
     if (ctx.signal.aborted) return;
   }
+  // The host was torn down (the athlete left the surface) while the POST or a poll
+  // was in flight: the turn is safe in Chat and the next render reads the rows
+  // fresh, so nothing here writes into a detached host or toasts over another screen.
+  if (ctx.signal.aborted) return;
   ctx.setStatus("");
   const outcome = CairnFoodComposerModel.outcome(current);
   if (outcome?.kind === "logged") {

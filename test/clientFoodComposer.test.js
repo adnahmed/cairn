@@ -115,22 +115,35 @@ test("the composer markup carries the ids Chat's shell uses, and food mode adds 
   assert.equal(food.querySelector("#fuelLogInput").getAttribute("aria-label"), "Log food");
   assert.equal(food.querySelector("#fuelLogInput").getAttribute("placeholder"), 'Eggs "and" <toast>');
   assert.equal(food.querySelector("#fuelLogStatus").hidden, true);
+  assert.equal(food.querySelector("#fuelLogStatus").getAttribute("role"), "status");
+  assert.equal(food.querySelector("#fuelLogStatus").getAttribute("aria-live"), "polite");
   assert.equal(win.CairnFoodComposerClient.idPrefix('x"><img'), "fcomp", "an unsafe prefix falls back");
 });
 
-test("food mode frames a log without touching the athlete's lines; chat sends the words as typed", () => {
+test("a send carries the athlete's words as typed; food mode marks the request, never the text", () => {
   const { win } = load();
   const m = win.CairnFoodComposerModel;
   const pasted = "  2 eggs\ntoast 1 slice\nbutter 10 g\nblack coffee\nbanana\nskyr 150 g  ";
-  assert.equal(m.message(pasted, { mode: "chat" }), pasted.trim());
-  assert.equal(m.message(pasted, { mode: "food" }), `Log food: ${pasted.trim()}`);
-  assert.equal(m.message(pasted, { mode: "food" }).split("\n").length, 6, "six lines stay six lines");
-  assert.equal(m.message("Had oatmeal and berries", { mode: "food" }), "Log food: Had oatmeal and berries");
-  assert.equal(m.message("log 2 eggs", { mode: "food" }), "Log food: 2 eggs", "a typed log verb is not doubled");
-  assert.equal(m.message("Log food: skyr 150 g", { mode: "food" }), "Log food: skyr 150 g");
-  assert.equal(m.message("log", { mode: "food", hasImage: true }), "Log this meal");
-  assert.equal(m.message("", { mode: "food", hasImage: true }), "Log this meal");
-  assert.equal(m.message("", { mode: "chat", hasImage: true }), "");
+  assert.equal(m.message(pasted), pasted.trim());
+  assert.equal(m.message(pasted).split("\n").length, 6, "six lines stay six lines");
+  assert.equal(m.message(""), "");
+  const plain = (v) => JSON.parse(JSON.stringify(v));
+  assert.deepEqual(plain(m.requestBody("oats 60 g", { mode: "food", requestId: "r-1" })), {
+    message: "oats 60 g",
+    request_id: "r-1",
+    capture: "food",
+  });
+  assert.deepEqual(plain(m.requestBody("how did I sleep?", { mode: "chat", requestId: "r-2" })), {
+    message: "how did I sleep?",
+    request_id: "r-2",
+  });
+  assert.deepEqual(plain(m.requestBody("", { mode: "food", requestId: "r-3", image: IMAGE })), {
+    message: "",
+    request_id: "r-3",
+    capture: "food",
+    image_base64: "YQ==",
+    image_mime: "image/jpeg",
+  });
   assert.equal(m.chipText("Greek yogurt bowl", "chat"), "Log Greek yogurt bowl");
   assert.equal(m.chipText("Greek yogurt bowl", "food"), "Greek yogurt bowl");
 
@@ -208,6 +221,7 @@ test("adopting existing markup twice (Chat's shell) still sends once per tap", a
     api.posts().map((c) => c.body.message),
     ["how did I sleep?"]
   );
+  assert.equal(api.posts()[0].body.capture, undefined, "chat mode never marks a food capture");
 });
 
 test("a pasted multi-line meal is left to the browser and sent with every line", async () => {
@@ -224,8 +238,10 @@ test("a pasted multi-line meal is left to the browser and sent with every line",
   const body = api.posts()[0].body;
   assert.equal(
     body.message,
-    "Log food: oats 60 g\nmilk 250 ml\nblueberries\nhoney 1 tsp\nwalnuts 15 g\nprotein powder 1 scoop"
+    "oats 60 g\nmilk 250 ml\nblueberries\nhoney 1 tsp\nwalnuts 15 g\nprotein powder 1 scoop",
+    "the athlete's own words, no framing"
   );
+  assert.equal(body.capture, "food");
   assert.match(body.request_id, /^request-\d+$/);
   assert.equal(input.value, "", "the composer clears once the send starts");
 });
@@ -255,7 +271,8 @@ test("a photo attaches from the picker or a paste, travels with the send, and cl
   await send.click();
   await flush();
   const body = api.posts()[0].body;
-  assert.equal(body.message, "Log this meal");
+  assert.equal(body.message, "", "a bare photo sends no invented words");
+  assert.equal(body.capture, "food");
   assert.equal(body.image_base64, "YQ==");
   assert.equal(body.image_mime, "image/jpeg");
   assert.equal(preview.hidden, true, "cleared once the turn is enqueued");
@@ -285,7 +302,7 @@ test("a lost response keeps the text and the photo, and the retry reuses the sam
   await send.click();
   await flush();
   assert.equal(input.value, "salmon and rice");
-  assert.deepEqual(rolledBack, ["Log food: salmon and rice"]);
+  assert.deepEqual(rolledBack, ["salmon and rice"]);
   assert.match(toasts.at(-1), /Couldn't send/);
   assert.equal(host.querySelector("#fuelLogPreview").hidden, false, "the photo stays attached");
   await send.click();
@@ -358,6 +375,42 @@ test("onLogged hears back from an instant capture inside the POST, without leavi
   assert.equal(api.calls.filter((c) => c.path.startsWith("/chat/turns/")).length, 0, "no polling for a finished turn");
 });
 
+test("a mount torn down while the POST is in flight reports nothing and writes nothing", async () => {
+  const { win } = load();
+  let resolvePost;
+  const api = fakeApi({
+    turn: () =>
+      new Promise((resolve) => {
+        resolvePost = () =>
+          resolve({
+            ok: true,
+            turn: {
+              id: 12,
+              status: "done",
+              meta: { applied: [{ type: "log_food", result: { id: 89, meal: "lunch" } }] },
+            },
+          });
+      }),
+  });
+  const logged = [];
+  const { host, input, send, toasts, handle } = mountFood(win, {
+    api,
+    frequents: false,
+    onLogged: (x) => logged.push(x),
+  });
+  const status = host.querySelector("#fuelLogStatus");
+  input.value = "tuna salad";
+  await send.click();
+  await flush();
+  assert.equal(status.textContent, "Logging it…");
+  handle(); // the athlete leaves the surface
+  resolvePost();
+  for (let i = 0; i < 4; i++) await flush();
+  assert.equal(logged.length, 0, "no onLogged after teardown");
+  assert.equal(toasts.length, 0, "no toast over another screen");
+  assert.equal(status.textContent, "Logging it…", "the detached host is left alone");
+});
+
 test("onLogged follows a queued turn to the end; a turn that logs nothing says so and never reports a log", async () => {
   const { win } = load();
   const waits = [];
@@ -418,6 +471,25 @@ test("a prefill wins over the saved draft; the draft saves on every keystroke", 
   b.input.value = "new";
   await fire(b.input, "input");
   assert.equal(saved.at(-1), "new");
+});
+
+test("desktop chat autofocus does not fetch or show the chips; a real focus of the empty composer does", async () => {
+  const { win } = load({ hover: true });
+  const api = fakeApi({ routes: { "/frequent-foods?hour=23": [{ summary: "Skyr bowl", kcal: 210 }] } });
+  const { host, input } = mountFood(win, { api, mode: "chat", autofocus: true, hour: () => 23 });
+  await flush();
+  const slot = host.querySelector("#fuelLogFreqSlot");
+  assert.equal(win.document.activeElement, input, "autofocused on a hover device");
+  assert.equal(api.calls.filter((c) => c.path.startsWith("/frequent-foods")).length, 0, "no fetch on open");
+  assert.equal(slot.hidden, true);
+  input.blur();
+  input.focus();
+  await flush();
+  assert.deepEqual(
+    api.calls.map((c) => c.path),
+    ["/frequent-foods?hour=23"]
+  );
+  assert.equal(slot.hidden, false);
 });
 
 test("desktop Enter sends and Shift+Enter keeps the newline", async () => {

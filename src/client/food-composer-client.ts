@@ -33,7 +33,9 @@ function foodComposerHtml(options: { idPrefix?: string; mode?: FoodComposerMode;
   const copy = FOOD_COMPOSER_COPY[mode];
   const placeholder = options.placeholder == null ? copy.placeholder : String(options.placeholder);
   const status =
-    mode === "food" ? `<p id="${p}Status" class="chatnote fcomp-status" aria-live="polite" hidden></p>` : "";
+    mode === "food"
+      ? `<p id="${p}Status" class="chatnote fcomp-status" role="status" aria-live="polite" hidden></p>`
+      : "";
   return `<div id="${p}Preview" class="chat-preview" hidden>
           <img alt="Attached photo">
           <span class="chat-preview-hint">Photo attached — I'll estimate &amp; log it</span>
