@@ -12,6 +12,8 @@ type ChatComposerFocusWireOptions = {
   measure: () => void;
   requestFrame?: typeof requestAnimationFrame;
   setTimer?: typeof setTimeout;
+  // A mount's signal: aborting it drops every listener wired here.
+  signal?: AbortSignal;
 };
 
 type ChatComposerFocusRecoverOptions = {
@@ -82,10 +84,11 @@ function chatComposerWireFocus(options: ChatComposerFocusWireOptions): ChatCompo
   const releaseStaleInputFocus = () => chatComposerReleaseStaleInputFocus(options);
   const recoverInputFocusFromTap = () => chatComposerRecoverInputFocusFromTap(options);
 
-  options.input.addEventListener("pointerdown", releaseStaleInputFocus);
-  options.input.addEventListener("pointerup", recoverInputFocusFromTap, { passive: true });
-  options.input.addEventListener("click", recoverInputFocusFromTap);
-  for (const ev of ["focus", "blur"] as const) options.input.addEventListener(ev, settleViewport);
+  const signal = options.signal;
+  options.input.addEventListener("pointerdown", releaseStaleInputFocus, { signal });
+  options.input.addEventListener("pointerup", recoverInputFocusFromTap, { passive: true, signal });
+  options.input.addEventListener("click", recoverInputFocusFromTap, { signal });
+  for (const ev of ["focus", "blur"] as const) options.input.addEventListener(ev, settleViewport, { signal });
 
   return { releaseStaleInputFocus, recoverInputFocusFromTap, settleViewport };
 }

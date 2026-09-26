@@ -11,6 +11,8 @@ type CaptureVoiceDeps = {
   // athlete keeps final say by default (no callback) — the transcript just
   // sits in the field for them to review and send themselves.
   onDictated?(): void;
+  // A mount's signal: aborting it drops the mic listener and stops live dictation.
+  signal?: AbortSignal;
 };
 
 type SpeechWindow = Window & {
@@ -44,6 +46,9 @@ function setupCaptureVoice(deps: CaptureVoiceDeps): void {
     mic.classList.remove("qlmic-live");
   };
 
+  // Only a recognition this mount started is stopped by its teardown.
+  let own: CaptureSpeechRecognition | null = null;
+  deps.signal?.addEventListener("abort", () => { if (own && own === _captureVoiceRec) stop(); }, { once: true });
   mic.addEventListener("click", () => {
     if (_captureVoiceRec) { stop(); return; }
     let rec: CaptureSpeechRecognition;
@@ -80,9 +85,10 @@ function setupCaptureVoice(deps: CaptureVoiceDeps): void {
       if (heard && inp.value.trim()) deps.onDictated?.();
     };
     _captureVoiceRec = rec;
+    own = rec;
     mic.classList.add("qlmic-live");
     try { rec.start(); } catch { stop(); }
-  });
+  }, { signal: deps.signal });
 }
 
 const CAIRN_CAPTURE_VOICE = {

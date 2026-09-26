@@ -1997,11 +1997,15 @@ declare global {
   type ChatComposerControllerDeps = {
     token: number;
     state: Pick<ClientAppState, "tab" | "chatPrefill">;
+    // The composer's mount host (the shell's `.chatdock`); the input stands in when absent.
+    host?: Element | null;
     input: HTMLTextAreaElement;
     sendBtn: HTMLButtonElement;
     fileInput: HTMLInputElement;
     attachBtn: HTMLButtonElement;
     preview: HTMLElement;
+    mic?: HTMLElement | null;
+    freqSlot?: HTMLElement | null;
     api(path: string, opts?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
     toast(message: string): void;
     appendMsg(message: Partial<ChatComposerControllerMessage>): HTMLElement | null;
@@ -2226,6 +2230,7 @@ declare global {
         isSoftKeyboard(): boolean;
         isKeyboardGeometryOpen(): boolean;
         measure(): void;
+        signal?: AbortSignal;
       }): {
         releaseStaleInputFocus(): void;
         recoverInputFocusFromTap(): void;
@@ -4723,7 +4728,12 @@ declare global {
 
     CairnCaptureVoice: {
       micGlyph: string;
-      setup(deps: { mic: HTMLElement; input: HTMLInputElement | HTMLTextAreaElement; onDictated?(): void }): void;
+      setup(deps: {
+        mic: HTMLElement;
+        input: HTMLInputElement | HTMLTextAreaElement;
+        onDictated?(): void;
+        signal?: AbortSignal;
+      }): void;
     };
 
     CairnTodaySessionSuggest: {
@@ -4970,6 +4980,38 @@ declare global {
         }
       ): () => void;
     };
+
+    CairnFoodComposerModel: {
+      message(text: unknown, options?: { mode?: unknown; hasImage?: boolean }): string;
+      chipText(summary: unknown, mode: unknown): string;
+      mode(value: unknown): FoodComposerMode;
+      turnId(turn: unknown): number | null;
+      turnTerminal(turn: unknown): boolean;
+      loggedNotes(turn: unknown): FoodComposerLoggedNote[];
+      outcome(turn: unknown): FoodComposerOutcome | null;
+    };
+
+    CairnFoodComposerClient: {
+      html(options?: { idPrefix?: string; mode?: FoodComposerMode; placeholder?: string }): string;
+      frequentChipsHtml(foods: unknown): string;
+      idPrefix(value: unknown): string;
+    };
+
+    CairnFoodComposerTurn: {
+      follow(
+        turn: unknown,
+        deps: Pick<FoodComposerDeps, "api" | "toast" | "onLogged" | "wait">,
+        ctx: { signal: AbortSignal; setStatus(text: string): void },
+      ): Promise<void>;
+    };
+
+    CairnFoodComposerChips: {
+      wire(slot: HTMLElement, input: HTMLTextAreaElement, deps: FoodComposerDeps, signal: AbortSignal): { hide(): void };
+    };
+
+    CairnFoodComposer: {
+      mount(host: Element, deps: FoodComposerDeps): FoodComposerHandle;
+    };
   }
 
   declare const CairnChatClient: Window["CairnChatClient"];
@@ -5207,4 +5249,76 @@ declare global {
     skeleton?(): string;
     onReverted?(change: import("./brain-changes.js").ClientBrainChange | null): unknown;
   };
+  declare const CairnFoodComposerModel: Window["CairnFoodComposerModel"];
+  declare const CairnFoodComposerClient: Window["CairnFoodComposerClient"];
+  declare const CairnFoodComposerTurn: Window["CairnFoodComposerTurn"];
+  declare const CairnFoodComposerChips: Window["CairnFoodComposerChips"];
+  declare const CairnFoodComposer: Window["CairnFoodComposer"];
+  type FoodComposerMode = "chat" | "food";
+  type FoodComposerImage = { dataUrl: string; base64: string; mime: "image/jpeg"; bytes: number };
+  type FoodComposerLoggedNote = {
+    id: number;
+    type: "log_food" | "update_food_note";
+    meal: string | null;
+    enrichment_status: string | null;
+  };
+  // What a food-mode send wrote: the chat turn and the food rows it logged.
+  type FoodComposerLogged = { turnId: number; notes: FoodComposerLoggedNote[]; reply: string | null };
+  type FoodComposerOutcome =
+    | { kind: "logged"; logged: FoodComposerLogged }
+    | { kind: "replied" | "failed"; reply: string | null };
+  type FoodComposerParts = {
+    input: HTMLTextAreaElement;
+    sendBtn: HTMLButtonElement;
+    fileInput: HTMLInputElement;
+    attachBtn: HTMLButtonElement;
+    preview: HTMLElement;
+    mic?: HTMLElement | null;
+    freqSlot?: HTMLElement | null;
+    status?: HTMLElement | null;
+  };
+  type FoodComposerRetryEnvelope = { requestId: string; text: string; hasImage: boolean; expiresAt: number };
+  type FoodComposerDeps = {
+    // "chat" sends the words as typed; "food" frames them as a food log. Default "chat".
+    mode?: FoodComposerMode;
+    // Element ids are `<idPrefix>Input`, `<idPrefix>Send`, …; default "fcomp".
+    idPrefix?: string;
+    placeholder?: string;
+    // Adopt markup the host already holds instead of painting foodComposerHtml.
+    parts?: FoodComposerParts | null;
+    api(path: string, opts?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+    toast(message: string): void;
+    // Whether the surface is showing; paste and keyboard settling bail otherwise.
+    isActive?(): boolean;
+    measure?(): void;
+    autosizeInput?(input: HTMLTextAreaElement | HTMLInputElement): void;
+    // Pre-written text, left editable and never auto-sent.
+    prefill?: string | null;
+    draft?: { load(): string; save(value: string): void };
+    retryStore?: {
+      loadRetry(): FoodComposerRetryEnvelope | null;
+      saveRetry(value: FoodComposerRetryEnvelope): void;
+      clearRetry(): void;
+    } | null;
+    retryTtlMs?: number;
+    autofocus?: boolean;
+    // "Usual around now" prefill chips; on unless false.
+    frequents?: boolean;
+    hour?(): number;
+    // Host echo of a send (Chat's optimistic bubble); `rollback` runs if it never enqueued.
+    onSubmit?(sent: { message: string; image: FoodComposerImage | null }): { rollback?(): void } | null | undefined;
+    // The host follows the enqueued turn itself (Chat's monitor).
+    onEnqueued?(turn: unknown): void;
+    // The composer follows the turn and reports the food rows it logged (Fuel).
+    onLogged?(logged: FoodComposerLogged): void;
+    wait?(ms: number): Promise<void>;
+  };
+  type FoodComposerControls = {
+    send(): Promise<void>;
+    clearAttachment(): void;
+    // Fill the composer for editing ("Start from this"); never sends.
+    fill(text: string): void;
+  };
+  // The mount's teardown, carrying the composer's controls.
+  type FoodComposerHandle = (() => void) & FoodComposerControls;
 }
