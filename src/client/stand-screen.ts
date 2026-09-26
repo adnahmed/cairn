@@ -482,9 +482,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   // The decade view is reached only from You → Heart, so it steps back there.
   const BACK_TO_HEALTH = `<button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>`;
   const BACK_TO_HEART = `<button class="stand-back linkbtn linkbtn-plain" type="button" data-back data-back-heart>‹ Heart</button>`;
-  // One page header for every Health sub-page, the same as Life/Family/Settings: the
-  // page's own name is the header's one serif title, and the step back sits under
-  // it. (A sub-page used to keep "Health" up top and print its name again below.)
+  // One page header, as on Life/Family: the sub-page's name is the title, the step back under it.
   function standPageHead(title: string, back = BACK_TO_HEALTH): string {
     headerTitle.textContent = title;
     return back;
