@@ -57,6 +57,8 @@ type ClientStoneDetailDeps = ClientYouReadDeps & {
   navigate(target: ClientYouTarget): void;
   /** Step back to the You landing. */
   back(): void;
+  /** The page header's title follows the model's name (one source for the stone's name). */
+  setTitle?(name: string): void;
 };
 
 interface Window {

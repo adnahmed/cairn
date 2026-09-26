@@ -152,6 +152,9 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
   let teardown: (() => void) | null = null;
 
   function renderStoneDetail(stone: string): void {
+    // One page header, as on every You sub-page: the stone's name is the title and
+    // "‹ You" steps back under it (the home's "You" over a "‹ You" read twice). The
+    // title is the detail model's name, so the header and the hero never disagree.
     view.innerHTML = `<div class="you-stone" id="stoneDetailSlot"></div>`;
     const host = view.querySelector("#stoneDetailSlot");
     if (!host) return;
@@ -160,6 +163,9 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
       stone,
       navigate: openStoneHome,
       back: backToLanding,
+      setTitle: (name) => {
+        headerTitle.textContent = name;
+      },
     });
   }
 

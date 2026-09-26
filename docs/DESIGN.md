@@ -123,7 +123,16 @@ and `CairnStone` (`src/client/ui-stone.ts`, SVG strings), CSS in `src/styles/fou
 - **Inputs:** `.input` (`.input-pill`): surface, 1px line, dawn border on focus.
 - **Tab bar:** surface blur, 1px top line, sentence-case .66rem labels; the live tab is ink with a
   dawn icon and dot.
-- **Page header:** `h1` in Young Serif 400 at `--text-2xl`, 16px gutters.
+- **Rails:** `.rail` is one horizontal row of chips that scrolls; its edges fade (`--rail-fade`,
+  twice the gutter) only on a side with more to scroll — a scroll-driven timeline, kept under
+  reduced motion because it is state, not motion. `.rail-bleed` runs it to the screen edges with
+  the gutter as padding. Where scroll timelines are unsupported, the animation is not declared at
+  all and the right edge fades statically. Every chip rail (stone switcher, day switch, Ask's
+  "usual around now", nutrient picks) uses it; never re-declare a chip scroller in a surface. Card
+  carousels (`.idea-cards-list`) and in-card strips (`.wearstrip`) are not chip rails.
+- **Page header:** `h1` in Young Serif 400 at `--text-2xl`, 16px gutters. A sub-page's header IS
+  its own name ("Records", "Heart", "Life"), with the quiet `‹ Parent` step back under it — never
+  the parent's name up top and the page's name printed again below.
 
 ## Motion
 

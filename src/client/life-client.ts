@@ -53,12 +53,19 @@ function parsedMeta(event: LifeEventRow | null | undefined): Record<string, unkn
   return raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
 }
 
+// Dates print the way people say them ("Oct 5 → Oct 9", "Aug 2, 2025"), never raw ISO.
+// A range inside one year names the year once, on its end.
 function fmtDateRange(start: unknown, end: unknown): string {
   const startText = start ? String(start) : "";
   const endText = end ? String(end) : "";
-  if (startText && endText && startText !== endText) return `${escHtml(startText)} → ${escHtml(endText)}`;
-  if (startText) return escHtml(startText);
-  if (endText) return `until ${escHtml(endText)}`;
+  if (startText && endText && startText !== endText) {
+    const sameYear = startText.slice(0, 4) === endText.slice(0, 4);
+    // one year label per range: a same-year span prints it once, on the end
+    const from = shortDate(startText, { year: !sameYear });
+    return `${escHtml(from)} → ${escHtml(shortDate(endText))}`;
+  }
+  if (startText) return escHtml(shortDate(startText));
+  if (endText) return `until ${escHtml(shortDate(endText))}`;
   return "";
 }
 
@@ -132,24 +139,38 @@ const LIFE_IMPACT_LEADS: readonly string[] = [
 function lifeImpactsHtml(impact: LifeImpact | null | undefined): string {
   const affected = Array.isArray(impact?.affected) ? impact.affected as LifeImpactAffected[] : [];
   if (!affected.length) return "";
-  const rows = affected.map((item) => {
-    const where = Array.isArray(item.days) && item.days.length
-      ? item.days.map((day) => escHtml(day.day_name || `Day ${day.day_number}`)).join(", ")
-      : "";
-    const note = item.constraint_note ? `<div class="linj-note">${escHtml(item.constraint_note)}</div>` : "";
-    const swaps = Array.isArray(item.swaps) && item.swaps.length
-      ? `<div class="linj-swaps"><span class="linj-swaps-lbl">try instead</span>${item.swaps
-          .map((swap) => `<span class="linj-swap" title="${escAttr(swap.why || "")}">${escHtml(swap.name)}</span>`)
-          .join("")}</div>`
-      : "";
-    return `<div class="linj-ex">
+  // Moves that share the same stand-ins read as one group with ONE "try instead"
+  // line under them — six lower-body lifts under a sore knee used to print the same
+  // three chips six times.
+  const swapsOf = (item: LifeImpactAffected) => (Array.isArray(item.swaps) ? item.swaps : []);
+  const groups = new Map<string, LifeImpactAffected[]>();
+  for (const item of affected) {
+    const key = swapsOf(item).map((swap) => String(swap.name ?? "")).join("\u0000");
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  const rows = [...groups.values()].map((items) => {
+    const moves = items.map((item) => {
+      const where = Array.isArray(item.days) && item.days.length
+        ? item.days.map((day) => escHtml(day.day_name || `Day ${day.day_number}`)).join(", ")
+        : "";
+      const note = item.constraint_note ? `<div class="linj-note">${escHtml(item.constraint_note)}</div>` : "";
+      return `<div class="linj-ex">
         <div class="linj-exhead">
           <span class="linj-exname">${escHtml(item.exercise)}</span>
           ${where ? `<span class="linj-exwhere">${where}</span>` : ""}
         </div>
         ${note}
-        ${swaps}
       </div>`;
+    }).join("");
+    const swaps = swapsOf(items[0]);
+    const swapsHtml = swaps.length
+      ? `<div class="linj-swaps"><span class="linj-swaps-lbl">try instead</span>${swaps
+          .map((swap) => `<span class="linj-swap" title="${escAttr(swap.why || "")}">${escHtml(swap.name)}</span>`)
+          .join("")}</div>`
+      : "";
+    return `<div class="linj-grp">${moves}${swapsHtml}</div>`;
   }).join("");
   const lead = pickDayVariant(LIFE_IMPACT_LEADS, localISO(), `life-impact:${affected.length}`)
     .replaceAll("{n}", String(affected.length))
@@ -166,7 +187,8 @@ function lifeEventInner(event: LifeEventRow, impact?: LifeImpact | null): string
   const start = event.start_date ? String(event.start_date) : "";
   const end = event.end_date ? String(event.end_date) : "";
   const icon = LIFE_ICONS[kind] || "◆";
-  const range = fmtDateRange(start, end);
+  // An open injury is dated from when it began: "Since Aug 2, 2025".
+  const range = kind === "injury" && start && !end ? `Since ${fmtDateRange(start, "")}` : fmtDateRange(start, end);
   const delta = daysUntil(start);
   const resolved = eventResolved(event);
   let when = "";
@@ -190,7 +212,7 @@ function lifeEventInner(event: LifeEventRow, impact?: LifeImpact | null): string
     ${range ? `<div class="sess-line" style="color:var(--muted)">${range}</div>` : ""}
     ${metaLine ? `<div class="sess-line" style="color:var(--muted);font-size:.78rem">${metaLine}</div>` : ""}
     ${event.detail ? `<div class="sess-line">${escHtml(event.detail)}</div>` : ""}
-    ${resolved ? `<div class="sess-line" style="color:var(--muted);font-size:.78rem">Closed ${escHtml(String(event.resolved_at).slice(0, 10))}</div>` : ""}
+    ${resolved ? `<div class="sess-line" style="color:var(--muted);font-size:.78rem">Closed ${escHtml(shortDate(String(event.resolved_at).slice(0, 10)))}</div>` : ""}
     ${lifeImpactsHtml(impact)}
     <div class="hdoc-ctl">
       ${resolved || event.archived ? "" : `<button class="linkbtn linkbtn-plain linkbtn-sm" data-lresolve="${escAttr(event.id)}" type="button">${escHtml(kind === "injury" ? "Mark resolved" : "Mark done")}</button>`}

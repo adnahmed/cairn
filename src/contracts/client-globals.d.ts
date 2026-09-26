@@ -1269,6 +1269,7 @@ declare global {
   declare function relTime(iso: string): string;
   declare function relAge(iso: string): string;
   declare function absDate(iso: string): string;
+  declare function shortDate(iso: string): string;
   declare function humanDate(iso: string): string;
   declare function humanizeReviewText(text: string, latestISO: string | null | undefined): string;
   declare function latestReviewDate(parsed: unknown): string | null;

@@ -79,7 +79,7 @@ function foodComposerFrequentChipsHtml(foods: unknown): string {
     })
     .join("");
   if (!chips) return "";
-  return `<div class="chat-freq"><span class="freq-head lbl">usual around now</span><div class="freq-chips">${chips}</div></div>`;
+  return `<div class="chat-freq rail"><span class="freq-head lbl">usual around now</span><div class="freq-chips">${chips}</div></div>`;
 }
 
 const CAIRN_FOOD_COMPOSER_CLIENT = {

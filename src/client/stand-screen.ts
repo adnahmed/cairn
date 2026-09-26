@@ -351,8 +351,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     const rec = recoveryData();
     const body = rec ? CairnHealthRead.recoveryHtml(DATA?.recovery as Record<string, unknown> | null) || "" : "";
     return `<div class="stand-detail stand-root">
-      <button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>
-      <h2 class="stand-detail-h">Recovery</h2>
+      ${standPageHead("Recovery")}
       ${body || `<p class="stand-empty">No wearable data yet.</p>`}
     </div>`;
   }
@@ -447,6 +446,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     }
     tiles.sort((a, b2) => RANK[b2.st] - RANK[a.st]);
     // Health lives under You, so the overview steps back there.
+    headerTitle.textContent = "Health";
     return `<div class="stand-root">
       ${homeBackHtml("you", "You")}
       ${actionBarHtml()}
@@ -482,11 +482,15 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   // The decade view is reached only from You → Heart, so it steps back there.
   const BACK_TO_HEALTH = `<button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>`;
   const BACK_TO_HEART = `<button class="stand-back linkbtn linkbtn-plain" type="button" data-back data-back-heart>‹ Heart</button>`;
+  // One page header, as on Life/Family: the sub-page's name is the title, the step back under it.
+  function standPageHead(title: string, back = BACK_TO_HEALTH): string {
+    headerTitle.textContent = title;
+    return back;
+  }
   // The shipped controllers (upload, doctor report, directive flips), in Stand's shell.
   function toolShellHtml(title: string, mounts: string, lede = "", back = BACK_TO_HEALTH): string {
     return `<div class="stand-detail stand-root">
-      ${back}
-      <h2 class="stand-detail-h">${escHtml(title)}</h2>
+      ${standPageHead(title, back)}
       ${lede ? `<p class="stand-tool-lede">${escHtml(lede)}</p>` : ""}
       ${mounts}
     </div>`;
@@ -863,8 +867,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     state.standDomain = all ? null : key;
     setStandSeg(all ? "markers" : "domain");
     paint(`<div class="stand-detail stand-root">
-      <button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>
-      <h2 class="stand-detail-h">${escHtml(all ? "All markers" : d?.label || "Markers")}</h2>
+      ${standPageHead(all ? "All markers" : d?.label || "Markers")}
       ${all ? `<div id="standEvidence" class="records-evw-slot" data-slot="evidence-wanted"></div>` : ""}
       <div id="standRecords"></div>
     </div>`);
@@ -901,8 +904,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       .filter(Boolean)
       .join("");
     return `<div class="stand-detail stand-root">
-      <button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>
-      <h2 class="stand-detail-h">Body</h2>
+      ${standPageHead("Body")}
       <div id="standBodyMetrics" class="stand-bodymetrics"></div>
       ${dexa ? `<div class="stand-subhead">From your DEXA</div><div class="hmk-list">${dexa}</div>` : ""}
     </div>`;

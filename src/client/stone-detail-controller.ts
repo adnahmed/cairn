@@ -39,6 +39,7 @@
       if (!live || !host.isConnected) return;
       const model = CairnStoneDetailModel.model(deps.stone, read, { hrefFor: deps.hrefFor });
       if (!model) return;
+      deps.setTitle?.(model.name);
       const sig = JSON.stringify([model.stone, loading]);
       if (sig === painted) return;
       // The stone settles once, when it first shows its own tone.

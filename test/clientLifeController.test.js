@@ -217,6 +217,10 @@ function loadController() {
   // Load the real SWR cache so the optimistic mutation flow (peekCached / swrSet /
   // optimisticMutation) is exercised end-to-end, not stubbed.
   vm.runInNewContext(readFileSync(join(root, "public/js/swr-cache.js"), "utf8"), context);
+  // date-utils loads before the life card in the browser (it formats the card's dates);
+  // the day stays pinned.
+  vm.runInNewContext(readFileSync(join(root, "public/js/date-utils.js"), "utf8"), context);
+  context.localISO = () => "2026-06-30";
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/ui-components.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/life-client.js"), "utf8"), context);

@@ -44,8 +44,7 @@
 /* -------------------------------------------------------------------
    07 · Today: day switch, date, context banner, quick-log
    ------------------------------------------------------------------- */
-.day-switch{display:flex;gap:7px;overflow-x:auto;padding:6px 0 16px;scrollbar-width:none}
-.day-switch::-webkit-scrollbar{display:none}
+.day-switch{gap:7px;padding:6px 0 16px} /* scroller + edge fade: .rail */
 .daybtn{
   flex:0 0 auto;font-family:var(--font-ui);font-weight:600;font-size:.78rem;
   letter-spacing:.04em;color:var(--ink-2);background:transparent;

@@ -94,11 +94,11 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
 
 /* ---- the stone detail: switcher, a head washed in the stone's hue, then its places ---- */
 .stone-detail{padding-bottom:var(--space-10)}
-.stone-detail-chips{position:relative;display:flex;gap:var(--space-3);overflow-x:auto;scrollbar-width:none;
-  /* 8px of vertical padding (taken back by the margins) holds each chip's 44px hit
-     overlay (a11y.css) inside the scroller, so it never scrolls vertically */
-  margin:calc(var(--space-2) - 6px) calc(-1 * var(--gutter)) -6px;padding:8px var(--gutter)}
-.stone-detail-chips::-webkit-scrollbar{display:none}
+/* the switcher is a .rail.rail-bleed (components.css): one row to the screen edges,
+   fading where more stones wait. 8px of vertical padding (taken back by the margins)
+   holds each chip's 44px hit overlay (a11y.css) inside the scroller. */
+.stone-detail-chips{position:relative;gap:var(--space-3);
+  margin-top:calc(var(--space-2) - 6px);margin-bottom:-6px;padding-block:8px}
 .stone-detail-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:var(--text-sm);
   padding:5px 12px;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--surface);color:var(--ink2);
   transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
@@ -108,8 +108,8 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
   margin:var(--space-7) 0 0;padding:16px 16px 18px;border-radius:var(--radius-lg);
   background:color-mix(in srgb,var(--c,var(--well)) 26%,var(--surface))}
 .stone-detail-read{min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
-.stone-detail-h{margin:0;font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);text-transform:uppercase;
-  letter-spacing:var(--tracking-mono);color:var(--ink2)}
+/* The stone's name is the page header's one serif title; the hero's own name stays
+   for assistive tech (it labels the article) as .sr-only, not printed twice. */
 .stone-detail-word{margin:0;font-family:var(--font-display);font-weight:400;font-size:2rem;line-height:1.05;
   letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
 .stone-detail-line{margin:var(--space-3) 0 0;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}

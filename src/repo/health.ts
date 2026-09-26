@@ -10,6 +10,7 @@ import { invalidateDayRead } from "./intelligence.js";
 import { sensorAgeDays } from "./sensor-freshness.js";
 import { daysBetweenISO, localDateISO } from "./shared.js";
 import { listExercises } from "./exercises.js";
+import { bodyRegion, resolveGroup } from "./exercise-canon.js";
 import { normalizeMarkerReading, parseLabNumber, seriesUnitsCompatible } from "./lab-units.js";
 import { canonicalMarker, canonicalMarkerForReading, isNonAnalyteMarkerName, normalizeMarkerName } from "./marker-canon.js";
 import { bumpMarkerDataVersion, currentMarkerDataVersion, resetMarkerDataVersion } from "./marker-cache.js";
@@ -2610,10 +2611,20 @@ export function injuryAffectsExercise(
   return matched.some((a) => a.load.some((t) => toks.includes(t)));
 }
 
+// Which half of the body a movement trains, for swap purposes: a stand-in must do
+// the affected lift's job, so a lower-body lift is only ever offered lower-body work
+// (never an upper-body pull because it happens to be clear of a sore knee). `null`
+// when the group cannot be resolved — then no half rule applies.
+function swapBodyHalf(ex: { name?: string; muscle_group?: string | null }): "upper" | "lower" | "trunk" | "mobility" | null {
+  const group = resolveGroup(String(ex.name ?? ""), ex.muscle_group ?? null);
+  return group ? bodyRegion(group) : null;
+}
+
 // Suggest up to `limit` safe alternative exercises for an affected one: movements
-// from the existing exercise list that do NOT load any of the injury's areas and
-// sit in a DIFFERENT muscle group, preferring same-mode (reps↔reps, timed↔timed)
-// and an explicitly-uninvolved muscle group. Suggestions only — never applied.
+// from the existing exercise list that train the SAME half of the body, do NOT load
+// any of the injury's areas and sit in a DIFFERENT muscle group, preferring same-mode
+// (reps↔reps, timed↔timed). Fewer (or none) is the honest answer when the list holds
+// no such movement. Suggestions only — never applied.
 function suggestSwapsFor(
   affected: any,
   areas: BodyArea[],
@@ -2622,8 +2633,11 @@ function suggestSwapsFor(
 ): { name: string; muscle_group: string | null; mode: "reps" | "timed"; why: string }[] {
   const affectedTokens = exerciseTokens(affected);
   const affectedMode = affected.mode === "timed" ? "timed" : "reps";
+  const affectedHalf = swapBodyHalf(affected);
   const candidates = allExercises.filter((c) => {
     if (!c || !c.name) return false;
+    // a stand-in trains the same half of the body as the lift it replaces
+    if ((affectedHalf === "upper" || affectedHalf === "lower") && swapBodyHalf(c) !== affectedHalf) return false;
     if (String(c.name).toLowerCase() === String(affected.name ?? "").toLowerCase()) return false;
     // never suggest something that loads the injured area (areas are passed
     // explicitly, so the first arg is unused here)

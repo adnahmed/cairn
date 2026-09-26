@@ -151,7 +151,6 @@
 .stand-back,.home-back{margin:2px 0 4px;font-size:.84rem}
 .stand-subhead{font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   color:var(--muted);margin:16px 2px 2px}
-.stand-detail-h{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1.15;letter-spacing:-.01em;margin:4px 0 12px;text-wrap:balance}
 .stand-empty{color:var(--muted);font-size:.88rem;padding:10px 2px}
 .stand-figrow{display:flex;gap:15px;align-items:center;background:var(--card);border-radius:var(--radius);
   box-shadow:var(--shadow-sm);padding:14px 16px;margin:2px 0 14px}
@@ -244,4 +243,4 @@
 .stand-focus-after .cfocus-headline{font-size:var(--text-lg);line-height:1.25}
 .stand-focus-after .cfocus-lead-title{font-size:var(--text-base)}
 .stand-read .stand-read-k{margin-bottom:4px}
-.stand-tool-lede{margin:-4px 0 14px;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}
+.stand-tool-lede{margin:4px 0 14px;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}
