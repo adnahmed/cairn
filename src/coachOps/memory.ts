@@ -6,7 +6,9 @@
 import { fingerprint, getAiCache, saveAiCache, saveDistilledMemories } from "../repo/chat.js";
 import { addContextEvent } from "../repo/health.js";
 import { insightIntentCorpus, isDuplicateInsightIntent, resolveInsightIntent } from "../repo/insight-intent.js";
-import { addInsight, isDuplicateInsight, recentInsightTexts, stampWeeklyReadFreshness, upvotedInsightTexts } from "../repo/insights.js";
+import { addInsight, isDuplicateInsight, recentInsightTexts, upvotedInsightTexts } from "../repo/insights.js";
+import { planWeeklyRead, storeWeeklyRead, weeklyReadGuardTexts } from "../repo/weekly-read-repeat.js";
+import type { WeeklyReadPlan } from "../repo/weekly-read-repeat.js";
 import { addMemory, listMemory, supersedeMemory, updateMemory } from "../repo/memory.js";
 import { getProfile, setProfile } from "../repo/profile.js";
 import { movementConsiderationsRead } from "../repo/movement-considerations.js";
@@ -70,6 +72,31 @@ export function insightVerdict(opts: {
   return { accept: true, text, key: intent.key };
 }
 
+// The weekly read's acceptance ladder (src/repo/weekly-read-repeat.ts), testable
+// without a CLI like insightVerdict above:
+//   1. no read at all (found:false / no text / unusable) -> the same calm silence
+//   2. it says what last week said -> accept ONE calm line ("Same picture as last
+//      week."), the one change still standing in its usual slot. The word guard is skipped: repeating is exactly what the line
+//      owns up to, and two same weeks in a row would otherwise silence the second.
+//   3. otherwise (first week, changed, or last week's read was waved off) -> a full
+//      read, through the text guard over weeklyReadGuardTexts(): earlier weeks'
+//      reads are left out of it (step 2 answers that question), this week's own and
+//      every downvoted text stay in.
+export type WeeklyReadVerdict = { accept: true; plan: WeeklyReadPlan } | { accept: false; agent_ran: boolean };
+
+export function weeklyReadVerdict(opts: { parsed: unknown; recentTexts?: string[]; today?: string }): WeeklyReadVerdict {
+  const p: any = opts.parsed;
+  if (!p || typeof p !== "object") return { accept: false, agent_ran: false };
+  if (p.found === false || !String(p.text ?? "").trim()) return { accept: false, agent_ran: true };
+  const plan = planWeeklyRead(p, opts.today);
+  if (!plan) return { accept: false, agent_ran: true };
+  if (plan.mode === "repeat") return { accept: true, plan };
+  if (isDuplicateInsight(plan.text, opts.recentTexts ?? weeklyReadGuardTexts(12, opts.today))) {
+    return { accept: false, agent_ran: true };
+  }
+  return { accept: true, plan };
+}
+
 // Run ONE agentic pass over the whole picture for a single genuine cross-domain
 // connection (or a weekly read), dedupe against what's already been said, and
 // store it. ok:false is the designed failure signal — found:false, no text, a
@@ -130,7 +157,10 @@ export async function generateInsight(
     };
   }
   const p: any = result.parsed;
-  const verdict = insightVerdict({ parsed: p, kind: k, keyCorpus: corpus.keys, recentTexts: recent });
+  const verdict =
+    k === "weekly_read"
+      ? weeklyReadVerdict({ parsed: p })
+      : insightVerdict({ parsed: p, kind: k, keyCorpus: corpus.keys, recentTexts: recent });
   if (!verdict.accept) {
     // Distinguish "no agent configured / every attempt failed" from a legitimate
     // quiet answer (the agent ran and genuinely found nothing new). When the agent
@@ -138,21 +168,21 @@ export async function generateInsight(
     const status = verdict.agent_ran ? ("ok" as const) : agentStatusFor({ ok: false, agent: chosen, tried });
     return { ok: false as const, error: "no genuine new insight", agent: chosen, tried, agent_status: status };
   }
-  const insight = addInsight({
-    kind: k,
-    text: verdict.text,
-    rationale: p.rationale ?? null,
-    // ONE suggestion per read: a change the week earned wins; otherwise the weekly read
-    // offers its step toward the nearest milestone in the same slot.
-    next_step: p.next_step || (k === "weekly_read" ? milestoneStepText(p.milestone_step) : null),
-    status: "new",
-    intent_key: verdict.key,
-  });
-  // Stamp the weekly read's freshness signature so a later serve can tell when the
-  // picture has moved past this read (pull-only staleness — see weeklyReadFreshness).
-  if (k === "weekly_read" && (insight as any)?.id != null) {
-    stampWeeklyReadFreshness(Number((insight as any).id));
-  }
+  // A weekly read stores through its own path: ONE suggestion per read (a change the
+  // week earned wins, else its step toward the nearest milestone), what it said is
+  // recorded for next week's repeat check, and its freshness signature is stamped so
+  // a later serve can tell when the picture has moved past it (weeklyReadFreshness).
+  const insight =
+    "plan" in verdict
+      ? storeWeeklyRead(verdict.plan)
+      : addInsight({
+          kind: k,
+          text: verdict.text,
+          rationale: p.rationale ?? null,
+          next_step: p.next_step || null,
+          status: "new",
+          intent_key: verdict.key,
+        });
   const out = { ok: true as const, insight, agent: chosen, tried, agent_status: "ok" as const };
   // Short freshness by default (a quiet insight should refresh within the hour);
   // the nightly scheduler passes a longer window so the morning open is a fresh hit.
@@ -169,14 +199,6 @@ export async function generateInsight(
     /* cache write never breaks the op */
   }
   return out;
-}
-
-function milestoneStepText(value: unknown): string | null {
-  const step = value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-  const milestone = String(step?.milestone ?? "").trim();
-  const move = String(step?.step ?? "").trim();
-  if (!move) return null;
-  return (milestone ? `Toward ${milestone}: ${move}` : move).slice(0, 200);
 }
 
 // Fingerprint an insight pass: the kind + a coarse hour bucket + the dedup floor —
