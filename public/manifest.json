@@ -14,11 +14,11 @@
   "dir": "ltr",
   "categories": ["health", "fitness", "lifestyle", "sports"],
   "icons": [
-    { "src": "/icons/icon.v2.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
-    { "src": "/icons/icon-192.v2.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-512.v2.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-192-maskable.v2.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icons/icon-512-maskable.v2.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icons/icon.v3.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/icons/icon-192.v3.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.v3.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192-maskable.v3.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-512-maskable.v3.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
     {
@@ -26,21 +26,21 @@
       "short_name": "Today",
       "description": "Log today's sets",
       "url": "/app/today?source=shortcut",
-      "icons": [{ "src": "/icons/icon-192.v2.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/icon-192.v3.png", "sizes": "192x192" }]
     },
     {
       "name": "Ask the coach",
       "short_name": "Ask",
       "description": "Talk to your coaching team",
       "url": "/app/ask?source=shortcut",
-      "icons": [{ "src": "/icons/icon-192.v2.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/icon-192.v3.png", "sizes": "192x192" }]
     },
     {
       "name": "Train history",
       "short_name": "Train",
       "description": "Sessions, PRs and trends",
       "url": "/app/train/sessions?source=shortcut",
-      "icons": [{ "src": "/icons/icon-192.v2.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/icon-192.v3.png", "sizes": "192x192" }]
     }
   ],
   "prefer_related_applications": false
