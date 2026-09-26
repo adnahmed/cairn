@@ -3276,6 +3276,34 @@ export interface ClientAgentJobsResponse {
   jobs: ClientAgentJob[];
 }
 
+/** POST /api/what-if: always a durable job; its result is a WhatIfResult or the designed failure. */
+export type ClientWhatIfQueuedResponse =
+  | { ok: true; job: ClientAgentJob }
+  | { ok: false; error: string; tried: ClientAgentAttempt[] };
+
+/**
+ * POST /api/what-if/do: the what-if's change handed to the team as a draft, routed by
+ * the server's autonomy policy (src/coachOps/whatif.ts whatIfDo). The tier and the
+ * decision are the policy's; a client only frames them.
+ */
+export interface ClientWhatIfDoResponse {
+  ok: boolean;
+  error?: string;
+  already?: boolean;
+  applied?: boolean;
+  announced?: boolean;
+  pending?: boolean;
+  review_required?: boolean;
+  tier?: string | null;
+  decision?: { id: number; autonomy_tier?: string | null; [key: string]: unknown } | null;
+  proposal_id?: number;
+  proposal_status?: string | null;
+  change?: import("./what-if.js").WhatIfChange;
+  plan_moved?: boolean;
+  effective_date?: string;
+  tried: ClientAgentAttempt[];
+}
+
 export interface ClientAgentJobResponse {
   ok: boolean;
   job: ClientAgentJob | null;
@@ -3560,6 +3588,8 @@ export interface ClientApiResponses {
   "/api/today-agenda/ack": ClientTodayAgendaAckResponse;
   "/api/today-agenda/dismiss": ClientTodayAgendaDismissResponse;
   "/api/today/stones": TodayStonesRead;
+  "/api/what-if": ClientWhatIfQueuedResponse;
+  "/api/what-if/do": ClientWhatIfDoResponse;
   "/api/learned-timeline": ClientLearnedTimeline;
   "/api/beliefs": ClientBeliefsView;
   "/api/team-week": ClientTeamWeek;

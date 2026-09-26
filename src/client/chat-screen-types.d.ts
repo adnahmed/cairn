@@ -45,11 +45,15 @@ type ChatHeaderControllerDeps = {
   enqueueJob(path: string, body?: Record<string, unknown>): Promise<unknown>;
   openJobStream(jobId: string | number, handlers?: ChatScreenJobHandlers): void;
   openChatHistory(options?: { session?: string | null }): void;
+  /** Open the team's record of changes (ask/changes). */
+  openChanges?(): void;
 };
 
 declare function enqueueJob(path: string, body?: Record<string, unknown>): Promise<unknown>;
 declare function openJobStream(jobId: string | number, handlers?: ChatScreenJobHandlers): void;
 declare function openChatHistory(options?: { session?: string | null }): void;
+/** Open the what-if ripple card at the foot of the Ask thread (chat-screen.ts). */
+declare function openChatWhatIf(draft?: string): void;
 declare function appendMsg(
   message: Partial<ChatScreenMessage>,
   noScroll?: boolean,

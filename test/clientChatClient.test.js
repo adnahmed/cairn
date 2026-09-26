@@ -147,6 +147,7 @@ test("chat shell, header, starter, and divider helpers preserve selectors safely
 
   const header = chat.headerActionsHtml();
   assert.match(header, /id="hdrChatActions"/);
+  assert.match(header, /id="hdrChanges"[^>]*>Changes</);
   assert.match(header, /id="hdrHistory"/);
   assert.match(header, /aria-label="Past conversations &amp; search"/);
   assert.match(header, /id="hdrFresh"/);

@@ -92,7 +92,7 @@ function chatShellHtml(): string {
 }
 
 function chatHeaderActionsHtml(): string {
-  return `<div id="hdrChatActions" class="hdr-chat-actions">
+  return `<div id="hdrChatActions" class="hdr-chat-actions"><button id="hdrChanges" class="hdr-changes" type="button" aria-label="Changes the team made">Changes</button>
     <button id="hdrHistory" class="hdrcircbtn" type="button" aria-label="Past conversations &amp; search">
       ${CHAT_HISTORY_ICON}
     </button>

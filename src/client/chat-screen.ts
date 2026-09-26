@@ -82,6 +82,52 @@ async function loadChatFuel(token: number, messages: Partial<ChatScreenMessage>[
   });
 }
 
+// Ask's second room, the team's record of changes (ask/changes).
+function openChatChanges(): void {
+  state.planJump = "coach";
+  activateTab("plan");
+}
+
+function chatSessionStorage(): Storage | null {
+  try {
+    return typeof sessionStorage === "undefined" ? null : sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+// The what-if ripple card's deps (ripple-card-controller.ts): the card lives inline at
+// the foot of the thread, and "Talk it through" hands its question to the composer.
+function chatRippleDeps(): ClientRippleCardDeps {
+  return {
+    api,
+    toast,
+    openJobStream,
+    reducedMotion,
+    openChanges: openChatChanges,
+    talkItThrough: (question) => {
+      const input = $<HTMLTextAreaElement>("#chatInput");
+      if (!input) return;
+      input.value = question;
+      autosizeChatInput(input);
+      input.focus();
+    },
+    isLive: () => state.tab === "chat",
+    invalidate: swrInvalidate,
+    storage: chatSessionStorage(),
+    restoreEmpty: (log) => {
+      log.innerHTML = CairnChatClient.emptyHtml();
+      drawChatChips(log);
+    },
+  };
+}
+
+function openChatWhatIf(draft?: string): void {
+  const log = $<HTMLElement>("#chatlog");
+  if (!log) return;
+  CairnRippleCardController.open(log, chatRippleDeps(), { draft });
+}
+
 function chatHeaderDeps(): ChatHeaderControllerDeps {
   return {
     state,
@@ -94,11 +140,12 @@ function chatHeaderDeps(): ChatHeaderControllerDeps {
     enqueueJob,
     openJobStream,
     openChatHistory,
+    openChanges: openChatChanges,
   };
 }
 
 async function renderChat(): Promise<void> {
-  headerTitle.textContent = "Coach";
+  headerTitle.textContent = "Ask";
   document.body.classList.add("chat-mode"); // the chat column owns the viewport; drop body's tab-bar padding
   chatTeardownMonitor(); // the log is about to be rebuilt -- drop the old stream + bubble map
   const token = ++pollToken; // bump so the async hydrate below can detect a stale tab
@@ -170,7 +217,10 @@ async function renderChat(): Promise<void> {
   }
   if (token !== pollToken || !log.isConnected) return; // navigated away / re-rendered
   markRefreshing(false);
-  if (!fetched && cachedMessages) return;
+  // A what-if asked before this render (or before a trip to Changes) comes back, even
+  // when the thread refresh failed and the cached thread stands.
+  const resumeRipple = () => void CairnRippleCardController.resume(log, chatRippleDeps());
+  if (!fetched && cachedMessages) return resumeRipple();
   swrSet(CHAT_LIVE_CACHE_KEY, msgs);
   if (freshBtn) freshBtn.hidden = !msgs.length;
   chatFuelContextApi().seed(msgs);
@@ -178,6 +228,7 @@ async function renderChat(): Promise<void> {
   void loadChatFuel(token);
   // Rebuild any in-flight + queued turns from the server and resume streaming.
   void chatReconnect();
+  resumeRipple();
   if (state.pendingChatSession) openChatHistory({ session: state.pendingChatSession });
   requestAnimationFrame(measureChatTop);
 }
@@ -189,6 +240,7 @@ function drawChat(msgs: ChatScreenMessage[]): void {
   if (!msgs.length) {
     log.innerHTML = CairnChatClient.emptyHtml();
     drawChatChips(log);
+    CairnRippleCardController.reattach(log);
     return;
   }
   // Group chronologically by local calendar day, splitting only at day
@@ -233,6 +285,8 @@ function drawChat(msgs: ChatScreenMessage[]): void {
     log.appendChild(chatDivider(g.iso));
     for (const m of g.msgs) appendMsg(m, true);
   }
+  // The open what-if card stays at the foot of the rebuilt thread.
+  CairnRippleCardController.reattach(log);
   log.scrollTop = log.scrollHeight;
 }
 
@@ -243,6 +297,7 @@ Object.assign(globalThis, {
   chatWantsFuelSurface: chatScreenWantsFuelSurface,
   drawChat,
   loadChatFuel,
+  openChatWhatIf,
   rememberChatFuelContext,
   renderChat,
 });
@@ -255,6 +310,7 @@ if (typeof window !== "undefined") {
     chatWantsFuelSurface: chatScreenWantsFuelSurface,
     drawChat,
     loadChatFuel,
+    openChatWhatIf,
     rememberChatFuelContext,
     renderChat,
   });

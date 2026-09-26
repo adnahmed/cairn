@@ -117,6 +117,8 @@ export const CLIENT_API_CONTRACT_PATHS = [
   "/today-agenda/ack",
   "/today-agenda/dismiss",
   "/today/stones",
+  "/what-if",
+  "/what-if/do",
   "/learned-timeline",
   "/beliefs",
   "/beliefs/:id",
