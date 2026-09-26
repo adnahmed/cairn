@@ -8,7 +8,13 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { repo, resetTables, localDaysAgo, seedIntake, seedWeight } from "./_seed.js";
-import { classifyWeekResponse, intakeBand, proteinAnchor } from "../dist/repo/intake-band.js";
+import {
+  classifyWeekResponse,
+  fitIntakeResponse,
+  intakeBand,
+  intakeResponseConfidence,
+  proteinAnchor,
+} from "../dist/repo/intake-band.js";
 import { nutritionRouter } from "../dist/routes/nutrition.js";
 import { registerNutritionTools } from "../dist/surfaces/mcp/nutrition.js";
 import { projectCoachContext } from "../dist/prompt/context-projection.js";
@@ -182,7 +188,7 @@ test("the band on a noisy steady cut never says the weight trended up", () => {
   }
   const band = intakeBand();
   assert.ok(!band.weeks.some((w) => w.response === "up"), JSON.stringify(band.weeks.map((w) => w.response)));
-  assert.doesNotMatch(band.words, /trended up/);
+  assert.doesNotMatch(band.words, /trended up|rose/);
   if (band.status === "ok") assert.ok(band.energy_ceiling_kcal == null || band.energy_ceiling_kcal >= 1800);
 });
 
@@ -193,4 +199,176 @@ test("a steady week needs a slope precise enough to rule out a real move", () =>
   assert.equal(classifyWeekResponse(0, sxx, 1.2).response, "unknown");
   assert.equal(classifyWeekResponse(-1.2 / 7, sxx, 0.3).response, "down");
   assert.equal(classifyWeekResponse(0.4 / 7, sxx, 1.2).response, "unknown", "inside the noise, no direction");
+});
+
+// ---------- recovering the turn on a real, noisy scale ----------
+//
+// The athlete's lived experience: above a certain daily intake the weight goes up, below
+// it the weight drifts down. With a pound of daily scale scatter no single week can show
+// that (most weeks read "unknown" on their own), so the band is read from the weeks
+// pooled: one continuous weight line, the weeks split at the intake that separates them.
+
+// Below 2,100 kcal/day the weight truly drifts down half a pound a week; above it, it
+// truly climbs 0.3 lb a week. Intake moves in phases of a few weeks (oldest first).
+const TURN_KCAL = 2100;
+const PHASES = [1850, 1950, 1800, 2300, 2400, 2250, 1900, 1800, 2000, 2350, 2250, 2450];
+const trueLbPerWeek = (kcal) => (kcal < TURN_KCAL ? -0.5 : 0.3);
+
+// An AR(1) scale: yesterday's water carries into today by `carry` (0 = independent days).
+function scaleNoise(seed, carry = 0) {
+  const normal = seededNormal(seed);
+  let e = 0;
+  return () => {
+    e = carry * e + Math.sqrt(1 - carry * carry) * normal();
+    return e;
+  };
+}
+
+// The pure read over a synthetic 12-week window: daily weigh-ins on a day axis, weeks
+// opening their response window a day after the week starts (as intakeBand does).
+function pooledRead(seed, { kcal = PHASES, slope = trueLbPerWeek, carry = 0 } = {}) {
+  const noise = scaleNoise(seed, carry);
+  const points = [];
+  let truth = 180;
+  for (let x = 0; x <= kcal.length * 7; x++) {
+    if (x > 0) truth += slope(kcal[Math.min(kcal.length - 1, Math.floor((x - 1) / 7))]) / 7;
+    points.push({ x, y: truth + noise() });
+  }
+  const fit = fitIntakeResponse(
+    kcal.map((k, w) => ({ start: 7 * w + 1, kcal: k })),
+    points
+  );
+  const verdict =
+    fit && fit.groups.some((g) => g.response !== "unknown") ? intakeResponseConfidence(fit, kcal.length, 60) : null;
+  return { fit, verdict };
+}
+
+// The same shape through the whole read: five complete days a week, a daily weigh-in.
+function seedNoisyTurn(seed, { flat = false, carry = 0, slope = trueLbPerWeek } = {}) {
+  const noise = scaleNoise(seed, carry);
+  let truth = 180;
+  for (let daysAgo = PHASES.length * 7; daysAgo >= 0; daysAgo--) {
+    // intakeBand's weeks end yesterday: daysAgo 1–7 is the newest week.
+    const week = PHASES.length - 1 - Math.floor((Math.max(daysAgo, 1) - 1) / 7);
+    const kcal = PHASES[week];
+    if (!flat) truth += slope(kcal) / 7;
+    seedWeight(localDaysAgo(daysAgo), Math.round((truth + noise()) * 10) / 10);
+    if (daysAgo >= 1 && (daysAgo - 1) % 7 < 5) completeDay(daysAgo, kcal);
+  }
+}
+
+test("a noisy scale: the turn is recovered from the pooled weeks, with an honest confidence word", () => {
+  seedNoisyTurn(5);
+  const band = intakeBand();
+  const unread = band.weeks.filter((w) => w.response === "unknown").length;
+  assert.ok(unread >= 6, `most single weeks cannot call it on their own (${unread}/12 unknown)`);
+  assert.equal(band.status, "ok", band.reason);
+  assert.equal(band.band.low_is_loss_edge, true);
+  assert.equal(band.band.high_is_gain_edge, true);
+  assert.equal(band.band.mixed, false);
+  assert.ok(band.band.low_kcal <= TURN_KCAL && band.band.high_kcal >= TURN_KCAL, JSON.stringify(band.band));
+  assert.ok(band.band.low_kcal >= TURN_KCAL - 300 && band.band.high_kcal <= TURN_KCAL + 300, "…and near it");
+  assert.ok(band.energy_ceiling_kcal <= band.band.high_kcal, "the ceiling never reaches into the gain side");
+  assert.ok(["moderate", "high"].includes(band.confidence), band.confidence_words);
+  assert.match(band.confidence_words, /^(Observed|Strong): \d+ weeks and \d+ complete days/);
+  assert.match(
+    band.words,
+    /^(Observed|Clear) over \d+ weeks: your weight drifted down .* and rose .*, so it turns somewhere between\./
+  );
+  assert.match(band.words, /not a target\.$/);
+  assert.doesNotMatch(`${band.words} ${band.confidence_words}`, /\d+\s*%|score|\/100|±|standard error/i);
+  assert.equal(band.pooled.groups.length, 2);
+  assert.deepEqual(
+    band.pooled.groups.map((g) => g.response),
+    ["down", "up"]
+  );
+  assert.ok(band.protein_anchor.protein_g > 0, "protein still comes first");
+});
+
+test("through the whole read, a noisy scale's turn is found near the truth or said to be tentative", () => {
+  let observed = 0;
+  for (let seed = 1; seed <= 16; seed++) {
+    resetTables("food_notes", "bodyweight_log");
+    seedNoisyTurn(seed);
+    const band = intakeBand();
+    assert.equal(band.status, "ok", `seed ${seed}: ${band.reason}`);
+    const { band: b } = band;
+    const said = `seed ${seed}: ${band.words} (${JSON.stringify(b)})`;
+    // Whatever it says, it never has the weight rising well below the turn or coming
+    // down well above it, and never leaves the ceiling above a gain edge.
+    if (b.high_is_gain_edge) assert.ok(b.high_kcal >= TURN_KCAL - 150, said);
+    if (b.low_is_loss_edge) assert.ok(b.low_kcal <= TURN_KCAL + 150, said);
+    if (b.high_is_gain_edge && band.energy_ceiling_kcal != null)
+      assert.ok(band.energy_ceiling_kcal < b.high_kcal, said);
+    if (band.confidence === "low") {
+      assert.match(band.confidence_words, /^Tentative:/, said);
+      assert.match(band.words, /^(A tentative read|The record is mixed)/, said);
+    } else {
+      observed++;
+      assert.match(band.words, /^(Observed|Clear) over/, said);
+    }
+  }
+  assert.ok(observed >= 4, `a phase pattern this clear is read as observed on a fair share of scales (${observed}/16)`);
+});
+
+test("across many noisy scales the turn lands near the truth, and a located turn never lands far off", () => {
+  let confident = 0;
+  let near = 0;
+  let wrongSide = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    const { fit, verdict } = pooledRead(seed);
+    if (!verdict || !verdict.turn || verdict.confidence === "low") continue;
+    confident++;
+    const { low_kcal, high_kcal } = fit.boundary;
+    if (low_kcal <= TURN_KCAL + 150 && high_kcal >= TURN_KCAL - 150) near++;
+    if (low_kcal > TURN_KCAL + 250 || high_kcal < TURN_KCAL - 250) wrongSide++;
+  }
+  assert.ok(confident >= 30, `a clear phase pattern is read confidently often (${confident}/100)`);
+  assert.ok(near / confident >= 0.9, `a confident turn sits near the truth (${near}/${confident})`);
+  assert.equal(wrongSide, 0, "a confident turn is never far from the truth");
+});
+
+test("pure scale noise never buys an observed or strong band", () => {
+  // No link between intake and weight at all — flat truth — on an independent scale and
+  // on one where water carries over day to day, across intake patterns that alternate
+  // week to week (the hardest to tell from noise) and that move in phases.
+  const alternating = [1800, 2300, 1950, 2400, 1850, 2250, 2000, 2350, 1900, 2200, 2050, 2450];
+  let confident = 0;
+  let trials = 0;
+  for (const kcal of [PHASES, alternating]) {
+    for (const carry of [0, 0.5]) {
+      for (let seed = 1; seed <= 100; seed++) {
+        trials++;
+        const { verdict } = pooledRead(seed, { kcal, slope: () => 0, carry });
+        if (verdict && verdict.confidence !== "low") confident++;
+      }
+    }
+  }
+  assert.ok(confident / trials <= 0.01, `confident bands from pure noise: ${confident}/${trials}`);
+});
+
+test("pure noise through the whole read is at most tentative, and says so", () => {
+  seedNoisyTurn(5, { flat: true });
+  const band = intakeBand();
+  assert.ok(band.confidence == null || band.confidence === "low", `${band.confidence}: ${band.confidence_words}`);
+  if (band.status === "ok") {
+    assert.match(band.confidence_words, /^Tentative:/);
+    assert.match(band.words, /tentative|mixed/i);
+  }
+});
+
+test("weight falling faster where more was eaten is a contradiction: mixed, tentative, no ceiling", () => {
+  const backwards = (kcal) => (kcal < TURN_KCAL ? 0.6 : -0.6);
+  const { verdict } = pooledRead(3, { slope: backwards });
+  assert.equal(verdict.inverted, true);
+  assert.equal(verdict.confidence, "low");
+
+  seedNoisyTurn(3, { slope: backwards });
+  const band = intakeBand();
+  assert.equal(band.status, "ok", band.reason);
+  assert.equal(band.band.mixed, true);
+  assert.equal(band.energy_ceiling_kcal, null, "no intake is called no-gain off a record that runs backwards");
+  assert.equal(band.confidence, "low");
+  assert.match(band.words, /^The record is mixed: your weight came down in weeks at the higher intakes/);
+  assert.match(band.confidence_words, /^Tentative: the weeks disagree/);
 });

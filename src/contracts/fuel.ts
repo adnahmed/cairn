@@ -25,7 +25,11 @@
  */
 export type ClientFuelEnergyBound = "observed_ceiling" | "loss_edge" | "accepted_target";
 
-/** How sure the band read is, as a word. Never a percentage. */
+/**
+ * How sure the band read is, as a word. Never a percentage. Spoken as "tentative"
+ * (low), "observed" (moderate) and "strong" (high) — see `confidence_words`. A
+ * tentative band sizes nothing (src/repo/fuel-ideas.ts fuelEnergyBound).
+ */
 export type ClientIntakeBandConfidence = "low" | "moderate" | "high";
 
 /** Why there is (or is not) a band. `ok` is the only status that carries one. */
@@ -50,8 +54,27 @@ export interface ClientIntakeBandWeek {
   complete_days: number;
   /** Mean kcal over the complete days only; null under the per-week minimum. */
   kcal_avg: number | null;
-  /** Weight slope across the week (plus a short lag), lb per week; null when unreadable. */
+  /** Weight slope across the week (shifted by a short lag), lb per week; null when unreadable. */
   weight_change_lb_per_week: number | null;
+  /**
+   * This ONE week's own read against the scale's noise. On a real scale most single
+   * weeks read "unknown"; the band is read from the pooled weeks (`pooled`), not from
+   * these.
+   */
+  response: ClientIntakeWeekResponse;
+}
+
+/**
+ * One side of the pooled read: the weeks at the lower (or upper) intakes, and which
+ * way the smoothed weight trend moved across them together.
+ */
+export interface ClientIntakeBandGroup {
+  /** Lowest and highest weekly complete-day average in the group, kcal/day. */
+  kcal_min: number;
+  kcal_max: number;
+  weeks: number;
+  /** The group's pooled trend, lb per week, off one continuous fitted weight line. */
+  lb_per_week: number;
   response: ClientIntakeWeekResponse;
 }
 
@@ -89,8 +112,9 @@ export interface ClientIntakeBand {
   } | null;
   /**
    * The most eaten, on average, in a week the weight did NOT trend up (and below any
-   * week that did). What ideas are sized within. Null with no band, or when every
-   * readable week went up. Never licenses a surplus: it is a no-gain intake by
+   * week that did). What ideas are sized within. Null with no band, when every
+   * readable week went up, or when the pooled sides run backwards (weight falling
+   * faster at the higher intakes). Never licenses a surplus: it is a no-gain intake by
    * construction, and it never stands in for measured maintenance.
    */
   energy_ceiling_kcal: number | null;
@@ -99,6 +123,17 @@ export interface ClientIntakeBand {
   /** Spoken summary of the band (or of why there is none). */
   words: string;
   weeks: ClientIntakeBandWeek[];
+  /**
+   * The pooled read the band comes from: every week with complete days and weigh-ins,
+   * fitted as one continuous weight trend, split at the intake that best separates the
+   * weeks (1 group when no split stands clear of the noise, 2 when one does — lower
+   * intakes first). Null when there was too little to fit.
+   */
+  pooled: {
+    groups: ClientIntakeBandGroup[];
+    /** Day-to-day scale scatter around the fitted trend, lb. */
+    scale_noise_lb: number;
+  } | null;
   /** Machine register — third-person evidence prose for the provenance trail. */
   reason: string;
 }

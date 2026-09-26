@@ -308,7 +308,7 @@ export function registerNutritionTools(server: McpToolRegistrar) {
 
   server.tool(
     "get_intake_band",
-    "The protein anchor and the observed intake band: where the athlete's weight turned, read ONLY from days the food log reads complete (partial days are absent, never low) plus the bodyweight response over the same weeks. Returns the protein anchor first, the observed kcal range with confidence words, the energy ceiling ideas are sized within, and the per-week read. An observation — never a target and never a maintenance measurement; it bounds energy only and never trims protein. With too few complete days there is no band and the words say so.",
+    "The protein anchor and the observed intake band: where the athlete's weight turned, read ONLY from days the food log reads complete (partial days are absent, never low) plus the smoothed bodyweight response over the same weeks, pooled across the window (single weeks are too noisy to read on their own). Returns the protein anchor first, the observed kcal range with a confidence word (tentative / observed / strong), the energy ceiling ideas are sized within, the pooled lower/upper intake groups, and the per-week read. An observation — never a target and never a maintenance measurement; it bounds energy only and never trims protein. With too few complete days there is no band and the words say so.",
     { date: z.string().optional().describe("YYYY-MM-DD; defaults to today") },
     async ({ date }) => asText(intakeBand(date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined))
   );
