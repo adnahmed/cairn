@@ -1290,7 +1290,7 @@ declare global {
   declare function localISO(date?: Date): string;
   declare function dateLabel(iso: string): string;
   declare function pickDayVariant<T>(variants: readonly T[], date?: string, key?: string): T;
-  // `swr` opts an idempotent GET into stale-while-revalidate (api-client.ts): a
+  // `swr` opts an idempotent GET into stale-while-revalidate (api-core.ts): a
   // remembered body (≤ maxStaleMs, no write since) resolves immediately and the
   // background refresh is handed to `onStale`.
   type ClientApiSwrOptions = {
@@ -1306,10 +1306,12 @@ declare global {
       swr?: boolean | ClientApiSwrOptions;
     }
   ): Promise<ClientApiResponse<Path>>;
+  // Binary reads (DICOM frames): the same token/time-zone headers as api(), no cache.
+  declare function apiBinary(p: string, opts?: RequestInit): Promise<{ body: ArrayBuffer; headers: Headers }>;
   declare function setOffline(on: unknown): void;
 
   // Offline outbox — a durable localStorage queue that replays failed capture /
-  // set-log POSTs when Cairn is reachable again (see api-client.ts).
+  // set-log POSTs when Cairn is reachable again (see outbox-queue.ts / outbox.ts).
   type ClientOutboxItem = {
     id: string;
     ts: number;
@@ -1382,6 +1384,9 @@ declare global {
     list(): ClientOutboxItem[];
     reviewItems(): ClientOutboxReviewEntry[];
     renderBar(): void;
+    openReview(): void;
+    closeReview(): void;
+    itemSummary(item: ClientOutboxItem): string;
     retry(id: string): Promise<boolean>;
     discard(id: string): Promise<boolean>;
     sessionDependency(date: string): string | null;
@@ -1398,6 +1403,7 @@ declare global {
       id: string | null;
       reason?: "attention" | "other_tab" | "phantom";
     };
+    resolveSessionPrerequisite(date: string): void;
   };
   declare const CairnOutbox: ClientOutboxApi;
   declare function outboxEnqueue(
@@ -1446,26 +1452,67 @@ declare global {
   declare function flushOutbox(): Promise<void>;
   declare function outboxCount(): number;
 
-  // api() in-flight dedupe + micro-TTL cache — the pure core exposed for tests
-  // (see api-client.ts).
+  // api() in-flight dedupe + micro-TTL cache + stale-while-revalidate tier — the
+  // pure core api-core.ts builds on, also exercised directly by tests (see
+  // api-cache.ts).
   type ClientApiCoalescer = {
     isMicroCachePath(path: string): boolean;
     peekFresh<T = unknown>(path: string): T | undefined;
-    store<T = unknown>(path: string, data: T): void;
+    store<T = unknown>(path: string, data: T, writeGen?: number): void;
     invalidateAll(): void;
+    markStaleable(path: string): void;
+    peekStale<T = unknown>(path: string, maxAgeMs: number): { data: T; age: number } | undefined;
+    writeGeneration(): number;
+    staleSize(): number;
     share<T>(path: string, start: () => Promise<T>): Promise<T>;
     inFlightCount(): number;
     cacheSize(): number;
   };
+  type ClientApiCallOptions = RequestInit & {
+    headers?: Record<string, string>;
+    acceptErrorBody?: boolean;
+    swr?: boolean | ClientApiSwrOptions;
+  };
   type ClientApiCacheApi = {
-    createApiCoalescer(opts?: { now?: () => number; ttlMs?: number; ttlPaths?: readonly string[] }): ClientApiCoalescer;
-    shouldBypassApiCache(opts: RequestInit & { headers?: Record<string, string> }): boolean;
-    shouldArmGetTimeout(method: string, opts: RequestInit & { headers?: Record<string, string> }): boolean;
+    createApiCoalescer(opts?: {
+      now?: () => number;
+      ttlMs?: number;
+      ttlPaths?: readonly string[];
+      maxStaleEntries?: number;
+    }): ClientApiCoalescer;
+    shouldBypassApiCache(opts: ClientApiCallOptions): boolean;
+    shouldArmGetTimeout(method: string, opts: ClientApiCallOptions): boolean;
     MICRO_TTL_MS: number;
     MICRO_CACHE_PATHS: readonly string[];
     GET_TIMEOUT_MS: number;
+    ApiError: typeof CairnApiError;
+    isTransientApiFailure(error: unknown): boolean;
+    normalizeRoute(path: string): string;
+    diagnosticRoute(path: string): string;
+    resolveSwr(
+      option: ClientApiCallOptions["swr"],
+    ): { maxStaleMs: number; freshMs: number; onStale?: (refresh: Promise<unknown>) => void } | null;
   };
   declare const CairnApiCache: ClientApiCacheApi;
+  // Every api() failure: `kind` says whether Cairn answered (http, invalid_json)
+  // or could not be reached (network, timeout). See api-cache.ts.
+  class CairnApiError extends Error {
+    kind: "http" | "invalid_json" | "network" | "timeout";
+    method: string;
+    route: string;
+    status: number | null;
+    durationMs: number;
+    requestId: string | null;
+    constructor(options: {
+      kind: "http" | "invalid_json" | "network" | "timeout";
+      method: string;
+      route: string;
+      status?: number | null;
+      durationMs?: number;
+      requestId?: string | null;
+      cause?: unknown;
+    });
+  }
 
   type SwrPeek<T> = { data: T; fresh: boolean };
   type SwrUpgradeMeta = { changed: boolean };
@@ -2103,6 +2150,7 @@ declare global {
     flushOutbox(): Promise<void>;
     outboxCount(): number;
     CairnApiCache: ClientApiCacheApi;
+    CairnApiError: typeof CairnApiError;
 
     CairnChatClient: {
       CHAT_IMAGE_MAX_BYTES: number;

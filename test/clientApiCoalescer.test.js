@@ -1,13 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import vm from "node:vm";
+import { runApiClientModules } from "./_apiClientModules.mjs";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-// Load the compiled api-client (which carries the api() coalescer core) in a
+// Load the compiled api/outbox modules (api-cache carries the coalescer core) in a
 // bare context — no window/document/navigator/fetch/setTimeout/AbortController,
 // so the runtime wiring (api(), buildFetchInit) all self-gates off and we're
 // left with the pure createApiCoalescer + decision-helper core to exercise, the
@@ -18,7 +13,7 @@ function loadApiCache({ withStructuredClone = false } = {}) {
   const context = { Date, JSON, Math, Array, Object, String, Number, Promise, Set, Map };
   context.globalThis = context;
   if (withStructuredClone) context.structuredClone = (v) => JSON.parse(JSON.stringify(v));
-  vm.runInNewContext(readFileSync(join(root, "public/js/api-client.js"), "utf8"), context);
+  runApiClientModules(context);
   return context.CairnApiCache;
 }
 

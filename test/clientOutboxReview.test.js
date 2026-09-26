@@ -1,9 +1,10 @@
-// The outbox review and the access-token sheet (api-client.ts) run on the shared
+// The outbox review (outbox-ui.ts) and the access-token sheet (token-sheet.ts) run on the shared
 // overlay primitive (CairnUiSheet). These drive the built modules against the DOM
 // harness: dialog semantics, escaping, focus in / back out, and the actions.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createFakeTimers, fire, flush, loadClientModule } from "./_dom.mjs";
+import { API_CLIENT_MODULES } from "./_apiClientModules.mjs";
 
 function loadApi({ fetch } = {}) {
   const timers = createFakeTimers();
@@ -14,7 +15,7 @@ function loadApi({ fetch } = {}) {
       this.reloaded += 1;
     },
   };
-  const win = loadClientModule(["html-utils", "ui-sheet", "api-client"], {
+  const win = loadClientModule(["html-utils", "ui-sheet", ...API_CLIENT_MODULES], {
     globals: {
       setTimeout: timers.setTimeout,
       clearTimeout: timers.clearTimeout,

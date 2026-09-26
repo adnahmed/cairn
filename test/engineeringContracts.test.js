@@ -1335,7 +1335,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   const exerciseDetailActionsSource = read("src/client/exercise-detail-actions-client.ts");
   const exerciseDetailControllerSource = read("src/client/exercise-detail-controller.ts");
   const formatUtilsSource = read("src/client/format-utils.ts");
-  const apiClientSource = read("src/client/api-client.ts");
+  const apiCoreSource = read("src/client/api-core.ts");
   const appDownloadSource = read("src/client/app/download.ts");
   const appSwRecoverySource = read("src/client/app/sw-recovery.ts");
   const agentLoginModelSource = read("src/client/agent-login-model-client.ts");
@@ -1550,7 +1550,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   const uiMotionClient = read("public/js/ui-motion-client.js");
   const exerciseDetailClient = read("public/js/exercise-detail-client.js");
   const exerciseDetailController = read("public/js/exercise-detail-controller.js");
-  const apiClient = read("public/js/api-client.js");
+  const apiCore = read("public/js/api-core.js");
   const appDownload = read("public/js/app-download.js");
   const appSwRecovery = read("public/js/app-sw-recovery.js");
   const agentLoginModelClient = read("public/js/agent-login-model-client.js");
@@ -2228,7 +2228,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.doesNotMatch(clientTsconfig, /public\/js\/exercise-detail-client\.js/);
   assert.doesNotMatch(clientTsconfig, /public\/js\/exercise-detail-controller\.js/);
   assert.doesNotMatch(clientTsconfig, /public\/js\/format-utils\.js/);
-  assert.doesNotMatch(clientTsconfig, /public\/js\/api-client\.js/);
+  assert.doesNotMatch(clientTsconfig, /public\/js\/api-core\.js/);
   assert.doesNotMatch(clientTsconfig, /public\/js\/app-download\.js/);
   assert.doesNotMatch(clientTsconfig, /public\/js\/app-sw-recovery\.js/);
   assert.doesNotMatch(clientTsconfig, /public\/js\/01-core\.js/);
@@ -2364,8 +2364,8 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(clientBuild, /public\/js\/exercise-detail-client\.js/);
   assert.match(clientBuild, /src\/client\/format-utils\.ts/);
   assert.match(clientBuild, /public\/js\/format-utils\.js/);
-  assert.match(clientBuild, /src\/client\/api-client\.ts/);
-  assert.match(clientBuild, /public\/js\/api-client\.js/);
+  assert.match(clientBuild, /src\/client\/api-core\.ts/);
+  assert.match(clientBuild, /public\/js\/api-core\.js/);
   assert.match(clientBuild, /src\/client\/app\/download\.ts/);
   assert.match(clientBuild, /public\/js\/app-download\.js/);
   assert.match(clientBuild, /src\/client\/app\/sw-recovery\.ts/);
@@ -2752,14 +2752,14 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   );
   assert.ok(
     bootPos("/js/date-utils.js") > -1 &&
-      bootPos("/js/api-client.js") > bootPos("/js/date-utils.js") &&
-      bootPos("/js/api-client.js") < bootPos("/js/app-download.js"),
-    "api-client.js must load after date-utils.js and before app-download.js"
+      bootPos("/js/api-core.js") > bootPos("/js/date-utils.js") &&
+      bootPos("/js/api-core.js") < bootPos("/js/app-download.js"),
+    "api-core.js must load after date-utils.js and before app-download.js"
   );
   assert.ok(
-    bootPos("/js/app-download.js") > bootPos("/js/api-client.js") &&
+    bootPos("/js/app-download.js") > bootPos("/js/outbox-ui.js") &&
       bootPos("/js/app-download.js") < bootPos("/js/01-core.js"),
-    "app-download.js must load after api-client.js and before 01-core.js"
+    "app-download.js must load after the api/outbox modules and before 01-core.js"
   );
   assert.ok(
     bootPos("/js/app-sw-recovery.js") > bootPos("/js/app-download.js") &&
@@ -3623,7 +3623,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(read("src/client/exercise-detail-client.ts"), /\/\/ @ts-check/);
   assert.match(read("src/client/exercise-detail-controller.ts"), /\/\/ @ts-check/);
   assert.match(read("src/client/format-utils.ts"), /\/\/ @ts-check/);
-  assert.match(read("src/client/api-client.ts"), /\/\/ @ts-check/);
+  assert.match(read("src/client/api-core.ts"), /\/\/ @ts-check/);
   assert.match(read("src/client/app/download.ts"), /\/\/ @ts-check/);
   assert.match(read("src/client/app/sw-recovery.ts"), /\/\/ @ts-check/);
   assert.match(read("src/client/art-controller.ts"), /\/\/ @ts-check/);
@@ -3721,8 +3721,8 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(clientBuild, /public\/js\/exercise-detail-client\.js/);
   assert.match(clientBuild, /src\/client\/format-utils\.ts/);
   assert.match(clientBuild, /public\/js\/format-utils\.js/);
-  assert.match(clientBuild, /src\/client\/api-client\.ts/);
-  assert.match(clientBuild, /public\/js\/api-client\.js/);
+  assert.match(clientBuild, /src\/client\/api-core\.ts/);
+  assert.match(clientBuild, /public\/js\/api-core\.js/);
   assert.match(clientBuild, /src\/client\/app\/download\.ts/);
   assert.match(clientBuild, /public\/js\/app-download\.js/);
   assert.match(clientBuild, /src\/client\/app\/sw-recovery\.ts/);
@@ -4168,8 +4168,8 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.doesNotMatch(uiShellSource, /function isViewTransitionAbort|document\.startViewTransition|_vtActive/);
   assert.match(formatUtilsSource, /function fmtWeight\(weight: unknown\): string/);
   assert.match(formatUtilsSource, /function formatFoodNum\(value: unknown\): string/);
-  assert.match(apiClientSource, /function api<Path extends string>/);
-  assert.match(apiClientSource, /type CairnApiResponse<Path extends string>/);
+  assert.match(apiCoreSource, /function api<Path extends string>/);
+  assert.match(apiCoreSource, /type CairnApiResponse<Path extends string>/);
   assert.match(appSwRecoverySource, /function startServiceWorkerLifecycle\(\): void/);
   assert.match(appSwRecoverySource, /__cairnSwLifecycleStarted/);
   assert.match(appSwRecoverySource, /navigator\.serviceWorker\.register\("\/sw\.js"\)/);
@@ -5831,10 +5831,10 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.doesNotMatch(boot, /function\s+currentRouteState/);
   assert.doesNotMatch(boot, /function\s+syncRouteFromState/);
   assert.doesNotMatch(boot, /function\s+renderTab/);
-  assert.match(apiClient, /Object\.assign\(globalThis, \{/);
-  assert.match(apiClient, /withToken/);
-  assert.match(apiClient, /api/);
-  assert.doesNotMatch(apiClient, /@returns\s*\{Promise<any>\}/);
+  assert.match(apiCore, /Object\.assign\(globalThis, \{/);
+  assert.match(apiCore, /withToken/);
+  assert.match(apiCore, /api/);
+  assert.doesNotMatch(apiCore, /@returns\s*\{Promise<any>\}/);
   assert.match(appDownloadSource, /function downloadFile\(href: string\): void/);
   assert.match(appDownload, /Object\.assign\(globalThis, \{ downloadFile \}\)/);
   assert.match(appDownload, /window\.downloadFile = downloadFile/);

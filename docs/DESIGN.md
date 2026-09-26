@@ -768,7 +768,7 @@ Rules:
 | Route, navigation, cross-screen hand-offs | `state` (`ClientAppState`, `src/contracts/client-state.ts`): `tab`, `logDate`, `*Seg`, `pending*`, `chatPrefill` |
 | Component UI state (open fold, selected day, unsaved edits) | The controller's closure, or the DOM itself (`aria-pressed`, `<details open>`) |
 | Per-viewer preferences (units, a dismissed card) | `localStorage` `cairn.*` keys, every access wrapped in try/catch |
-| Writes made while offline | The outbox (`outboxEnqueue` / `runSessionMutation`, `api-client.ts`) |
+| Writes made while offline | The outbox (`outboxEnqueue` in `outbox.ts` / `runSessionMutation` in `outbox-session.ts`) |
 
 Don't add new underscore caches to `state`. The existing ones (`_dayFuel`, `_goal`, `_briefInflight`,
 `_briefMorph`, `_lifeById`, `_famById`, `_notesById`) move to an SWR key or a controller closure when
@@ -787,7 +787,7 @@ their owner is touched. **Never cache HTML.** `today-screen.ts:162` stores rende
 - **Prefetch:** start reads before you await them. On Today, `CairnTodayPrefetch`
   (`today-data-loader.ts`) and `prefetchRail` (`today-rail-controller.ts:134`) hand the in-flight
   promise to the slot instead of fetching twice. `api()` already merges identical concurrent GETs
-  (`createApiCoalescer`, `api-client.ts:361`).
+  (`createApiCoalescer`, `api-cache.ts`).
 - **Agent work:** use `runOp` (`agent-job-client.ts:262`) with a `data-job-anchor` and
   `registerJobReconnector`. A paint never waits on an agent.
 - **Server signals:** `{ok:false, error}` with HTTP 200 is a calm refusal, so leave the surface as it
@@ -949,7 +949,7 @@ module is touched).
 | Charts: `CairnUiChart` (`sparkSvg`, `lineChartSvg`, `gaugeSvg`, `zoneBarSvg`, `linearScale`, `domain`, `dateLabel`) | `ui-chart.ts` | One scale and one date label; tone by class, no hex |
 | Decision Undo: `CairnDecisionUndo.buttonHtml` + `CairnDecisionUndoController` (`revert`, `mount`, `offer`) | `decision-undo-client.ts`, `decision-undo-controller.ts` | Server-owned label; one busy state and one calm refusal |
 | Save bar | `save-bar.ts` | |
-| SWR, jobs, API + outbox | `swr-cache.ts`, `agent-job-client.ts`, `api-client.ts` | |
+| SWR, jobs, API + outbox | `swr-cache.ts`, `agent-job-client.ts`, `api-core.ts` (+ `api-cache.ts`, `token-sheet.ts`), `outbox*.ts` | The outbox is five modules: queue, runtime (live queue + lease), replay, session, drain + `CairnOutbox`; `outbox-ui.ts` paints the bar and review |
 | Art: `artImg`, `CairnArt`, `CairnBodyFigure` | `art-controller.ts`, `public/art.js`, `cairn-body-figure.ts` | |
 | Markdown, dates, formats | `markdown-client.ts`, `date-utils.ts`, `format-utils.ts` | |
 

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import { runApiClientModules } from "./_apiClientModules.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -39,7 +40,7 @@ function loadClient(sharedStorage) {
     document: { body: { classList: { toggle() {} } } },
   };
   context.globalThis = context;
-  vm.runInNewContext(readFileSync(join(root, "public/js/api-client.js"), "utf8"), context);
+  runApiClientModules(context);
   vm.runInNewContext(readFileSync(join(root, "public/js/swr-cache.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/today-session-suggest-controller.js"), "utf8"), context);
   return context;
@@ -92,7 +93,7 @@ function loadOutboxRuntime({ responses }) {
     toast() {},
   };
   context.globalThis = context;
-  vm.runInNewContext(readFileSync(join(root, "public/js/api-client.js"), "utf8"), context);
+  runApiClientModules(context);
   return { context, cache, invalidations, requests };
 }
 

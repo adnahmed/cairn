@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import vm from "node:vm";
+import { runApiClientModules } from "./_apiClientModules.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -125,9 +125,9 @@ function loadApiClient({ withTimers = false, sharedStorage = null, locks = null 
       if (timer) timer.cleared = true;
     };
   }
-  vm.runInNewContext(readFileSync(join(root, "public/js/api-client.js"), "utf8"), context);
+  runApiClientModules(context);
   // Loading with `window` + `setTimeout` both present also arms the module's own
-  // boot-time outbox-flush timer (api-client.ts's trailing `if (typeof window
+  // boot-time outbox-flush timer (outbox.ts's trailing `if (typeof window
   // !== "undefined") { ... setTimeout(() => flushOutbox(), 0) }` block) — drop
   // it so `timers` only reflects what the test itself triggers via api().
   if (withTimers) timers.length = 0;

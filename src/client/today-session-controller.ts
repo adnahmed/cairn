@@ -192,7 +192,7 @@ type TodaySessionSurfaceOptions = ClientTodaySessionSurfaceOptions;
         if (!surfaceStillCurrent(deps, actionDate, actionTab)) return;
         const finishPath = `/sessions/${sessionId}/finish`;
         // Scope a ~15s AbortController to THIS call (guarded for environments
-        // without AbortController, mirroring api-client's own guard) so a hang
+        // without AbortController, mirroring api-core's own guard) so a hang
         // takes the same offline path a thrown fetch already does. Finish replay
         // is safe: finishSession is an idempotent UPDATE — unlike a set-log, which
         // we never auto-time-out, since a timed-out-but-landed set could duplicate.
