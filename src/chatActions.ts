@@ -189,6 +189,12 @@ export interface UpdateFoodNoteAction extends ChatActionBase {
   carbs_g?: unknown;
   fat_g?: unknown;
   fiber_g?: unknown;
+  // A correction to WHAT was in the meal, in rows (src/foodCapture.ts
+  // amendFoodIngredients): only the rows that join or change — matched to the
+  // stored rows by item name — plus the item names to drop. The server rebuilds the
+  // meal totals from the rows, so a turn that sends these never sends the totals.
+  ingredients?: unknown;
+  remove_items?: unknown;
   // Move a logged entry to the day/time it actually happened. Omitting either
   // leaves it as stored, so a macro fix never restamps the clock; an explicit null
   // on eaten_at unstates a time that turned out to be wrong.
@@ -559,7 +565,7 @@ export const CHAT_ACTION_PROMPT_SPECS = {
       `A QUESTION about food is not a log. "Should I eat this?", "how much protein is in that?", "is X a good dinner?", "what would that do to my day?" are asking for an answer, not for a row — answer them and emit nothing. Only a report of something actually EATEN gets a log_food. If it is genuinely ambiguous ("having the salmon"), answer the question and leave the log alone; an unlogged meal is recoverable, an invented one silently becomes intake evidence.`,
       ...FOOD_CAPTURE_GUARDRAILS,
       `nutrition_pattern is what lets intake be read against their bloodwork later (sodium, potassium, calcium, iron, saturated fat, added sugar, omega-3, alcohol, caffeine). Fill it for every meal you log, in coarse bands — "unknown" is a fine, honest answer for a band you cannot call.`,
-      `BEFORE emitting log_food, check DATA.day_intake.entries. If the same meal is already logged today, reference it instead of logging a duplicate. If the user is correcting that row, emit update_food_note with the existing id.`,
+      `BEFORE emitting log_food, check DATA.day_intake.entries. If the same meal is already logged today, reference it instead of logging a duplicate. If the user is correcting or adding to that row, emit update_food_note with the existing id.`,
       `WHEN they ate it: people log out of order — "last night", "yesterday at 8", "this morning", "a couple hours ago", "lunch yesterday". Resolve those against DATA.now (which carries today's local date, weekday, time and hour) and emit "date" and "eaten_at" yourself. "last night" = yesterday's date at a late-evening hour; "this morning" = today, early; a bare clock time means today unless the sentence points at another day. Omit "date" for a meal eaten today.`,
       `NEVER ask what time it was. If they didn't say, omit "eaten_at" entirely — an entry with no time is completely normal and completely fine. Approximating from what they DID say ("a late dinner" → about 21:00) is right; interrogating them for a number is not. Never invent a date you have no basis for.`,
     ],
@@ -569,9 +575,12 @@ export const CHAT_ACTION_PROMPT_SPECS = {
     applyMode: "immediate",
     shape: `{ "type": "update_food_note", "id": <existing id from DATA.day_intake.entries>,
       "meal": "breakfast|lunch|dinner|snack|meal", "summary": "<corrected dish name>",
+      "ingredients": [ ${FOOD_INGREDIENT_SCHEMA} ]|omit, "remove_items": ["<item name exactly as logged>"]|omit,
       "kcal": <number|null>, "protein_g": <number|null>, "carbs_g": <number|null>, "fat_g": <number|null>, "fiber_g": <number|null>, "notes": <string|null>,
       "date": "YYYY-MM-DD|omit", "eaten_at": "HH:MM (24h, local)|null|omit" }`,
     guidance: [
+      `A follow-up about a meal already logged — "oh and I had 40 g of avocado on the plate", "actually it was two slices", "there was no cheese" — AMENDS that entry with update_food_note on its id. Never a second log_food: a duplicate meal silently doubles the day's intake.`,
+      `Amend in ROWS, and only the rows that change: "ingredients" carries a new row with its own estimate, or an existing row (its item name exactly as logged) with the new "amount" — omit its macros when only the amount moved and the server scales the stored estimate. "remove_items" names rows that were not there. Every row you do not name stays as logged. When you send ingredients or remove_items, OMIT kcal/protein_g/carbs_g/fat_g/fiber_g — the server rebuilds the meal totals from the rows.`,
       `update_food_note also corrects WHEN something was eaten: "that was actually yesterday" moves the entry to that day, and "that was more like 9" fixes the time. Send "eaten_at": null to clear a time that turned out to be wrong. Omit both fields when only the food itself is being corrected.`,
     ],
   },

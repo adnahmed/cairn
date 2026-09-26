@@ -747,6 +747,79 @@ export function recomputeFoodIngredients(
   return { ingredients: rows, totals, unestimated, scaled, unfollowed, cleared: false };
 }
 
+// ---- a correction in words, over a meal already logged -----------------------
+//
+// Approximate logging is corrected by talking, not by typing grams: "oh and 40 g of
+// avocado on the plate", "actually it was two slices", "no cheese on it". Chat names
+// only what CHANGES — the rows that join or move, and the items that go — never the
+// whole meal again. This turns that into the FULL replacement list
+// recomputeFoodIngredients takes, so a correction lands on the SAME note through the
+// same arithmetic as the meal card's grams edit:
+//   - every stored row stays, in order, exactly as stored, unless it is named;
+//   - a named row (same item, case/space-insensitive) keeps the stored row's item and
+//     takes the new amount; its macros are the ones the correction states, or else
+//     the stored ones — so an amount-only change ("two slices") scales from the
+//     stored estimate (rule 1) instead of reading as macros a person typed;
+//   - an unnamed item joins at the end with its own estimate;
+//   - `remove` drops the named stored rows (their share leaves the total, rule 5).
+// PURE. Stored rows the coercion cannot read are dropped the way recompute drops them.
+
+function removalKeys(remove: unknown): Set<string> {
+  const list = Array.isArray(remove) ? remove : remove == null ? [] : [remove];
+  return new Set(
+    list
+      .map((entry) =>
+        itemKey(entry && typeof entry === "object" ? (entry as Record<string, unknown>).item : entry)
+      )
+      .filter(Boolean)
+  );
+}
+
+export function amendFoodIngredients(
+  previous: { ingredients?: unknown } | null | undefined,
+  changes: unknown,
+  remove?: unknown
+): FoodIngredientRow[] {
+  const drop = removalKeys(remove);
+  const out: FoodIngredientRow[] = [];
+  const at = new Map<string, number>();
+  const stored = Array.isArray(previous?.ingredients) ? (previous.ingredients as unknown[]).slice(0, MAX_INGREDIENTS) : [];
+  for (const raw of stored) {
+    const row = coerceFoodIngredients([raw])?.[0] as FoodIngredientRow | undefined;
+    if (!row) continue;
+    const key = itemKey(row.item);
+    if (drop.has(key)) continue;
+    if (raw && typeof raw === "object" && (raw as Record<string, unknown>).confidence === "low") row.confidence = "low";
+    if (!at.has(key)) at.set(key, out.length);
+    out.push(row);
+  }
+  for (const raw of Array.isArray(changes) ? changes.slice(0, MAX_INGREDIENTS) : []) {
+    const edit = coerceFoodIngredients([raw])?.[0];
+    if (!edit) continue;
+    const key = itemKey(edit.item);
+    const index = at.get(key);
+    if (index === undefined) {
+      if (out.length >= MAX_INGREDIENTS) continue;
+      at.set(key, out.length);
+      out.push(edit);
+      continue;
+    }
+    const was = out[index];
+    const stated = rowMacros(edit as unknown as Record<string, unknown>);
+    const macros = Object.keys(stated).length ? stated : rowMacros(was as unknown as Record<string, unknown>);
+    const merged: FoodIngredientRow = { item: was.item };
+    const amount = edit.amount ?? was.amount;
+    if (amount) merged.amount = amount;
+    for (const k of FOOD_MACRO_KEYS) if (macros[k] !== undefined) merged[k] = macros[k];
+    const basis = edit.basis ?? was.basis;
+    if (basis) merged.basis = basis;
+    // A row whose estimate nothing restated keeps what a person's edit said of it.
+    if (!Object.keys(stated).length && was.confidence === "low") merged.confidence = "low";
+    out[index] = merged;
+  }
+  return out;
+}
+
 // ---- the athlete's own lines, before (or without) any estimate ----------------
 //
 // A pasted meal of six lines is six things eaten, whether or not an agent ever reads

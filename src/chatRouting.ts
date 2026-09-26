@@ -114,6 +114,11 @@ const FOOD_ITEM =
   /\b(?:pizza|slice(?:s)?|sandwich|tacos?|banana|oatmeal|yogurt|berries|chicken|rice|broccoli|salmon|potatoes|asparagus|latte|cookie|eggs?|pasta|smoothie)\b/i;
 const CAPTURE_VERB = /\b(?:log|track|record|add|save|enter)\b/i;
 const AMENDMENT_VERB = /\b(?:add|include|also|plus)\b/i;
+// The other way people add to the meal they just logged: no verb at all, just "oh
+// and …", "… on the plate", "… with it", "… too". Only read as an amendment right
+// after a food capture (the branch below), never on its own.
+const ADDITION_PHRASE =
+  /^\s*(?:(?:oh|oops|ah|wait)[\s,!.]+)?and\b|\b(?:on|in|with)\s+(?:the|my|that|this|it)\s+(?:plate|bowl|side|top)\b|\bon top\b|\bwith it\b|\bas well\b|\btoo\s*[.!]*\s*$/i;
 const NEW_LOG_VERB = /\b(?:log|track|record|save|enter)\b/i;
 const CORRECTION_VERB = /\b(?:correct(?:ion)?|fix|edit|update|change|actually|remove|forgot|don'?t log)\b/i;
 
@@ -169,9 +174,10 @@ function captureReasons(
     addReason(reasons, "explicit_supplement_log");
   }
 
-  // An amendment-verbed follow-up shortly after a food capture is a correction
-  // to that meal even when the item is in no noun list ("Add half of Brussel
-  // sprouts from their appetizer list"). It must carry capture_correction: that
+  // An amendment-verbed (or amendment-phrased: "oh and I had 40 g of avocado on
+  // the plate") follow-up shortly after a food capture is a correction to that
+  // meal even when the item is in no noun list ("Add half of Brussel sprouts from
+  // their appetizer list"). It must carry capture_correction: that
   // is what keeps it OFF the no-agent instant path (which can only create a NEW
   // note — a duplicate meal here) and on the agent path where update_food_note
   // can reach the existing row. Plain log verbs ("log/track/record…") are
@@ -180,7 +186,7 @@ function captureReasons(
   // never rides this branch.
   if (
     recentFoodCapture &&
-    (AMENDMENT_VERB.test(message) || hasCorrectionVerb) &&
+    (AMENDMENT_VERB.test(message) || ADDITION_PHRASE.test(message) || hasCorrectionVerb) &&
     !NEW_LOG_VERB.test(message) &&
     !ACTIVITY_NOUN.test(message) &&
     !WEIGHT_NOUN.test(message) &&
