@@ -399,7 +399,8 @@ function withoutAbsoluteDates(text: string, voice: RowVoice): string | null {
   if (!ANY_DATE.test(text)) return text;
   const re = (pattern: string) => new RegExp(pattern.replace(/DATE/g, `(${DATE_SOURCE})`), "gi");
   const iso = (phrase: string) => isoOfDate(phrase, voice.day);
-  let dropped = false;
+  // A day left out leaves a mark, so only the word after it can take its capital.
+  const DROP = "\u0001";
   let out = text
     .replace(re("\\bthe week of DATE\\b"), (match, phrase: string, offset: number, source: string) => {
       const day = iso(phrase);
@@ -423,11 +424,13 @@ function withoutAbsoluteDates(text: string, voice: RowVoice): string | null {
       const day = iso(phrase);
       if (!day) return match;
       const word = relativeDay(day, voice);
-      if (word === "") {
-        dropped = true;
-        return "";
-      }
+      if (word === "") return DROP;
       return cased(word == null ? (day < voice.day ? "earlier" : "later") : onDay(word), source, offset);
+    })
+    .replace(re("\\bDATE['’]s\\b"), (match, phrase: string, offset: number, source: string) => {
+      const day = iso(phrase);
+      const word = day ? relativeDay(day, voice) : null;
+      return word == null ? match : cased(possessive(word), source, offset);
     })
     .replace(re("\\bthe DATE(?= [A-Za-z])"), (match, phrase: string, offset: number, source: string) => {
       const day = iso(phrase);
@@ -435,18 +438,30 @@ function withoutAbsoluteDates(text: string, voice: RowVoice): string | null {
       const word = relativeDay(day, voice);
       return cased(word == null ? (day < voice.day ? "the earlier" : "the later") : possessive(word), source, offset);
     })
-    .replace(re("\\bDATE\\b"), (match, phrase: string, offset: number, source: string) => {
-      const day = iso(phrase);
-      const word = day ? relativeDay(day, voice) : null;
-      if (word == null) return match;
-      return cased(word === "" ? "that day" : word, source, offset);
-    })
+    // The row's own day, said bare ("Since Sep 6 the squat stalled"), is the day the
+    // row already sits under: it leaves, with the little word that pointed at it.
+    .replace(
+      re("(?:\\b(?:since|from|as of|at|by|until|till)\\s+)?\\bDATE\\b"),
+      (match, phrase: string, offset: number, source: string) => {
+        const day = iso(phrase);
+        const word = day ? relativeDay(day, voice) : null;
+        if (word == null) return match;
+        if (word === "") return DROP;
+        const lead = match.slice(0, match.length - phrase.length);
+        return cased(lead + word, source, offset);
+      }
+    );
+  // A day left out at the head of a sentence hands its capital (and any comma it
+  // carried) to the next word; a mark anywhere else just leaves.
+  out = out
+    .replace(
+      new RegExp(`(^|[.!?]["'’”)\\]]?\\s+)\\s*${DROP}[\\s,;:]*(\\p{Ll})?`, "gu"),
+      (_m, head: string, c?: string) => head + (c ? c.toUpperCase() : "")
+    )
+    .replace(new RegExp(`\\s*${DROP}`, "g"), "")
     .replace(/\s+([,.;:!?])/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();
-  // A day left out at the head of a sentence hands its capital to the next word.
-  if (dropped)
-    out = out.replace(/(^|[.!?]["'’”)\]]?\s+)([a-z])/g, (_m, lead: string, c: string) => lead + c.toUpperCase());
   // A date nothing above could say plainly takes its sentence with it.
   out = splitSentences(out)
     .filter((sentence) => !ANY_DATE.test(sentence))

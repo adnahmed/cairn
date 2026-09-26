@@ -334,6 +334,34 @@ test("a row from further back leaves out its own day — the day it sits under a
   for (const change of [row, rows.find((c) => c.id === session)]) assert.doesNotMatch(change.why, /that day/);
 });
 
+test("a further-back row's own day said bare, possessive, or after 'through' leaves without a 'that day'", () => {
+  const day = shiftDay(localDateISO(), -20);
+  const { id } = landedDecision({
+    effective_date: day,
+    applied_at: `${day}T09:00:00.000Z`,
+    kind: "recovery_adjustment",
+    domain: "recovery",
+    rationale: `Since ${humanDate(day)} the squat stalled, e.g. the bar slowed. The squat held through ${humanDate(day)}.`,
+  });
+  const session = landedDecision({
+    effective_date: day,
+    applied_at: `${day}T10:00:00.000Z`,
+    kind: "recovery_adjustment",
+    domain: "recovery",
+    rationale: `${day}'s session ran long, so the week eased.`,
+  }).id;
+  const rows = feedRows(brainChangesRead({ days: 30 }));
+  const row = rows.find((change) => change.id === id);
+  // The capital goes only to the word the dropped day handed it to: "e.g. the" stays.
+  assert.equal(row.why, "The squat stalled, e.g. the bar slowed. The squat held.");
+  assert.equal(rows.find((change) => change.id === session).why, "The session ran long, so the week eased.");
+  for (const change of [row, rows.find((c) => c.id === session)]) {
+    assert.doesNotMatch(change.why, /that day/);
+    assert.doesNotMatch(change.why, MONTH_DATE);
+    assert.doesNotMatch(change.why, ISO_DATE);
+  }
+});
+
 test("a row landed today reads 'today' and 'yesterday'", () => {
   const today = localDateISO();
   const { id } = landedDecision({
