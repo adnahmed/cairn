@@ -40,6 +40,20 @@
     pounds: 453.592,
   };
 
+  // parseFoodQuantity's volume table, for placing the unitemized remainder by amount.
+  const VOLUME_TO_ML: Record<string, number> = {
+    ml: 1,
+    milliliter: 1,
+    milliliters: 1,
+    millilitre: 1,
+    millilitres: 1,
+    l: 1000,
+    liter: 1000,
+    liters: 1000,
+    litre: 1000,
+    litres: 1000,
+  };
+
   // The food-capture contract's own basis values, in the athlete's register — how a
   // number was obtained, never a grade.
   const BASIS_WORDS: Record<string, string> = {
@@ -79,6 +93,27 @@
     const factor = MASS_TO_G[match[3] ?? ""];
     if (!factor || !Number.isFinite(value) || value <= 0) return null;
     return value * factor;
+  }
+
+  /**
+   * An amount as a comparable quantity — parseFoodQuantity (src/foodCapture.ts) on
+   * this side of the PUT: mass in grams, volume in millilitres, else its first word
+   * as a count unit. Null when the amount does not start with a number.
+   */
+  function quantityOf(amount: unknown): { value: number; unit: string } | null {
+    const s = text(amount)
+      .toLowerCase()
+      .replace(/^(~|about|approx\.?|approximately|around)\s*/, "");
+    const match = /^(\d+(?:[.,]\d+)?)(?:\s*\/\s*(\d+))?\s*([a-z]+)?/.exec(s);
+    if (!match) return null;
+    let value = Number(match[1].replace(",", "."));
+    if (match[2]) value = value / Number(match[2]);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    const word = match[3] ?? "";
+    if (word in MASS_TO_G) return { value: value * MASS_TO_G[word], unit: "g" };
+    if (word in VOLUME_TO_ML) return { value: value * VOLUME_TO_ML[word], unit: "ml" };
+    const unit = word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word;
+    return { value, unit: unit || "unit" };
   }
 
   /** What a person typed into a grams field, or null when it is not a usable weight. */
@@ -175,21 +210,62 @@
   }
 
   /**
-   * The totals to show while an edit is unsaved — recomputeFoodIngredients' rule 4:
-   * the rows now, plus whatever the stored total carried beyond the stored rows
-   * (never negative). A key neither the rows nor the stored total carry stays null.
+   * Rule 5's placement: the stored rows that carry no estimate of their own for
+   * `key`, each with its share of the unitemized remainder — all of it for a lone
+   * such row, else split by amount when every one states a comparable amount.
+   */
+  function remainderShares(original: readonly Row[], key: MacroKey): Map<string, number> {
+    const shares = new Map<string, number>();
+    const without = original.filter((row) => row.base[key] == null);
+    if (without.length === 1) shares.set(without[0].key, 1);
+    else if (without.length > 1) {
+      const qty = without.map((row) => quantityOf(row.amount));
+      const unit = qty[0]?.unit;
+      if (qty.every((q) => q && q.unit === unit)) {
+        const sum = qty.reduce((acc, q) => acc + (q as { value: number }).value, 0);
+        if (sum > 0) without.forEach((row, i) => shares.set(row.key, (qty[i] as { value: number }).value / sum));
+      }
+    }
+    return shares;
+  }
+
+  /**
+   * The totals to show while an edit is unsaved — recomputeFoodIngredients' rules
+   * 4-6: the rows now, plus whatever the stored total carried beyond the stored rows
+   * (never negative), with each placeable share of that remainder following its row
+   * (scaled with its weight, gone with the row). An empty list keeps the stored
+   * totals. A key neither the rows nor the stored total carry stays null.
    */
   function optimisticTotals(stored: Totals, original: readonly Row[], current: readonly Row[]): Totals {
     const out = {} as Totals;
+    const kept = new Map(current.filter((row) => !row.added).map((row) => [row.key, row]));
     for (const key of MACRO_KEYS) {
-      const now = sumRows(current, key);
       const base = stored[key];
+      if (!current.length) {
+        out[key] = base == null ? null : Math.round(base);
+        continue;
+      }
+      const now = sumRows(current, key);
       if (base == null && now == null) {
         out[key] = null;
         continue;
       }
-      const unitemized = base == null ? 0 : Math.max(0, base - (sumRows(original, key) ?? 0));
-      out[key] = Math.round(unitemized + (now ?? 0));
+      const remainder = base == null ? 0 : Math.max(0, base - (sumRows(original, key) ?? 0));
+      let delta = 0;
+      if (remainder > 0) {
+        for (const [rowKey, share] of remainderShares(original, key)) {
+          const row = kept.get(rowKey);
+          if (!row) {
+            delta -= remainder * share;
+            continue;
+          }
+          const moved = row.grams != null && row.grams !== row.baseGrams;
+          if (!moved) continue;
+          // A weight the stored amount never stated cannot carry its share along.
+          if (row.baseGrams) delta += remainder * share * ((row.grams as number) / row.baseGrams - 1);
+        }
+      }
+      out[key] = Math.round(Math.max(0, remainder + delta) + (now ?? 0));
     }
     return out;
   }

@@ -497,6 +497,8 @@ test("the optimistic totals equal the server's recompute of the card's PUT body"
     ["an ounce row in grams", (rows) => (rows[7].grams = 150)],
     ["a count row given grams", (rows) => (rows[4].grams = 120)],
     ["a removed row", (rows) => rows.splice(3, 1)],
+    ["the row carrying the remainder removed", (rows) => rows.splice(7, 1)],
+    ["every row removed", (rows) => rows.splice(0, rows.length)],
   ];
   for (const [label, edit] of edits) {
     const original = M.mealCardRows(note);
