@@ -237,6 +237,7 @@
 
 /* the conductor's focus, after the markers: context, not the lead — one quiet card */
 .stand-focus-after{margin-top:var(--space-10)}
+.stand-focus-after:empty{display:none}
 .stand-focus-after .cfocus{box-shadow:none;border:1px solid var(--line);border-left:1px solid var(--line);background:var(--surface)}
 .stand-focus-after .cfocus-headline,.stand-focus-after .cfocus-lead-title{font-weight:400;font-variation-settings:normal}
 .stand-focus-after .cfocus-headline{font-size:var(--text-lg);line-height:1.25}

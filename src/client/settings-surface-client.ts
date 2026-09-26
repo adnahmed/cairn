@@ -257,21 +257,15 @@ function settingsSourcesSliceHtml(options: SettingsSourcesSliceOptions): string 
 
         <div class="set-card">
           <div class="set-card-head"><h2 class="set-card-h">Garmin Connect</h2><span class="lbl">runs · sleep · recovery</span></div>
-          <div class="syncrow">
-            <div class="syncstatus" id="garminStatus">${options.garminStatusHtml}</div>
-            <button id="garminSyncBtn" class="ghostbtn syncbtn">Sync now</button>
-          </div>
+          <div class="syncrow"><div class="syncstatus" id="garminStatus">${options.garminStatusHtml}</div><button id="garminSyncBtn" class="ghostbtn syncbtn">Sync now</button></div>
           <div class="field"><label>Garmin email</label>
-            <input id="garminUsername" type="email" autocomplete="username" value="${escAttr(wm.garmin_username)}" placeholder="you@example.com">
-          </div>
+            <input id="garminUsername" type="email" autocomplete="username" value="${escAttr(wm.garmin_username)}" placeholder="you@example.com"></div>
           <div class="field"><label>Garmin password</label>
-            <input id="garminPassword" type="password" autocomplete="current-password" placeholder="${garminPlaceholder}">
-          </div>
+            <input id="garminPassword" type="password" autocomplete="current-password" placeholder="${garminPlaceholder}"></div>
           <label class="toggle set-toggle"><input type="checkbox" id="garminExportStrength" ${wm.garmin_export_strength ? "checked" : ""}>
             <span>Send finished strength sessions back to Garmin</span></label>
           ${settingsGarminExportStateHtml(options)}
-          <details class="set-more">
-            <summary>How Garmin works here</summary>
+          <details class="set-more"><summary>How Garmin works here</summary>
             <div class="sess-line">Once configured, Cairn syncs automatically every ~6 hours. Settings credentials override GARMIN_USERNAME / GARMIN_PASSWORD. Runs, sleep and recovery come in from Garmin; finished strength sessions can go back out.</div>
             <div class="sess-line">When you finish a session here, its exercises and sets are added to that day on Garmin — onto the watch's own recording when there is one, so heart rate and calories stay as they are. A day Garmin already logged itself is left alone.</div>
           </details>
@@ -346,8 +340,7 @@ function appleHealthCardHtml(state: AppleHealthUiState): string {
       ${error}
       <div class="ah-builder-actions">${install}${connect}<button id="ahRefresh" class="ghostbtn" type="button">Refresh status</button></div>`
     }
-    <details class="set-more">
-      <summary>How the Shortcut works</summary>
+    <details class="set-more"><summary>How the Shortcut works</summary>
       <div class="sess-line">Install the Shortcut, tap Connect &amp; test to pair it without copying the owner token, then open it once in the Shortcuts app to allow Health access. Apple asks you to confirm Add Shortcut and each Health permission.</div>
       <div class="ah-fields"><span>steps</span><span>sleep</span><span>resting HR</span><span>HRV</span><span>active energy</span><span>VO₂ max</span></div>
       <div class="sess-line"><a href="${escAttr(helpUrl)}" target="_blank" rel="noopener">Apple Health setup, privacy, and limitations</a></div>

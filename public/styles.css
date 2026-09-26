@@ -5189,6 +5189,7 @@ button.hmk-row:active{background:var(--card-2)}
 
 /* the conductor's focus, after the markers: context, not the lead — one quiet card */
 .stand-focus-after{margin-top:var(--space-10)}
+.stand-focus-after:empty{display:none}
 .stand-focus-after .cfocus{box-shadow:none;border:1px solid var(--line);border-left:1px solid var(--line);background:var(--surface)}
 .stand-focus-after .cfocus-headline,.stand-focus-after .cfocus-lead-title{font-weight:400;font-variation-settings:normal}
 .stand-focus-after .cfocus-headline{font-size:var(--text-lg);line-height:1.25}
@@ -7664,7 +7665,8 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
    Cairn stack + stone detail (v2 wave 5 stream B): the You home leads with
    the whole cairn (.cairn-stack-*) — six stones drawn by CairnStone (§04e),
    piled top to bottom, the base widest so Heart carries the rest, each in its
-   OWN hue (a "watch" read adds only the stone's dawn dot, never a fill) — and
+   OWN hue (a "watch" read adds only the stone's dawn dot, never a fill), each
+   labelled on the left (mono name, serif word) by a leader line — and
    one row per stone: a hued dot, the name, the server's word in the stone's
    deep hue, its line in muted prose. A stone opens its detail
    (.stone-detail-*): the one stone large, its read, then "Where it lives".
@@ -7690,10 +7692,10 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 .you-cairn:empty{display:none}
 .cairn-stack-pile{position:relative;margin:var(--space-2) 0 var(--space-8)}
 .cairn-stack-pile .stone-cairn{display:block;width:100%;height:auto;max-width:420px}
-.cairn-pile-leader{fill:none;stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
-.cairn-pile-name{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;fill:var(--muted)}
-.cairn-pile-flag{fill:var(--dawn);font-size:7px}
-.cairn-pile-word{font-family:var(--font-display);font-size:16.5px;fill:var(--ink)}
+.stack-pile-leader{fill:none;stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.stack-pile-name{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;fill:var(--muted)}
+.stack-pile-flag{fill:var(--dawn);font-size:7px}
+.stack-pile-word{font-family:var(--font-display);font-size:16.5px;fill:var(--ink)}
 .cairn-stack-rock{-webkit-tap-highlight-color:transparent}
 .cairn-stack-skel .stone-ghost .stone-rock{fill:var(--well);stroke:var(--line)}
 .cairn-stack-skel .stone-ghost .stone-sheen,.cairn-stack-skel .stone-ghost .stone-under{display:none}
@@ -7748,7 +7750,7 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
 .cairn-stack-rock{transform-box:fill-box;transform-origin:center}
 .cairn-stack.is-entering .cairn-stack-rock{animation:cairn-stack-settle var(--dur-3) var(--ease) both;
   animation-delay:calc((var(--n,6) - 1 - var(--i,0)) * 70ms)}
-.cairn-stack.is-entering .cairn-pile-label{animation:settlein var(--dur-3) var(--ease) both;
+.cairn-stack.is-entering .stack-pile-label{animation:settlein var(--dur-3) var(--ease) both;
   animation-delay:calc(var(--i,0) * 50ms + 260ms)}
 .cairn-stack.is-entering .cairn-stack-item{animation:settlein var(--dur-3) var(--ease) both;
   animation-delay:calc(min(var(--i,0),12) * 40ms + 200ms)}
@@ -7800,7 +7802,7 @@ a.stone-detail-link{color:inherit;text-decoration:none}
 .stone-detail.is-entering .stone-detail-rock{animation:cairn-stack-settle var(--dur-3) var(--ease) both}
 @media (prefers-reduced-motion:reduce){
   .cairn-stack.is-entering .cairn-stack-rock,.cairn-stack.is-entering .cairn-stack-item,
-  .cairn-stack.is-entering .cairn-pile-label,
+  .cairn-stack.is-entering .stack-pile-label,
   .stone-detail.is-entering .stone-detail-rock{animation:none}
 }
 

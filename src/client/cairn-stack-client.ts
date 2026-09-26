@@ -21,7 +21,7 @@
   const LABEL_X = 2;
   const LEADER_X = 116;
   /** The least vertical room one label (mono name over a serif word) needs. */
-  const LABEL_GAP = 40;
+  const LABEL_GAP = 42;
 
   type PileStone = { key: string; tone: string; go: boolean; label?: string; word?: string };
 
@@ -69,9 +69,9 @@
             const stone = stones[index];
             const y = labelY[index];
             const end = spec.cx - spec.rx - 8;
-            return `<g class="cairn-pile-label ${CairnStone.hueClass(stone.key)}" style="--i:${index}"><path class="cairn-pile-leader" d="M${fx(LEADER_X)},${fx(y)} L${fx(Math.max(LEADER_X + 8, end - 14))},${fx(y)} L${fx(end)},${fx(spec.cy)}"/><text class="cairn-pile-name" x="${LABEL_X}" y="${fx(y - 5)}">${escHtml((stone.label || "").toUpperCase())}${
-              stone.tone === "watch" ? `<tspan class="cairn-pile-flag" dx="5">●</tspan>` : ""
-            }</text><text class="cairn-pile-word" x="${LABEL_X}" y="${fx(y + 13)}">${escHtml(stone.word || "")}</text></g>`;
+            return `<g class="stack-pile-label ${CairnStone.hueClass(stone.key)}" style="--i:${index}"><path class="stack-pile-leader" d="M${fx(LEADER_X)},${fx(y)} L${fx(Math.max(LEADER_X + 8, end - 14))},${fx(y)} L${fx(end)},${fx(spec.cy)}"/><text class="stack-pile-name" x="${LABEL_X}" y="${fx(y - 5)}">${escHtml((stone.label || "").toUpperCase())}${
+              stone.tone === "watch" ? `<tspan class="stack-pile-flag" dx="5">●</tspan>` : ""
+            }</text><text class="stack-pile-word" x="${LABEL_X}" y="${fx(y + 13)}">${escHtml(stone.word || "")}</text></g>`;
           })
           .join("");
     return `<svg class="stone-svg stone-cairn cairn-pile" viewBox="0 0 ${PILE_W} ${fx(height)}" aria-hidden="true" focusable="false">${CairnStone.sheenDefs(

@@ -192,8 +192,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     const syn = DATA?.synthesis;
     const headline = syn && typeof syn.headline === "string" ? syn.headline.trim() : "";
     const prios = (syn?.priorities || []).slice(0, 3);
-    // No synthesis yet → a quiet invite to generate the whole-picture read once
-    // there are markers to read.
+    // No synthesis yet → a quiet invite to read the whole picture.
     if (!headline && !prios.length) return readGenHtml();
     const age = syn && typeof syn.generated_at === "string" ? ` · ${relAge(syn.generated_at)}` : "";
     const zones = prios
@@ -260,10 +259,6 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
         <button class="linkbtn linkbtn-plain linkbtn-sm stand-ask stand-ask-all" type="button" data-ask="${escAttr(WHOLE_PICTURE_Q)}">Ask the coach about this<span aria-hidden="true"> →</span></button>
       </div>
     </div>`;
-  }
-  function focusSectionHtml(): string {
-    const focus = focusHeroHtml();
-    return focus ? `<div class="stand-focus-after">${focus}</div>` : "";
   }
   function focusHeroHtml(): string {
     const f = DATA?.focus as Record<string, unknown> | null;
@@ -458,7 +453,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       ${readHtml()}
       <div class="stand-browse lbl">Your markers<button class="stand-allmk linkbtn linkbtn-plain linkbtn-sm" type="button" data-allmarkers>All markers<span aria-hidden="true"> →</span></button></div>
       <div class="stand-grid">${tiles.map((t) => t.html).join("")}</div>
-      ${focusSectionHtml()}
+      <div class="stand-focus-after">${focusHeroHtml()}</div>
     </div>`;
   }
 

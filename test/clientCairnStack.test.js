@@ -153,12 +153,12 @@ test("the stack: a six-stone pile the base widest, and one row per stone with it
   assert.equal(rows[3].getAttribute("aria-label"), "Recovery: quiet");
   assert.equal(host.querySelectorAll(".cairn-stack-line").length, 2, "a line only where the server wrote one");
   assert.deepEqual(
-    pile.querySelectorAll(".cairn-pile-word").map((el) => el.textContent),
+    pile.querySelectorAll(".stack-pile-word").map((el) => el.textContent),
     ["planned", "building", "in progress", "quiet", "on course", "worth noting"],
     "the pile names each stone beside it, in the server's words"
   );
-  assert.equal(pile.querySelectorAll(".cairn-pile-leader").length, 6);
-  assert.equal(pile.querySelectorAll(".cairn-pile-flag").length, 1, "only the watch stone carries the dawn mark");
+  assert.equal(pile.querySelectorAll(".stack-pile-leader").length, 6);
+  assert.equal(pile.querySelectorAll(".stack-pile-flag").length, 1, "only the watch stone carries the dawn mark");
 });
 
 test("the stack never reads as a score, and hostile server text stays text", () => {
