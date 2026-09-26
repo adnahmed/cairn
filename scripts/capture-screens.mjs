@@ -128,9 +128,9 @@ function seedAskThread(dbPath) {
       confidence: "medium",
       basis: "your words",
       ingredients: [
-        { item: "Baked salmon", amount: { qty: 140, unit: "g" }, kcal: 290 },
-        { item: "Jasmine rice", amount: { qty: 180, unit: "g" }, kcal: 230 },
-        { item: "Cucumber and edamame", amount: { qty: 1, unit: "cup" }, kcal: 120 },
+        { item: "Baked salmon", amount: "one fillet (140 g)", kcal: 290 },
+        { item: "Jasmine rice", amount: "a cup", kcal: 230 },
+        { item: "Cucumber and edamame", amount: "a side", kcal: 120 },
       ],
       ingredient_count: 3,
     };
