@@ -52,7 +52,7 @@
 .chfeed-meta{margin:0;font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
   text-transform:uppercase;color:var(--muted);line-height:1.6}
 .chfeed-conf-k{letter-spacing:inherit}
-.chfeed-undo{align-self:flex-start;min-height:40px;display:inline-flex;align-items:center;
+.chfeed-undo{align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;
   margin:calc(var(--space-4) * -1) 0 calc(var(--space-5) * -1);font-size:var(--text-sm)}
 .chfeed-undo[aria-busy="true"]{opacity:.55;pointer-events:none}
 /* The change the athlete just made settles: its dawn washes in once and fades back

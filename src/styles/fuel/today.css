@@ -122,7 +122,7 @@
 .idea-card-why{flex:1 1 auto;margin:0;font-size:var(--text-sm);color:var(--ink2);line-height:1.45}
 .idea-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-6);margin-top:var(--space-3)}
 .idea-card-start{padding:7px 13px;font-size:var(--text-sm)}
-.idea-card-start,.idea-card-another{min-height:40px}
+.idea-card-start,.idea-card-another{min-height:44px}
 .idea-card-another{font-size:var(--text-sm)}
 .idea-card-another[disabled]{opacity:.55;cursor:default}
 .idea-card-another[aria-busy="true"]{cursor:wait}

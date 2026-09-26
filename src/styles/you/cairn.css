@@ -95,7 +95,9 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
 /* ---- the stone detail: switcher, a head washed in the stone's hue, then its places ---- */
 .stone-detail{padding-bottom:var(--space-10)}
 .stone-detail-chips{position:relative;display:flex;gap:var(--space-3);overflow-x:auto;scrollbar-width:none;
-  margin:var(--space-2) calc(-1 * var(--gutter)) 0;padding:2px var(--gutter)}
+  /* 8px of vertical padding (taken back by the margins) holds each chip's 44px hit
+     overlay (a11y.css) inside the scroller, so it never scrolls vertically */
+  margin:calc(var(--space-2) - 6px) calc(-1 * var(--gutter)) -6px;padding:8px var(--gutter)}
 .stone-detail-chips::-webkit-scrollbar{display:none}
 .stone-detail-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:var(--text-sm);
   padding:5px 12px;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--surface);color:var(--ink2);

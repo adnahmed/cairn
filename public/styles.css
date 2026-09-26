@@ -3598,7 +3598,7 @@ body.sheet-open{overflow:hidden}
    plan's arc, the finding the day honours), folded behind one quiet tap so the
    first view is the read and its one action. A hairline row, mono label. */
 .brief-around{margin-top:var(--space-7);border-top:1px solid var(--line)}
-.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;
+.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;
   list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .brief-around-sum::-webkit-details-marker{display:none}
 .brief-around-chev{color:var(--muted);font-size:.7rem;transition:transform var(--dur-2) var(--ease)}
@@ -5914,13 +5914,19 @@ button.hmk-row:active{background:var(--card-2)}
    overlay below still anchors correctly to the absolutely-positioned button.
    .logbtn is the app-wide primary button (44×42 in the set row; other surfaces override
    its size) and .rest-btn the rest-bar ±15/Skip — both sat under the 44 px hit floor. */
+/* The v2 pills and chips (.pillbtn ≈36px, .pill-sm ≈31px, the stone-detail chips,
+   the Ask header's Changes pill, Today's bodyweight and context chips) and the
+   '‹ You' back link (.home-back, text-height) keep their calm visual size too. */
 .feel-dot,.iconbtn,.delbtn,.ex-skip,.togglebtn,.agent-detail-link,.logbtn,.rest-btn,
-.bpsheet-x,.outbox-review-close,.edset-del{position:relative}
+.bpsheet-x,.outbox-review-close,.edset-del,
+.pillbtn,.home-back,.stone-detail-chip,.hdr-changes,.wt-mini,.tag-chip{position:relative}
 .feel-dot::before,.iconbtn::before,.delbtn::before,
 .ex-skip::before,.togglebtn::before,.agent-detail-link::before,.sheet-x::before,
 .logbtn::before,.rest-btn::before,
 .bpsheet-x::before,.outbox-review-close::before,.edset-del::before,
-.detail-x::before,.chat-jump::before,.qlmic::before{
+.detail-x::before,.chat-jump::before,.qlmic::before,
+.pillbtn::before,.home-back::before,.stone-detail-chip::before,.hdr-changes::before,
+.wt-mini::before,.tag-chip::before{
   content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
   min-width:44px;min-height:44px;width:100%;height:100%;
 }
@@ -7354,7 +7360,7 @@ body[data-tab="session"] .tabbar{display:none}
 .chfeed-meta{margin:0;font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
   text-transform:uppercase;color:var(--muted);line-height:1.6}
 .chfeed-conf-k{letter-spacing:inherit}
-.chfeed-undo{align-self:flex-start;min-height:40px;display:inline-flex;align-items:center;
+.chfeed-undo{align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;
   margin:calc(var(--space-4) * -1) 0 calc(var(--space-5) * -1);font-size:var(--text-sm)}
 .chfeed-undo[aria-busy="true"]{opacity:.55;pointer-events:none}
 /* The change the athlete just made settles: its dawn washes in once and fades back
@@ -7559,7 +7565,7 @@ body[data-tab="session"] .tabbar{display:none}
 .idea-card-why{flex:1 1 auto;margin:0;font-size:var(--text-sm);color:var(--ink2);line-height:1.45}
 .idea-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-6);margin-top:var(--space-3)}
 .idea-card-start{padding:7px 13px;font-size:var(--text-sm)}
-.idea-card-start,.idea-card-another{min-height:40px}
+.idea-card-start,.idea-card-another{min-height:44px}
 .idea-card-another{font-size:var(--text-sm)}
 .idea-card-another[disabled]{opacity:.55;cursor:default}
 .idea-card-another[aria-busy="true"]{cursor:wait}
@@ -8062,7 +8068,9 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
 /* ---- the stone detail: switcher, a head washed in the stone's hue, then its places ---- */
 .stone-detail{padding-bottom:var(--space-10)}
 .stone-detail-chips{position:relative;display:flex;gap:var(--space-3);overflow-x:auto;scrollbar-width:none;
-  margin:var(--space-2) calc(-1 * var(--gutter)) 0;padding:2px var(--gutter)}
+  /* 8px of vertical padding (taken back by the margins) holds each chip's 44px hit
+     overlay (a11y.css) inside the scroller, so it never scrolls vertically */
+  margin:calc(var(--space-2) - 6px) calc(-1 * var(--gutter)) -6px;padding:8px var(--gutter)}
 .stone-detail-chips::-webkit-scrollbar{display:none}
 .stone-detail-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:var(--text-sm);
   padding:5px 12px;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--surface);color:var(--ink2);
@@ -8213,8 +8221,8 @@ header:has(> .hdr-chat-actions) > .moved-note{grid-column:1 / -1;grid-row:2}
 .ripple-caption{font-size:var(--text-sm)}
 .ripple-change{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.3;color:var(--ink);text-wrap:pretty}
 .ripple-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-6);margin-top:var(--space-2)}
-.ripple-actions .pillbtn{min-height:40px;padding:7px 15px}
-.ripple-actions .linkbtn-quiet,.ripple-changes{min-height:40px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
+.ripple-actions .pillbtn{min-height:44px;padding:7px 15px}
+.ripple-actions .linkbtn-quiet,.ripple-changes{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
 .ripple-do{background:var(--dawn);border-color:var(--dawn);color:var(--on-accent)}
 .ripple-do:hover{background:var(--dawn-deep);border-color:var(--dawn-deep);color:var(--on-accent)}
 .ripple-do[aria-busy="true"]{opacity:.55;pointer-events:none}

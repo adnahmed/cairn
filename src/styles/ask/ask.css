@@ -46,8 +46,8 @@
 .ripple-caption{font-size:var(--text-sm)}
 .ripple-change{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.3;color:var(--ink);text-wrap:pretty}
 .ripple-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-6);margin-top:var(--space-2)}
-.ripple-actions .pillbtn{min-height:40px;padding:7px 15px}
-.ripple-actions .linkbtn-quiet,.ripple-changes{min-height:40px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
+.ripple-actions .pillbtn{min-height:44px;padding:7px 15px}
+.ripple-actions .linkbtn-quiet,.ripple-changes{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
 .ripple-do{background:var(--dawn);border-color:var(--dawn);color:var(--on-accent)}
 .ripple-do:hover{background:var(--dawn-deep);border-color:var(--dawn-deep);color:var(--on-accent)}
 .ripple-do[aria-busy="true"]{opacity:.55;pointer-events:none}

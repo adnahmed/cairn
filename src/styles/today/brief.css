@@ -115,7 +115,7 @@
    plan's arc, the finding the day honours), folded behind one quiet tap so the
    first view is the read and its one action. A hairline row, mono label. */
 .brief-around{margin-top:var(--space-7);border-top:1px solid var(--line)}
-.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;
+.brief-around-sum{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;
   list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .brief-around-sum::-webkit-details-marker{display:none}
 .brief-around-chev{color:var(--muted);font-size:.7rem;transition:transform var(--dur-2) var(--ease)}
