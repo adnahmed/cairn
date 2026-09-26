@@ -106,6 +106,8 @@ const num = (v: unknown): number | null => {
 // An idea key travels in `?exclude=key,key`, split on commas, and carries "@portion".
 const safeKey = (key: string): string => key.replace(/[,@]/g, " ").replace(/\s+/g, " ").trim();
 const foodKey = (text: string): string => safeKey(frequentFoodKey(text));
+/** A logged row's identity as a card prints it: bracketed qualifiers do not split a food. */
+const componentKey = (text: string): string => foodKey(stripQualifiers(text) || text);
 
 // A side named after the lead reads as a phrase: "Chicken breast with asparagus",
 // not "…with Asparagus". Proper adjectives and acronyms keep their capital.
@@ -174,6 +176,9 @@ export function stripSupplements(text: string): string {
   return joinList(parts);
 }
 
+/** First letter up: a list whose first part was taken out still starts a title. PURE. */
+const capFirst = (text: string): string => text.replace(/^\s*\p{Ll}/u, (c) => c.toUpperCase());
+
 /** "Rice (cooked)" → "Rice". PURE. Bracketed qualifiers read as clutter on a card. */
 export function stripQualifiers(text: string): string {
   return String(text ?? "")
@@ -189,9 +194,11 @@ export function stripQualifiers(text: string): string {
  * single long phrase is cut at a word, never mid-word.
  */
 export function capIdeaTitle(text: string, max = FUEL_IDEA_TITLE_MAX): string {
-  const s = stripQualifiers(String(text ?? ""))
+  const raw = String(text ?? "")
     .replace(/\s+/g, " ")
     .trim();
+  // A title that is nothing but a qualifier ("(leftovers)") keeps its words.
+  const s = stripQualifiers(raw) || capFirst(raw.replace(/^[([]\s*|\s*[)\]]$/g, "").trim());
   if (s.length <= max) return s;
   const parts = listParts(s);
   for (let n = parts.length - 1; n >= 1; n--) {
@@ -282,7 +289,8 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
       if (!item || isAlcoholFood(item)) continue;
       const supplement = supplementFoodKind(item);
       if (supplement === "supplement") continue;
-      const ck = foodKey(item);
+      // Grouped on the words a card prints: "Rice (cooked)" and "Rice (white)" are one rice.
+      const ck = componentKey(item);
       if (!ck) continue;
       inMeal.add(ck);
       const cur = touch(comps, ck, () => ({
@@ -340,7 +348,7 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
     let kcal = Number(est.kcal);
     // Mostly alcohol: nothing worth offering once it is taken out.
     if (drinkSum("kcal") * 2 >= kcal) continue;
-    const cleaned = stripSupplements(stripAlcohol(v.title));
+    const cleaned = capFirst(stripSupplements(stripAlcohol(v.title)));
     if (!cleaned) continue;
     kcal -= takenOut("kcal");
     if (!(kcal > 0)) continue;
@@ -368,7 +376,7 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
       last_logged: v.last,
       usual_now: usualNow.has(key),
       source: "staple",
-      lead_key: lead ? foodKey(String(lead.item)) : key,
+      lead_key: lead ? componentKey(String(lead.item)) : key,
     });
   }
 
@@ -733,13 +741,16 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
         b.s.staple.times_logged - a.s.staple.times_logged ||
         a.s.staple.key.localeCompare(b.s.staple.key)
     );
-  // Two ideas never lead with the same food.
+  // Two ideas never lead with the same food, nor print the same title.
   const leads = new Set<string>();
+  const titles = new Set<string>();
   const sized: Sized[] = [];
   for (const { s } of ranked) {
     const lead = s.staple.lead_key ?? s.staple.key;
-    if (leads.has(lead)) continue;
+    const shown = s.staple.title.trim().toLowerCase();
+    if (leads.has(lead) || titles.has(shown)) continue;
     leads.add(lead);
+    titles.add(shown);
     sized.push(s);
     if (sized.length >= FUEL_IDEAS_COUNT) break;
   }

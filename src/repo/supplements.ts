@@ -122,19 +122,70 @@ function matchSupplementKB(low: string) {
 const FOOD_AMBIGUOUS_KEYS = new Set(["turmeric", "element", "cod liver", "probiotic", "nr ", "d supp"]);
 const DOSE_FORM_RE = /\b(?:capsules?|softgels?|tablets?|tabs|pills?|supplements?)\b/i;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// A NUTRIENT key names something ordinary food also carries or advertises
+// ("Omega-3 eggs", "Vitamin D milk", "Iron-fortified cereal", "Caffeine-free Diet
+// Coke", "Cast iron steak", "Benecol stanol spread"). It reads as a supplement only
+// when it stands alone — nothing left but the nutrient, a salt/form word, an amount
+// and a dose form — or when a supplement dose (a dose form, or an amount in mg /
+// mcg / IU / capsules / scoops) says it was taken as one. Any other word left
+// beside it is the food it sits in.
+const NUTRIENT_KEYS = new Set([
+  "omega 3", "omega-3", "omega3", "epa", "dha",
+  "vitamin d", "vit d", "vitamin-d", "d3",
+  "magnesium", "zinc", "iron", "ferrous", "selenium",
+  "b12", "b-12", "b complex", "b-complex",
+  "vitamin c", "vit c", "ascorbic",
+  "collagen", "caffeine",
+  "folate", "folic acid",
+  "vitamin k2", "vit k2", "vitamin-k2", "vitamin k",
+  "plant sterol", "phytosterol", "stanol",
+  "vitamin a", "retinol", "beta-carotene", "beta carotene",
+  "vitamin e", "tocopherol",
+]);
+const SUPPLEMENT_AMOUNT_RE = /\d+(?:[.,]\d+)?\s?(?:mg|mcg|µg|iu|caps?|capsules?|tabs?|softgels?|scoops?)\b/i;
+// Words that leave a nutrient standing alone: salt / form words, dose forms, and
+// the plain filler of a logged row ("some", "daily", "before bed").
+const NUTRIENT_COMPANION_RE = new RegExp(
+  `\\b(?:${[
+    "glycinate", "bisglycinate", "citrate", "oxide", "malate", "threonate", "picolinate", "chelate", "gluconate",
+    "sulfate", "sulphate", "fumarate", "methylcobalamin", "cholecalciferol", "k2", "mk-?7",
+    "peptides?", "powder", "lozenges?", "gummy", "gummies", "drops?", "spray", "liquid", "complex", "supplements?", "vitamins?",
+    "capsules?", "softgels?", "tablets?", "tabs?", "pills?", "caps?", "scoops?", "mg", "mcg", "µg", "iu", "g", "ml",
+    "some", "a", "an", "of", "daily", "x", "and", "plus", "with", "in", "water", "before", "after", "bed", "bedtime",
+    "morning", "night", "evening",
+  ].join("|")})\\b`,
+  "gi"
+);
+const keyRe = (keys: string[]) => new RegExp(`\\b(?:${keys.map((k) => escapeRe(k.trim())).join("|")})\\b`, "i");
+const NUTRIENT_ANY_RE = new RegExp(keyRe([...NUTRIENT_KEYS]).source, "gi");
 const SUPPLEMENT_FOOD_RES = SUPPLEMENT_KB.flatMap((e) => {
-  const keys = e.keys.filter((k) => !FOOD_AMBIGUOUS_KEYS.has(k)).map((k) => escapeRe(k.trim()));
+  const usable = e.keys.filter((k) => !FOOD_AMBIGUOUS_KEYS.has(k));
+  const strict = usable.filter((k) => !NUTRIENT_KEYS.has(k));
+  const nutrient = usable.filter((k) => NUTRIENT_KEYS.has(k));
   // An entry whose every key is food-ambiguous is not matched at all (an empty
   // alternation would match everything).
-  return keys.length ? [{ category: e.category, re: new RegExp(`\\b(?:${keys.join("|")})\\b`, "i") }] : [];
+  return usable.length
+    ? [{ category: e.category, strict: strict.length ? keyRe(strict) : null, nutrient: nutrient.length ? keyRe(nutrient) : null }]
+    : [];
 });
+
+/** A nutrient named alone, or taken as a dose — never the food that carries it. */
+function nutrientTakenAsSupplement(s: string): boolean {
+  if (DOSE_FORM_RE.test(s) || SUPPLEMENT_AMOUNT_RE.test(s)) return true;
+  const rest = s
+    .replace(NUTRIENT_ANY_RE, " ")
+    .replace(NUTRIENT_COMPANION_RE, " ")
+    .replace(/\d+(?:[.,]\d+)?/g, " ");
+  return !/\p{L}/u.test(rest);
+}
 
 export function supplementFoodKind(text: unknown): "protein" | "supplement" | null {
   const s = String(text ?? "");
   if (!s.trim()) return null;
   let protein = false;
-  for (const { category, re } of SUPPLEMENT_FOOD_RES) {
-    if (!re.test(s)) continue;
+  for (const { category, strict, nutrient } of SUPPLEMENT_FOOD_RES) {
+    const hit = strict?.test(s) || (nutrient?.test(s) && nutrientTakenAsSupplement(s));
+    if (!hit) continue;
     if (category !== "protein" || /\bcollagen\b/i.test(s)) return "supplement";
     protein = true;
   }
