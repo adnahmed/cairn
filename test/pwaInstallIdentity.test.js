@@ -148,6 +148,7 @@ const NOT_PERSISTED = new Set([
   "cairn.endurance.v4",
   "cairn.dicom-import-jobs.v1",
   "cairn.chat.retry.v1",
+  "cairn.ask.whatif.v1", // the ask surface's in-flight what-if job id (v2 wave 5)
   "cairn:keyboard-settle",
   "cairn-shell",
   "cairn-",
