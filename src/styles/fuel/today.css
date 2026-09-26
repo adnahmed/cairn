@@ -6,6 +6,8 @@
    logged (hairline rows in portion words), then ideas for the rest of today. */
 .fuel-slot:empty{display:none}
 .fuel-slot + .fuel-slot{margin-top:var(--space-8)}
+/* the energy read below the slots keeps the same breath, so it never reads as part of the ideas */
+.fuel .fuel-slot ~ #energyCard{margin-top:var(--space-8)}
 
 /* ---- Today so far: one card, protein leads as a meter in the fuel stone's hue ---- */
 .fuel-today{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);

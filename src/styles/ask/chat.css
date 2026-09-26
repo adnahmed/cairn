@@ -255,7 +255,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   border-radius:20px;padding:9px 15px;font-family:var(--font-ui);font-size:var(--text-base);line-height:1.4;
   min-height:40px;resize:none;max-height:140px;overflow-y:hidden;display:block;
   transition:border-color var(--dur-1) var(--ease)}
-.chatbar textarea::placeholder{color:var(--muted)}
+.chatbar textarea::placeholder{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chatbar textarea:focus{outline:none;border-color:var(--dawn)}
 .chatbar .logbtn{width:40px;height:40px;border-radius:var(--radius-pill);font-size:1.05rem}
 /* Wraps the textarea so the reused .qlmic press-to-talk button (see the

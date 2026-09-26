@@ -157,7 +157,7 @@
   function listHtml(meals: readonly Meal[], opts: { isToday?: boolean } = {}): string {
     if (!meals.length) return emptyHtml(opts.isToday !== false);
     return `<section class="fuel-meals reveal" style="--i:1" aria-label="Meals logged">
-      <h2 class="lbl fuel-meals-title">Logged today</h2>
+      <h2 class="lbl fuel-meals-title">${opts.isToday === false ? "Logged that day" : "Logged today"}</h2>
       <ul class="fuel-meals-list">${meals.map((meal) => mealHtml(meal)).join("")}</ul>
     </section>`;
   }

@@ -49,7 +49,7 @@
   /** Ghost rows in the ripple's own shape while the team reads it. */
   function ghostStonesHtml(): string {
     const items = Array.from(
-      { length: 3 },
+      { length: 6 },
       () =>
         `<li class="ripple-stone"><span class="ripple-stone-mark hshimmer" aria-hidden="true"></span><span class="ripple-stone-ghost hshimmer hshimmer-sm" aria-hidden="true"></span></li>`
     ).join("");
@@ -76,10 +76,18 @@
     );
   }
 
+  /**
+   * The row's spoken name. The visible head is aria-hidden (it would read out of order),
+   * so the why and its confidence ride here too — a screen reader hears the team's reason.
+   */
   function stoneLabel(stone: ClientRippleStone): string {
-    return stone.moved && stone.after.word !== stone.before.word
-      ? `${stone.label}: ${stone.before.word} now, ${stone.after.word} after`
-      : `${stone.label}: ${stone.after.word}`;
+    const where =
+      stone.moved && stone.after.word !== stone.before.word
+        ? `${stone.label}: ${stone.before.word} now, ${stone.after.word} after`
+        : `${stone.label}: ${stone.after.word}`;
+    if (!(stone.moved && stone.why)) return where;
+    const conf = stone.confidence ? ` (${stone.confidence})` : "";
+    return `${where}. ${stone.why}${conf}`;
   }
 
   /** The stone's key as a class, only for the six the stone palette knows. */

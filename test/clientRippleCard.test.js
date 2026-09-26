@@ -265,7 +265,12 @@ test("the answer shows the change in words, all six stones, and a why per stone 
     stones.map((s) => s.querySelector(".ripple-stone-now").textContent),
     ["planned", "better", "in progress", "asks more", "on course", "worth noting"]
   );
-  assert.equal(stones[3].getAttribute("aria-label"), "Recovery: rested now, asks more after");
+  assert.equal(
+    stones[3].getAttribute("aria-label"),
+    "Recovery: rested now, asks more after. One more run asks more of your legs. (possible)",
+    "the spoken row carries the why and its confidence, since the visible head is aria-hidden"
+  );
+  assert.equal(stones[0].getAttribute("aria-label"), "Strength: planned", "a steady stone speaks only where it stands");
   assert.equal(stones[3].classList.contains("ripple-watch"), true, "the tone travels as a class");
   assert.equal(stones[0].classList.contains("is-moved"), false);
   const whys = host.querySelectorAll(".ripple-why");

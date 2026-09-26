@@ -1969,7 +1969,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   border-radius:20px;padding:9px 15px;font-family:var(--font-ui);font-size:var(--text-base);line-height:1.4;
   min-height:40px;resize:none;max-height:140px;overflow-y:hidden;display:block;
   transition:border-color var(--dur-1) var(--ease)}
-.chatbar textarea::placeholder{color:var(--muted)}
+.chatbar textarea::placeholder{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chatbar textarea:focus{outline:none;border-color:var(--dawn)}
 .chatbar .logbtn{width:40px;height:40px;border-radius:var(--radius-pill);font-size:1.05rem}
 /* Wraps the textarea so the reused .qlmic press-to-talk button (see the
@@ -7172,6 +7172,8 @@ body[data-tab="session"] .tabbar{display:none}
    logged (hairline rows in portion words), then ideas for the rest of today. */
 .fuel-slot:empty{display:none}
 .fuel-slot + .fuel-slot{margin-top:var(--space-8)}
+/* the energy read below the slots keeps the same breath, so it never reads as part of the ideas */
+.fuel .fuel-slot ~ #energyCard{margin-top:var(--space-8)}
 
 /* ---- Today so far: one card, protein leads as a meter in the fuel stone's hue ---- */
 .fuel-today{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);

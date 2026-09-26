@@ -104,6 +104,16 @@ test("hostile text comes back as text", () => {
   assert.equal(host.querySelector(".fuel-meal-name").textContent, "<b>x</b>");
 });
 
+test("the list is headed for the day it shows: today, or that day", () => {
+  const win = load();
+  const meals = win.CairnFuelTodayModel.mealModels(day([bowl()]));
+  const today = renderHtml(win.CairnFuelMeals.listHtml(meals, { isToday: true }), { document: win.document });
+  assert.equal(today.querySelector(".fuel-meals-title").textContent, "Logged today");
+  const past = renderHtml(win.CairnFuelMeals.listHtml(meals, { isToday: false }), { document: win.document });
+  assert.equal(past.querySelector(".fuel-meals-title").textContent, "Logged that day");
+  assert.doesNotMatch(past.textContent, /Logged today/);
+});
+
 test("an empty today collapses; an empty past day says so plainly", () => {
   const win = load();
   assert.equal(win.CairnFuelMeals.listHtml([], { isToday: true }), "");

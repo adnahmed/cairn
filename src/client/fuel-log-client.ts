@@ -5,11 +5,13 @@
 // control folds it away again. The composer's own markup is the composer's; this
 // view only holds its slot.
 {
+  // The toggle's name is its visible words (the field's prompt, or "Close" when open),
+  // so a voice-control user can say what they see (label-in-name, WCAG 2.5.3).
   function fuelLogHtml(): string {
     return `<div class="fuel-log">
       <div class="fuel-log-head">
         <h2 class="lbl fuel-log-title">Log what you ate</h2>
-        <button class="fuel-log-toggle" type="button" data-fuel-log-toggle aria-label="Log food"
+        <button class="fuel-log-toggle" type="button" data-fuel-log-toggle
           aria-expanded="false" aria-controls="fuelLogPanel"><span class="fuel-log-faux">What did you eat? A line per food, or a photo of the plate.</span><span class="fuel-log-fold">Close</span></button>
       </div>
       <div class="fuel-log-panel" id="fuelLogPanel" role="region" aria-label="Log food">
