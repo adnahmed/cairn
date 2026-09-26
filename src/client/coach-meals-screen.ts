@@ -19,84 +19,69 @@ function agentName(agent: CoachAgent): string {
   return typeof agent.name === "string" && agent.name ? agent.name : "agent";
 }
 
-// Decisions still waiting on the athlete, across every domain. The Plan tab's
-// forward note is scoped to training/recovery, so a conference about labs or
-// fuelling has nowhere else to land — and this screen is the one that promises "a
-// clear record here". Each row shows the sentence the conference wrote for a person,
-// not its machine summary. Pull-only: it waits here, it never notifies.
-function coachWaitingDecisionsHtml(rows: unknown): string {
-  const all = coachMealRows(rows)
-    .map((d) => ({
-      summary: String(d.summary ?? "").trim(),
-      explanation: String(d.explanation ?? "").trim(),
-      forClinician: d.for_clinician === true,
-    }))
-    .filter((d) => d.explanation);
-  const disclosure = (label: string, items: typeof all): string => {
-    if (!items.length) return "";
-    const body = items
-      .map(
-        (d) => `<div class="plan-upcoming-item">
-        ${d.summary ? `<p class="plan-upcoming-line">${escHtml(d.summary)}</p>` : ""}
-        <p class="plan-upcoming-why">${escHtml(d.explanation)}</p>
-      </div>`
-      )
-      .join("");
-    // Collapsed by default, same footnote-weight disclosure as the Plan tab's
-    // forward note — the count stays visible so "waiting on you" never goes dark,
-    // the rationale paragraphs are one tap away.
-    return `<details class="plan-upcoming reveal">
-    <summary><span class="lbl plan-upcoming-strip">${escHtml(label)} (${items.length})</span></summary>
-    <div class="plan-upcoming-body">${body}</div>
-  </details>`;
-  };
-  // A clinician-floor hold or a conference's clinical note is for the athlete AND their
-  // doctor — information to take to a visit, never counted as something they owe the coach.
+// ---------- Changes (Plan → Changes) ----------
+// A composition only: the shell paints synchronously, then two components mount into
+// their own slots — the calm asks that still need the athlete (ask-card-*.ts) and the
+// history-first Changes feed with Undo (changes-feed-*.ts). The proposal and meal-plan
+// histories and the manual review stay below, as before.
+function coachAgentOptionsHtml(agents: CoachAgent[]): string {
   return (
-    disclosure("Waiting on you", all.filter((d) => !d.forClinician).slice(0, 4)) +
-    disclosure("For you and your doctor", all.filter((d) => d.forClinician).slice(0, 4))
-  );
-}
-
-// ---------- Coach ----------
-async function renderCoach(): Promise<void> {
-  headerTitle.textContent = "Changes";
-  state.planSeg = "coach";
-  view.innerHTML = segSkeleton("coach", planSeg(), 3);
-  const agents = coachMealRows<CoachAgent>(await api("/agents"));
-  const proposals = await api("/proposals?limit=10");
-  let waiting: unknown = null;
-  try {
-    waiting = await api("/brain/decisions/waiting?limit=8");
-  } catch {
-    // A missing waiting read never blocks the change history this screen is for.
-  }
-  const agentOpts =
     `<option value="auto">⟳ Auto · rotate enabled agents</option>` +
     agents
       .map(
         (a) =>
           `<option value="${escAttr(agentName(a))}"${a.enabled ? "" : " disabled"}>${escHtml(agentName(a))}${a.enabled ? "" : " (off)"}${a.env_ok ? "" : " · no key"}</option>`
       )
-      .join("");
+      .join("")
+  );
+}
 
-  await skelSwap(() => {
-    view.innerHTML =
-      // Changes is a first-class Plan segment now, so the bar IS the way back —
-      // a "‹ Plan" link beside its own active pill was the same move said twice.
-      segBar("coach", planSeg()) +
-      `
-    <p class="changes-lede sess-line" style="color:var(--muted);margin:2px 2px 16px;line-height:1.5">Your expert team adapts training and meals in the background, then leaves a clear record here. Most changes need nothing from you: they arrive at the right boundary with a heads-up and Undo. Talk to the team anytime in the <button class="linkbtn linkbtn-plain" id="changesToChat" type="button">Coach</button> tab.</p>
-    ${coachWaitingDecisionsHtml(waiting)}
-    <h1 class="lbl" style="margin:24px 0 8px">Program change history</h1>
+function mountCoachChanges(): void {
+  const asks = view.querySelector("#changesAsksSlot");
+  const feed = view.querySelector("#changesFeedSlot");
+  if (asks) CairnAskCardController.mount(asks, { peekCached, cachedApi, gotoChatWith });
+  if (feed) {
+    CairnChangesFeedController.mount(feed, {
+      api,
+      toast,
+      peekCached,
+      cachedApi,
+      swrInvalidate,
+      reducedMotion,
+      markRefreshing,
+      collapse: (el, done) => collapseEl(el, done),
+      skeleton: () => skelLines(3),
+      // Undo stays available at the affected item too; drop what those surfaces
+      // cached so they read the server's restored state on their next paint.
+      onReverted: () => {
+        swrInvalidate("plan");
+        swrInvalidate(MEALS_KEY);
+      },
+    });
+  }
+}
+
+async function renderCoach(): Promise<void> {
+  headerTitle.textContent = "Changes";
+  state.planSeg = "coach";
+  const token = ++pollToken;
+  // Changes is a first-class Plan segment, so the bar IS the way back.
+  view.innerHTML =
+    segBar("coach", planSeg()) +
+    `
+    <p class="changes-lede sess-line">Your expert team adapts training and meals in the background, then leaves a clear record here. Most changes need nothing from you: they arrive at the right boundary with a heads-up and Undo. Talk to the team anytime in the <button class="linkbtn linkbtn-plain" id="changesToChat" type="button">Coach</button> tab.</p>
+    <div id="changesAsksSlot" class="changes-asks"></div>
+    <h1 class="lbl changes-h">What the team changed</h1>
+    <div id="changesFeedSlot" class="changes-feed-slot"></div>
+    <h1 class="lbl changes-h">Program change history</h1>
     <div id="proplist"></div>
-    <h1 class="lbl" style="margin:24px 0 8px">Meal-plan change history</h1>
+    <h1 class="lbl changes-h">Meal-plan change history</h1>
     <div id="meallist"></div>
-    <details class="changes-manual" style="margin-top:24px">
+    <details class="changes-manual">
       <summary class="lbl">Manual review</summary>
-      <p class="sess-line" style="color:var(--muted);margin:10px 2px 16px;line-height:1.5">The team reviews your signals automatically. Use these controls only when you want an extra review or want to give a specific direction.</p>
+      <p class="sess-line changes-manual-note">The team reviews your signals automatically. Use these controls only when you want an extra review or want to give a specific direction.</p>
       <div class="field"><label>Agent</label>
-        <select id="agentsel">${agentOpts || "<option>none configured</option>"}</select></div>
+        <select id="agentsel">${coachAgentOptionsHtml([])}</select></div>
       <div class="field"><label>Instruction (optional)</label>
         <select id="presetsel">
           <option value="">Review recent sessions and prepare the next useful changes</option>
@@ -104,26 +89,26 @@ async function renderCoach(): Promise<void> {
           <option value="Be extra conservative; I felt beat up this week.">Extra conservative</option>
           <option value="custom">Custom\u2026</option>
         </select></div>
-      <div class="field" id="customwrap" style="display:none">
+      <div class="field" id="customwrap" hidden>
         <textarea id="custominstr" rows="3" class="form-textarea" placeholder="e.g. focus on lower body; hold everything else\u2026"></textarea>
       </div>
       <div class="meals-actions">
         <button id="runbtn" class="pillbtn pill-accent">Ask team to review program</button>
       </div>
-      <div id="runstatus" style="margin-top:10px;color:var(--muted);font-size:.85rem"></div>
+      <div id="runstatus" class="changes-status"></div>
       <div class="meals-actions">
         <button id="mealbtn" class="pillbtn pill-accent">Ask team to refresh meals</button>
       </div>
-      <div id="mealstatus" style="margin-top:10px;color:var(--muted);font-size:.85rem"></div>
+      <div id="mealstatus" class="changes-status"></div>
     </details>`;
-  });
 
   wireSeg(PLAN_HANDLERS);
+  mountCoachChanges();
   $("#changesToChat")?.addEventListener("click", () => activateTab("chat"));
   $<HTMLSelectElement>("#presetsel")?.addEventListener("change", (e) => {
     const wrap = htmlElement($("#customwrap"));
     const target = e.target instanceof HTMLSelectElement ? e.target : null;
-    if (wrap) wrap.style.display = target?.value === "custom" ? "block" : "none";
+    if (wrap) wrap.hidden = target?.value !== "custom";
   });
   $("#runbtn")?.addEventListener("click", () => {
     CairnCoachProposalController.runCoachProposal(
@@ -132,8 +117,25 @@ async function renderCoach(): Promise<void> {
     );
   });
   $("#mealbtn")?.addEventListener("click", runMealPlan);
-  CairnCoachProposalController.renderProposals(proposals);
-  CairnMealPlannerController.renderMealPlans(await api("/mealplans?limit=8"));
+
+  // The histories and the agent list fill in behind the painted shell; each checks it
+  // is still the screen on view before it writes.
+  const current = (): boolean => token === pollToken && Boolean(view.querySelector("#changesFeedSlot"));
+  await Promise.allSettled([
+    api("/agents").then((agents) => {
+      const select = $<HTMLSelectElement>("#agentsel");
+      if (!current() || !select) return;
+      const chosen = select.value;
+      select.innerHTML = coachAgentOptionsHtml(coachMealRows<CoachAgent>(agents));
+      if (chosen && Array.from(select.options).some((o) => o.value === chosen && !o.disabled)) select.value = chosen;
+    }),
+    api("/proposals?limit=10").then((proposals) => {
+      if (current()) CairnCoachProposalController.renderProposals(proposals);
+    }),
+    api("/mealplans?limit=8").then((plans) => {
+      if (current()) CairnMealPlannerController.renderMealPlans(plans);
+    }),
+  ]);
 }
 
 function instructionValue(): string {

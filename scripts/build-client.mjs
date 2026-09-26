@@ -263,6 +263,10 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/app/discipline-primer.ts", output: "public/js/app-discipline-primer.js" },
   { source: "src/client/app/onboarding.ts", output: "public/js/app-onboarding.js" },
   { source: "src/client/app/startup.ts", output: "public/js/app-startup.js" },
+  { source: "src/client/changes-feed-client.ts", output: "public/js/changes-feed-client.js" },
+  { source: "src/client/changes-feed-controller.ts", output: "public/js/changes-feed-controller.js" },
+  { source: "src/client/ask-card-client.ts", output: "public/js/ask-card-client.js" },
+  { source: "src/client/ask-card-controller.ts", output: "public/js/ask-card-controller.js" },
 ];
 
 // Ordered concatenation manifest. index.html loads a handful of bundles instead
@@ -467,6 +471,12 @@ export const BUNDLES = [
       // immediately before bundle-05, and these were its first two entries.
       "public/js/food-note-client.js",
       "public/js/food-detail-controller.js",
+      // Plan → Changes components (v2 wave 1). renderCoach reaches them only from
+      // inside a function, so they may follow the screen that mounts them.
+      "public/js/changes-feed-client.js",
+      "public/js/changes-feed-controller.js",
+      "public/js/ask-card-client.js",
+      "public/js/ask-card-controller.js",
     ],
   },
   {
