@@ -324,6 +324,34 @@ test("an athlete's own meal label stays chosen in the correction", () => {
   assert.equal(chosen.getAttribute("value"), "Pre-run");
 });
 
+test("a meal split from the athlete's words, with no numbers yet, opens into its rows and the totals correction", () => {
+  const win = load();
+  const words = bowl({
+    id: 70,
+    summary: "oats 60 g",
+    ingredients: [
+      { item: "oats", amount: "60 g" },
+      { item: "milk", amount: "250 ml" },
+    ],
+    kcal: null,
+    protein_g: null,
+    carbs_g: null,
+    fat_g: null,
+    fiber_g: null,
+    confidence: "low",
+    basis: "user_report",
+    enrichment_status: "skipped",
+  });
+  const meals = win.CairnFuelTodayModel.mealModels(day([words, bowl()]));
+  const host = renderHtml(win.CairnFuelMeals.listHtml(meals), { document: win.document });
+  const row = host.querySelector('[data-fuel-meal="70"]');
+  assert.ok(row.querySelector("[data-fuel-meal-card]"), "the rows are there at once");
+  assert.ok(row.querySelector("[data-fuel-meal-fix]"), "and the numbers can be entered");
+  assert.match(row.querySelector(".fuel-meal-note").textContent, /^No numbers yet\. The items are in your words/);
+  const estimated = host.querySelector('[data-fuel-meal="42"]');
+  assert.equal(estimated.querySelector("[data-fuel-meal-fix]"), null, "an estimated meal keeps only its card");
+});
+
 test("an ingredient-less meal is corrected with one PUT and today's numbers re-read", async () => {
   const bare = bowl({
     id: 60,

@@ -73,16 +73,21 @@
   }
 
   function fixNoteHtml(meal: Meal): string {
-    const words = meal.failed
-      ? "The estimate for this one didn't finish. Enter what you know and it counts toward the day."
-      : "Logged as one whole meal. Its numbers can be corrected here.";
+    const words = meal.editable
+      ? "No numbers yet. The items are in your words; enter what you know and it counts toward the day."
+      : meal.failed
+        ? "The estimate for this one didn't finish. Enter what you know and it counts toward the day."
+        : "Logged as one whole meal. Its numbers can be corrected here.";
     return `<p class="fuel-meal-note">${words}</p>`;
   }
 
   function panelBodyHtml(meal: Meal): string {
     const raw = meal.raw ? `<p class="fuel-meal-raw">As logged: “${escHtml(meal.raw)}”</p>` : "";
+    // Items with no numbers at all (split from the athlete's words, no estimate ran):
+    // the card holds the rows, and the totals correction is where numbers go in.
+    const unestimated = meal.editable && meal.kcal == null && meal.protein_g == null;
     const card = meal.editable
-      ? `<div class="fuel-meal-card" data-fuel-meal-card></div>`
+      ? `<div class="fuel-meal-card" data-fuel-meal-card></div>${unestimated ? `${fixNoteHtml(meal)}${fixFormHtml(meal)}` : ""}`
       : meal.pending
         ? `<p class="fuel-meal-note" role="status">Still being estimated. Its items appear here once it settles.</p>`
         : `${fixNoteHtml(meal)}${fixFormHtml(meal)}`;

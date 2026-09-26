@@ -920,6 +920,15 @@ export function resolveAgentForTask(
   return enabled.includes(pinned) ? pinned : requested;
 }
 
+// Whether a background estimate (the food/photo enrichment pass) can run at all right
+// now: enrichment switched on AND at least one usable agent. Side-effect free — it never
+// advances the rotation cursor — so copy can decide whether to promise a background
+// estimate without spending a pick. The reason says which of the two is missing.
+export function backgroundEstimateAvailability(): { ok: true } | { ok: false; reason: "enrichment_off" | "no_agent" } {
+  if (!getSettings().enrich_enabled) return { ok: false, reason: "enrichment_off" };
+  return getAgentConfig().some((a) => a.usable) ? { ok: true } : { ok: false, reason: "no_agent" };
+}
+
 // The order in which to try agents for an "auto" run, per the configured strategy.
 // Round-robin advances a persisted cursor so usage rotates across drafts.
 //

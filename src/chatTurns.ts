@@ -255,6 +255,27 @@ export function inferCaptureMeal(message: string | null | undefined, hour = nowC
   return "dinner";
 }
 
+// The instant capture's receipt. It promises a background estimate ONLY when one will
+// actually run (the note is queued AND enrichment is on with a usable agent); otherwise
+// it says what was kept — the athlete's own items — and that the numbers stay blank.
+export function instantCaptureReply(meal: string, photo: boolean, note: any): string {
+  const queued = String(note?.enrichment_status ?? "") === "pending";
+  const availability = repo.backgroundEstimateAvailability();
+  if (queued && availability.ok) {
+    return photo
+      ? `Logged your ${meal}. I’ll refine the photo estimate in the background.`
+      : `Logged your ${meal}. I’ll fill in the nutrition details in the background.`;
+  }
+  const why =
+    !availability.ok && availability.reason === "no_agent"
+      ? "No agent is available to estimate it right now"
+      : "Nutrition estimates are switched off in Settings";
+  if (photo) return `Logged your ${meal} with the photo. ${why}, so its numbers stay blank until you add them.`;
+  const rows = Array.isArray(note?.parsed?.ingredients) ? note.parsed.ingredients.length : 0;
+  const items = rows > 1 ? ` as ${rows} items` : "";
+  return `Logged your ${meal}${items}, in your words. ${why}, so the numbers stay blank until you add them.`;
+}
+
 export function completeInstantFoodCapture(id: number, rawMessage?: string) {
   const turn = repo.getChatTurn(id) as any;
   if (!turn) return null;
@@ -285,9 +306,7 @@ export function completeInstantFoodCapture(id: number, rawMessage?: string) {
     routing,
     instant_capture: true,
   };
-  const reply = photo
-    ? `Logged your ${meal}. I’ll refine the photo estimate in the background.`
-    : `Logged your ${meal}. I’ll fill in the nutrition details in the background.`;
+  const reply = instantCaptureReply(meal, photo, note);
   const finished = repo.finishInstantCaptureChatTurn(id, { reply, meta }) as any;
   if (finished?.turn && finished?.message) emit(id, { type: "done", turn: finished.turn, message: finished.message });
   return { ...finished, note };

@@ -46,6 +46,7 @@ import {
   foodItemLabel,
   type FoodIngredientRecompute,
   recomputeFoodIngredients,
+  withWordRows,
 } from "../foodCapture.js";
 
 // ---------- accepted nutrition targets (adaptive-nutrition loop OUTPUT) ----------
@@ -2078,6 +2079,10 @@ function insertFoodNote(
   // note that is emphatically not when the meal happened, which is what `date` and
   // `eaten_at` are for.
   const when = resolveFoodNoteWhen(meal, opts);
+  // A text capture that carries no estimate yet keeps the athlete's own lines as rows
+  // (foodCapture.ts withWordRows): a pasted six-line meal is six rows whether or not an
+  // agent ever reads it. No macros are invented; a later estimate replaces the rows.
+  if (!imagePath && raw && String(raw).trim()) parsed = withWordRows(parsed, raw);
   const info = db
     .prepare(
       `INSERT INTO food_notes (date, eaten_at, meal, raw_output, parsed_json, image_path, enrichment_status) VALUES (?, ?, ?, ?, ?, ?, ?)`
