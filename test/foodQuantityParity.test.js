@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadClientModule } from "./_dom.mjs";
-import { parseFoodQuantity } from "../dist/foodCapture.js";
+import { MASS_TO_G, VOLUME_TO_ML, parseFoodQuantity } from "../dist/foodCapture.js";
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
@@ -49,5 +49,23 @@ test("the client and the server read every amount identically", () => {
     assert.deepEqual(plain(M.quantityOf(amount)), plain(server), `quantity of ${JSON.stringify(amount)}`);
     const grams = server?.unit === "g" ? server.value : null;
     assert.equal(M.gramsFromAmount(amount), grams, `grams in ${JSON.stringify(amount)}`);
+  }
+});
+
+// Every unit word the server knows, not a hand-picked sample: a word added to only
+// one side's table (say "cl" on the server) reads as mass/volume there and as a
+// count unit on the client, and this fails.
+test("every server mass and volume unit reads the same on the client", () => {
+  const M = loadClientModule(["meal-card-model"]).CairnMealCardModel;
+  const words = [...Object.keys(MASS_TO_G), ...Object.keys(VOLUME_TO_ML)];
+  assert.ok(words.length > 0);
+  for (const word of words) {
+    for (const amount of [`2 ${word}`, `2${word}`]) {
+      const server = parseFoodQuantity(amount);
+      assert.ok(server && ["g", "ml"].includes(server.unit), `${word} is a mass or volume unit on the server`);
+      assert.deepEqual(plain(M.quantityOf(amount)), plain(server), `quantity of ${JSON.stringify(amount)}`);
+      const grams = server?.unit === "g" ? server.value : null;
+      assert.equal(M.gramsFromAmount(amount), grams, `grams in ${JSON.stringify(amount)}`);
+    }
   }
 });
