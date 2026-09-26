@@ -21,7 +21,7 @@
 // Synthetic fixtures only. Deterministic and offline (see test/run.mjs).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { beforeEach, test } from "node:test";
+import { beforeEach, mock, test } from "node:test";
 import { deterministicComposedSession, normalizeComposedSession } from "../dist/repo/daily-composition.js";
 import { gatherDailyDecisionSnapshot, buildDailySessionDecision } from "../dist/repo/daily-decision.js";
 import { repo, resetTables, settlePlanPrescriptions } from "./_seed.js";
@@ -235,12 +235,25 @@ test("a plan snapshot of the lower day composes exactly as before the seams", ()
   );
 });
 
+// The snapshot's progression prose rotates through pickDayVariant keyed on the wall-clock
+// day, not DATE, so the fingerprint moves every calendar day unless the clock is pinned.
+// The golden was captured on this day (midday UTC stays the same local date in any
+// ordinary TZ).
+const GOLDEN_CLOCK = "2026-09-25T12:00:00.000Z";
+
 test("an ordinary morning's snapshot and envelope carry none of the seam keys", () => {
   seedLowerPlan();
-  const snapshot = gatherDailyDecisionSnapshot(DATE);
+  mock.timers.enable({ apis: ["Date"], now: new Date(GOLDEN_CLOCK) });
+  let snapshot;
+  let env;
+  try {
+    snapshot = gatherDailyDecisionSnapshot(DATE);
+    env = buildDailySessionDecision(snapshot, { now: "2031-07-01T09:00:00.000Z" });
+  } finally {
+    mock.timers.reset();
+  }
   assert.equal("weekly_dose" in snapshot, false, "no weekly_dose key on an idle snapshot");
   assert.equal("stress_budget" in snapshot, false, "no stress_budget key on an idle snapshot");
-  const env = buildDailySessionDecision(snapshot, { now: "2031-07-01T09:00:00.000Z" });
   assert.equal(env.input_fingerprint, GOLDEN.lower_fingerprint, "the stored fingerprint is unchanged");
   assert.equal("dose" in env, false, "no dose key on an idle envelope");
   assert.equal("stress" in env, false, "no stress key on an idle envelope");
