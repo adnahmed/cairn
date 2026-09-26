@@ -3043,8 +3043,10 @@ export function planDayProgression(
   // lets a fixture state "a `reduce` reached this day" without staging the whole
   // channel agreement behind it. Omit it and the read is the live one, exactly as before.
   // `readDate` is the day this read is FOR (a snapshot's date). It keys the per-lift
-  // phrasing rotation, so a read computed for day D words the same whenever it runs;
-  // omit it and the words key on today. It never moves a number.
+  // phrasing rotation AND the day-level advice reads (fuel/protection, block phase, cut
+  // pressure, near-goal, calibration, light week, slot authorship), so a read computed
+  // for day D both words and reasons as of D whenever it runs; omit it and both key on
+  // today.
   opts: { forNextSession?: boolean; fuelRead?: UnderfuelingRead; readDate?: string } = {}
 ): Prescription[] {
   const day = db.prepare(`SELECT id FROM plan_days WHERE day_number = ?`).get(dayNumber) as any;
@@ -3075,19 +3077,20 @@ export function planDayProgression(
   );
   const personalResponse = whatWorksForYou();
   const preferences = learnedPreferences();
-  const today = localDateISO();
-  const voiceDate = /^\d{4}-\d{2}-\d{2}$/.test(String(opts.readDate ?? "")) ? String(opts.readDate) : today;
-  const fuelProtection = opts.fuelRead ?? currentUnderfuelingRead(today);
+  // ONE day for the pass: the words and the advice behind them follow the same date.
+  const readDay = /^\d{4}-\d{2}-\d{2}$/.test(String(opts.readDate ?? "")) ? String(opts.readDate) : localDateISO();
+  const voiceDate = readDay;
+  const fuelProtection = opts.fuelRead ?? currentUnderfuelingRead(readDay);
   // The periodization phase and the fuel/cut read are properties of the DAY, not of
   // a lift — read once and threaded in, so a day's pass never walks the program state
   // once per movement.
-  const block = activeBlockContext(today);
-  const cut = cutPressureThunk(today);
-  const atNearGoal = atOrNearGoal(today);
+  const block = activeBlockContext(readDay);
+  const cut = cutPressureThunk(readDay);
+  const atNearGoal = atOrNearGoal(readDay);
   // The calibration read is per-LIFT, not per-day, so the shared reader is a memo
   // rather than a single value — a movement appearing twice in a pass walks its
   // 400-day history once, and a movement no branch asks about never walks it.
-  const estimate = estimateReader(today);
+  const estimate = estimateReader(readDay);
   // The athlete's standing declaration is a property of the day too — read once.
   const drive = readTrainingDrive();
   // Items whose volume is still owed back after a cut: the restore ledger owns their
@@ -3106,7 +3109,7 @@ export function planDayProgression(
     if (!lightWeekMemo) {
       let value: string | null = null;
       try {
-        value = lightWeekExemption(today);
+        value = lightWeekExemption(readDay);
       } catch {
         value = null;
       }
@@ -3128,7 +3131,7 @@ export function planDayProgression(
       excludeNames,
       personalModifier,
       preferences,
-      date: today,
+      date: readDay,
       voiceDate,
       block,
       cut,
@@ -3145,7 +3148,7 @@ export function planDayProgression(
         cut,
         liftState: liftStateFor(String(it.name), states),
         restoreKeys: owedRestoreKeys,
-        since: slotAuthorship(slotStamps.get(Number(it.plan_item_id)) ?? null, null, today),
+        since: slotAuthorship(slotStamps.get(Number(it.plan_item_id)) ?? null, null, readDay),
         lightWeek,
       });
       out.push({ ...stepped, plan_item_id: it.plan_item_id, day_number: dayNumber });

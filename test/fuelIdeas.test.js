@@ -19,8 +19,11 @@ import {
   isAlcoholFood,
   sizeFuelIdea,
   stripAlcohol,
+  stripQualifiers,
+  stripSupplements,
   todaySoFar,
 } from "../dist/repo/fuel-ideas.js";
+import { supplementFoodKind } from "../dist/repo/supplements.js";
 import { mealWindowsAhead } from "../dist/repo/shared.js";
 import { nutritionRouter } from "../dist/routes/nutrition.js";
 import { registerNutritionTools } from "../dist/surfaces/mcp/nutrition.js";
@@ -328,6 +331,188 @@ test("alcohol words: drinks are caught, cooking uses and soft drinks are not", (
   assert.equal(stripAlcohol("Mac and cheese with a beer"), "Mac and cheese");
   assert.equal(stripAlcohol("Salad with red wine vinegar"), "Salad with red wine vinegar");
   assert.equal(stripAlcohol("Red wine"), "");
+});
+
+test("never a supplement: not a side, not a component, out of a staple's words and numbers", () => {
+  const chicken = { item: "Chicken breast (cooked)", amount: "200 g", kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7 };
+  const rice = { item: "Rice (cooked)", amount: "150 g", kcal: 195, protein_g: 4, carbs_g: 42, fat_g: 0 };
+  const psyllium = {
+    item: "Psyllium husk",
+    amount: "1 tbsp",
+    kcal: 20,
+    protein_g: 0,
+    carbs_g: 6,
+    fat_g: 0,
+    fiber_g: 5,
+  };
+  const creatine = { item: "Creatine", amount: "5 g", kcal: 0, protein_g: 0 };
+  const fishOil = { item: "Fish oil capsules", amount: "2", kcal: 20, protein_g: 0, fat_g: 2 };
+  const whey = { item: "Whey protein shake", amount: "1 scoop", kcal: 120, protein_g: 24, carbs_g: 3, fat_g: 1 };
+  const meals = [
+    ["Chicken and rice", [chicken, rice, psyllium, creatine, fishOil, whey]],
+    ["Chicken breast, rice, psyllium", [chicken, rice, psyllium, creatine, fishOil, whey]],
+    ["Rice bowl with chicken and a shake", [chicken, rice, psyllium, creatine, fishOil, whey]],
+  ];
+  meals.forEach(([summary, ingredients], i) => {
+    const kcal = ingredients.reduce((a, r) => a + r.kcal, 0);
+    const protein_g = ingredients.reduce((a, r) => a + r.protein_g, 0);
+    repo.addFoodNote("dinner", "", { summary, kcal, protein_g, ingredients }, undefined, {
+      date: localDaysAgo(10 + i),
+    });
+  });
+  const staples = fuelStaples(undefined, 19);
+  const components = staples.filter((s) => s.source === "components");
+  assert.ok(components.length > 0);
+  for (const s of components) {
+    assert.doesNotMatch(`${s.title} ${s.prefill}`, /psyllium|creatine|fish oil/i, s.title);
+    assert.ok(!/whey|shake/i.test(s.title) || /^whey/i.test(s.title), `a protein shake is never a side: ${s.title}`);
+    assert.doesNotMatch(s.title, /\(/, "no parenthetical qualifier on a card");
+  }
+  const chickenIdea = components.find((s) => /^Chicken breast/.test(s.title));
+  assert.equal(chickenIdea.title, "Chicken breast with rice");
+  assert.equal(chickenIdea.prefill, "Chicken breast (200 g) and rice (150 g)");
+  assert.equal(chickenIdea.kcal, 525, "only chicken and rice are counted");
+  assert.ok(
+    components.some((s) => /^Whey protein shake\b/.test(s.title)),
+    "a protein shake may still carry an idea"
+  );
+
+  // A whole meal that names a supplement: it leaves the words and the numbers.
+  const bowl = { item: "Oats", kcal: 300, protein_g: 10, fiber_g: 8 };
+  for (const d of [20, 21]) {
+    repo.addFoodNote(
+      "breakfast",
+      "",
+      {
+        summary: "Oats with berries, psyllium husk",
+        kcal: 320,
+        protein_g: 10,
+        fiber_g: 13,
+        ingredients: [bowl, psyllium],
+      },
+      undefined,
+      { date: localDaysAgo(d) }
+    );
+  }
+  const oats = fuelStaples(undefined, 8).find((s) => s.source === "staple" && /^Oats/.test(s.title));
+  assert.equal(oats.title, "Oats with berries");
+  assert.equal(oats.prefill, "Oats with berries");
+  assert.equal(oats.kcal, 300);
+  assert.equal(oats.fiber_g, 8);
+});
+
+test("supplement words: supplements are caught, foods are not", () => {
+  for (const pill of [
+    "Psyllium husk",
+    "Creatine monohydrate",
+    "Fish oil",
+    "Omega-3 softgel",
+    "Magnesium glycinate",
+    "Vitamin D3",
+    "Iron",
+    "Caffeine",
+    "Zinc 15 mg",
+    "Vitamin C tablets",
+    "Omega-3 2 capsules",
+    "Vitamin D3 + K2",
+    "Iron bisglycinate",
+  ]) {
+    assert.equal(supplementFoodKind(pill), "supplement", pill);
+  }
+  for (const shake of ["Whey protein shake", "Casein", "Protein powder"])
+    assert.equal(supplementFoodKind(shake), "protein", shake);
+  assert.equal(supplementFoodKind("Collagen peptides"), "supplement");
+  for (const food of [
+    "Prepared salad",
+    "Turmeric chicken",
+    "Probiotic yogurt",
+    "Mushroom caps",
+    "Chicken breast",
+    "Cod liver",
+    "Omega-3 eggs",
+    "Vitamin D milk",
+    "DHA milk",
+    "Iron-fortified cereal",
+    "Caffeine-free Diet Coke",
+    "Orange juice (vitamin C)",
+    "Cast iron steak",
+    "Benecol stanol spread",
+    "Collagen coffee creamer",
+  ]) {
+    assert.equal(supplementFoodKind(food), null, food);
+  }
+  assert.equal(stripSupplements("Oats with berries, psyllium husk"), "Oats with berries");
+  assert.equal(stripSupplements("Creatine"), "");
+  assert.equal(stripSupplements("Eggs and toast"), "Eggs and toast");
+  assert.equal(stripQualifiers("Rice (cooked) with beans [canned], and kale"), "Rice with beans, and kale");
+  assert.equal(capIdeaTitle("Chicken breast (cooked) with rice (cooked)"), "Chicken breast with rice");
+});
+
+test("a food that names a nutrient stays in the idea's words and numbers", () => {
+  const eggs = { item: "Omega-3 eggs", amount: "3", kcal: 210, protein_g: 18, carbs_g: 1, fat_g: 15 };
+  const toast = { item: "Toast", amount: "1 slice", kcal: 160, protein_g: 6, carbs_g: 30, fat_g: 2 };
+  for (const d of [20, 21]) {
+    repo.addFoodNote(
+      "breakfast",
+      "",
+      { summary: "Omega-3 eggs, toast", kcal: 370, protein_g: 24, ingredients: [eggs, toast] },
+      undefined,
+      { date: localDaysAgo(d) }
+    );
+  }
+  const breakfast = fuelStaples(undefined, 8).find((s) => s.source === "staple");
+  assert.equal(breakfast.title, "Omega-3 eggs, toast");
+  assert.equal(breakfast.kcal, 370);
+  assert.equal(breakfast.protein_g, 24);
+});
+
+test("a qualifier never splits one food: one rice, one lead, one title", () => {
+  const chicken = (item) => ({ item, amount: "200 g", kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7 });
+  const rice = (item) => ({ item, amount: "150 g", kcal: 195, protein_g: 4, carbs_g: 42, fat_g: 0 });
+  const meals = [
+    ["Chicken and rice", [chicken("Chicken breast (grilled)"), rice("Rice (cooked)")]],
+    ["Chicken rice plate", [chicken("Chicken breast (baked)"), rice("Rice (white)")]],
+    ["Rice bowl with chicken", [chicken("Chicken breast (grilled)"), rice("Rice (cooked)"), rice("Rice (white)")]],
+  ];
+  meals.forEach(([summary, ingredients], i) => {
+    const kcal = ingredients.reduce((a, r) => a + r.kcal, 0);
+    const protein_g = ingredients.reduce((a, r) => a + r.protein_g, 0);
+    repo.addFoodNote("dinner", "", { summary, kcal, protein_g, ingredients }, undefined, {
+      date: localDaysAgo(10 + i),
+    });
+  });
+  const components = fuelStaples(undefined, 19).filter((s) => s.source === "components");
+  const chickenIdeas = components.filter((s) => /^Chicken breast/.test(s.title));
+  assert.equal(chickenIdeas.length, 1, "grilled and baked chicken lead one idea");
+  assert.equal(chickenIdeas[0].title, "Chicken breast with rice");
+  assert.equal(chickenIdeas[0].prefill, "Chicken breast (200 g) and rice (150 g)");
+  const shown = fuelIdeas(undefined, { hour: 19 }).ideas.map((i) => i.title.toLowerCase());
+  assert.equal(new Set(shown).size, shown.length, "no two ideas print the same title");
+});
+
+test("a title keeps its words: a lone qualifier stays, a stripped list starts with a capital", () => {
+  assert.equal(capIdeaTitle("(leftovers)"), "Leftovers");
+  assert.equal(capIdeaTitle("Rice (cooked)"), "Rice");
+  assert.equal(stripQualifiers("(leftovers)"), "");
+  for (const d of [20, 21]) {
+    repo.addFoodNote(
+      "dinner",
+      "",
+      {
+        summary: "Beer, pizza",
+        kcal: 950,
+        protein_g: 35,
+        ingredients: [
+          { item: "Beer", kcal: 150, protein_g: 1 },
+          { item: "Pizza", kcal: 800, protein_g: 34 },
+        ],
+      },
+      undefined,
+      { date: localDaysAgo(d) }
+    );
+  }
+  const pizza = fuelStaples(undefined, 19).find((s) => s.source === "staple");
+  assert.equal(pizza.title, "Pizza");
 });
 
 test("titles are card-sized: cut at a list boundary or a word, never mid-word", () => {

@@ -269,7 +269,7 @@ test("a stored reason's pinned date reads as today in the feed, and the stored t
   );
 });
 
-test("a row from an earlier day says 'that day', and a date nothing can say plainly takes its sentence", () => {
+test("a row from earlier this week names the day the way the feed does, and a date nothing can say plainly takes its sentence", () => {
   const today = localDateISO();
   const day = shiftDay(today, -3);
   const { id } = landedDecision({
@@ -294,15 +294,72 @@ test("a row from an earlier day says 'that day', and a date nothing can say plai
   const row = rows.find((change) => change.id === id);
   assert.doesNotMatch(row.why, MONTH_DATE);
   assert.doesNotMatch(row.why, ISO_DATE);
-  assert.equal(row.why, "Your legs took a heavy dose, so that day the load held. Soreness was logged.");
+  const weekdayOf = (iso) =>
+    new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`));
+  assert.equal(row.why, `Your legs took a heavy dose, so on ${weekdayOf(day)} the load held. Soreness was logged.`);
+  assert.doesNotMatch(row.why, /that day/);
   // The week is said from where the reader stands: the row's week is "this week" while
   // it is still the current one.
   const monday = (iso) => shiftDay(iso, -((new Date(`${iso}T12:00:00Z`).getUTCDay() + 6) % 7));
   const week = monday(day) === monday(today) ? "this week" : "that week";
   assert.equal(
     rows.find((change) => change.id === session).why,
-    `The previous day's session ran long, so ${week} eases.`
+    `${weekdayOf(shiftDay(day, -1))}'s session ran long, so ${week} eases.`
   );
+});
+
+test("a row from further back leaves out its own day — the day it sits under already says it", () => {
+  const day = shiftDay(localDateISO(), -20);
+  const { id } = landedDecision({
+    effective_date: day,
+    applied_at: `${day}T09:00:00.000Z`,
+    kind: "recovery_adjustment",
+    domain: "recovery",
+    rationale: `On ${humanDate(day)} the week eased. Your legs took a heavy dose, so on ${humanDate(day)} the load held.`,
+  });
+  const session = landedDecision({
+    effective_date: day,
+    applied_at: `${day}T10:00:00.000Z`,
+    kind: "recovery_adjustment",
+    domain: "recovery",
+    rationale: `The ${humanDate(shiftDay(day, -1))} session ran long, so the ${humanDate(day)} session was eased.`,
+  }).id;
+  const rows = feedRows(brainChangesRead({ days: 30 }));
+  const row = rows.find((change) => change.id === id);
+  assert.equal(row.why, "The week eased. Your legs took a heavy dose, so the load held.");
+  assert.equal(
+    rows.find((change) => change.id === session).why,
+    "The previous day's session ran long, so the session was eased."
+  );
+  for (const change of [row, rows.find((c) => c.id === session)]) assert.doesNotMatch(change.why, /that day/);
+});
+
+test("a further-back row's own day said bare, possessive, or after 'through' leaves without a 'that day'", () => {
+  const day = shiftDay(localDateISO(), -20);
+  const { id } = landedDecision({
+    effective_date: day,
+    applied_at: `${day}T09:00:00.000Z`,
+    kind: "recovery_adjustment",
+    domain: "recovery",
+    rationale: `Since ${humanDate(day)} the squat stalled, e.g. the bar slowed. The squat held through ${humanDate(day)}.`,
+  });
+  const session = landedDecision({
+    effective_date: day,
+    applied_at: `${day}T10:00:00.000Z`,
+    kind: "recovery_adjustment",
+    domain: "recovery",
+    rationale: `${day}'s session ran long, so the week eased.`,
+  }).id;
+  const rows = feedRows(brainChangesRead({ days: 30 }));
+  const row = rows.find((change) => change.id === id);
+  // The capital goes only to the word the dropped day handed it to: "e.g. the" stays.
+  assert.equal(row.why, "The squat stalled, e.g. the bar slowed. The squat held.");
+  assert.equal(rows.find((change) => change.id === session).why, "The session ran long, so the week eased.");
+  for (const change of [row, rows.find((c) => c.id === session)]) {
+    assert.doesNotMatch(change.why, /that day/);
+    assert.doesNotMatch(change.why, MONTH_DATE);
+    assert.doesNotMatch(change.why, ISO_DATE);
+  }
 });
 
 test("a row landed today reads 'today' and 'yesterday'", () => {
