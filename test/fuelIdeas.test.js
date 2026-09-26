@@ -6,7 +6,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { db, repo, resetTables, localDaysAgo, seedIntake, seedWeight } from "./_seed.js";
-import { fuelEnergyBound, fuelIdeas, sizeFuelIdea } from "../dist/repo/fuel-ideas.js";
+import { fuelEnergyBound, fuelIdeas, sizeFuelIdea, todaySoFar } from "../dist/repo/fuel-ideas.js";
 import { nutritionRouter } from "../dist/routes/nutrition.js";
 import { registerNutritionTools } from "../dist/surfaces/mcp/nutrition.js";
 
@@ -139,6 +139,16 @@ test("a meal still being estimated is not a zero: no protein still to go and no 
   repo.addFoodNote("lunch", "", { summary: "Something from the cafe" });
   const out = fuelIdeas();
   assert.equal(out.today_so_far.state, "in progress");
+  // The sum is marked for what it is: partial, over the estimated meals only.
+  assert.equal(out.today_so_far.partial, true);
+  assert.equal(out.today_so_far.meals_counted, 1);
+  assert.equal(out.today_so_far.meals_unestimated, 1, "the unestimated meal is left out explicitly, not added as zero");
+  assert.equal(out.today_so_far.protein_g, 30);
+  assert.equal(out.today_so_far.kcal, 250);
+  assert.equal(
+    out.today_so_far.words,
+    "So far today: 30 g protein, 250 kcal and 0 g fiber from 1 meal — in progress, not the day's total. 1 more meal has no numbers yet and isn't counted."
+  );
   assert.equal(out.room.protein_g, null);
   assert.equal(out.room.energy_kcal, null);
   assert.ok(out.ideas.length > 0);
@@ -169,6 +179,10 @@ test("REST and MCP mirror, and exclude asks for different ideas", async () => {
     mcp.ideas.map((i) => i.key),
     rest.ideas.map((i) => i.key)
   );
+  // Both surfaces carry the same marked-partial sum.
+  assert.deepEqual(mcp.today_so_far, rest.today_so_far);
+  assert.equal(rest.today_so_far.partial, true);
+  assert.equal(rest.today_so_far.words, "Nothing logged yet today.");
   const first = rest.ideas[0].key;
   const next = await new Promise((resolve) => handler({ query: { exclude: first } }, { json: resolve }));
   assert.ok(!next.ideas.some((i) => i.key.split("@")[0] === first.split("@")[0]));
@@ -238,4 +252,37 @@ test("the ideas say what the room is measured under", () => {
   assert.equal(out.room.energy_bound, "loss_edge");
   const fitting = out.ideas.find((i) => i.fits_band === true);
   assert.match(fitting.why, /came down at/);
+});
+
+test("today so far is never read as the whole day: partial until complete, unestimated meals counted apart", () => {
+  const meal = (kcal, protein_g, fiber_g = 5) => ({ kcal, protein_g, fiber_g });
+  const past = "2020-01-02";
+  const complete = todaySoFar({ entries: [meal(900, 60), meal(1100, 80)] }, "complete", past);
+  assert.equal(complete.partial, false);
+  assert.equal(complete.words, "The day's total: 140 g protein, 2,000 kcal and 10 g fiber.");
+  const holey = todaySoFar(
+    { entries: [meal(900, 60), { kcal: null, protein_g: null, fiber_g: null }] },
+    "complete",
+    past
+  );
+  assert.equal(holey.partial, true, "a meal with no numbers keeps even a complete day's sum partial");
+  assert.equal(holey.kcal, 900);
+  assert.match(
+    holey.words,
+    /^Logged that day: 60 g protein, 900 kcal and 5 g fiber from 1 meal — not the whole day\. 1 more meal has no numbers yet/
+  );
+  const none = todaySoFar(
+    {
+      entries: [
+        { kcal: null, protein_g: null },
+        { kcal: null, protein_g: null },
+      ],
+    },
+    "in progress",
+    past
+  );
+  assert.equal(none.meals_counted, 0);
+  assert.equal(none.meals_unestimated, 2);
+  assert.equal(none.words, "2 meals are logged, with no numbers yet, so there is no sum to show.");
+  assert.doesNotMatch(`${complete.words} ${holey.words} ${none.words}`, /\blow\b|score|%/);
 });

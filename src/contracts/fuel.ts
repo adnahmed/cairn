@@ -166,12 +166,26 @@ export interface ClientFuelIdeas {
   kind: "ideas";
   date: string;
   protein_anchor: ClientProteinAnchor | null;
+  /**
+   * What is logged so far — a PARTIAL sum until the day reads complete, never the day's
+   * total. The sums count only meals that carry numbers; a meal still being estimated
+   * (or never estimated) is left out explicitly and counted in `meals_unestimated`,
+   * never added as a zero.
+   */
   today_so_far: {
     kcal: number;
     protein_g: number;
     fiber_g: number;
     /** "in progress" for today and any partial day — never "low". */
     state: "in progress" | "complete" | "nothing logged";
+    /** True unless the day reads complete with every meal estimated: the sums are a floor, not the whole day. */
+    partial: boolean;
+    /** Meals whose numbers are in the sums. */
+    meals_counted: number;
+    /** Meals left out of the sums because nothing has estimated them yet. */
+    meals_unestimated: number;
+    /** Spoken line: protein first, "so far", and any meal left out, in words. */
+    words: string;
   };
   room: {
     /** Grams still to reach the protein anchor (0 once met); null with no anchor. */

@@ -315,7 +315,7 @@ export function registerNutritionTools(server: McpToolRegistrar) {
 
   server.tool(
     "get_fuel_ideas",
-    "Three deterministic ideas for the rest of the day, built from the athlete's own staples (foods logged on several days), sized to fit the room left inside the observed intake band, protein first — an idea never trades protein away to fit the band. Ideas, never a meal plan and never logged: each carries a `prefill` for the food composer. No agent turn.",
+    "Three deterministic ideas for the rest of the day, built from the athlete's own staples (foods logged on several days), sized to fit the room left inside the observed intake band, protein first — an idea never trades protein away to fit the band. Ideas, never a meal plan and never logged: each carries a `prefill` for the food composer. `today_so_far` is what is logged so far — marked `partial` until the day reads complete, summed over estimated meals only, with unestimated meals counted apart — never the day's total. No agent turn.",
     {
       date: z.string().optional().describe("YYYY-MM-DD; defaults to today"),
       hour: z.number().int().min(0).max(23).optional().describe("the local hour, for what is usually eaten now"),
