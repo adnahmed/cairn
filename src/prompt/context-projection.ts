@@ -617,6 +617,29 @@ export const PROMPT_CONTEXT_SITES = {
     // Full set rows: the strength coach proposes loads off the working sets.
     sessions: SESSIONS_MINIMAL,
   },
+
+  // The what-if (src/prompt/whatif.ts): ONE proposed change and its ripple across the
+  // six stones — Strength, Endurance, Fuel, Recovery, Body, Heart — so it carries the
+  // read layer behind each stone: the plan it may name edits against (TRAINING_CORE),
+  // the run engine and race build (ENDURANCE), fuel, the condensed health reads (Heart),
+  // recovery, and the brain's own arbitration (signal_state) plus the milestones a goal
+  // question is measured against (road_ahead). DROPPED: garmin (recovery already merges
+  // it), the raw health records, day_read, recent_decisions and insights — a
+  // hypothetical is reasoned from the picture, not from what was already said about it.
+  what_if: {
+    keys: [
+      ...PERSON,
+      ...TRAINING_CORE,
+      ...ENDURANCE,
+      ...FUEL,
+      ...HEALTH_CORE,
+      ...RECOVERY,
+      "coaching_focus",
+      "signal_state",
+      "road_ahead",
+    ],
+    sessions: SESSIONS_RECENT,
+  },
 } as const satisfies Record<string, PromptSiteSpec>;
 
 export type PromptSite = keyof typeof PROMPT_CONTEXT_SITES;

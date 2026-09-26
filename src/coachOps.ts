@@ -15,3 +15,4 @@ export * from "./coachOps/training.js";
 export * from "./coachOps/nutrition.js";
 export * from "./coachOps/health.js";
 export * from "./coachOps/memory.js";
+export * from "./coachOps/whatif.js";

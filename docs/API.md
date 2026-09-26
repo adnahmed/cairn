@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**355 routes** across 120 groups.
+**357 routes** across 121 groups.
 
 ## `/activities`
 
@@ -959,6 +959,13 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/week-wins` | The week's motivational rollup (new bests, days trained, hard sets, filled volume, weight-trend pace) ending at ?date= (default today). Evidence of forward motion, in plain words — never a 0-100 score. |
+
+## `/what-if`
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/what-if` | The athlete asks a hypothetical in words ("what if I lifted three days instead of four?"); the team answers with ONE proposed change and its ripple across the six stones. It is agentic, so it always queues a durable job (a user-facing request never waits on a coaching CLI): the body is {ok:true, job}, and the job's result is {ok, date, question, change, ripple[], source, agent, tried} — or the designed {ok:false, error, tried}. The read NEVER changes anything. Optional `hint` {area, direction} is a structured nudge; the words still decide. |
+| POST | `/api/what-if/do` | "Do it": hand the what-if's change to the team as a DRAFT. The server re-reads the change (never trusting the echo), writes it as a plan proposal and routes it through the ONE autonomy policy — anything clinical is held clinician-directed, a calorie target always waits on the athlete, and a goal is never drafted (it is theirs to name, in chat). Never applies on its own authority. {ok:false, error, tried:[]} at 200 when there is nothing concrete to hand over. |
 
 ## `/whole-person-trajectory`
 
