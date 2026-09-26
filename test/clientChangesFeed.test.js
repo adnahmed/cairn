@@ -376,7 +376,7 @@ test("a row the server no longer lists leaves, and its empty day goes with it", 
   assert.equal(host.querySelector('[data-chfeed-id="12"]'), bench, "an unchanged row is left alone");
 });
 
-test("a row arriving after Undo repaints the list without the entrance stagger", async () => {
+test("a row arriving after Undo settles in, and the rows already there keep their nodes", async () => {
   const win = load();
   const host = createHost(win.document);
   const after = clone(feed());
@@ -386,11 +386,107 @@ test("a row arriving after Undo repaints the list without the entrance stagger",
   const h = harness({ peek: { ...feed(), since_seen: 0 }, reads: [{ ...feed(), since_seen: 0 }, after] });
   win.CairnChangesFeedController.mount(host, h.deps);
   await flush();
+  const swap = host.querySelector('[data-chfeed-id="11"]');
   await host.querySelector("[data-chfeed-undo]").click();
   await flush();
-  assert.equal(host.querySelectorAll(".chfeed-row").length, 4);
-  assert.equal(host.querySelector(".reveal"), null);
+  assert.deepEqual(
+    host.querySelectorAll(".chfeed-row").map((row) => row.getAttribute("data-chfeed-id")),
+    ["13", "12", "11", "7"]
+  );
+  const arrived = host.querySelector('[data-chfeed-id="13"]');
+  assert.equal(arrived.classList.contains("reveal"), false, "no first-paint stagger on an in-place change");
+  assert.ok(arrived.classList.contains("settle-in"), "the arrival eases in");
+  assert.equal(host.querySelector('[data-chfeed-id="11"]'), swap, "an untouched row keeps its node");
+  assert.equal(host.querySelector('[data-chfeed-id="11"]').classList.contains("settle-in"), false);
   assert.ok(host.querySelector('[data-chfeed-id="12"]').classList.contains("is-settled"));
+});
+
+test("Undo in the server's real order moves the put-back row within its day and keeps this visit's marks", async () => {
+  const win = load();
+  const host = createHost(win.document);
+  const before = feed();
+  before.days[0].changes[1].state = "applied";
+  before.days[0].changes[1].status_line = "Landed today";
+  before.days[0].changes[1].undo = { available: true, label: "Restore Leg Press" };
+  // After the seen marker the server reads new:false everywhere, and a reverted row
+  // (event_at null) sorts to the end of its day: [12, 11] becomes [11, 12].
+  const after = clone(before);
+  after.since_seen = 0;
+  for (const day of after.days) for (const row of day.changes) row.new = false;
+  const bench = {
+    ...after.days[0].changes[0],
+    state: "reverted",
+    status_line: "Put back",
+    undo: { available: false, label: null },
+  };
+  after.days[0].changes = [after.days[0].changes[1], bench];
+  const h = harness({ peek: { ...before, since_seen: 0 }, reads: [{ ...before, since_seen: 0 }, after] });
+  win.CairnChangesFeedController.mount(host, h.deps);
+  await flush();
+  assert.equal(host.querySelectorAll(".chfeed-new").length, 2);
+  const swap = host.querySelector('[data-chfeed-id="11"]');
+  const recovery = host.querySelector('[data-chfeed-id="7"]');
+
+  await host.querySelector('[data-chfeed-undo="12"]').click();
+  await flush();
+
+  assert.deepEqual(
+    host.querySelectorAll(".chfeed-row").map((row) => row.getAttribute("data-chfeed-id")),
+    ["11", "12", "7"],
+    "the server's order"
+  );
+  assert.equal(host.querySelectorAll(".chfeed-new").length, 2, "this visit's New marks survive the Undo");
+  assert.equal(host.querySelector('[data-chfeed-id="11"]'), swap, "the untouched row keeps its node");
+  assert.equal(swap.classList.contains("reveal"), false, "a row that only changes place never replays its entrance");
+  assert.equal(host.querySelector('[data-chfeed-id="7"]'), recovery);
+  const put = host.querySelector('[data-chfeed-id="12"]');
+  assert.ok(put.classList.contains("is-reverted"));
+  assert.ok(put.classList.contains("is-settled"));
+  assert.equal(put.querySelector("button"), null);
+  assert.equal(host.querySelectorAll(".chfeed-day").length, 2);
+});
+
+test("a revert that lands but whose follow-up read fails shows the row put back, never a stuck Undo", async () => {
+  const win = load();
+  const host = createHost(win.document);
+  const h = harness({ peek: { ...feed(), since_seen: 0 }, reads: [{ ...feed(), since_seen: 0 }] });
+  win.CairnChangesFeedController.mount(host, h.deps);
+  await flush();
+  const swap = host.querySelector('[data-chfeed-id="11"]');
+  h.deps.cachedApi = async () => {
+    throw new Error("swr-offline");
+  };
+  await host.querySelector('[data-chfeed-undo="12"]').click();
+  await flush();
+  assert.deepEqual(h.toasts, ["Put back"]);
+  const bench = host.querySelector('[data-chfeed-id="12"]');
+  assert.ok(bench.classList.contains("is-reverted"));
+  assert.equal(bench.querySelector(".chfeed-status").textContent, "Put back");
+  assert.equal(bench.querySelector("button"), null, "no Undo left, busy or otherwise");
+  assert.equal(host.querySelector("[aria-busy]"), null);
+  assert.ok(bench.querySelector(".chfeed-new"), "this visit's New mark stays");
+  assert.equal(host.querySelector('[data-chfeed-id="11"]'), swap);
+  assert.ok(h.invalidated.includes("brain:changes"), "the next open reads the server's truth");
+});
+
+test("a changed revalidate over a warm paint patches rows in place instead of repainting", async () => {
+  const win = load();
+  const host = createHost(win.document);
+  const warm = { ...feed(), since_seen: 0 };
+  const fresh = clone(warm);
+  fresh.days[1].changes.push(change({ id: 5, day: "2026-09-22", title: "Easier Tuesday run" }));
+  fresh.days[0].changes[1].status_line = "Lands Tuesday";
+  const h = harness({ peek: warm, fresh: false, reads: [fresh] });
+  win.CairnChangesFeedController.mount(host, h.deps);
+  const bench = host.querySelector('[data-chfeed-id="12"]');
+  const recovery = host.querySelector('[data-chfeed-id="7"]');
+  await flush();
+  assert.equal(host.querySelector('[data-chfeed-id="12"]'), bench, "an unchanged row keeps its node");
+  assert.equal(host.querySelector('[data-chfeed-id="7"]'), recovery);
+  assert.equal(host.querySelector('[data-chfeed-id="11"] .chfeed-status').textContent, "Lands Tuesday");
+  const arrived = host.querySelector('[data-chfeed-id="5"]');
+  assert.ok(arrived.classList.contains("settle-in"));
+  assert.equal(arrived.closest(".chfeed-day").getAttribute("data-chfeed-day"), "2026-09-22");
 });
 
 test("a feed the person has left is never painted into", async () => {

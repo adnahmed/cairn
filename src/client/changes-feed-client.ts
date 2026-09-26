@@ -22,6 +22,8 @@
   type ChangesFeedOptions = {
     /** First paint gets the row stagger; an in-place upgrade does not re-flash it. */
     reveal?: boolean;
+    /** Rows arriving into a surface that was showing something else ease in with `settle-in`. */
+    enter?: boolean;
   };
 
   // The outcome key picks the tone word the reading layer already uses — never a new
@@ -100,16 +102,24 @@
     </li>`;
   }
 
+  /** A day's printed label: the server's word ("Today"), else its date. */
+  function dayLabel(day: BrainChangeDay): string {
+    return text(day.label) || text(day.day);
+  }
+
+  /** One day group around already-rendered rows; with none, the empty shell the controller fills. */
+  function dayShellHtml(day: BrainChangeDay, rows = ""): string {
+    return `<section class="chfeed-day" data-chfeed-day="${escAttr(day.day)}">
+      <h2 class="lbl chfeed-day-label">${escHtml(dayLabel(day))}</h2>
+      <ol class="chfeed-rows">${rows}</ol>
+    </section>`;
+  }
+
   function dayHtml(day: BrainChangeDay, start: number, options: ChangesFeedOptions): string {
     const rows = (Array.isArray(day.changes) ? day.changes : [])
-      .map((change, i) => rowHtml(change, { index: options.reveal ? start + i : null }))
+      .map((change, i) => rowHtml(change, { index: options.reveal ? start + i : null, enter: options.enter }))
       .filter(Boolean);
-    if (!rows.length) return "";
-    const label = text(day.label) || text(day.day);
-    return `<section class="chfeed-day" data-chfeed-day="${escAttr(day.day)}">
-      <h2 class="lbl chfeed-day-label">${escHtml(label)}</h2>
-      <ol class="chfeed-rows">${rows.join("")}</ol>
-    </section>`;
+    return rows.length ? dayShellHtml(day, rows.join("")) : "";
   }
 
   function emptyHtml(): string {
@@ -145,6 +155,8 @@
   const CAIRN_CHANGES_FEED = {
     feedHtml,
     rowHtml,
+    dayShellHtml,
+    dayLabel,
     errorHtml,
     undoAttr,
   };

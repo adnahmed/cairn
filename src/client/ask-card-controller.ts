@@ -14,7 +14,9 @@
     gotoChatWith(text: string): unknown;
   };
 
-  const KEY = "brain:asks";
+  // A `health:` key is memory-tier only (swr-cache.ts _swrMemOnly): the "For you and
+  // your doctor" notes are clinical text and never reach disk.
+  const KEY = "health:asks";
   const PATH = "/brain/decisions/waiting?limit=8";
 
   function mountAskCards(host: Element, deps: AskCardDeps): () => void {

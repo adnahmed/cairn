@@ -4918,12 +4918,14 @@ declare global {
     CairnChangesFeed: {
       feedHtml(
         data: import("./brain-changes.js").ClientBrainChanges | null | undefined,
-        options?: { reveal?: boolean }
+        options?: { reveal?: boolean; enter?: boolean }
       ): string;
       rowHtml(
         change: import("./brain-changes.js").ClientBrainChange,
         options?: { index?: number | null; enter?: boolean; settled?: boolean }
       ): string;
+      dayShellHtml(day: import("./brain-changes.js").ClientBrainChangeDay, rows?: string): string;
+      dayLabel(day: import("./brain-changes.js").ClientBrainChangeDay): string;
       errorHtml(): string;
       undoAttr(change: import("./brain-changes.js").ClientBrainChange): string;
     };

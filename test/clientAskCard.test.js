@@ -104,7 +104,13 @@ test("the controller paints warm, revalidates, and opens chat pre-filled", async
   await flush();
   assert.deepEqual(h.reads, ["/brain/decisions/waiting?limit=8", "/brain/decisions/waiting?limit=8"]);
   await host.querySelector('[data-askcard-talk="4"]').click();
-  assert.deepEqual(h.chats, ["Can we talk this through? Move to four lifting days"], "one tap, one door");
+  assert.deepEqual(
+    h.chats,
+    [
+      "Can we talk this through? Your week has room for a fourth day, but it changes the shape of every week — your call.",
+    ],
+    "one tap, one door, pre-filled with the sentence written for the athlete (never the ledger summary)"
+  );
 });
 
 test("a failed read leaves the slot empty and a removed host is never painted", async () => {
@@ -119,4 +125,26 @@ test("a failed read leaves the slot empty and a removed host is never painted", 
   gone.remove();
   await flush();
   assert.equal(gone.querySelector(".askcard"), null);
+});
+
+test("the asks (and their clinician notes) stay in memory and never reach disk", async () => {
+  const win = loadClientModule(
+    ["html-utils", "swr-cache", "ui-actions-client", "ask-card-client", "ask-card-controller"],
+    { globals: { api: async () => WAITING } }
+  );
+  const host = createHost(win.document);
+  win.CairnAskCardController.mount(host, {
+    peekCached: win.peekCached,
+    cachedApi: win.cachedApi,
+    gotoChatWith: () => {},
+  });
+  await flush();
+  assert.ok(host.querySelector(".askcard-clinician"), "the clinician note painted");
+  assert.ok(win.peekCached(win.CairnAskCardController.KEY), "the memory tier still paints the next visit");
+  const stored = [...win.localStorage._map.entries()];
+  assert.deepEqual(
+    stored.filter(([key, value]) => /asks/.test(key) || /ApoB/.test(value)),
+    [],
+    "nothing from the waiting read is written to localStorage"
+  );
 });

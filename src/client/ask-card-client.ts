@@ -60,11 +60,15 @@
     );
   }
 
-  /** What the chat composer is pre-filled with when the athlete opens the door. */
+  /**
+   * What the chat composer is pre-filled with when the athlete opens the door: the
+   * sentence written for them, never the ledger summary (which can be a producer
+   * label), since the composer offers it as the athlete's own words.
+   */
   function talkPrefill(rows: unknown, id: unknown): string {
     const ask = askModels(rows).find((row) => row.id === Number(id));
     if (!ask) return "";
-    return `Can we talk this through? ${ask.summary || ask.explanation}`;
+    return `Can we talk this through? ${ask.explanation}`;
   }
 
   const CAIRN_ASK_CARD = {
