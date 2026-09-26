@@ -36,6 +36,29 @@ type IntakeNutrient = import("../contracts/client.js").ClientNutritionProgressNu
     return typeof dateLabel === "function" ? dateLabel(value) : value;
   }
 
+  /**
+   * The spoken lead: the recorded daily average of energy and protein, over the days
+   * that carry food. Words, not a verdict — an unlogged day is absent, never low, so
+   * the line speaks only of the days that were logged.
+   */
+  function intakeVoiceLine(progress: IntakeProgress): string {
+    const rows = Array.isArray(progress.nutrients) ? progress.nutrients : [];
+    const of = (key: IntakeNutrient) => rows.find((row) => row && row.nutrient === key);
+    const kcal = of("kcal");
+    const protein = of("protein_g");
+    const kcalAvg = Number(kcal?.average);
+    const proteinAvg = Number(protein?.average);
+    const hasKcal = !!kcal && Number(kcal.known_days) > 0 && Number.isFinite(kcalAvg) && kcalAvg > 0;
+    const hasProtein = !!protein && Number(protein.known_days) > 0 && Number.isFinite(proteinAvg) && proteinAvg > 0;
+    const logged = Number(progress.coverage?.logged_days) || 0;
+    if (!logged || (!hasKcal && !hasProtein)) return `Nothing logged in the last ${progress.window_days} days yet.`;
+    const bits = [
+      hasKcal ? `${(Math.round(kcalAvg / 10) * 10).toLocaleString("en-US")} kcal` : "",
+      hasProtein ? `${Math.round(proteinAvg)} g protein` : "",
+    ].filter(Boolean);
+    return `About ${bits.join(" and ")} a day, on the ${logged === 1 ? "day" : `${logged} days`} you logged.`;
+  }
+
   function unavailableHtml(): string {
     return `<div class="empty">The intake read isn't available right now. Your recorded food is still safe.</div>`;
   }
@@ -200,12 +223,19 @@ type IntakeNutrient = import("../contracts/client.js").ClientNutritionProgressNu
       (nutrient) =>
         `<button class="nprog-pick${nutrient === active ? " active" : ""}" type="button" data-intake-nutrient="${nutrient}" aria-pressed="${nutrient === active ? "true" : "false"}">${SHORT[nutrient]}</button>`
     ).join("");
+    // First view: ONE spoken line about what was eaten. The coverage read, its
+    // bookkeeping and the next move are the server's careful register; they sit one
+    // tap deeper, never as the wall the screen opens on.
     return `<div class="nprog">
       <section class="nprog-read reveal" style="--i:0">
         <div class="lbl">Recorded intake · ${progress.window_days} days</div>
-        <h1>${escHtml(progress.read)}</h1>
-        <p>${escHtml(`Record coverage is ${density}: ${coverage.logged_days} days include food; ${coverage.macro_known_days} closed days have all five tracked nutrients known${pending}. ${coverage.note}`)}</p>
-        <div class="nprog-next well-accent-sm"><span class="lbl">One next move</span>${escHtml(progress.next_move)}</div>
+        <h1 class="nprog-voice">${escHtml(intakeVoiceLine(progress))}</h1>
+        <details class="nprog-more">
+          <summary>How complete this is</summary>
+          <p class="nprog-more-read">${escHtml(progress.read)}</p>
+          <p>${escHtml(`Record coverage is ${density}: ${coverage.logged_days} days include food; ${coverage.macro_known_days} closed days have all five tracked nutrients known${pending}. ${coverage.note}`)}</p>
+          <div class="nprog-next well-accent-sm"><span class="lbl">One next move</span>${escHtml(progress.next_move)}</div>
+        </details>
       </section>
       <nav class="nprog-picks rail" aria-label="Choose nutrient timeline">${selector}</nav>
       ${intakeChartHtml(progress, active)}
@@ -225,7 +255,7 @@ type IntakeNutrient = import("../contracts/client.js").ClientNutritionProgressNu
     );
   }
 
-  const API = { intakeBodyHtml, intakeChartHtml, intakeFoodQualityHtml, render, unavailableHtml };
+  const API = { intakeVoiceLine, intakeBodyHtml, intakeChartHtml, intakeFoodQualityHtml, render, unavailableHtml };
   Object.assign(globalThis, { CairnProgressIntake: API });
   if (typeof window !== "undefined") Object.assign(window, { CairnProgressIntake: API });
 })();

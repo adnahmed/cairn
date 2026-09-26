@@ -370,6 +370,12 @@
 .nprog-read h1{font-family:var(--font-display);font-size:1.42rem;font-weight:520;line-height:1.28;
   max-width:28ch;margin:8px 0;color:var(--ink)}
 .nprog-read>p{max-width:62ch;margin:0;color:var(--ink-2);font-size:.88rem;line-height:1.55}
+.nprog-more{margin-top:4px}
+.nprog-more>summary{cursor:pointer;list-style:none;display:inline-block;font-size:var(--text-sm);color:var(--ink-2);
+  text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong);padding:4px 0}
+.nprog-more>summary::-webkit-details-marker{display:none}
+.nprog-more>p{max-width:62ch;margin:8px 0 0;color:var(--ink-2);font-size:.88rem;line-height:1.55}
+.nprog-more>.nprog-more-read{color:var(--ink)}
 .nprog-next{margin-top:14px;padding:10px 13px;color:var(--ink-2);font-size:.88rem;line-height:1.45}
 .nprog-next .lbl{display:block;margin-bottom:4px;color:var(--accent-deep)}
 .nprog-picks{gap:7px;padding:2px 1px 4px} /* scroller + edge fade: .rail */

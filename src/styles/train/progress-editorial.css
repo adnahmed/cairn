@@ -27,6 +27,11 @@
    A deeper leaf wears one quiet step back to its landing (the .home-back look);
    a landing lists its deeper leaves as hairline rows: name, one muted line, chevron. */
 .train-crumb{display:inline-block;margin:0 0 10px}
+/* the Fuel trends' one quiet way to logging (Fuel owns it): a text link, never a card */
+.train-fuel-link{display:inline-block;margin:0 0 14px;font-size:var(--text-sm);color:var(--ink2);
+  text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.train-crumb+.train-fuel-link{margin-left:14px}
+.train-fuel-link:hover{color:var(--ink);text-decoration-color:var(--ink)}
 .train-deeper{margin:24px 0 8px}
 .train-deeper-kick{display:block;margin:0 0 2px}
 .train-deeper-row{width:100%;display:flex;align-items:center;gap:12px;text-align:left;color:inherit;font:inherit;

@@ -236,3 +236,31 @@ test("intake timelines name a formula-derived protein reference honestly", () =>
 test("intake unavailable state is calm and does not imply recorded data was lost", () => {
   assert.match(load().unavailableHtml(), /isn't available right now.*recorded food is still safe/i);
 });
+
+test("Intake opens on one spoken line; the coverage read waits one tap deeper", () => {
+  const intake = load();
+  const progress = fixture();
+  const html = intake.intakeBodyHtml(progress, "kcal");
+  const lead = html.slice(0, html.indexOf("<details"));
+  assert.match(lead, /class="nprog-voice">About [^<]+ a day, on the [^<]+ you logged\.</);
+  // The machine-register coverage bookkeeping is not on the first view.
+  assert.doesNotMatch(lead, /Record coverage|One next move/);
+  assert.match(html, /<details class="nprog-more">\s*<summary>How complete this is<\/summary>[\s\S]*Record coverage is sparse[\s\S]*One next move/);
+
+  // Nothing logged is said plainly, never as a low number.
+  const empty = { ...progress, coverage: { ...progress.coverage, logged_days: 0 } };
+  assert.match(intake.intakeVoiceLine(empty), /^Nothing logged in the last \d+ days yet\.$/);
+});
+
+test("the Intake voice rounds energy to tens and speaks only of logged days", () => {
+  const intake = load();
+  const line = intake.intakeVoiceLine({
+    window_days: 35,
+    coverage: { logged_days: 17 },
+    nutrients: [
+      { nutrient: "kcal", average: 1664, known_days: 17 },
+      { nutrient: "protein_g", average: 113.8, known_days: 17 },
+    ],
+  });
+  assert.equal(line, "About 1,660 kcal and 114 g protein a day, on the 17 days you logged.");
+});

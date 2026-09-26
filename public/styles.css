@@ -3387,6 +3387,11 @@ body.sheet-open{overflow:hidden}
    A deeper leaf wears one quiet step back to its landing (the .home-back look);
    a landing lists its deeper leaves as hairline rows: name, one muted line, chevron. */
 .train-crumb{display:inline-block;margin:0 0 10px}
+/* the Fuel trends' one quiet way to logging (Fuel owns it): a text link, never a card */
+.train-fuel-link{display:inline-block;margin:0 0 14px;font-size:var(--text-sm);color:var(--ink2);
+  text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.train-crumb+.train-fuel-link{margin-left:14px}
+.train-fuel-link:hover{color:var(--ink);text-decoration-color:var(--ink)}
 .train-deeper{margin:24px 0 8px}
 .train-deeper-kick{display:block;margin:0 0 2px}
 .train-deeper-row{width:100%;display:flex;align-items:center;gap:12px;text-align:left;color:inherit;font:inherit;
@@ -4332,6 +4337,12 @@ body.swr-busy::after{
 .nprog-read h1{font-family:var(--font-display);font-size:1.42rem;font-weight:520;line-height:1.28;
   max-width:28ch;margin:8px 0;color:var(--ink)}
 .nprog-read>p{max-width:62ch;margin:0;color:var(--ink-2);font-size:.88rem;line-height:1.55}
+.nprog-more{margin-top:4px}
+.nprog-more>summary{cursor:pointer;list-style:none;display:inline-block;font-size:var(--text-sm);color:var(--ink-2);
+  text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong);padding:4px 0}
+.nprog-more>summary::-webkit-details-marker{display:none}
+.nprog-more>p{max-width:62ch;margin:8px 0 0;color:var(--ink-2);font-size:.88rem;line-height:1.55}
+.nprog-more>.nprog-more-read{color:var(--ink)}
 .nprog-next{margin-top:14px;padding:10px 13px;color:var(--ink-2);font-size:.88rem;line-height:1.45}
 .nprog-next .lbl{display:block;margin-bottom:4px;color:var(--accent-deep)}
 .nprog-picks{gap:7px;padding:2px 1px 4px} /* scroller + edge fade: .rail */

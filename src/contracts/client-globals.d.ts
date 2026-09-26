@@ -1837,6 +1837,7 @@ declare global {
   declare function renderEnergy(): unknown;
   declare function renderIntake(): unknown;
   declare const CairnProgressIntake: {
+    intakeVoiceLine(progress: import("./client.js").ClientNutritionProgress): string;
     intakeBodyHtml(
       progress: import("./client.js").ClientNutritionProgress,
       selected?: import("./client.js").ClientNutritionProgressNutrient

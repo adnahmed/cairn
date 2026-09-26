@@ -395,8 +395,10 @@ test("Train's Fuel group carries a Log food line to Today's Fuel, and only the F
   const PROGRESS_SEG = context.CairnUiSegments.PROGRESS_SEG;
   for (const leaf of ["intake", "energy"]) {
     const html = controller.segBar(leaf, PROGRESS_SEG);
-    assert.match(html, /<a class="tov-jpoint" href="\/app\/today\/fuel" data-fuel-log-point>/, leaf);
-    assert.match(html, />Log food</);
+    assert.match(html, /<a class="train-fuel-link" href="\/app\/today\/fuel" data-fuel-log-point>Log food on Today's Fuel /, leaf);
+    // A quiet link, never the card row that read as a second place to log.
+    assert.doesNotMatch(html, /tov-jpoint/, leaf);
+    assert.match(html, />Log food on Today.s Fuel </);
   }
   for (const leaf of ["overview", "sessions", "program", "weight"]) {
     assert.doesNotMatch(controller.segBar(leaf, PROGRESS_SEG), /data-fuel-log-point/, leaf);
