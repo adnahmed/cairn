@@ -19,7 +19,9 @@
 // Informational, never medical advice: a question is something to ask, never a verdict.
 
 import { awaitingBrainDecisions } from "../../repo/brain-decisions.js";
-import { doctorLoopRead } from "../../repo/doctor-loop.js";
+import { doctorLoopRead, loopPolicySentence, spokenLoopReason } from "../../repo/doctor-loop.js";
+import { getMarkerHistory } from "../../repo/health.js";
+import { recheckQuestion, workupQuestion } from "../../repo/loop-speech.js";
 import type { DoctorLoopItem } from "../../repo/doctor-loop-items.js";
 import { localDateISO } from "../../repo/shared.js";
 import { daysBetweenISO, isoDate } from "../../lib/dates.js";
@@ -47,24 +49,22 @@ function clean(value: unknown, max = VISIT_QUESTION_MAX_CHARS): string {
   return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
 }
 
-// One follow-up, one question — worded by the kind of follow-up it is.
+// One follow-up, one question — worded by the kind of follow-up it is, in the same words
+// the next-checkup prep uses (recheckQuestion, src/repo/loop-speech.ts): marker names in
+// plain speech mid-sentence, analyte casing (ApoB, hs-CRP, Lp(a)) kept.
 function loopQuestionText(item: DoctorLoopItem): string {
-  const label = clean(item.label, 160);
-  if (item.kind === "dexa") return "Is it time for a repeat body-composition (DEXA) scan?";
-  if (item.kind === "review") return `The last health review suggested "${label}" — is now a good time for it?`;
-  return `Is it time to recheck ${label}?`;
+  return recheckQuestion({ kind: item.kind, label: clean(item.label, 160) });
 }
 
-// The follow-up's reason as the athlete reads it. The doctor loop stores a machine-register
-// reason that leads with a status clause ("<marker> is outside its optimal/lab range; " or
-// "... is under an active follow-up lever; ") — one phrase that merges the lab's flag with
-// the optimal band, which the athlete-facing surfaces keep as two separate marks. The
-// question already names the marker, so the basis keeps only the plain policy sentence,
-// cased as written (it may open on a marker name such as "hs-CRP").
-const LOOP_STATUS_CLAUSE = /^[^;]{1,160}? is (?:outside its optimal\/lab range|under an active follow-up lever);\s*/i;
-
-function loopBasis(reason: unknown): string | null {
-  return clean(reason, 400).replace(LOOP_STATUS_CLAUSE, "") || null;
+// The follow-up's reason as the athlete reads it (spokenLoopReason): which fact holds —
+// the lab's range, the optimal band, or both as two sentences — then the plain policy
+// sentence. Never the stored reason's merged "optimal/lab range" clause.
+function loopBasis(item: DoctorLoopItem, markers: unknown[], asOf: string): string | null {
+  try {
+    return clean(spokenLoopReason(item, { markers: markers as any[], asOf }), 400) || null;
+  } catch {
+    return clean(loopPolicySentence(item.reason), 400) || null;
+  }
 }
 
 function withinHorizon(item: DoctorLoopItem, asOf: string): boolean {
@@ -107,6 +107,12 @@ export function visitQuestionsRead(opts: { asOf?: string; refresh?: boolean } = 
     loop = null;
   }
   if (loop) {
+    let markers: unknown[] = [];
+    try {
+      markers = ((getMarkerHistory() as { markers?: unknown[] })?.markers ?? []) as unknown[];
+    } catch {
+      markers = [];
+    }
     // Each follow-up once (the loop is already collapsed), due ones first — the loop's
     // own order is soonest-first, then clinical panel order.
     const open = loop.attention.filter((item) => withinHorizon(item, asOf));
@@ -119,13 +125,13 @@ export function visitQuestionsRead(opts: { asOf?: string; refresh?: boolean } = 
         id: `loop:${item.key}`,
         text: loopQuestionText(item),
         source: "doctor_loop",
-        basis: loopBasis(item.reason),
+        basis: loopBasis(item, markers, asOf),
       });
     }
     for (const w of loop.missing_workup.slice(0, WORKUP_QUESTION_LIMIT)) {
       push({
         id: `workup:${w.key}`,
-        text: `Worth adding ${clean(w.label, 120)} to the next draw?`,
+        text: workupQuestion(clean(w.label, 120)),
         source: "missing_workup",
         basis: clean(w.reason, 400) || null,
       });

@@ -21,6 +21,7 @@ import type { ClientFuelIdeas, ClientIntakeBand } from "./fuel.js";
 import type {
   ClientEvidenceWantedRead,
   ClientHealthReportJson,
+  ClientLabRange,
   ClientRecordsSearchRead,
   ClientVisitQuestionsRead,
 } from "./health-records.js";
@@ -2849,9 +2850,19 @@ export interface ClientMarkerGroupSummary {
   label: string;
 }
 
+// One /api/markers/priority row (src/domain/health/marker-public.ts): the marker
+// history row plus "out of range" per the LAB, finished — never re-derived by a
+// renderer. The internal ordering signals (impact_score, distance) never arrive, and
+// the optimal fields are null where the band is not trustworthy for the marker.
+export interface ClientPriorityMarker extends ClientHealthMarker {
+  lab_range?: ClientLabRange;
+  lab_out_of_range?: boolean;
+  lab_out_of_range_side?: "high" | "low" | null;
+}
+
 export interface ClientPriorityMarkersResponse {
   flagged_count?: number;
-  markers: ClientHealthMarker[];
+  markers: ClientPriorityMarker[];
   groups?: ClientMarkerGroupSummary[];
 }
 

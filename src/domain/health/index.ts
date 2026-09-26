@@ -19,6 +19,7 @@ export { getSettings } from "../../repo/settings.js";
 export * from "../../repo/standing.js";
 export * from "../../repo/symptom-links.js";
 export * from "./blood-pressure.js";
+export * from "./marker-public.js";
 export * from "./records-search.js";
 export * from "./visit-questions.js";
 export * from "./evidence-wanted.js";

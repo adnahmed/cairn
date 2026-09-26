@@ -20,7 +20,7 @@ import { getMarkerHistory } from "./health.js";
 import { normalizedExerciseKey } from "./exercise-canon.js";
 import { currentLiftCapacities } from "./performance.js";
 import { strengthBenchmarkMilestones, type StrengthMilestoneInput } from "./training-milestones.js";
-import { doctorLoopItems, type DoctorLoopItem } from "./doctor-loop.js";
+import { doctorLoopItems, loopPolicySentence, type DoctorLoopItem } from "./doctor-loop.js";
 import { dexaRescanWindow, latestDexaDate } from "./dexa-window.js";
 import { addDaysISO, clipText, daysBetweenISO, localDateISO } from "./shared.js";
 import { blockPriority, objectiveMilestones, type BlockPriority, type ObjectiveFit, type PriorityTrack } from "./road-ahead.js";
@@ -150,8 +150,10 @@ function attentionBasis(entry: AttentionScheduleEntry, today: string): string {
   return "a scheduled checkpoint, not urgent";
 }
 
+// The stored attention reason without the doctor loop's merged "optimal/lab range"
+// status clause (loopPolicySentence): a person reads the plain policy sentence.
 function attentionDetail(entry: AttentionScheduleEntry): string | null {
-  const reason = clip(entry.reason, 180);
+  const reason = clip(loopPolicySentence(entry.reason), 180);
   return reason || null;
 }
 

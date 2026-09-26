@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadClientModule, renderHtml } from "./_dom.mjs";
+import { labRangeFields } from "../dist/repo/lab-range.js";
 
 const MODULES = [
   "date-utils",
@@ -34,7 +35,14 @@ function row(win, marker) {
   return renderHtml(win.CairnMarkerRow.rowHtml(marker, 0), { document: win.document });
 }
 
-const SYNTH = {
+// A document reading as GET /api/markers/priority serves it: the server's own lab-range
+// read (src/repo/lab-range.ts) rides on the row, so the row never derives it.
+function served(marker) {
+  const m = { ...marker, latest: marker.latest ? { doc_id: 1, ...marker.latest } : marker.latest };
+  return { ...m, ...labRangeFields(m) };
+}
+
+const SYNTH = served({
   key: "synth-a",
   name: "Synthetic Marker A",
   unit: "u/L",
@@ -47,7 +55,7 @@ const SYNTH = {
     { value: 120, date: "2030-09-01", flag: "normal" },
     { value: 150, date: "2031-03-02", flag: "high" },
   ],
-};
+});
 
 test("the lab flag and the optimal phrase are two separate elements, never one word", () => {
   const win = load();
@@ -70,15 +78,18 @@ test("the lab flag and the optimal phrase are two separate elements, never one w
 
 test("a lab flag alone carries no optimal phrase, and an optimal miss alone no flag", () => {
   const win = load();
-  const labOnly = row(win, { ...SYNTH, in_optimal: true, optimal: { low: 20, high: 200 } });
+  const labOnly = row(win, served({ ...SYNTH, in_optimal: true, optimal: { low: 20, high: 200 } }));
   assert.ok(labOnly.querySelector(".hmk-flag"));
   assert.equal(labOnly.querySelector(".hmk-opt"), null);
 
-  const optOnly = row(win, {
-    ...SYNTH,
-    latest: { value: 120, date: "2031-03-02", flag: "normal" },
-    points: [{ value: 120, date: "2031-03-02" }],
-  });
+  const optOnly = row(
+    win,
+    served({
+      ...SYNTH,
+      latest: { value: 120, date: "2031-03-02", flag: "normal" },
+      points: [{ value: 120, date: "2031-03-02" }],
+    })
+  );
   assert.equal(optOnly.querySelector(".hmk-flag"), null, "in the lab range: no lab mark");
   assert.equal(optOnly.querySelector(".hmk-opt").textContent, "above optimal");
 });
@@ -113,7 +124,7 @@ test("a week-basis wearable marker takes its side from the week, never one night
 
 test("a value outside the lab's printed range reads as the lab mark even without a flag", () => {
   const win = load();
-  const host = row(win, {
+  const marker = served({
     name: "Synthetic Marker B",
     unit: "mg/dL",
     latest: { value: 4, date: "2031-03-02", flag: null },
@@ -121,20 +132,27 @@ test("a value outside the lab's printed range reads as the lab mark even without
     reference_source: "source_lab",
     points: [{ value: 4, date: "2031-03-02" }],
   });
+  const host = row(win, marker);
   assert.equal(host.querySelector(".hmk-flag").dataset.flag, "low");
   assert.equal(host.querySelector(".hmk-opt"), null, "no optimal band, no optimal phrase");
+  // The rule is the server's: the same row without its read carries no lab mark.
+  const { lab_out_of_range: _o, lab_out_of_range_side: _s, lab_range: _r, ...bare } = marker;
+  assert.equal(row(win, bare).querySelector(".hmk-flag"), null, "the row never derives the lab's range");
 });
 
 test("a value outside a curated (not the lab's) reference range carries no lab mark", () => {
   const win = load();
-  const host = row(win, {
-    name: "Synthetic Marker B2",
-    unit: "mg/dL",
-    latest: { value: 4, date: "2031-03-02", flag: null },
-    reference: { low: 5, high: 9 },
-    reference_source: "Synthetic curated source",
-    points: [{ value: 4, date: "2031-03-02" }],
-  });
+  const host = row(
+    win,
+    served({
+      name: "Synthetic Marker B2",
+      unit: "mg/dL",
+      latest: { value: 4, date: "2031-03-02", flag: null },
+      reference: { low: 5, high: 9 },
+      reference_source: "Synthetic curated source",
+      points: [{ value: 4, date: "2031-03-02" }],
+    })
+  );
   assert.equal(host.querySelector(".hmk-flag"), null);
 });
 

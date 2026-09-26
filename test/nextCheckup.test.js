@@ -355,3 +355,52 @@ test("the checkup lists each follow-up once, at its earliest open window", () =>
   assert.equal(scans.length, 1, "one DEXA line");
   assert.match(read.lede, /plus 1 more/, "the lede counts follow-ups, not rows");
 });
+
+// ---- the why, spoken: the lab's range and the optimal band are two facts ----------
+// The loop's stored reason merges them ("is outside its optimal/lab range"); a person
+// reads which one holds, or both as two sentences, then the plain policy sentence.
+function dueWhy(read, re) {
+  const item = read.due_now.find((i) => re.test(i.label));
+  assert.ok(item, `a due item for ${re}`);
+  return item.why;
+}
+
+test("the checkup why says which fact holds — lab flag, optimal band, or both — never the merged phrase", () => {
+  // Lab-flagged AND above optimal (ApoB), lab-normal but above optimal (LDL-C sits in
+  // the same lipid panel, so a separate panel carries the optimal-only case: vitamin D).
+  seedHealthDoc("2026-01-01", [
+    marker("ApoB", 130, { unit: "mg/dL", flag: "high" }),
+    marker("Vitamin D", 22, { unit: "ng/mL", flag: "normal" }),
+    { ...marker("TSH", 5.9, { unit: "uIU/mL" }), ref_low: 0.4, ref_high: 4.5 },
+  ]);
+  const read = repo.nextCheckupRead({ refresh: true, asOf: "2026-07-01" });
+  const all = JSON.stringify(read);
+  assert.doesNotMatch(all, /optimal\/lab|follow-up lever|off optimal or|active lever/i, "no merged or engineering phrase");
+
+  const apob = dueWhy(read, /apob/i).split(". ");
+  assert.match(apob[0], /\blab\b/i, "the lab's flag is its own sentence");
+  assert.doesNotMatch(apob[0], /optimal/i);
+  assert.match(apob[1], /above its optimal range/, "the optimal band is its own sentence");
+
+  const vitd = dueWhy(read, /vitamin d/i);
+  assert.match(vitd, /inside the lab's range|lab had no complaint/i, "lab-normal says so");
+  assert.match(vitd, /below its optimal range/);
+  assert.doesNotMatch(vitd, /flagged/i, "never called flagged when the lab did not flag it");
+  assert.match(vitd, /Vitamin D takes about three months/, "then the plain policy sentence");
+
+  const tsh = dueWhy(read, /tsh/i);
+  assert.match(tsh, /above (the range the lab printed|the lab's own range)/, "the printed range, when the lab gave no flag");
+
+  // The prep questions and the lede speak the same plain words.
+  assert.ok(read.prep.questions.includes("Is it time to recheck vitamin D?"), read.prep.questions.join(" | "));
+  assert.match(read.lede, /^The window for a .+ recheck is open/);
+  for (const q of read.prep.questions) assert.doesNotMatch(q, /Worth adding [A-Z][a-z]/, "no capital mid-sentence");
+});
+
+test("the checkup why is stable within a day and rotates across days", () => {
+  seedHealthDoc("2026-01-01", [marker("ApoB", 130, { unit: "mg/dL", flag: "high" })]);
+  const whyOn = (asOf) => dueWhy(repo.nextCheckupRead({ refresh: true, asOf }), /apob/i);
+  assert.equal(whyOn("2026-07-01"), whyOn("2026-07-01"), "one wording per morning");
+  const days = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04"].map(whyOn);
+  assert.ok(new Set(days).size > 1, "a variant set, never one literal every morning");
+});

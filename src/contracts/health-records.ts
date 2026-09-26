@@ -3,7 +3,8 @@
 //
 // Four server-owned reads the Records and packet surfaces paint:
 //   - RECORDS SEARCH — one search across markers, health documents, visit notes and body
-//     readings, grouped three ways: out of range first (keyed on the LAB's own flag), by
+//     readings, grouped three ways: out of range first (keyed on the LAB's range: its own
+//     flag or the range it printed, src/repo/lab-range.ts), by
 //     panel (MARKER_GROUPS order, src/repo/propagation-data.ts), and newest.
 //     `GET /api/records/search?q=&group=` · MCP `search_health_records`.
 //   - VISIT QUESTIONS — calm questions proposed for the next visit, one per doctor-loop
@@ -30,6 +31,15 @@ export type ClientRecordsGroupMode = "out_of_range" | "panel" | "newest";
 
 /** The lab's own out-of-range flag. `normal` and anything unrecognised read as null. */
 export type ClientLabFlag = "high" | "low";
+
+/**
+ * Where a reading sits against the LAB's range (src/repo/lab-range.ts — the one rule):
+ * `out` = the lab flagged it, or its value is outside the range the lab printed;
+ * `within` = the lab marked it normal, or it is inside the printed range;
+ * `unranged` = no lab ranged it (weigh-ins, home cuff, wearables, a result printed
+ * without a range). The optimal band never enters this.
+ */
+export type ClientLabRange = "out" | "within" | "unranged";
 
 /**
  * How current a reading still is for its OWN kind of marker (src/repo/marker-validity.ts):
@@ -66,14 +76,19 @@ export interface ClientRecordsMarkerHit {
   unit: string | null;
   value: unknown;
   date: string | null;
-  /** The lab's OWN flag — the only thing "out of range" keys on. */
+  /** The lab's OWN HIGH/LOW flag on a document reading (never Cairn's home-cuff threshold). */
   lab_flag: ClientLabFlag | null;
   /**
    * The lab itself ranged this reading (printed a reference interval, flagged it, or marked
    * it normal). False for weigh-ins, home blood pressure, wearable series and any result the
-   * lab gave no range for — those make no range claim either way.
+   * lab gave no range for — those make no range claim either way. Same as `lab_range !== "unranged"`.
    */
   lab_ranged: boolean;
+  lab_range: ClientLabRange;
+  /** Out of range per the LAB — the only thing "out of range" keys on. */
+  lab_out_of_range: boolean;
+  /** Which side of the lab's range, when out and the lab or its printed range says so. */
+  lab_out_of_range_side: ClientLabFlag | null;
   /** The evidence-anchored optimal band, when one is trustworthy for this marker. */
   optimal: ClientRecordsOptimalBand | null;
   /** A separate mark from `lab_flag`: true outside the optimal band, null with no trusted band. */
@@ -82,9 +97,10 @@ export interface ClientRecordsMarkerHit {
   optimal_side: "above" | "below" | null;
   staleness: ClientRecordsStaleness;
   /**
-   * The marker row as the Records catalog already renders it (the `/api/markers/priority`
-   * row: latest, points, trend, forecast, reference, …), with the optimal fields cleared
-   * where the band is untrusted so the row and the marks above never disagree.
+   * The marker row exactly as `/api/markers/priority` hands it to the Records catalog
+   * (latest, points, trend, forecast, reference, the `lab_range` fields, …; one projection,
+   * src/domain/health/marker-public.ts), with the optimal fields cleared where the band is
+   * untrusted so the row and the marks above never disagree.
    */
   marker: Record<string, unknown>;
 }
@@ -126,9 +142,12 @@ export type ClientRecordsHit = ClientRecordsMarkerHit | ClientRecordsDocumentHit
 
 export interface ClientRecordsSection {
   /**
-   * `out_of_range`: `lab_flagged` ("Flagged by the lab"), `not_lab_flagged` ("Not flagged
-   * by the lab": lab-ranged, no HIGH/LOW flag), `no_lab_range` ("Other readings": nothing a
-   * lab ranged), then `documents`, `visit_notes`, `body_readings`. `panel`: one per MARKER_GROUPS key present, then the same three.
+   * `out_of_range`: `lab_out_of_range` ("Outside the lab's range"), `outside_optimal`
+   * ("Outside optimal": inside or without a lab range, outside a trusted optimal band),
+   * `lab_within_range` ("Within the lab's range": a lab ranged it), `no_lab_range` ("Other
+   * readings": nothing a lab ranged), then `visit_notes`, `documents`, `body_readings` —
+   * the same keys and labels the Records page files its catalog under. `panel`: one per
+   * MARKER_GROUPS key present, then the same three.
    * `newest`: a single `newest` section, every kind interleaved by date.
    */
   key: string;
@@ -146,9 +165,9 @@ export interface ClientRecordsSearchRead {
     documents: number;
     visit_notes: number;
     body: number;
-    /** Markers the lab flagged. */
-    lab_flagged: number;
-    /** Markers outside a trusted optimal band — counted separately, never folded into `lab_flagged`. */
+    /** Markers outside the lab's range (flagged, or outside the range the lab printed). */
+    lab_out_of_range: number;
+    /** Markers outside a trusted optimal band — counted separately, never folded into `lab_out_of_range`. */
     outside_optimal: number;
   };
   frame: string;
@@ -222,7 +241,11 @@ export interface ClientReportMarker {
   value: unknown;
   /** The lab's own out-of-range flag (normal stripped to null). */
   flag: "high" | "low" | null;
-  /** Lab-flagged OR out of optimal target — the report's highlight, not a word. */
+  /**
+   * The report's highlight: `flag` set OR outside the optimal target. Kept for
+   * back-compat; it BLURS two facts, so a data consumer reads `lab_flagged` and
+   * `outside_optimal` (on the JSON packet) to tell them apart.
+   */
   abnormal: boolean;
   optimal: { low: number; high: number; dir: string } | null;
   optimalText: string | null;
@@ -248,10 +271,27 @@ export interface ClientReportMarker {
   source: string | null;
 }
 
+/**
+ * A packet marker as the JSON format hands it out: the report marker plus the two facts
+ * `abnormal` merges, each named on its own — never read one off the other.
+ */
+export interface ClientReportMarkerJson extends ClientReportMarker {
+  /** The lab's own HIGH/LOW flag is on this reading (`flag` is set). */
+  lab_flagged: boolean;
+  /** Outside the trusted optimal target (`inOptimal === false`); false with no trusted band. */
+  outside_optimal: boolean;
+}
+
 export interface ClientReportGroup {
   key: string;
   label: string;
   markers: ClientReportMarker[];
+}
+
+export interface ClientReportGroupJson {
+  key: string;
+  label: string;
+  markers: ClientReportMarkerJson[];
 }
 
 export interface ClientReportBodyComp {
@@ -282,8 +322,8 @@ export interface ClientHealthReportJson {
   dateRange: { from: string; to: string } | null;
   sections: ClientReportSectionId[];
   section_catalog: ClientReportSectionOption[];
-  findings?: ClientReportMarker[];
-  groups?: ClientReportGroup[];
+  findings?: ClientReportMarkerJson[];
+  groups?: ClientReportGroupJson[];
   bodyComp?: ClientReportBodyComp | null;
   supplements?: ClientReportSupplement[];
   visit_questions?: ClientVisitQuestion[];

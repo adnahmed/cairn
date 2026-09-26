@@ -17,10 +17,12 @@ import crypto from "node:crypto";
 import * as repo from "./repo.js";
 import { formatReportDate, formatReportDateShort, reportDateISO, reportDaysBetween, reportTodayISO } from "./reportDates.js";
 import { round1 } from "./lib/numbers.js";
+import { optimalTrustworthy } from "./repo/optimal-trust.js";
 import type {
   ClientHealthReportJson,
   ClientReportGroup,
   ClientReportMarker,
+  ClientReportMarkerJson,
   ClientReportSectionId,
   ClientReportTargetKind,
 } from "./contracts/health-records.js";
@@ -226,24 +228,10 @@ function hasSection(data: ClinicalReportData, id: ReportSectionId): boolean {
   return data.sections.includes(id);
 }
 
-// Report-local guard against the shared optimal-zone matcher's substring
-// over-match on composite/qualitative marker names — e.g. "Total Cholesterol /
-// HDL Ratio" grabbing HDL's band, "LDL Pattern A" grabbing LDL's, a urine
-// albumin grabbing serum creatinine's, or "Testosterone, Free" (pg/mL) grabbing
-// total-T's (ng/dL) band. On a clinician doc a false target reads as an error,
-// so we only TRUST (and thus display) an optimal band when the name isn't one of
-// these traps and the value is numerically comparable. The lab's own H/L flag is
-// authoritative and never suppressed; this only governs the optimal annotation.
-export function optimalTrustworthy(name: string, value: unknown): boolean {
-  const n = name.toLowerCase();
-  const num = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(num)) return false; // qualitative result (e.g. pattern "A")
-  if (/\bvldl\b/.test(n)) return false; // VLDL must not inherit LDL-C's target
-  if (/\bratio\b|\bpattern\b|\burine\b/.test(n)) return false;
-  if (n.includes("/")) return false; // composite "x / y" names
-  if (n.includes("free") && n.includes("testosterone")) return false; // no free-T zone
-  return true;
-}
+// The optimal-band trust guard lives with the zone data it guards
+// (src/repo/optimal-trust.ts) so the repo-layer reads — the Records rows, the doctor
+// loop's spoken reasons — apply the same test the packet does.
+export { optimalTrustworthy } from "./repo/optimal-trust.js";
 
 function isDirectLdlName(name: string): boolean {
   const n = name.toLowerCase();
@@ -1101,6 +1089,13 @@ export function buildClinicalReportData(opts: ClinicalReportOptions = {}): Clini
   };
 }
 
+// A packet marker for data consumers: `abnormal` stays for back-compat, and the two
+// facts it merges — the lab's own flag and sitting outside the optimal target — are
+// named on their own so nothing downstream can blur them.
+function markerJson(m: ReportMarker): ClientReportMarkerJson {
+  return { ...m, lab_flagged: m.flag === "high" || m.flag === "low", outside_optimal: m.inOptimal === false };
+}
+
 // The packet as JSON — the same data the HTML and text formats render, with every
 // toggled-off section's key ABSENT (not empty). The header, the section catalog and the
 // informational line are always present.
@@ -1113,10 +1108,11 @@ export function clinicalReportJson(data: ClinicalReportData): ClientHealthReport
     section_catalog: REPORT_SECTIONS.map((s) => ({ id: s.id, label: s.label, included: data.sections.includes(s.id) })),
     disclaimer: data.disclaimer,
   };
-  if (hasSection(data, "findings")) out.findings = data.findings;
+  if (hasSection(data, "findings")) out.findings = data.findings.map(markerJson);
   if (hasSection(data, "visit_questions")) out.visit_questions = data.visitQuestions;
   if (hasSection(data, "body_composition")) out.bodyComp = data.bodyComp;
-  if (hasSection(data, "panels")) out.groups = data.groups;
+  if (hasSection(data, "panels"))
+    out.groups = data.groups.map((g) => ({ key: g.key, label: g.label, markers: g.markers.map(markerJson) }));
   if (hasSection(data, "supplements")) out.supplements = data.supplements;
   if (hasSection(data, "sources")) out.sources = data.sources;
   return out;

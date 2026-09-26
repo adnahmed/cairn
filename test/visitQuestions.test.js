@@ -73,10 +73,37 @@ test("each doctor-loop follow-up appears once, worded as a calm question", () =>
   for (const q of read.questions)
     assert.doesNotMatch(q.text, /\bmust\b|\b\d{1,3}\s*\/\s*100\b/i, "no gate words, no scores");
   // The basis is read by the athlete: the loop's machine status clause, which merges the
-  // lab flag and the optimal band into one "optimal/lab range", never reaches it.
+  // lab flag and the optimal band into one "optimal/lab range", never reaches it. It
+  // says which fact holds — here both, as two separate sentences — then the policy.
   assert.ok(lipids[0].basis, "the follow-up carries its plain reason");
-  for (const q of loop) assert.doesNotMatch(q.basis ?? "", /optimal\/lab|follow-up lever/i);
-  assert.match(lipids[0].basis, /^A lipid marker/, "the plain policy sentence, as written");
+  for (const q of loop) assert.doesNotMatch(q.basis ?? "", /optimal\/lab|follow-up lever|off optimal or|active lever/i);
+  const [labFact, optimalFact] = lipids[0].basis.split(". ");
+  assert.match(labFact, /\blab\b.*\bhigh\b|\bhigh\b.*\blab\b/i, "the lab's own flag, as its own sentence");
+  assert.doesNotMatch(labFact, /optimal/i, "the lab's fact never mentions the optimal band");
+  assert.match(optimalFact, /above its optimal range/, "the optimal band, as its own sentence");
+  assert.match(lipids[0].basis, /Lipids take about three months/, "then the plain policy sentence");
+});
+
+test("loop questions speak marker names as plain words, keeping analyte casing", () => {
+  seedHealthDoc("2026-01-01", [
+    marker("Hemoglobin", 12.1, { unit: "g/dL", flag: "low" }),
+    marker("Ferritin", 12, { unit: "ng/mL", flag: "low" }),
+    marker("hs-CRP", 3.4, { unit: "mg/L", flag: "high" }),
+  ]);
+  repo.refreshDoctorLoopAttention();
+  const texts = visitQuestionsRead({ asOf: "2026-05-01" }).questions.map((q) => q.text);
+  const iron = texts.find((t) => /hemoglobin|ferritin/i.test(t));
+  assert.match(
+    iron ?? "",
+    /^Is it time to recheck (ferritin and hemoglobin|hemoglobin and ferritin)\?$/,
+    texts.join(" | ")
+  );
+  assert.ok(texts.includes("Is it time to recheck hs-CRP?"), "analyte casing is kept");
+  const workups = texts.filter((t) => /worth adding/i.test(t));
+  assert.ok(workups.length, "worth-adding questions are proposed");
+  for (const t of workups) assert.match(t, /^Would it be worth adding .+ to the next draw\?$/);
+  for (const t of texts)
+    assert.doesNotMatch(t, /(?<!^)\b(Hemoglobin|Iron|Fasting|Ferritin)\b/, "no capitalised noun mid-sentence");
 });
 
 test("a follow-up a year out is not a question for this visit", () => {
@@ -122,7 +149,7 @@ test("evidence wanted: one calm line for the overdue recheck, else nothing", () 
   assert.ok(due.item, "an overdue lipid recheck is named");
   assert.equal(due.item.key, "panel:lipids");
   assert.equal(due.item.kind, "recheck");
-  assert.match(due.item.line, /^When it suits you, /);
+  assert.match(due.item.line, /^When it suits you, a recheck of ApoB and LDL-C would help the team/);
   assert.doesNotMatch(due.item.line, /\bmust\b|overdue|urgent/i, "calm, never a nag");
   assert.equal(Array.isArray(due.item), false, "at most one item");
 
@@ -141,6 +168,7 @@ test("evidence wanted falls back to an off reading past its own marker's window 
   assert.match(read.item.key, /^aging:/);
   assert.match(read.item.label, /crp/i);
   assert.equal(read.item.since, "2025-01-01");
+  assert.match(read.item.line, /a fresh hs-CRP reading/, "the analyte keeps its casing");
 
   resetTables("health_documents");
   seedHealthDoc("2025-01-01", [marker("Lp(a)", 180, { unit: "nmol/L", flag: "high" })]);

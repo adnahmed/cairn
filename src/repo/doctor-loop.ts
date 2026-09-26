@@ -17,6 +17,11 @@ import { listDirectives } from "./directives.js";
 import { directiveIntentOf } from "./directives-read.js";
 import { matchOptimalZone, optimalDistance } from "./propagation-data.js";
 import { collapseDoctorLoop, isDoctorLoopSignal, type DoctorLoopItem } from "./doctor-loop-items.js";
+import { labRangeRead } from "./lab-range.js";
+import { spokenMarkerName } from "./loop-speech.js";
+import { optimalTrustworthy } from "./optimal-trust.js";
+import { getProfile } from "./profile.js";
+import { pickDayVariant } from "./brain/day-read-rules.js";
 
 export type { DoctorLoopItem } from "./doctor-loop-items.js";
 
@@ -74,7 +79,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 84,
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
-    reason: "A lipid marker is off optimal or under an active lever; recheck after the expected lipid-response window.",
+    reason: "Lipids take about three months to answer a change in food or training, so a recheck after that says the most.",
     release: "Lipids are cleanly optimal and stable without an active lipid intervention; they can stay quiet until new data, symptoms, or a clinician question brings them back.",
   },
   {
@@ -84,7 +89,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 365,
     surveillanceInitialDays: 365,
     surveillanceMaxDays: 365,
-    reason: "Lp(a) is mostly genetic; once elevated, it mainly changes how aggressively modifiable lipid markers are interpreted.",
+    reason: "Lp(a) is mostly genetic; once it is known to be high, it mainly shapes how the other lipid markers are read.",
     release: "Lp(a) has been measured; it does not need repeated routine scheduling unless a clinician asks or a new treatment question appears.",
   },
   {
@@ -94,7 +99,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 90,
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
-    reason: "A glucose/insulin marker is off optimal or under an active lever; recheck after a meaningful metabolic-response window.",
+    reason: "Glucose and insulin take about three months to show a change, so a recheck after that says the most.",
     release: "Glucose/insulin markers are clean and stable with no active metabolic intervention; they can stay quiet until new data or a goal change.",
   },
   {
@@ -107,7 +112,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 84,
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
-    reason: "Testosterone is off optimal or under an active lever; confirm it with a morning repeat after a meaningful window — a long energy deficit or heavy training block can lower it.",
+    reason: "A morning repeat after a few months confirms where testosterone sits — a long energy deficit or a heavy training block can lower it.",
     release: "Testosterone is cleanly optimal and stable; it can stay quiet until symptoms, a long deficit, or new labs bring it back.",
   },
   {
@@ -117,7 +122,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 56,
     surveillanceInitialDays: 120,
     surveillanceMaxDays: 365,
-    reason: "An iron/red-blood marker is off optimal or being corrected; recheck after the expected iron-response window.",
+    reason: "Iron and red-cell markers take about ten weeks to answer a change, so a recheck after that shows where they have moved.",
     release: "Iron/red-blood markers are cleanly stable with no active correction; they can stay quiet until symptoms, training issues, or new labs bring them back.",
   },
   {
@@ -127,7 +132,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 56,
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
-    reason: "A thyroid marker is off optimal or recently changed; recheck after the expected thyroid-response window.",
+    reason: "Thyroid markers settle over about eight weeks, so a recheck after that reads truer.",
     release: "Thyroid markers are clean and stable without a medication or symptom change; no standing recheck is needed.",
   },
   {
@@ -137,7 +142,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 90,
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
-    reason: "Vitamin D is off optimal or being corrected; recheck after a meaningful supplementation/sunlight-response window.",
+    reason: "Vitamin D takes about three months to answer a new dose or a change of season, so a recheck after that says the most.",
     release: "Vitamin D is cleanly stable with no active dose change; it can stay quiet until seasonal change, symptoms, or clinician follow-up.",
   },
   {
@@ -147,7 +152,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 84,
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
-    reason: "hs-CRP is non-specific; confirm it when not acutely ill, injured, or coming off unusually hard training.",
+    reason: "hs-CRP moves with many things, so it reads truest drawn when you are not ill, injured, or fresh off unusually hard training.",
     release: "Inflammation is cleanly low and stable outside transient windows; it can stay quiet until a new symptom or draw.",
   },
   {
@@ -157,7 +162,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 90,
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
-    reason: "A kidney/liver marker is off optimal or newly changed; recheck after a clinically meaningful interval.",
+    reason: "Kidney and liver markers are worth a recheck after about three months, to see whether a change holds.",
     release: "Kidney/liver markers are clean and stable without an active lever; they can stay quiet until new data or symptoms.",
   },
   {
@@ -167,7 +172,7 @@ const POLICY_SPECS: PolicySpec[] = [
     confirmingDays: 84,
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
-    reason: "Body composition is actively moving; DEXA or a consistent body-comp method is worth rechecking after 8-12 weeks, not daily.",
+    reason: "Body composition moves slowly, so a DEXA scan (or the same body-composition method) every 8–12 weeks says more than daily numbers.",
     release: "Body composition is stable and no recomposition lever is active; it can stay quiet until a phase change or new scan.",
   },
 ];
@@ -321,6 +326,10 @@ function applyMarkerAttention(marker: MarkerLike, activeMarkers: Set<string>): A
   if (!spec) return null;
   let status = markerStatus(marker);
   if (hasActiveDirective(label, activeMarkers) && status !== "flagged") status = "active";
+  // The STORED reason is the machine register the coach context and the MCP loop read:
+  // a status clause, then the policy sentence. It never reaches a person as written —
+  // the athlete-facing surfaces speak it through spokenLoopReason / loopPolicySentence,
+  // which keep the lab's range and the optimal band as two separate facts.
   const reason =
     status === "flagged" || status === "active"
       ? `${label} is ${status === "active" ? "under an active follow-up lever" : "outside its optimal/lab range"}; ${spec.reason}`
@@ -450,7 +459,7 @@ function directiveRecheckPolicy(markerName: string, horizonDays: number, reason?
     surveillance_checks_before_release: 2,
     reason:
       reason ??
-      `You scheduled a ${markerName} recheck from a directive; it comes back around after the expected response window.`,
+      `You asked for this ${spokenMarkerName(markerName)} recheck; it comes back around once a change has had time to show.`,
     release_condition: `${markerName} reads back in its optimal range on the recheck, or you clear this follow-up.`,
   };
 }
@@ -471,7 +480,7 @@ export function scheduleDirectiveRecheck(
   const label = markerLabel({ name: markerName });
   const horizonDays = parseRecheckHorizonDays(directive.directive) ?? recheckHorizonClassDays(label);
   const checkedAt = toDate(directive.status_at ?? opts.asOf);
-  const reason = `You scheduled a ${label} recheck from a directive; it comes back around after the expected response window (~${Math.round(horizonDays / 7)} weeks).`;
+  const reason = `You asked for this ${spokenMarkerName(label)} recheck; it comes back around in about ${Math.max(1, Math.round(horizonDays / 7))} weeks, once a change has had time to show.`;
   return applyAttentionObservation({
     signal_key: signalKey,
     policy: directiveRecheckPolicy(label, horizonDays, reason),
@@ -865,4 +874,137 @@ export function doctorLoopRead(opts: { refresh?: boolean; asOf?: string } = {}):
     missing_workup: recommendedPanel(),
     frame: "Informational, not medical advice. Retests are batched into calm clinician-style checkpoints; fully normal, stable signals are allowed to go quiet until new data, symptoms, a goal change, or a question brings them back.",
   };
+}
+
+// ---------- the loop, spoken to a person ----------
+//
+// A marker cadence row's stored reason opens on one status clause that merges the lab's
+// range with the optimal band ("<marker> is outside its optimal/lab range; …" or "… is
+// under an active follow-up lever; …"). That register stays as it is for the coach and
+// the MCP loop; a person reads the policy sentence behind it, and the status as the one
+// or two facts that actually hold — the lab's range and the optimal band, never merged.
+const LOOP_STATUS_CLAUSE = /^[^;]{1,160}? is (?:outside its optimal\/lab range|under an active follow-up lever);\s*/i;
+
+/** The stored reason without its merged status clause: the plain policy sentence. */
+export function loopPolicySentence(reason: unknown): string {
+  return String(reason ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(LOOP_STATUS_CLAUSE, "");
+}
+
+type Side = "above" | "below";
+
+interface MarkerFacts {
+  name: string;
+  lab: ReturnType<typeof labRangeRead>;
+  optimal: Side | null;
+}
+
+// Variant sets, rotated by day and follow-up (pickDayVariant) so one standing recheck
+// never prints the same sentence every morning. `{m}` is the spoken marker name, `{s}`
+// the lab's side word (high / low), `{o}` above / below.
+const LAB_FLAG_LINES = ["The lab flagged your last {m} {s}.", "Your last {m} came back flagged {s} by the lab."];
+const LAB_FLAG_NO_SIDE_LINES = ["The lab flagged your last {m}.", "Your last {m} came back with a flag from the lab."];
+const LAB_PRINTED_LINES = [
+  "Your last {m} came back {o} the range the lab printed.",
+  "Your last {m} sat {o} the lab's own range.",
+];
+const OPTIMAL_ALSO_LINES = ["It also sits {o} its optimal range.", "Separately, it is {o} its optimal range."];
+const OPTIMAL_WITHIN_LAB_LINES = [
+  "Your last {m} was inside the lab's range, and {o} its optimal range.",
+  "The lab had no complaint about your last {m}; it sits {o} its optimal range.",
+];
+const OPTIMAL_ONLY_LINES = ["Your last {m} sits {o} its optimal range.", "Your last {m} was {o} its optimal range."];
+const LEVER_LINES = ["You have a plan working on {m} right now.", "There is a plan in motion for {m}."];
+
+function fill(line: string, v: { m?: string; s?: string; o?: string }): string {
+  return line
+    .replace("{m}", v.m ?? "")
+    .replace("{s}", v.s ?? "")
+    .replace("{o}", v.o ?? "");
+}
+
+function readerProfile(): { sex: string | null; age: number | null } | null {
+  try {
+    const p = getProfile() as any;
+    return p ? { sex: p.sex ?? null, age: p.age ?? null } : null;
+  } catch {
+    return null;
+  }
+}
+
+// The two facts about one reading: where it sits against the LAB's range (the one rule,
+// src/repo/lab-range.ts) and, separately, against a trustworthy optimal band.
+function markerFacts(marker: MarkerLike, label: string, profile: ReturnType<typeof readerProfile>): MarkerFacts {
+  const lab = labRangeRead(marker);
+  let optimal: Side | null = null;
+  const value = numericLatest(marker);
+  const zone = matchOptimalZone(String(marker.name ?? ""), profile as any);
+  if (zone && value != null && !marker.latest?.unit_mismatch && optimalTrustworthy(String(marker.name ?? ""), value)) {
+    if (optimalDistance(value, zone) > 0) optimal = value > zone.optimal[1] ? "above" : value < zone.optimal[0] ? "below" : null;
+  }
+  return { name: spokenMarkerName(label), lab, optimal };
+}
+
+function factsSentence(f: MarkerFacts, pick: (lines: string[]) => string): string | null {
+  const parts: string[] = [];
+  if (f.lab.state === "out") {
+    const side = f.lab.side;
+    if (f.lab.basis === "printed_range" && side)
+      parts.push(fill(pick(LAB_PRINTED_LINES), { m: f.name, o: side === "high" ? "above" : "below" }));
+    else if (side) parts.push(fill(pick(LAB_FLAG_LINES), { m: f.name, s: side }));
+    else parts.push(fill(pick(LAB_FLAG_NO_SIDE_LINES), { m: f.name }));
+    if (f.optimal) parts.push(fill(pick(OPTIMAL_ALSO_LINES), { o: f.optimal }));
+  } else if (f.optimal) {
+    const lines = f.lab.state === "within" ? OPTIMAL_WITHIN_LAB_LINES : OPTIMAL_ONLY_LINES;
+    parts.push(fill(pick(lines), { m: f.name, o: f.optimal }));
+  }
+  return parts.length ? parts.join(" ") : null;
+}
+
+/**
+ * The athlete-facing "why" for one doctor-loop follow-up. A lab follow-up says which
+ * fact holds for the first of its markers that is off — the lab's range, the optimal
+ * band, or both as two sentences — or that a plan is working on it, then the plain
+ * policy sentence. Every other follow-up speaks its stored reason without the merged
+ * status clause. Deterministic for a date; informational, never medical advice.
+ */
+export function spokenLoopReason(
+  item: DoctorLoopItem,
+  opts: { markers?: MarkerLike[]; asOf?: string } = {}
+): string {
+  const policy = loopPolicySentence(item.reason);
+  if (item.kind !== "lab") return policy;
+  const asOf = toDate(opts.asOf);
+  const markers = opts.markers ?? (getMarkerHistory() as { markers: MarkerLike[] }).markers ?? [];
+  // One reading per label: the comparable, newest series (the rule the refresh pass
+  // files the cadence by — newestMarkerPerSignal).
+  const byLabel = new Map<string, MarkerLike>();
+  const rank = (m: MarkerLike) => `${m.latest?.unit_mismatch ? 0 : 1}|${markerDate(m)}`;
+  for (const m of markers) {
+    const key = lc(markerLabel(m));
+    const cur = key ? byLabel.get(key) : undefined;
+    if (key && (!cur || rank(m) > rank(cur))) byLabel.set(key, m);
+  }
+  const pick = (lines: string[]) => pickDayVariant(lines, asOf, `doctor-loop:why:${item.key}`);
+  const profile = readerProfile();
+  const covered = item.markers.length ? item.markers : [item.label];
+  let status: string | null = null;
+  for (const label of covered) {
+    const m = byLabel.get(lc(label));
+    if (!m) continue;
+    status = factsSentence(markerFacts(m, label, profile), pick);
+    if (status) break;
+  }
+  if (!status) {
+    const active = activeDirectiveMarkers();
+    const lever = covered.find((label) => hasActiveDirective(label, active));
+    if (lever) status = fill(pick(LEVER_LINES), { m: spokenMarkerName(lever) });
+  }
+  // A cadence row's reason is only the policy once its status clause is gone; a
+  // directive recheck or review row already speaks for itself.
+  const spec = policyForLabel(covered[0] ?? "");
+  const tail = item.signal_key.startsWith("marker:") && spec ? spec.reason : policy;
+  return [status, tail].filter(Boolean).join(" ");
 }

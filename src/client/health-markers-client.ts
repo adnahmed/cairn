@@ -17,6 +17,8 @@ type HealthMarkersRow = {
   reference_source?: unknown;
   reference_source_url?: unknown;
   in_optimal?: unknown;
+  lab_out_of_range?: unknown; // "out of range" per the LAB, finished by the server (lab-range.ts)
+  lab_out_of_range_side?: unknown;
   trend?: { dir?: unknown; span_days?: unknown } | null;
   // The active health_directive's own athlete-facing sentence when this marker
   // is currently shaping training/meals/watch — null otherwise (propagation.ts).
@@ -86,24 +88,21 @@ function optimalPhrase(marker: HealthMarkersRow | null | undefined): string {
   return `${range}${marker?.unit ? ` ${String(marker.unit)}` : ""}`;
 }
 
-// The catalog's shared "out of range" definition: lab-flagged, or lab-normal
-// but outside the optimal band (the doctor report's findings set).
+// The catalog's shared "out of range" definition: outside the LAB's range (the server's
+// finished read, below), or outside the optimal band (the doctor report's findings set).
 function markerOutOfRange(marker: HealthMarkersRow | null | undefined): boolean {
-  return flaggedByLab(marker?.latest?.flag) || marker?.in_optimal === false;
+  return !!labFlagWord(marker) || marker?.in_optimal === false;
 }
 
-// The LAB FLAG as one word ("high", "low", "abnormal", "critical"): the lab's own
-// flag, else a value outside the lab's PRINTED range (never a curated interval). ""
-// when the lab has no complaint. Never the optimal band.
+// The LAB mark as one word ("high", "low", "abnormal", "critical"): the server's own read
+// (`lab_out_of_range`/`_side`, src/repo/lab-range.ts), never re-derived here — a row
+// without it carries no lab mark. Never the optimal band.
 function labFlagWord(marker: HealthMarkersRow | null | undefined): string {
+  if (marker?.lab_out_of_range !== true) return "";
   const flag = String(marker?.latest?.flag || "").toLowerCase();
   if (flaggedByLab(flag)) return flag;
-  const v = Number(marker?.latest?.value);
-  const ref = marker?.reference;
-  if (!ref || marker?.reference_source !== "source_lab" || marker?.latest?.value == null || marker.latest.value === "" || !Number.isFinite(v)) return "";
-  if (ref.high != null && Number.isFinite(Number(ref.high)) && v > Number(ref.high)) return "high";
-  if (ref.low != null && Number.isFinite(Number(ref.low)) && v < Number(ref.low)) return "low";
-  return "";
+  const side = marker?.lab_out_of_range_side;
+  return side === "high" || side === "low" ? side : "outside range";
 }
 
 // The OPTIMAL phrase when the latest reading sits outside its optimal band: the side

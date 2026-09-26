@@ -3,11 +3,13 @@
 // Body Weight / BP series), health documents, visit notes, and body readings (the tape
 // sites, which are not markers), grouped one of three ways:
 //
-//   - out_of_range: the markers the LAB flagged first, then the ones a lab ranged and left
-//     unflagged, then readings no lab ranged (weigh-ins, home cuff, wearables, a result
-//     printed without a range), then documents, visit notes and body readings. "Out of range" is the lab's own HIGH/LOW flag and
-//     nothing else; sitting outside the optimal band is its own mark (`outside_optimal`)
-//     and never moves a marker into the flagged section.
+//   - out_of_range: what is outside the LAB's range first (the lab flagged it, or its value
+//     sits outside the range the lab printed — `labRangeRead`, src/repo/lab-range.ts, the
+//     one rule the Records page keys on too), then what is inside the lab's range but
+//     outside a trusted optimal band (its own section and its own mark, never folded into
+//     the lab's), then the rest the lab ranged, then readings no lab ranged (weigh-ins,
+//     home cuff, wearables, a result printed without a range: "Other readings"), then
+//     documents, visit notes and body readings.
 //   - panel: one section per clinical panel, in MARKER_GROUPS array order (the doctor
 //     export's order, src/repo/propagation-data.ts), each panel's markers in the packet's
 //     own in-panel order (reportMarkerRank, src/report.ts); then the non-marker sections.
@@ -31,15 +33,17 @@ import type {
   ClientReadingFreshness,
 } from "../../contracts/health-records.js";
 import { healthDocumentKindLabel } from "../../healthDocumentKinds.js";
-import { optimalTrustworthy, reportMarkerRank } from "../../report.js";
+import { reportMarkerRank } from "../../report.js";
 import { listBodyMeasurements } from "../../repo/body-metrics.js";
 import { listHealthDocuments } from "../../repo/health.js";
 import { wearableWeeklyMarkerRead } from "../../repo/health-focus.js";
 import { markerAgingClause, markerValidityClass, readingAgeDays, validityBand } from "../../repo/marker-validity.js";
+import { labRangeRead } from "../../repo/lab-range.js";
 import { markerGroup, markerGroupRank } from "../../repo/propagation-data.js";
 import { prioritizeMarkers } from "../../repo/propagation.js";
 import { localDateISO } from "../../repo/shared.js";
 import { isoDate } from "../../lib/dates.js";
+import { markerOptimalTrusted, publicMarkerRow } from "./marker-public.js";
 
 export type RecordsGroupMode = ClientRecordsGroupMode;
 export type RecordsSearchRead = ClientRecordsSearchRead;
@@ -131,22 +135,14 @@ function snippetOf(tokens: string[], text: string): string | null {
 
 const FRESHNESS: Record<0 | 1 | 2, ClientReadingFreshness> = { 0: "current", 1: "aging", 2: "past" };
 
-// The public marker row, stripped of anything that is an internal ordering signal, with
-// the optimal fields cleared when the band is not trustworthy for this marker (the same
-// guard the doctor packet applies), so the row and the hit's own marks agree.
-function publicMarkerRow(m: any, trusted: boolean): Record<string, unknown> {
-  const { impact_score: _impact, distance: _distance, ...rest } = m ?? {};
-  return trusted ? rest : { ...rest, optimal: null, in_optimal: null };
-}
-
 function markerHit(m: any, asOf: string): ClientRecordsMarkerHit {
   const name = String(m?.name ?? m?.key ?? "").trim();
   const value = m?.latest?.value ?? null;
-  const labFlag = m?.latest?.flag === "high" || m?.latest?.flag === "low" ? m.latest.flag : null;
-  const band =
-    m?.optimal && Number.isFinite(Number(m.optimal.low)) && Number.isFinite(Number(m.optimal.high)) ? m.optimal : null;
-  const trusted = !!band && optimalTrustworthy(name, value);
-  const optimal = trusted ? { low: Number(band.low), high: Number(band.high), dir: String(band.dir ?? "band") } : null;
+  const lab = labRangeRead(m);
+  const trusted = markerOptimalTrusted(m);
+  const optimal = trusted
+    ? { low: Number(m.optimal.low), high: Number(m.optimal.high), dir: String(m.optimal.dir ?? "band") }
+    : null;
   const outside = trusted && typeof m?.in_optimal === "boolean" ? !m.in_optimal : null;
   const num = typeof value === "number" ? value : Number(value);
   const side =
@@ -161,10 +157,6 @@ function markerHit(m: any, asOf: string): ClientRecordsMarkerHit {
   const age = readingAgeDays(date, asOf);
   const groupKey = String(m?.group ?? "") || markerGroup(name).key;
   const groupLabel = String(m?.group_label ?? "") || markerGroup(name).label;
-  // The lab itself ranged this reading: it printed a reference interval, or marked the
-  // reading normal. A curated fallback interval is not the lab's, and a weigh-in, home
-  // cuff or wearable series never had a lab behind it.
-  const labRanged = labFlag != null || m?.latest?.flag === "normal" || m?.reference_source === "source_lab";
   return {
     type: "marker",
     id: `marker:${String(m?.key ?? name)}`,
@@ -173,8 +165,11 @@ function markerHit(m: any, asOf: string): ClientRecordsMarkerHit {
     unit: m?.unit ?? null,
     value,
     date,
-    lab_flag: labFlag,
-    lab_ranged: labRanged,
+    lab_flag: lab.flag,
+    lab_ranged: lab.state !== "unranged",
+    lab_range: lab.state,
+    lab_out_of_range: lab.state === "out",
+    lab_out_of_range_side: lab.side,
     optimal,
     outside_optimal: outside,
     optimal_side: side,
@@ -184,7 +179,7 @@ function markerHit(m: any, asOf: string): ClientRecordsMarkerHit {
       freshness: age == null ? null : FRESHNESS[validityBand(name, age)],
       note: markerAgingClause(name, date, asOf)?.clause ?? null,
     },
-    marker: publicMarkerRow(m, trusted),
+    marker: publicMarkerRow(m),
   };
 }
 
@@ -259,6 +254,25 @@ function byPanel(a: ClientRecordsMarkerHit, b: ClientRecordsMarkerHit): number {
   );
 }
 
+// The out-of-range grouping, in order. The page (src/client/records-search-model.ts)
+// files its catalog by the same fields into the same keys and labels. "Within the lab's
+// range" holds only readings a lab actually ranged; everything else is "Other readings".
+export type RecordsRangeSection = "lab_out_of_range" | "outside_optimal" | "lab_within_range" | "no_lab_range";
+export const RANGE_SECTIONS: ReadonlyArray<{ key: RecordsRangeSection; label: string }> = [
+  { key: "lab_out_of_range", label: "Outside the lab's range" },
+  { key: "outside_optimal", label: "Outside optimal" },
+  { key: "lab_within_range", label: "Within the lab's range" },
+  { key: "no_lab_range", label: "Other readings" },
+];
+
+export function rangeSectionOf(
+  hit: Pick<ClientRecordsMarkerHit, "lab_range" | "outside_optimal">
+): RecordsRangeSection {
+  if (hit.lab_range === "out") return "lab_out_of_range";
+  if (hit.outside_optimal === true) return "outside_optimal";
+  return hit.lab_range === "within" ? "lab_within_range" : "no_lab_range";
+}
+
 const TYPE_ORDER: Record<ClientRecordsHit["type"], number> = { marker: 0, visit_note: 1, document: 2, body: 3 };
 
 function hitName(h: ClientRecordsHit): string {
@@ -326,20 +340,10 @@ export function searchRecords(opts: { q?: unknown; group?: unknown; asOf?: strin
     ];
   } else {
     const ordered = [...markers].sort(byPanel);
+    const bucket = new Map<RecordsRangeSection, ClientRecordsMarkerHit[]>(RANGE_SECTIONS.map((s) => [s.key, []]));
+    for (const hit of ordered) bucket.get(rangeSectionOf(hit))!.push(hit);
     sections = [
-      { key: "lab_flagged", label: "Flagged by the lab", hits: ordered.filter((m) => m.lab_flag != null) },
-      // Unflagged is not "within range": a lab that ranged the reading and left it
-      // unflagged says only that; a reading no lab ranged makes no range claim at all.
-      {
-        key: "not_lab_flagged",
-        label: "Not flagged by the lab",
-        hits: ordered.filter((m) => m.lab_flag == null && m.lab_ranged),
-      },
-      {
-        key: "no_lab_range",
-        label: "Other readings",
-        hits: ordered.filter((m) => m.lab_flag == null && !m.lab_ranged),
-      },
+      ...RANGE_SECTIONS.map((s) => ({ key: s.key, label: s.label, hits: bucket.get(s.key)! })),
       ...trailingSections(documents, visitNotes, body),
     ];
   }
@@ -354,7 +358,7 @@ export function searchRecords(opts: { q?: unknown; group?: unknown; asOf?: strin
       documents: documents.length,
       visit_notes: visitNotes.length,
       body: body.length,
-      lab_flagged: markers.filter((m) => m.lab_flag != null).length,
+      lab_out_of_range: markers.filter((m) => m.lab_out_of_range).length,
       outside_optimal: markers.filter((m) => m.outside_optimal === true).length,
     },
     frame: RECORDS_SEARCH_FRAME,

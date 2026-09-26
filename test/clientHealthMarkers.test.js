@@ -52,6 +52,10 @@ function markerFixture() {
     latest: { value: 110, date: "2026-06-20", flag: "high" },
     prev: { value: 80, date: "2026-06-01" },
     optimal: { low: 70, high: 100 },
+    // The server's lab-range read (src/repo/lab-range.ts), as /api/markers/priority serves it.
+    lab_range: "out",
+    lab_out_of_range: true,
+    lab_out_of_range_side: "high",
     points: [
       { value: 80, date: "2026-06-01", flag: "normal" },
       { value: 110, date: "2026-06-20", flag: "high" },
@@ -204,7 +208,9 @@ test("optimal phrasing and side words honor the zone direction", () => {
   assert.equal(markers.optimalPhrase({ optimal: null }), "");
   assert.equal(markers.optimalSideWord({ optimal: { low: 40, high: 60 }, latest: { value: 20 } }), "below optimal");
   assert.equal(markers.optimalSideWord({ optimal: { low: 40, high: 60 }, latest: { value: 50 } }), "");
-  assert.equal(markers.markerOutOfRange({ latest: { flag: "low" } }), true);
+  assert.equal(markers.markerOutOfRange({ latest: { flag: "low" }, lab_out_of_range: true, lab_out_of_range_side: "low" }), true);
+  // The lab's range is the server's read; a row without it makes no lab claim.
+  assert.equal(markers.markerOutOfRange({ latest: { flag: "low" } }), false);
   assert.equal(markers.markerOutOfRange({ latest: { flag: null }, in_optimal: false }), true);
   assert.equal(markers.markerOutOfRange({ latest: { flag: "normal" }, in_optimal: true }), false);
 });

@@ -10,23 +10,26 @@
 //      soonest-due first) — the recheck cadence the attention engine keeps;
 //   2. a body-composition directive whose scan has aged while the weight moved
 //      (`rescan_reason`, annotateDirectiveFreshness in src/repo/propagation.ts);
-//   3. a lab-flagged or off-optimal (trusted band only, optimalTrustworthy) reading past the window where its own kind of marker
-//      still describes the person (`readingPastValidity`, src/repo/marker-validity.ts) —
+//   3. a reading outside the lab's range (labRangeRead) or off-optimal (trusted band only,
+//      optimalTrustworthy) past the window where its own kind of marker still describes
+//      the person (`readingPastValidity`, src/repo/marker-validity.ts) —
 //      never a genetic marker, which never ages out.
 //
 // Informational, never medical advice: a fresh reading would sharpen the picture, and
 // nothing waits on it.
 
 import type { ClientEvidenceWanted, ClientEvidenceWantedRead } from "../../contracts/health-records.js";
-import { optimalTrustworthy } from "../../report.js";
+import { optimalTrustworthy } from "../../repo/optimal-trust.js";
 import { formatReportDate } from "../../reportDates.js";
 import { listDirectives } from "../../repo/directives.js";
 import { doctorLoopRead } from "../../repo/doctor-loop.js";
 import type { DoctorLoopItem } from "../../repo/doctor-loop-items.js";
 import { markerValidityClass, readingAgeDays, readingPastValidity } from "../../repo/marker-validity.js";
+import { labRangeRead } from "../../repo/lab-range.js";
 import { markerGroupRank } from "../../repo/propagation-data.js";
 import { annotateDirectiveFreshness, prioritizeMarkers } from "../../repo/propagation.js";
 import { localDateISO } from "../../repo/shared.js";
+import { spokenMarkerName } from "../../repo/loop-speech.js";
 import { isoDate } from "../../lib/dates.js";
 
 export type EvidenceWanted = ClientEvidenceWanted;
@@ -66,7 +69,9 @@ function fromLoop(item: DoctorLoopItem): EvidenceWanted {
     key: item.key,
     kind: "recheck",
     label: item.label,
-    line: `When it suits you, a fresh ${item.label} reading would help the team${lastOne(since)}.`,
+    // "a recheck of hemoglobin and iron": the label may be a list, so it never takes a
+    // singular noun after it, and its plain nouns read lower case mid-sentence.
+    line: `When it suits you, a recheck of ${spokenMarkerName(item.label)} would help the team${lastOne(since)}.`,
     since,
   };
 }
@@ -107,7 +112,8 @@ function agedFinding(asOf: string): EvidenceWanted | null {
     const aged = markers
       .filter((m) => {
         const name = String(m?.name ?? "");
-        const flagged = m?.latest?.flag === "high" || m?.latest?.flag === "low";
+        // Out of range per the LAB — the one rule (src/repo/lab-range.ts).
+        const flagged = labRangeRead(m).state === "out";
         // Off-optimal counts only where the band is trustworthy for this marker — the same
         // guard the Records marks and the packet apply, so the three reads never disagree.
         const offOptimal = m?.in_optimal === false && optimalTrustworthy(name, m?.latest?.value);
@@ -128,7 +134,7 @@ function agedFinding(asOf: string): EvidenceWanted | null {
       key: `aging:${String(m.key ?? name).toLowerCase()}`,
       kind: "recheck",
       label: name,
-      line: `When it suits you, a fresh ${name} reading would help the team${lastOne(since)}.`,
+      line: `When it suits you, a fresh ${spokenMarkerName(name)} reading would help the team${lastOne(since)}.`,
       since,
     };
   } catch {

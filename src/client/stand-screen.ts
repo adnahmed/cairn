@@ -825,9 +825,8 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   }
 
   // ---- domain detail + All markers — the records-search component ----------------
-  // A drill-in and All markers mount records-search into #standRecords; All markers adds the
-  // evidence-wanted line and also searches documents, notes and body readings through
-  // GET /api/records/search. viewerStorage: `localStorage` can throw; null skips it.
+  // A drill-in and All markers mount records-search into #standRecords; All markers adds the evidence-wanted
+  // line and searches documents, notes and body readings (GET /api/records/search). localStorage may throw.
   function viewerStorage(): Storage | null {
     try {
       return localStorage;
@@ -877,7 +876,8 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     const teardowns = [
       evw
         ? CairnEvidenceWantedController.mount(evw, {
-            checkup: DATA?.checkup || null,
+            cachedApi,
+            peekCached,
             storage: viewerStorage(),
             onOpen: () => showCheckup(),
           })

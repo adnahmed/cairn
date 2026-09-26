@@ -222,6 +222,24 @@ test("clinical order, lab flags and the stale-results note survive the toggles",
   assert.ok(!Object.hasOwn(json, "impact_score") && !JSON.stringify(json).includes("impact_score"));
 });
 
+test("the JSON packet names the lab flag and the optimal miss as two fields; `abnormal` stays for back-compat", () => {
+  seedPacket();
+  seedHealthDoc(localDaysAgo(20), [marker("LDL-C", 150, { unit: "mg/dL", flag: "normal" })]); // lab-normal, above optimal
+  const { json } = renderAll(["findings", "panels"]);
+  const all = [...json.findings, ...json.groups.flatMap((g) => g.markers)];
+  for (const m of all) {
+    assert.equal(typeof m.lab_flagged, "boolean", `${m.name} names the lab's flag`);
+    assert.equal(typeof m.outside_optimal, "boolean", `${m.name} names the optimal miss`);
+    assert.equal(m.lab_flagged, m.flag === "high" || m.flag === "low");
+    assert.equal(m.outside_optimal, m.inOptimal === false);
+    assert.equal(m.abnormal, m.lab_flagged || m.outside_optimal, "abnormal is exactly the two merged — read the two fields");
+  }
+  const ldl = all.find((m) => /^ldl/i.test(m.name));
+  assert.deepEqual([ldl.lab_flagged, ldl.outside_optimal, ldl.abnormal], [false, true, true], "optimal only: never lab-flagged");
+  const tsh = all.find((m) => m.name === "TSH");
+  assert.equal(tsh.lab_flagged, true);
+});
+
 test("the athlete's question list is used verbatim; an empty list prints none; nothing is stored", () => {
   seedPacket();
   const custom = renderAll(undefined, ["First synthetic question?", "  ", "Second synthetic question?"]);

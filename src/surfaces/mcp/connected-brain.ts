@@ -295,7 +295,7 @@ export function registerConnectedBrainTools(server: McpToolRegistrar) {
 
   server.tool(
     "search_health_records",
-    "Search everything on file — lab/vital markers, health documents, visit notes and body readings (weigh-ins, tape sites) — grouped out_of_range (the LAB's own flag first; outside-optimal is a separate mark, never merged into it), panel (clinical panel order), or newest. Every word of q must match; an empty q lists everything. Each marker carries its lab flag, its optimal band and outside-optimal mark, and its reading's age for its own kind of marker. Informational, not medical advice. Mirrors GET /api/records/search.",
+    "Search everything on file — lab/vital markers, health documents, visit notes and body readings (weigh-ins, tape sites) — grouped out_of_range (outside the LAB's range first — the lab flagged it, or its value is outside the range the lab printed; then outside-optimal as its own section, never merged into the lab's; then within the lab's range; then readings no lab ranged), panel (clinical panel order), or newest. Every word of q must match; an empty q lists everything. Each marker carries its lab flag, lab_out_of_range, its optimal band and outside-optimal mark, and its reading's age for its own kind of marker. Informational, not medical advice. Mirrors GET /api/records/search.",
     {
       q: z.string().optional().describe("search words; empty = everything"),
       group: z
