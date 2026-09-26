@@ -239,11 +239,24 @@ export interface ClientReportMarker {
   name: string;
   unit: string | null;
   value: unknown;
-  /** The lab's own out-of-range flag (normal stripped to null). */
+  /**
+   * The lab's own HIGH/LOW flag on a document reading (normal stripped to null). A home
+   * cuff reading's high/low is Cairn's own threshold, not a lab's, so it is never here.
+   */
   flag: "high" | "low" | null;
   /**
-   * The report's highlight: `flag` set OR outside the optimal target. Kept for
-   * back-compat; it BLURS two facts, so a data consumer reads `lab_flagged` and
+   * "Out of range" per the LAB (src/repo/lab-range.ts): `out` when the lab flagged it
+   * or the value sits outside the range the lab printed; `within`; or `unranged` when
+   * no lab ranged it (a home reading, a weigh-in, an estimate).
+   */
+  labRange: "out" | "within" | "unranged";
+  /** Which side of the lab's range, when out and the lab or its printed range says so. */
+  labRangeSide: "high" | "low" | null;
+  /** Why it is out: the lab's own flag, or the value against the lab's printed range. */
+  labRangeBasis: "lab_flag" | "printed_range" | null;
+  /**
+   * The report's highlight: out of the lab's range OR outside the optimal target. Kept
+   * for back-compat; it BLURS two facts, so a data consumer reads `lab_flagged` and
    * `outside_optimal` (on the JSON packet) to tell them apart.
    */
   abnormal: boolean;
@@ -276,7 +289,11 @@ export interface ClientReportMarker {
  * `abnormal` merges, each named on its own — never read one off the other.
  */
 export interface ClientReportMarkerJson extends ClientReportMarker {
-  /** The lab's own HIGH/LOW flag is on this reading (`flag` is set). */
+  /**
+   * Out of the lab's range (`labRange === "out"`): the lab flagged it, or the value sits
+   * outside the range the lab printed. `labRangeBasis` says which; a home reading's
+   * Cairn threshold never sets it.
+   */
   lab_flagged: boolean;
   /** Outside the trusted optimal target (`inOptimal === false`); false with no trusted band. */
   outside_optimal: boolean;

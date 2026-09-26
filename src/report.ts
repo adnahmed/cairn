@@ -2,7 +2,7 @@
 //
 // Distinct from `buildHealthExport()` (the FHIR-inspired JSON interchange slice):
 // this is a HUMAN artifact. It renders the same marker history Cairn already
-// derives (prioritizeMarkers → latest value + lab flag + optimal band + trend +
+// derives (prioritizeMarkers → latest value + the lab's range + optimal band + trend +
 // full dated history, grouped into clinical panels) as a self-contained,
 // print-optimized HTML page a physician can read — or "Save as PDF" and attach
 // to a MyChart message. A plain-text twin is generated for pasting straight into
@@ -18,6 +18,7 @@ import * as repo from "./repo.js";
 import { formatReportDate, formatReportDateShort, reportDateISO, reportDaysBetween, reportTodayISO } from "./reportDates.js";
 import { round1 } from "./lib/numbers.js";
 import { optimalTrustworthy } from "./repo/optimal-trust.js";
+import { labRangeRead } from "./repo/lab-range.js";
 import type {
   ClientHealthReportJson,
   ClientReportGroup,
@@ -406,6 +407,15 @@ function appendSyntheticHistory(m: ReportMarker, value: number, date: string, fl
   m.history.sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
+// A value Cairn re-derived (a logged weight, a calculated BMI, a tape estimate) is not
+// the lab's reading, so it carries no lab flag and makes no claim about the lab's range.
+function clearLabRange(m: ReportMarker): void {
+  m.flag = null;
+  m.labRange = "unranged";
+  m.labRangeSide = null;
+  m.labRangeBasis = null;
+}
+
 function refreshTargetText(m: ReportMarker): void {
   const target = targetSummary({ name: m.name, value: m.value, flag: m.flag, optimalText: m.optimalText, reference: m.reference });
   m.referenceText = target.referenceText;
@@ -455,7 +465,7 @@ function applyCurrentBodyContext(m: ReportMarker, ctx: CurrentBodyContext): Repo
     const sourceLabel = bodyWeightSourceLabel(m);
     m.name = "Body Weight";
     m.unit = "lb";
-    m.flag = null;
+    clearLabRange(m);
     m.optimal = null;
     m.optimalText = null;
     m.reference = null;
@@ -498,7 +508,7 @@ function applyCurrentBodyContext(m: ReportMarker, ctx: CurrentBodyContext): Repo
       m.latestDate = weightDate;
       m.unit = "kg/m2";
       m.dateLabel = "calc. as of";
-      m.flag = null;
+      clearLabRange(m);
       m.optimal = null;
       m.optimalText = null;
       m.reference = { low: 18.5, high: 24.9 };
@@ -525,7 +535,10 @@ function normalizeHistory(points: any[], asOfISO: string): ReportMarker["history
   for (const p of points) {
     const date = dayISO(p?.date, { notAfter: asOfISO });
     if (!date) continue;
-    const flag = p?.flag ?? null;
+    // Only a document reading has a lab behind its flag; a home cuff reading's high/low
+    // is Cairn's own threshold and never travels as a flag.
+    const fromDocument = p?.doc_id != null && p.doc_id !== "";
+    const flag = fromDocument ? (p?.flag ?? null) : null;
     const key = `${date}|${String(p?.value)}|${String(flag)}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -550,7 +563,7 @@ function applyBodyMetricEstimate(m: ReportMarker, estimate: BodyMetricEstimate |
     m.latestDate = estimate.measurementDate;
     m.estimated = true;
     m.dateLabel = "tape est.";
-    m.flag = null;
+    clearLabRange(m);
     m.methodNote = `${fromTape}. ${Number.isFinite(measuredPct) && measuredDate ? `DEXA measured ${round1(measuredPct)}% on ${fmtDate(measuredDate)}.` : "DEXA, when present, remains a dated scan anchor."}`;
     m.trendDir = Number.isFinite(priorValue) ? estimate.bodyFatPct < priorValue - 0.4 ? "falling" : estimate.bodyFatPct > priorValue + 0.4 ? "rising" : "stable" : m.trendDir;
     m.trendText = `tape estimate ${fmtVal(m.value)}% ${fmtShort(estimate.measurementDate)}${Number.isFinite(priorValue) && priorDate ? `; DEXA ${round1(priorValue)}% ${fmtShort(priorDate)}` : ""}`;
@@ -569,7 +582,7 @@ function applyBodyMetricEstimate(m: ReportMarker, estimate: BodyMetricEstimate |
     m.latestDate = resultDate;
     m.estimated = true;
     m.dateLabel = "est. as of";
-    m.flag = null;
+    clearLabRange(m);
     m.inOptimal = null;
     m.abnormal = false;
     m.methodNote = `Estimated from the ${fmtDate(estimate.measurementDate)} tape body-fat estimate (${fmtVal(estimate.bodyFatPct)}%)${estimate.currentWeightLb != null ? ` and ${fmtVal(estimate.currentWeightLb)} lb weight${estimate.weightDate ? ` on ${fmtDate(estimate.weightDate)}` : ""}` : ""}. ${Number.isFinite(dexaFat) && measuredDate ? `DEXA fat mass was ${round1(dexaFat)} lb on ${fmtDate(measuredDate)}.` : ""}`.trim();
@@ -586,7 +599,10 @@ function applyBodyMetricEstimate(m: ReportMarker, estimate: BodyMetricEstimate |
 
 function toMarkerView(m: any, asOfISO: string): ReportMarker {
   const name = String(m?.name ?? "");
-  const flag = m?.latest?.flag === "high" || m?.latest?.flag === "low" ? m.latest.flag : null;
+  // "Out of range" per the LAB — the one rule (src/repo/lab-range.ts): the lab's own
+  // flag, or the value outside the range the lab printed. A home reading has no lab.
+  const lab = labRangeRead(m);
+  const flag = lab.flag;
   const trusted = optimalTrustworthy(name, m?.latest?.value);
   const inOptimal = trusted && typeof m?.in_optimal === "boolean" ? m.in_optimal : null;
   const optimal = trusted && m?.optimal && Number.isFinite(m.optimal.low) && Number.isFinite(m.optimal.high)
@@ -616,7 +632,10 @@ function toMarkerView(m: any, asOfISO: string): ReportMarker {
     unit: m?.unit ?? null,
     value: m?.latest?.value ?? null,
     flag,
-    abnormal: !!flag || inOptimal === false,
+    labRange: lab.state,
+    labRangeSide: lab.side,
+    labRangeBasis: lab.basis,
+    abnormal: lab.state === "out" || inOptimal === false,
     optimal,
     optimalText: optText,
     reference,
@@ -887,9 +906,9 @@ function isPointInTimeVitalName(name: string): boolean {
 function reportMarkerRelevant(groupKey: string, marker: ReportMarker): boolean {
   // Normal spot vitals add noise to a PCP handoff: a months-old pulse ox, pulse,
   // temperature, respiratory rate, or ECG average HR is app context, not a current
-  // clinical finding. Keep BP, resting HR, and any spot vital the source flagged.
+  // clinical finding. Keep BP, resting HR, and any spot vital out of the lab's range.
   if (groupKey !== "vitals" || !isPointInTimeVitalName(marker.name)) return true;
-  return marker.flag === "high" || marker.flag === "low" || marker.abnormal;
+  return marker.abnormal;
 }
 
 function duplicateProfileFieldMarker(marker: ReportMarker, profile: any): boolean {
@@ -1090,10 +1109,10 @@ export function buildClinicalReportData(opts: ClinicalReportOptions = {}): Clini
 }
 
 // A packet marker for data consumers: `abnormal` stays for back-compat, and the two
-// facts it merges — the lab's own flag and sitting outside the optimal target — are
+// facts it merges — out of the lab's range and sitting outside the optimal target — are
 // named on their own so nothing downstream can blur them.
 function markerJson(m: ReportMarker): ClientReportMarkerJson {
-  return { ...m, lab_flagged: m.flag === "high" || m.flag === "low", outside_optimal: m.inOptimal === false };
+  return { ...m, lab_flagged: m.labRange === "out", outside_optimal: m.inOptimal === false };
 }
 
 // The packet as JSON — the same data the HTML and text formats render, with every
@@ -1120,10 +1139,25 @@ export function clinicalReportJson(data: ClinicalReportData): ClientHealthReport
 
 // ---- flag / result rendering ----
 
-function flagChip(flag: string | null): string {
-  if (flag === "high") return `<span class="flag flag-h">High</span>`;
-  if (flag === "low") return `<span class="flag flag-l">Low</span>`;
-  return "";
+// The lab-range mark, worded for what the lab actually said: "Lab: High" is the lab's
+// own flag; "Above the lab's range" is a value outside the range the lab printed that
+// the lab did not flag. Null when the reading is not out of the lab's range — a home
+// reading (Cairn's threshold) or an estimate never carries one.
+function labRangeMark(m: ReportMarker): string | null {
+  if (m.labRange !== "out") return null;
+  if (m.labRangeBasis === "printed_range") {
+    return m.labRangeSide === "low" ? "Below the lab's range" : "Above the lab's range";
+  }
+  if (m.flag === "high") return "Lab: High";
+  if (m.flag === "low") return "Lab: Low";
+  return "Lab: Flagged";
+}
+
+function flagChip(m: ReportMarker): string {
+  const mark = labRangeMark(m);
+  if (!mark) return "";
+  const cls = m.labRangeBasis === "printed_range" ? "flag-r" : m.labRangeSide === "low" ? "flag-l" : "flag-h";
+  return `<span class="flag ${cls}">${esc(mark)}</span>`;
 }
 
 // Plain wording for a lab-normal value sitting outside its optimal band — relative
@@ -1137,7 +1171,7 @@ function optimalSide(m: ReportMarker): string {
 
 // A subtle "vs target" note when a value is lab-normal but outside the optimal band.
 function optimalNote(m: ReportMarker): string {
-  if (m.flag || m.inOptimal !== false || !m.optimal) return "";
+  if (m.labRange === "out" || m.inOptimal !== false || !m.optimal) return "";
   const num = typeof m.value === "number" ? m.value : Number(m.value);
   if (!Number.isFinite(num)) return "";
   return `<span class="offt">${optimalSide(m)}</span>`;
@@ -1156,7 +1190,7 @@ function resultCell(m: ReportMarker): string {
   // Out-of-range values are HIGHLIGHTED (calm amber), not painted red.
   const cls = m.abnormal ? "res hl" : "res";
   const date = m.latestDate ? `<div class="res-date">${esc(resultDateLabel(m))} ${esc(fmtShort(m.latestDate))}</div>` : "";
-  return `<div class="resline"><span class="${cls}">${esc(fmtVal(m.value))}${m.unit ? ` <span class="u">${esc(m.unit)}</span>` : ""}</span> ${flagChip(m.flag)}${optimalNote(m)}</div>${date}`;
+  return `<div class="resline"><span class="${cls}">${esc(fmtVal(m.value))}${m.unit ? ` <span class="u">${esc(m.unit)}</span>` : ""}</span> ${flagChip(m)}${optimalNote(m)}</div>${date}`;
 }
 
 function historyCell(m: ReportMarker): string {
@@ -1250,7 +1284,7 @@ function findingsBox(groups: ReportGroup[], opts: { panelsIncluded: boolean }): 
         .map((m) => {
           if (shown >= CAP) return "";
           shown++;
-      const status = m.flag === "high" ? "High" : m.flag === "low" ? "Low" : m.inOptimal === false ? optimalSide(m) : "";
+      const status = labRangeMark(m) ?? (m.inOptimal === false ? optimalSide(m) : "");
       const date = m.latestDate ? ` <span class="f-date">${esc(resultDateText(m))}</span>` : "";
       const tgt = m.targetKind === "optimal" && m.optimalText
         ? ` <span class="f-tgt">optimal ${esc(m.optimalText)}</span>`
@@ -1259,7 +1293,7 @@ function findingsBox(groups: ReportGroup[], opts: { panelsIncluded: boolean }): 
           : "";
       const tr = m.trendText ? ` <span class="f-tr">${esc(m.trendText)}</span>` : "";
       const note = m.estimated && m.history[0]?.date ? ` <span class="f-note">DEXA ${esc(fmtShort(m.history[0].date))}</span>` : "";
-      return `<li><span class="f-name">${esc(m.name)}</span> <span class="f-val">${esc(fmtVal(m.value))}${m.unit ? ` ${esc(m.unit)}` : ""}</span>${date} <span class="f-flag ${m.flag || "off"}">${esc(status)}</span>${tgt}${tr}${note}</li>`;
+      return `<li><span class="f-name">${esc(m.name)}</span> <span class="f-val">${esc(fmtVal(m.value))}${m.unit ? ` ${esc(m.unit)}` : ""}</span>${date} <span class="f-flag ${m.labRange === "out" ? m.labRangeSide || "high" : "off"}">${esc(status)}</span>${tgt}${tr}${note}</li>`;
     })
         .filter(Boolean)
     .join("\n");
@@ -1314,7 +1348,7 @@ export function renderClinicalReportText(data: ClinicalReportData, opts: { name?
       for (const g of groupedFindings) {
         L.push(`  ${g.label}:`);
         for (const m of g.markers) {
-          const status = m.flag === "high" ? "High" : m.flag === "low" ? "Low" : optimalSide(m);
+          const status = labRangeMark(m) ?? optimalSide(m);
           const when = m.latestDate ? `, ${resultDateText(m)}` : "";
           const tgt = m.targetKind === "optimal" && m.optimalText
             ? ` · optimal ${m.optimalText}`
@@ -1357,7 +1391,8 @@ export function renderClinicalReportText(data: ClinicalReportData, opts: { name?
           L.push(`  ${subgroup}:`);
           lastSubgroup = subgroup;
         }
-        const flag = m.flag === "high" ? " [High]" : m.flag === "low" ? " [Low]" : m.inOptimal === false ? ` [${optimalSide(m)}]` : "";
+        const mark = labRangeMark(m);
+        const flag = mark ? ` [${mark}]` : m.inOptimal === false ? ` [${optimalSide(m)}]` : "";
         const hist = m.history.length > 1 ? `   {${m.history.slice(-6).map((h) => `${fmtVal(h.value)} ${fmtShort(h.date)}`).join(" · ")}}` : "";
         const tgt = m.targetKind === "optimal" && m.optimalText ? `  (optimal ${m.optimalText})` : `  (${m.targetText})`;
         const when = m.latestDate ? `, ${resultDateText(m)}` : "";
@@ -1395,6 +1430,7 @@ export function renderClinicalReportText(data: ClinicalReportData, opts: { name?
   if (legend) {
     L.push("— Target/reference legend: optimal = evidence-anchored preventive/longevity band;");
     L.push("  ref = the source lab's printed reference interval, or a curated adult reference interval when the upload omitted one; context labels are not targets.");
+    L.push("  Lab: High/Low = the lab's own flag; Above/Below the lab's range = outside the range the lab printed, not flagged by the lab.");
   }
   L.push(`${legend ? "  " : "— "}${data.disclaimer} Generated by Cairn.`);
   return L.join("\n");
@@ -1497,6 +1533,7 @@ table.markers tr{break-inside:avoid}
   padding:1px 5px;border-radius:5px;vertical-align:1px}
 .flag-h{background:var(--amber-bg);color:var(--amber)}
 .flag-l{background:var(--amber-bg);color:var(--amber)}
+.flag-r{background:transparent;color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber-bg)}
 .offt{color:var(--amber);font-size:10.5px;font-style:italic;margin-left:3px}
 .hv{font-variant-numeric:tabular-nums;color:var(--ink)}
 .hv.hi{color:var(--amber);font-weight:600}
@@ -1598,7 +1635,7 @@ export function renderClinicalReportHTML(data: ClinicalReportData, opts: { name?
   // "Findings only" hides the panels, so it is offered only when both are in the packet.
   const toggle = hasSection(data, "findings") && hasSection(data, "panels");
   const legend = hasSection(data, "findings") || hasSection(data, "panels")
-    ? `<b>†&nbsp;Target/reference</b>: <b>optimal</b> bands are evidence-anchored preventive / longevity references; <b>ref</b> means the source lab's printed reference interval, or a curated adult reference interval when the upload omitted one; context labels (for example DEXA context, fixed trait, qualitative) are not targets. `
+    ? `<b>†&nbsp;Target/reference</b>: <b>optimal</b> bands are evidence-anchored preventive / longevity references; <b>ref</b> means the source lab's printed reference interval, or a curated adult reference interval when the upload omitted one; context labels (for example DEXA context, fixed trait, qualitative) are not targets. <b>Lab: High / Low</b> is the lab's own flag; <b>Above / Below the lab's range</b> means the value sits outside the range the lab printed, not flagged by the lab. `
     : "";
 
   const plain = renderClinicalReportText(data, opts);

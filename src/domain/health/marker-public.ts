@@ -1,5 +1,6 @@
-// The marker row as it crosses the REST boundary — the ONE projection the Records page
-// (GET /api/markers/priority) and the records search (`marker` on a hit) both hand out.
+// The marker row as it crosses the REST/MCP boundary — the ONE projection the Records
+// page (GET /api/markers/priority), the get_priority_markers MCP tool and the records
+// search (`marker` on a hit) all hand out.
 //
 //   - Internal ordering signals never leave: `impact_score` (already stripped by
 //     prioritizeMarkers) and `distance`, the optimal-distance number it is built from.
@@ -14,6 +15,8 @@
 
 import { optimalTrustworthy } from "../../repo/optimal-trust.js";
 import { labRangeFields } from "../../repo/lab-range.js";
+import { wearableWeeklyMarkerRead } from "../../repo/health-focus.js";
+import { prioritizeMarkers } from "../../repo/propagation.js";
 
 /** Whether this row's optimal band is one the surfaces may speak about. */
 export function markerOptimalTrusted(m: any): boolean {
@@ -29,5 +32,17 @@ export function publicMarkerRow(m: any): Record<string, unknown> {
     ...rest,
     ...(trusted ? {} : { optimal: null, in_optimal: null }),
     ...labRangeFields(m),
+  };
+}
+
+// The priority-marker catalog as both surfaces hand it out (GET /api/markers/priority
+// and the get_priority_markers MCP tool). HRV / Resting HR are re-judged on the same
+// week the directive engine reads (wearableWeeklyMarkerRead, health-focus.ts), then
+// every row goes through publicMarkerRow.
+export function publicPriorityMarkers(): Record<string, unknown> & { markers: Record<string, unknown>[] } {
+  const priority = prioritizeMarkers() as any;
+  return {
+    ...priority,
+    markers: (priority.markers ?? []).map((m: any) => publicMarkerRow(wearableWeeklyMarkerRead(m))),
   };
 }
