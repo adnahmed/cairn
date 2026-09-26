@@ -8,8 +8,11 @@
 //     horizon are asked about — a surveillance row a year out is not a question for this
 //     visit. Up to two worth-adding workups ride after them.
 //   - WAITING CLINICAL ASKS (`awaitingBrainDecisions`, src/repo/brain-decisions.ts): a
-//     decision the team holds for the athlete and their doctor (`for_clinician`), whose
-//     sentence was written for a person — printed as written.
+//     decision the team holds for the athlete and their doctor (`for_clinician`), asked as
+//     the one short question the athlete would put to their doctor (`clinician_question`,
+//     src/repo/brain/clinician-ask.ts) — never the agent's sentence, which can be a
+//     clinician's note about the athlete. One with no athlete-facing question is left off
+//     this list; it still lives on the ask card.
 //
 // Edits are NOT stored. The athlete's final list travels with the packet request
 // (`?questions=` on /api/health-report*, `questions` on get_health_report) and is used
@@ -23,7 +26,8 @@ import { doctorLoopRead, loopPolicySentence, spokenLoopReason } from "../../repo
 import { getMarkerHistory } from "../../repo/health.js";
 import { recheckQuestion, workupQuestion } from "../../repo/loop-speech.js";
 import type { DoctorLoopItem } from "../../repo/doctor-loop-items.js";
-import { localDateISO } from "../../repo/shared.js";
+import { clipText, localDateISO } from "../../repo/shared.js";
+import { CLINICIAN_ASK_BASIS } from "../../repo/brain/clinician-ask.js";
 import { daysBetweenISO, isoDate } from "../../lib/dates.js";
 import type { ClientVisitQuestion, ClientVisitQuestionsRead } from "../../contracts/health-records.js";
 
@@ -42,11 +46,9 @@ export const VISIT_QUESTIONS_FRAME =
 // The calendar day a stored date or timestamp names, validated.
 const dayOf = (value: unknown): string | null => isoDate(String(value ?? "").slice(0, 10));
 
+// Whitespace collapsed and capped on a word boundary — never a mid-word "…".
 function clean(value: unknown, max = VISIT_QUESTION_MAX_CHARS): string {
-  const s = String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
+  return clipText(value, max, { collapseWhitespace: true, wordBoundary: true });
 }
 
 // One follow-up, one question — worded by the kind of follow-up it is, in the same words
@@ -93,8 +95,8 @@ export function visitQuestionsRead(opts: { asOf?: string; refresh?: boolean } = 
   // Clinical asks first: the team is already holding these for a doctor.
   try {
     for (const d of awaitingBrainDecisions(20)) {
-      if (!d.for_clinician || !d.explanation) continue;
-      push({ id: `ask:${d.id}`, text: clean(d.explanation), source: "clinical_ask", basis: null });
+      if (!d.for_clinician || !d.clinician_question) continue;
+      push({ id: `ask:${d.id}`, text: d.clinician_question, source: "clinical_ask", basis: CLINICIAN_ASK_BASIS });
     }
   } catch {
     /* the ledger is optional context; the loop still speaks */

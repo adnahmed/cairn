@@ -144,7 +144,7 @@ function normalizePolicy(policy: CadencePolicy): NormalizedPolicy {
     surveillance_checks_before_release: days(policy.surveillance_checks_before_release, 2),
     reason:
       clip(policy.reason) ||
-      "This signal has a live lever or recent change worth checking at the right response window.",
+      "Something here changed recently, so it is worth checking once the change has had time to show.",
     release_condition:
       clip(policy.release_condition) ||
       "Cleanly stable with no active intervention or goal relevance; it will resurface only on new data, a related symptom, a question, or a goal change.",
@@ -199,7 +199,7 @@ function reasonFor(tier: AttentionTier, policy: NormalizedPolicy, observation: A
   if (tier === "confirming") return "The result is clean now; confirm it holds before stretching the interval.";
   if (tier === "surveillance")
     return "The clean result held, so the next check can stretch instead of staying on a fixed cadence.";
-  return "This signal is stable and clean with no active lever, so it goes quiet until new data or symptoms bring it back.";
+  return "This has been steady with nothing working on it, so it goes quiet until new data or symptoms bring it back.";
 }
 
 function makeEntry(args: {

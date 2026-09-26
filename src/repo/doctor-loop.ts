@@ -163,7 +163,7 @@ const POLICY_SPECS: PolicySpec[] = [
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
     reason: "Kidney and liver markers are worth a recheck after about three months, to see whether a change holds.",
-    release: "Kidney/liver markers are clean and stable without an active lever; they can stay quiet until new data or symptoms.",
+    release: "Kidney and liver markers are clean and stable with nothing working on them; they can stay quiet until new data or symptoms.",
   },
   {
     signalClass: "body-composition",
@@ -173,9 +173,28 @@ const POLICY_SPECS: PolicySpec[] = [
     surveillanceInitialDays: 180,
     surveillanceMaxDays: 365,
     reason: "Body composition moves slowly, so a DEXA scan (or the same body-composition method) every 8–12 weeks says more than daily numbers.",
-    release: "Body composition is stable and no recomposition lever is active; it can stay quiet until a phase change or new scan.",
+    release: "Body composition is stable with no recomposition phase under way; it can stay quiet until a phase change or a new scan.",
   },
 ];
+
+// The policy sentence a flagged DEXA scan files, and the one a review follow-up with no
+// policy of its own falls back to. Both are read by a person (loopPolicySentence), so
+// they speak plainly — test/visitQuestions.test.js holds every policy sentence to that.
+const DEXA_RECHECK_REASON =
+  "Body composition changes slowly, so a repeat scan says the most a few months after the last one.";
+const REVIEW_FOLLOWUP_REASON = "The latest health review named this as something to follow up at the next checkup.";
+// The DEXA sentence rows filed before it was reworded; the next refresh rewrites them.
+const LEGACY_DEXA_RECHECK_REASON =
+  "Body composition is actively moving or off optimal; batch the next DEXA/body-comp check after a real response window.";
+
+/** Every policy sentence the loop can speak to a person: each class's reason and release, and the two filed above. */
+export function doctorLoopPolicySentences(): string[] {
+  return [
+    ...POLICY_SPECS.flatMap((spec) => [spec.reason, spec.release]),
+    DEXA_RECHECK_REASON,
+    REVIEW_FOLLOWUP_REASON,
+  ];
+}
 
 const MISSING_PANEL: MissingWorkupItem[] = [
   {
@@ -642,7 +661,7 @@ function applyDexaAttention(markers: MarkerLike[]): AttentionScheduleEntry | nul
       source: "dexa",
       reason:
         status === "flagged" || status === "active"
-          ? "Body composition is actively moving or off optimal; batch the next DEXA/body-comp check after a real response window."
+          ? DEXA_RECHECK_REASON
           : undefined,
     },
   });
@@ -735,7 +754,7 @@ function applyReviewFollowups(markers: MarkerLike[]): AttentionScheduleEntry[] {
         confirmingDays: 84,
         surveillanceInitialDays: 180,
         surveillanceMaxDays: 365,
-        reason: "The latest health review named this as a follow-up to batch into the next clinician-style checkpoint.",
+        reason: REVIEW_FOLLOWUP_REASON,
         release: "The review follow-up has been completed or superseded by newer data.",
       };
       const policy = cadencePolicy({ ...spec, activeDays: days ?? spec.activeDays }, `Health review follow-up: ${what}${f?.when ? ` (${f.when})` : ""}.`);
@@ -872,7 +891,7 @@ export function doctorLoopRead(opts: { refresh?: boolean; asOf?: string } = {}):
     attention,
     due: attention.filter((item) => item.due),
     missing_workup: recommendedPanel(),
-    frame: "Informational, not medical advice. Retests are batched into calm clinician-style checkpoints; fully normal, stable signals are allowed to go quiet until new data, symptoms, a goal change, or a question brings them back.",
+    frame: "Informational, not medical advice. Rechecks are gathered into a few calm checkups; fully normal, stable signals are allowed to go quiet until new data, symptoms, a goal change, or a question brings them back.",
   };
 }
 
@@ -887,10 +906,11 @@ const LOOP_STATUS_CLAUSE = /^[^;]{1,160}? is (?:outside its optimal\/lab range|u
 
 /** The stored reason without its merged status clause: the plain policy sentence. */
 export function loopPolicySentence(reason: unknown): string {
-  return String(reason ?? "")
+  const sentence = String(reason ?? "")
     .replace(/\s+/g, " ")
     .trim()
     .replace(LOOP_STATUS_CLAUSE, "");
+  return sentence === LEGACY_DEXA_RECHECK_REASON ? DEXA_RECHECK_REASON : sentence;
 }
 
 type Side = "above" | "below";
