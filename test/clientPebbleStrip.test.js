@@ -89,6 +89,20 @@ function words(host) {
 
 // ---------- model + renderer ----------
 
+test("the strip prints the server's one-word form, so every word holds one line; the full word stays in the label", () => {
+  const win = load();
+  const r = read();
+  r.stones[2].short = "ongoing";
+  r.stones[4].short = "on-pace";
+  r.stones[5].short = "notable";
+  r.stones[1].short = "two words"; // never trusted: a short form is one word
+  const model = win.CairnPebbleStripModel.model(r, { hrefFor });
+  const host = renderHtml(win.CairnPebbleStrip.html(model), { document: win.document });
+  assert.deepEqual(words(host), ["planned", "building", "ongoing", "quiet", "on-pace", "notable"]);
+  const heart = host.querySelector('[data-pebble-strip-go="heart"]');
+  assert.match(heart.getAttribute("aria-label"), /Heart: worth noting/, "assistive tech hears the full word");
+});
+
 test("six pebbles, in the server's order, each word printed verbatim under its stone", () => {
   const win = load();
   const model = win.CairnPebbleStripModel.model(read(), { hrefFor });
@@ -401,6 +415,24 @@ test("the changes line, mounted beside it, lands under the strip and the Brief s
   win.CairnPebbleStripController.mountToday(view, deps);
   const ids = view.querySelector(".today-main").children.map((el) => el.id || el.className);
   assert.deepEqual(ids, ["brief", "pebbleStripSlot", "changesLineSlot", "cfocusSlot"]);
+});
+
+test("with a NOW card in the Brief, the stones stand between the voice and it (voice → stones → NOW)", () => {
+  const { win, deps } = loadToday();
+  const view = createHost(win.document, {
+    html: `<div class="today-main"><section class="brief"><h2 class="brief-headline">Read</h2><div class="brief-now brief-now-card"></div><div class="brief-steer"></div></section><div id="cfocusSlot"></div></div>`,
+  });
+  win.CairnPebbleStripController.mountToday(view, deps);
+  const kids = view.querySelector(".brief").children.map((el) => el.id || el.className.split(" ")[0]);
+  assert.deepEqual(kids, ["brief-headline", "pebbleStripSlot", "brief-now", "brief-steer"]);
+  assert.equal(
+    view.querySelector("#pebbleStripSlot").getAttribute("aria-live"),
+    "off",
+    "inside the Brief's polite live region, the stones mounting are not announced"
+  );
+  // A second mount keeps the one slot where it is.
+  win.CairnPebbleStripController.mountToday(view, deps);
+  assert.equal(view.querySelectorAll("#pebbleStripSlot").length, 1);
 });
 
 test("Today without a Brief mounts nothing", () => {

@@ -118,10 +118,18 @@ type TodayHealthFocusBanner = {
     return `${icon} ${escHtml(title)}${where}${escHtml(when)}`;
   }
 
-  function contextBannerHtml(events: unknown, todayISO?: string): string {
+  // `spoken` is what the Brief above already says (its text): an injury the NOW card
+  // already names ("Recheck Right knee — …") is not said a second time down here.
+  function contextBannerHtml(events: unknown, todayISO?: string, spoken?: string): string {
     const rows = Array.isArray(events) ? events : [];
+    const said = String(spoken || "").toLowerCase();
     const lines = rows
       .filter((event) => isNearTermContext(event, todayISO))
+      .filter((event) => {
+        const ev = todayContextRecord(event);
+        const title = String(ev.title || "").trim().toLowerCase();
+        return !(said && ev.kind === "injury" && title.length >= 4 && said.includes(title));
+      })
       .slice(0, 3)
       .map((event) => contextBannerLine(event, todayISO));
     return lines.length ? `<div class="ctxbanner">${lines.join('<span class="ctxbanner-sep">·</span>')}</div>` : "";

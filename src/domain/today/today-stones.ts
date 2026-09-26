@@ -125,6 +125,43 @@ export const TODAY_STONE_WORDS = {
   heart: { look: "worth noting", steady: "steady" },
 } as const;
 
+// Each word's ONE-word form, for the surfaces that print a word under a pebble at
+// phone width (the Today strip: six columns across 360 px). Same meaning, never a
+// new judgement: the long word stays the stone's voice everywhere else and in its
+// aria text. Every word in TODAY_STONE_WORDS has one; a test holds that.
+export const TODAY_STONE_SHORT: Readonly<Record<string, string>> = {
+  quiet: "quiet",
+  lifted: "lifted",
+  "under way": "started",
+  "go gently": "gently",
+  "rest day": "rest",
+  "off today": "off",
+  strong: "strong",
+  steady: "steady",
+  planned: "planned",
+  "run easy": "easy",
+  holding: "holding",
+  building: "building",
+  "easier week": "easing",
+  "peak week": "peak",
+  tapering: "taper",
+  "race week": "race",
+  running: "running",
+  refuel: "refuel",
+  fueled: "fueled",
+  "in progress": "ongoing",
+  rested: "rested",
+  recovering: "mending",
+  "needs rest": "rest",
+  "busy stretch": "busy",
+  "on course": "on-pace",
+  drifting: "drifting",
+  "trending down": "lighter",
+  "trending up": "heavier",
+  "weighed in": "weighed",
+  "worth noting": "notable",
+};
+
 // Authored lines for the stones whose evidence is a domain read rather than a signal
 // voice. Rotated by calendar day (pickDayVariant), so one morning has one wording.
 export const TODAY_STONE_LINES = {
@@ -241,7 +278,8 @@ const pick = (variants: readonly string[], date: string, key: string) =>
   pickDayVariant(variants, date, `today_stones:${key}`);
 
 function stone(key: TodayStoneKey, word: string, tone: TodayStoneTone, line: string | null = null): TodayStone {
-  return { key, label: TODAY_STONE_LABELS[key], word, tone, line, target: TARGETS[key] };
+  const short = TODAY_STONE_SHORT[word] ?? (/\s/.test(word) ? null : word);
+  return { key, label: TODAY_STONE_LABELS[key], word, short, tone, line, target: TARGETS[key] };
 }
 
 const quietStone = (key: TodayStoneKey) => stone(key, TODAY_STONE_WORDS.quiet, "quiet");

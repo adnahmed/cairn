@@ -319,3 +319,50 @@
 .sug-stream .job-stream{max-height:7.5em;overflow-y:auto}
 .sug-stream .job-stream-text{font-size:.86rem;color:var(--ink-2);line-height:1.5}
 
+
+/* NOW — today's session as ONE card under the stones (the reference phone's "Now"
+   card): a mono eyebrow with a still dawn dot (the live card's ping while work is
+   logged), the server's lift line in the serif voice, the focus, the session facts,
+   one slim bar per lift, then the one start. The card holds only while the Brief
+   carries the start; any other read keeps a bare `.brief-now` wrapper. */
+.brief-now{margin-top:var(--space-8)}
+.brief-now-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:14px 16px 16px;display:flex;flex-direction:column}
+.brief-now-top{display:flex;align-items:center;gap:8px;color:var(--ink2)}
+.brief-now-dot{width:7px;height:7px;border-radius:50%;background:var(--dawn);flex:0 0 auto}
+.brief-now-card .brief-strength{margin:var(--space-3) 0 0;padding:0;border:0}
+.brief-now-card .strength-line{display:block}
+.brief-now-card .strength-line-t{display:block;font-family:var(--font-display);font-weight:400;
+  font-size:var(--text-xl);line-height:1.18;letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
+.brief-now-card .strength-line-caveat,.brief-now-card .strength-line-orig{display:block;margin-top:var(--space-2);
+  font-size:var(--text-xs);color:var(--muted)}
+.brief-now-card .brief-now-focus{margin-top:var(--space-2);font-size:var(--text-sm);font-weight:400;color:var(--ink2);
+  letter-spacing:0}
+.brief-now-card .brief-session{margin-top:var(--space-4)}
+.brief-now-card .brief-session-meta{color:var(--muted)}
+.brief-now-card .brief-now-bars{margin-top:var(--space-5)}
+.brief-now-card .brief-now-bars i{background:var(--line)}
+.brief-now-card .brief-launch{margin-top:var(--space-6)}
+/* live: the live card's own top (ping, "Now · Pull · 2 of 5") and serif line lead,
+   so the lift line underneath would only say "in progress" again */
+.brief-now-live .brief-strength{display:none}
+.brief-now-card .brief-live{margin:0;padding:0;border:0;background:none;border-radius:0}
+.brief-now-card .brief-live + .brief-session{margin-top:var(--space-3)}
+.brief-now-card .brief-live-bars i{height:3px}
+.brief-now + .brief-steer{margin-top:var(--space-5)}
+
+/* the around-today rows follow one another as hairline rows, never a doubled rule */
+.brief-around + .prov-slot .prov-line{margin-top:0}
+.brief > .agent-offline + .brief-updated + .brief-why-more,
+.brief > .agent-offline + .brief-why-more{margin-top:var(--space-4)}
+
+/* capture on Today: the bodyweight chip and the context tags hold ONE line that
+   scrolls sideways (a soft fade says there is more), instead of wrapping into a
+   second row of chips; the weight input, once opened, takes its own line */
+.today-wrap .capture-row{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;
+  margin-inline:calc(-1 * var(--gutter,16px));padding:2px var(--gutter,16px);
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,black var(--gutter,16px),black calc(100% - 28px),transparent);
+  mask-image:linear-gradient(90deg,transparent 0,black var(--gutter,16px),black calc(100% - 28px),transparent)}
+.today-wrap .capture-row::-webkit-scrollbar{display:none}
+.today-wrap .capture-row > *,.today-wrap .capture-row .tags-chips > *{flex:0 0 auto}
+.today-wrap .capture-row:has(.wt-inline:not([hidden])){flex-wrap:wrap;-webkit-mask-image:none;mask-image:none}

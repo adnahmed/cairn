@@ -89,18 +89,35 @@
 
   // The slot sits directly under the Brief, made here so a render that rebuilt the
   // column gets a fresh one; the component mounts into it and never looks outside it.
+  // Where the strip stands: between the Brief's voice and its NOW card (the reference
+  // order — voice, stones, what's next), or right under a Brief that carries no NOW.
+  // Moves the node only when it is not already there, so a soft repaint never
+  // re-inserts it (a re-insert would replay its entrance).
+  function placeStrip(brief: Element, slot: Element): void {
+    const now = brief.querySelector(".brief-now");
+    const anchor = now && now.parentNode ? now : null;
+    if (anchor) {
+      if ((slot as Element & { nextElementSibling?: Element | null }).nextElementSibling !== anchor || slot.parentNode !== anchor.parentNode)
+        anchor.parentNode!.insertBefore(slot, anchor);
+      return;
+    }
+    const after = (brief as Element & { nextElementSibling?: Element | null }).nextElementSibling;
+    if (after !== slot || slot.parentNode !== brief.parentNode) brief.after(slot);
+  }
+
   function mountToday(root: ParentNode, deps: ClientPebbleStripTodayDeps): () => void {
     const brief = root.querySelector(".brief");
     const parent = brief?.parentNode;
     if (!brief || !parent || !deps.state.logDate) return () => {};
     let slot = root.querySelector("#pebbleStripSlot");
-    if (!slot || slot.parentNode !== parent) {
-      slot?.remove();
+    if (!slot) {
       slot = brief.ownerDocument.createElement("div");
       slot.id = "pebbleStripSlot";
       slot.className = "pebble-strip-slot";
-      brief.after(slot);
+      // It lives inside the Brief's polite live region: stones mounting are not news.
+      slot.setAttribute("aria-live", "off");
     }
+    placeStrip(brief, slot);
     return mountPebbleStrip(slot, {
       date: deps.state.logDate,
       peek: (key) => peekCached<StonesRead>(key),
@@ -127,6 +144,7 @@
     pathFor,
     mount: mountPebbleStrip,
     mountToday,
+    place: placeStrip,
   };
 
   Object.assign(globalThis, { CairnPebbleStripController: CAIRN_PEBBLE_STRIP_CONTROLLER });

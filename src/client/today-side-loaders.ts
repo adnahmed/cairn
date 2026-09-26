@@ -280,7 +280,8 @@ type TodaySideComposite = Record<string, unknown>;
       events = primedEvents as TodaySideContextEvent[];
     }
     if (!isCurrentToday(deps) || !wrap.isConnected) return;
-    wrap.innerHTML = CairnTodayContext.contextBannerHtml(events);
+    const brief = deps.root.querySelector(".brief .brief-now");
+    wrap.innerHTML = CairnTodayContext.contextBannerHtml(events, undefined, brief?.textContent || "");
   }
 
   // Today: one quiet health-focus line from the latest whole-picture review.

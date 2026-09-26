@@ -17,6 +17,7 @@ type TodayMainShellDeps = {
   escapeHtml(value: unknown): string;
 };
 type TodayMainShellApi = {
+  carryBriefSlots(from: Element): (into: Element) => void;
   leadHtml(options: TodayMainShellLeadOptions, deps: TodayMainShellDeps): string;
   weekFoldHtml(compass: TodayMainShellCompass, deps: Pick<TodayMainShellDeps, "escapeHtml">): string;
   wrapHtml(content: string, options: { railHtml: string }): string;
@@ -69,11 +70,31 @@ type TodayMainShellApi = {
     </details>`;
   }
 
+  // The pebble strip and the fuel glance are mounted INTO the Brief by their own
+  // controllers (voice → stones → NOW → fuel). An in-place Brief swap takes the painted
+  // nodes out of the old element and stands them in the new one, each where its own
+  // controller places it, so nothing repaints or replays its entrance.
+  function carryBriefSlots(from: Element): (into: Element) => void {
+    const pebbles = from.querySelector("#pebbleStripSlot");
+    const fuel = from.querySelector("#todayFuelSlot");
+    return (into) => {
+      const g = globalThis as {
+        CairnPebbleStripController?: { place?(brief: Element, slot: Element): void };
+        CairnTodayFuelGlance?: { place?(brief: Element, slot: Element): void };
+      };
+      try {
+        if (pebbles) g.CairnPebbleStripController?.place?.(into, pebbles);
+        if (fuel) g.CairnTodayFuelGlance?.place?.(into, fuel);
+      } catch {}
+    };
+  }
+
   function wrapHtml(content: string, options: { railHtml: string }): string {
     return `<div class="today-wrap"><div class="today-main">${content}</div>${options.railHtml}</div>`;
   }
 
   const CAIRN_TODAY_MAIN_SHELL: TodayMainShellApi = {
+    carryBriefSlots,
     leadHtml,
     weekFoldHtml,
     wrapHtml,

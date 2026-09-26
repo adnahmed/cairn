@@ -50,6 +50,7 @@
         key,
         label,
         word,
+        short: typeof stone.short === "string" && stone.short.trim() && !/\s/.test(stone.short.trim()) ? stone.short.trim() : word,
         tone: (TONES.has(String(stone.tone)) ? stone.tone : "quiet") as StoneTone,
         line: text(stone.line) || null,
         target,

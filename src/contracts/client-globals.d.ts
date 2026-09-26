@@ -3997,12 +3997,21 @@ declare global {
         primary: ClientTodayAgendaCandidate[];
         more: ClientTodayAgendaCandidate[];
       };
+      withoutCards<T extends Partial<ClientTodayAgenda> | null | undefined>(
+        agenda: T,
+        cards: readonly string[],
+        ids?: readonly string[]
+      ): T;
+      /** Generic health cards whose subject the block thread already names. */
+      threadEchoIds(agenda: Partial<ClientTodayAgenda> | null | undefined, threadText: string): string[];
       genericCardHtml(candidate: ClientTodayAgendaCandidate, revealIdx: number): string;
       railHtml(
         agenda: Partial<ClientTodayAgenda> | null | undefined,
         genericPending: ClientTodayAgendaCandidate[]
       ): string;
       fuelCardHtml(day: ClientDayIntake | null | undefined): string;
+      /** The "Worth a look" group key that heads Today's rail. */
+      mastHtml(): string;
     };
 
     CairnTodayRailController: {
@@ -4266,7 +4275,29 @@ declare global {
       ): void;
     };
 
+    CairnTodayWorth: {
+      railAgenda<T extends Partial<ClientTodayAgenda> | null | undefined>(
+        agenda: T,
+        opts: { fuelGlance: boolean; thread?: { title?: unknown; summary?: unknown } | null }
+      ): T;
+      mountInstallRow(root: ParentNode): void;
+    };
+
+    CairnTodayFuelGlance: {
+      model(day: unknown, ideas: unknown): unknown;
+      html(model: unknown): string;
+      skeletonHtml(): string;
+      /** Stand the glance's slot under the Brief's NOW card (after its steer line). */
+      place(brief: Element, slot: Element): void;
+      mountToday(
+        root: ParentNode,
+        deps: { date: string; activateTab(tab: string): unknown; state: { planJump?: string | null } }
+      ): () => void;
+    };
+
     CairnTodayMainShell: {
+      /** Take the Brief's mounted slots (stones, fuel) out of `from`; the returned call stands them in the new Brief. */
+      carryBriefSlots(from: Element): (into: Element) => void;
       leadHtml(
         options: {
           isToday: boolean;
@@ -4880,7 +4911,7 @@ declare global {
       eventCountdown(days: unknown): string;
       isNearTermContext(event: unknown, todayISO?: string): boolean;
       contextBannerLine(event: unknown, todayISO?: string): string;
-      contextBannerHtml(events: unknown, todayISO?: string): string;
+      contextBannerHtml(events: unknown, todayISO?: string, spoken?: string): string;
       goalLineHtml(stats: unknown, currentWeight: unknown, isToday: unknown, todayISO?: string): string;
       healthFocusLine(data: unknown): string;
       healthFocusBannerHtml(data: unknown): string;
@@ -5202,6 +5233,8 @@ declare global {
   declare const CairnTodayPlanSessionPreparation: Window["CairnTodayPlanSessionPreparation"];
   declare const CairnTodayDataLoader: Window["CairnTodayDataLoader"];
   declare const CairnTodayMainShell: Window["CairnTodayMainShell"];
+  declare const CairnTodayFuelGlance: Window["CairnTodayFuelGlance"];
+  declare const CairnTodayWorth: Window["CairnTodayWorth"];
   declare const CairnTodayPlanSurface: Window["CairnTodayPlanSurface"];
   declare const CairnTodayPlanSurfaceRenderer: Window["CairnTodayPlanSurfaceRenderer"];
   declare const CairnTodayPostRenderWiring: Window["CairnTodayPostRenderWiring"];
@@ -6058,6 +6091,8 @@ declare global {
     label: string;
     /** The server's word, verbatim ("steady", "in progress", "quiet"). */
     word: string;
+    /** The server's one-word form of it, printed under the pebble so it holds one line; `word` when absent. */
+    short: string;
     tone: import("./today-stones.js").TodayStoneTone;
     /** The server's short sentence, spoken to assistive tech only; null when the word says it all. */
     line: string | null;
@@ -6098,6 +6133,8 @@ declare global {
       pathFor(date: string): string;
       mount(host: Element, deps: ClientPebbleStripDeps): () => void;
       mountToday(root: ParentNode, deps: ClientPebbleStripTodayDeps): () => void;
+      /** Stand the strip's slot between the Brief's voice and its NOW card. */
+      place(brief: Element, slot: Element): void;
     };
   }
   declare const CairnPebbleStripModel: Window["CairnPebbleStripModel"];

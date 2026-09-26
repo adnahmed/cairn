@@ -46,9 +46,12 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
    moves. Hairline cards, no coloured spines, mono keys, small pills.
    ===================================================================== */
 /* the block thread: a hairline row card, the mono key in the strength hue */
-.today-wrap .cfocus-thread{background:var(--surface);border:1px solid var(--line);border-left:1px solid var(--line);
-  border-radius:var(--radius-md);box-shadow:none;padding:10px 12px;margin:0 0 var(--space-6)}
-.today-wrap .cfocus-thread:hover{background:var(--surface);border-color:var(--line-strong)}
+/* around today reads as hairline ROWS under the two cards (NOW, Fuel), so those
+   stay the column's only surfaces: the block thread is a row, the mono key in the
+   strength hue */
+.today-wrap .cfocus-thread{background:none;border:0;border-bottom:1px solid var(--line);
+  border-radius:0;box-shadow:none;padding:12px 0;margin:0}
+.today-wrap .cfocus-thread:hover{background:none}
 .today-wrap .cfocus-thread:active{transform:var(--press-lg)}
 .today-wrap .cfocus-thread-arrow{color:var(--d-strength);font-weight:400}
 .today-wrap .cfocus-thread-lbl{color:var(--d-strength)}
@@ -56,8 +59,9 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 .today-wrap .cfocus-thread-why{font-size:var(--text-xs)}
 
 /* today's run: the same hairline card, a mono key led by the endurance dot */
-.today-run-line .wrun-row{background:var(--surface);border:1px solid var(--line);border-left:1px solid var(--line);
-  border-radius:var(--radius-md);padding:11px 13px}
+/* today's run: the same hairline row, a mono key led by the endurance dot */
+.today-run-line .wrun-row{background:none;border:0;border-bottom:1px solid var(--line);
+  border-radius:0;padding:12px 0}
 .today-run-line .wrun-kind{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);
   letter-spacing:var(--tracking-mono);color:var(--d-endurance);display:inline-flex;align-items:center;gap:6px}
 .today-run-line .wrun-kind::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--s-endurance)}
@@ -80,3 +84,103 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
   padding:7px 14px;font-size:.84rem}
 .today-wrap .agenda-act:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
 .today-wrap .rail-mast-mark{color:var(--dawn)}
+
+/* a stone's word holds ONE line under its pebble (the server's one-word `short`) */
+/* one line always: a two-word `word` from a cached pre-`short` payload clips inside
+   its own column instead of running into the next stone's, until revalidation lands */
+.pebble-strip-word{white-space:nowrap;overflow-wrap:normal;hyphens:none;overflow:hidden;text-overflow:clip}
+.pebble-strip-word::first-letter{text-transform:uppercase}
+
+/* =====================================================================
+   Fuel today — the glance under the NOW card (today-fuel-glance-client.ts):
+   protein and energy as slim meters in the fuel hue with the logged amount
+   beside the day's number, and ONE idea for later as a hairline row. No
+   meters on an unlogged day (absent, never low). Every tap opens Fuel.
+   ===================================================================== */
+.tfuel-slot:empty{display:none}
+.tfuel-slot{margin-top:var(--space-6)}
+.tfuel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:13px 16px 6px}
+.tfuel-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;color:var(--ink2);margin-bottom:var(--space-3)}
+.tfuel-log{background:none;border:0;padding:4px 0;cursor:pointer;font:inherit;font-size:var(--text-sm);font-weight:500;
+  color:var(--ink);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.tfuel-log:hover{text-decoration-color:var(--ink)}
+.tfuel-meters{display:flex;flex-direction:column;gap:var(--space-3);padding-bottom:var(--space-4)}
+.tfuel-m{display:grid;grid-template-columns:4.4rem minmax(0,1fr) auto;align-items:center;gap:12px}
+.tfuel-k{font-size:var(--text-sm);color:var(--ink)}
+.tfuel-bar{position:relative;height:6px;border-radius:3px;background:color-mix(in srgb,var(--line) 75%,transparent);overflow:hidden}
+.tfuel-bar i{position:absolute;inset:0 auto 0 0;width:calc(var(--p,0) * 100%);border-radius:3px;background:var(--s-fuel);
+  transform-origin:left center;animation:tfuel-grow var(--dur-3) var(--ease) both}
+@keyframes tfuel-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.tfuel-v{font-size:var(--text-sm);color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tfuel-empty{margin:0;padding-bottom:var(--space-4);font-size:var(--text-sm);color:var(--muted)}
+.tfuel-idea{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;width:100%;text-align:left;
+  background:none;border:0;border-top:1px solid var(--line);padding:11px 0 10px;margin:0;cursor:pointer;font:inherit;color:inherit;
+  -webkit-tap-highlight-color:transparent}
+.tfuel-idea-k{grid-column:1;color:var(--d-fuel)}
+.tfuel-idea-t{grid-column:1;font-family:var(--font-display);font-size:var(--text-md);line-height:1.25;color:var(--ink);margin-top:3px}
+.tfuel-idea-n{grid-column:1;font-size:var(--text-xs);color:var(--muted);margin-top:2px}
+.tfuel-idea-go{grid-column:2;grid-row:1 / span 3;align-self:center;color:var(--muted);font-size:1.1rem}
+.tfuel-idea:active{transform:var(--press-xs)}
+.tfuel[data-attention="lead"],.tfuel-slot[data-attention="lead"] .tfuel{border-color:var(--line-strong)}
+.tfuel-skel .tfuel-meters .hshimmer{display:block;height:14px;border-radius:7px}
+@media (prefers-reduced-motion:reduce){.tfuel-bar i{animation:none}}
+
+/* =====================================================================
+   "Worth a look" — Today's ONE quiet group at the foot of the column. The
+   agenda's ranked reads, the install note and the "n more" disclosure are
+   hairline ROWS under a single mono key, not a stack of cards under the Brief.
+   ===================================================================== */
+.today-rail.card-stack{gap:0}
+.today-rail .rail-mast{margin:var(--space-7) 0 0;padding-bottom:var(--space-3);border-bottom:1px solid var(--line)}
+:is(.today-rail,.today-more-body) > .agenda-card,
+.today-rail > .phone-coach,
+.today-rail > .app-readd{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;
+  margin:0;padding:11px 28px 11px 0;position:relative}
+:is(.today-rail,.today-more-body) > .agenda-card .agenda-kicker{margin-bottom:2px;color:var(--muted)}
+:is(.today-rail,.today-more-body) > .agenda-card .agenda-title{font-family:var(--font-ui);font-size:var(--text-md);font-weight:600;line-height:1.35}
+:is(.today-rail,.today-more-body) > .agenda-card .agenda-body{margin-top:2px;font-size:var(--text-sm);color:var(--muted);line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+:is(.today-rail,.today-more-body) > .agenda-card .agenda-foot{margin-top:4px;gap:14px}
+:is(.today-rail,.today-more-body) > .agenda-card .agenda-act,
+:is(.today-rail,.today-more-body) > .agenda-card .linkbtn-quiet{background:none;border:0;border-radius:0;padding:3px 0;color:var(--ink);
+  font-size:var(--text-sm);font-weight:500;text-decoration:underline;text-underline-offset:3px;
+  text-decoration-color:var(--line-strong);align-self:auto !important}
+:is(.today-rail,.today-more-body) > .agenda-card .agenda-act:hover{background:none;text-decoration-color:var(--ink)}
+:is(.today-rail,.today-more-body) > .agenda-card .agenda-x{top:9px;right:-4px}
+/* the install note: one line and its two quiet taps (the longer note stays in Settings) */
+.today-rail > .phone-coach{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+.today-rail > .phone-coach .sess-line{flex:1 1 100%;font-size:var(--text-md);line-height:1.35;color:var(--ink2)}
+.today-rail > .phone-coach .sess-line b{font-weight:600;color:var(--ink)}
+.today-rail > .phone-coach .phone-coach-sub{flex:1 1 100%;margin:0;font-size:var(--text-sm);color:var(--muted)}
+.today-rail > .phone-coach[data-coach-mode="prompt"] .phone-coach-sub{display:none}
+.today-rail > .phone-coach .phone-coach-actions{margin-top:2px;gap:14px}
+.today-rail > .phone-coach .phone-coach-install,
+.today-rail > .phone-coach .phone-coach-dismiss{background:none;border:0;box-shadow:none;border-radius:0;padding:3px 0;margin:0;
+  font-family:var(--font-ui);font-size:var(--text-sm);font-weight:500;letter-spacing:0;color:var(--ink);
+  text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.today-rail > .phone-coach .phone-coach-dismiss{color:var(--muted)}
+/* the Garmin reconcile note and the rows behind "n more" are the same hairline rows */
+.today-rail .today-more-body.card-stack{gap:0;padding-top:0}
+.today-rail .garmin-reconcile{background:none;box-shadow:none;border:0;border-bottom:1px solid var(--line);border-radius:0;
+  margin:0;padding:11px 0}
+.today-rail .garmin-reconcile-text{font-size:var(--text-md);color:var(--ink2)}
+.today-rail .garmin-reconcile-btn{background:none;color:var(--ink);border-radius:0;padding:3px 0;font-family:var(--font-ui);
+  font-size:var(--text-sm);font-weight:500;letter-spacing:0;text-decoration:underline;text-underline-offset:3px;
+  text-decoration-color:var(--line-strong)}
+.today-rail .garmin-reconcile-btn:hover{background:none;text-decoration-color:var(--ink)}
+/* the fuller reads in the group (what changed, the week ahead, a connection) keep
+   their card, drawn as the rail's hairline card: no spine, no shadow */
+.today-rail :is(.adjust-card,.weekahead,.insight-card){border:1px solid var(--line);box-shadow:none;
+  border-radius:var(--radius-md);background:var(--surface)}
+.today-rail .today-more-body :is(.adjust-card,.weekahead,.insight-card,.weekly-card){margin:var(--space-3) 0 0}
+.today-rail .insight-card::before{content:none}
+.today-rail > .today-more{margin:0}
+.today-rail > .today-more > .today-more-sum{min-height:44px;padding:0;border-bottom:1px solid var(--line)}
+
+/* the around-today rows run on without card gaps */
+.today-wrap #ctxEvents .ctxbanner{margin-bottom:0}
+.today-wrap .cfocus-thread-slot{margin:0}
+.today-wrap .capture-row{margin-top:var(--space-4);margin-bottom:var(--space-3)}
+.today-wrap .today-run-line{margin:0}
+.today-wrap .today-run-line .wrun-row{border-top:1px solid var(--line)}
+.today-wrap .weekfold{margin-top:0;border-top:0;padding-top:0}

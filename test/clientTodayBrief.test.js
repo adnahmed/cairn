@@ -991,6 +991,7 @@ function loadBriefWithReads() {
   const context = { Array, Math, Number, Object, String, Set, escHtml, escAttr };
   context.window = context;
   vm.runInNewContext(readFileSync(join(root, "public/js/ui-reads.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/today-brief-voice-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/today-brief-client.js"), "utf8"), context);
   return context.CairnTodayBrief;
 }
@@ -1029,9 +1030,11 @@ test("a session with logged work says Continue, carries its progress, and names 
   assert.match(html, /data-redirect="start-session">Continue session</);
   assert.doesNotMatch(html, /Start session/);
   assert.equal(html.match(/data-redirect="start-session"/g)?.length, 1, "one action, one button");
-  // The card's progress rides as one quiet line beside the button; the kicker
-  // already says 60 min, so the minutes are not said twice.
-  assert.match(html, /<div class="brief-session-meta">1 of 5 logged<\/div>/);
+  // The card's progress rides as one quiet line in the NOW card, with the session's
+  // minutes; the kicker then stops saying them, so they are said once.
+  assert.match(html, /<div class="brief-session-meta">1 of 5 logged · ~60 min<\/div>/);
+  assert.match(html, /TRAIN DAY<\/div>/, "the kicker leaves the minutes to the NOW card");
+  assert.match(html, /class="brief-now brief-now-card"/);
   assert.ok(html.indexOf("brief-session-meta") < html.indexOf("brief-launch"));
   assert.match(html, /brief-session-line">Anchor day · Back Squat</);
   // The focus sentence appears exactly once — in today's lift line.
@@ -1290,4 +1293,46 @@ test("the live facts come off the log: the newest set, then the next set or the 
   });
   assert.equal(moved.next, "Assisted Pull-Up 30 assist × 6–8");
   assert.equal(voice.liveHtml(null), "");
+});
+
+test("the NOW card: today's lift as its key, the focus once (what it adds), one idle bar per lift, then the start", () => {
+  const brief = loadBriefWithReads();
+  const read = {
+    kind: "train",
+    headline: "A strong, controlled Pull day.",
+    focus: "Pull — back, rear delts, biceps",
+    why: "Recovered and due.",
+    est_minutes: 55,
+    signals: {},
+    strength_line: { state: "not_started", title: "Pull", text: "Pull · not started", reshaped: false, original: [] },
+  };
+  const html = brief.briefHtml(read, {
+    isToday: true,
+    showPlan: true,
+    session: { date: "d", started: false, progress: "5 movements", minutes: 60, count: 5, lines: [] },
+  });
+  assert.match(html, /class="brief-now brief-now-card"/);
+  assert.match(html, /brief-now-top lbl">.*Today's lift</);
+  assert.match(html, /strength-line-t">Pull · not started</, "the server line, verbatim");
+  assert.match(html, /brief-now-focus">back, rear delts, biceps</, "the focus says only what the line does not");
+  assert.equal(html.match(/rear delts/g)?.length, 1, "the focus is said once, in the card");
+  assert.equal(html.match(/<i><\/i>/g)?.length, 5, "one idle bar per lift");
+  assert.match(html, /brief-session-meta">5 movements · ~60 min</);
+  assert.doesNotMatch(html, /TRAIN DAY · 55 min/, "one number for the session's length, not two");
+  const order = ["brief-headline", "brief-now-card", "brief-launch", "brief-steer"].map((k) => html.indexOf(k));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "voice, then NOW with its start, then the steer");
+});
+
+test("a read that carries no session keeps a bare NOW wrapper (the stones' anchor) and no card", () => {
+  const brief = loadBriefWithReads();
+  const rest = brief.briefHtml({ kind: "rest", headline: "Rest day", why: "", signals: {} }, { isToday: true, showPlan: false });
+  assert.match(rest, /class="brief-now"/);
+  assert.doesNotMatch(rest, /brief-now-card/);
+  const train = brief.briefHtml(
+    { kind: "train", headline: "Push", focus: "Upper", est_minutes: 45, why: "", signals: {} },
+    { isToday: true, showPlan: false }
+  );
+  assert.doesNotMatch(train, /brief-now-card/);
+  assert.match(train, /TRAIN DAY · 45 min/, "with no card the kicker keeps the minutes");
+  assert.match(train, /class="brief-focus">Upper</, "and the focus stays under the headline");
 });
