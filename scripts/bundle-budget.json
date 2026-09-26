@@ -4,83 +4,83 @@
   "bundles": {
     "public/js/bundle-01-core.js": {
       "measured": {
-        "raw": 221057,
-        "brotli": 42846
+        "raw": 225655,
+        "brotli": 43848
       },
       "budget": {
-        "raw": 226304,
-        "brotli": 44032
+        "raw": 230400,
+        "brotli": 45056
       }
     },
     "public/js/bundle-02-today.js": {
       "measured": {
-        "raw": 877989,
-        "brotli": 153790
+        "raw": 886891,
+        "brotli": 155345
       },
       "budget": {
-        "raw": 878592,
-        "brotli": 154624
+        "raw": 905216,
+        "brotli": 158720
       }
     },
     "public/js/bundle-03-capture-progress.js": {
       "measured": {
-        "raw": 145587,
-        "brotli": 29092
+        "raw": 147510,
+        "brotli": 29533
       },
       "budget": {
-        "raw": 149504,
-        "brotli": 29696
+        "raw": 150528,
+        "brotli": 30720
       }
     },
     "public/js/bundle-04-coach-meals.js": {
       "measured": {
-        "raw": 206021,
-        "brotli": 37241
+        "raw": 208052,
+        "brotli": 37736
       },
       "budget": {
-        "raw": 210944,
+        "raw": 212992,
         "brotli": 38912
       }
     },
     "public/js/bundle-05-me-health.js": {
       "lazy": "me-health",
       "measured": {
-        "raw": 511391,
-        "brotli": 89240
+        "raw": 512653,
+        "brotli": 89757
       },
       "budget": {
-        "raw": 522240,
-        "brotli": 91136
+        "raw": 523264,
+        "brotli": 92160
       }
     },
     "public/js/bundle-06-chat-plan.js": {
       "measured": {
-        "raw": 313186,
-        "brotli": 59967
+        "raw": 315239,
+        "brotli": 60342
       },
       "budget": {
-        "raw": 319488,
-        "brotli": 61440
+        "raw": 322560,
+        "brotli": 62464
       }
     },
     "public/js/bundle-07-settings-boot.js": {
       "measured": {
-        "raw": 205429,
-        "brotli": 39043
+        "raw": 204440,
+        "brotli": 38856
       },
       "budget": {
-        "raw": 209920,
+        "raw": 208896,
         "brotli": 39936
       }
     },
     "public/styles.css": {
       "measured": {
-        "raw": 566169,
-        "brotli": 101759
+        "raw": 568530,
+        "brotli": 102309
       },
       "budget": {
-        "raw": 566272,
-        "brotli": 102400
+        "raw": 580608,
+        "brotli": 104448
       }
     }
   }
