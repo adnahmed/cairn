@@ -181,7 +181,7 @@ test("the server-search adapter reads the real search sections and leaves marker
         label: "Visit notes",
         hits: [{ ...docHit(8, "Synthetic visit note", "2031-02-01", "visit_note"), snippet: "…follow-up…" }],
       },
-      { key: "body", label: "Body readings", hits: [bodyHit("waist", "Waist", 80, "cm", "2031-02-02")] },
+      { key: "body_readings", label: "Body readings", hits: [bodyHit("waist", "Waist", 80, "cm", "2031-02-02")] },
     ])
   );
   assert.deepEqual(plain(items.map((i) => [i.kind, i.id, i.title])), [

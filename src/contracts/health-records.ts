@@ -128,7 +128,7 @@ export interface ClientRecordsSection {
   /**
    * `out_of_range`: `lab_flagged` ("Flagged by the lab"), `not_lab_flagged` ("Not flagged
    * by the lab": lab-ranged, no HIGH/LOW flag), `no_lab_range` ("Other readings": nothing a
-   * lab ranged), then `documents`, `visit_notes`, `body`. `panel`: one per MARKER_GROUPS key present, then the same three.
+   * lab ranged), then `documents`, `visit_notes`, `body_readings`. `panel`: one per MARKER_GROUPS key present, then the same three.
    * `newest`: a single `newest` section, every kind interleaved by date.
    */
   key: string;

@@ -199,7 +199,8 @@ function documentHit(d: any, tokens: string[]): ClientRecordsDocumentHit | null 
   const summary = d?.summary ? String(d.summary) : null;
   const markers = Array.isArray(d?.parsed?.markers) ? d.parsed.markers : [];
   const markerNames = markers.map((x: any) => String(x?.name ?? "")).filter(Boolean);
-  const body = [summary ?? "", ...textLeaves(d?.parsed)].join(" ");
+  const parsedText = textLeaves(d?.parsed).join(" ");
+  const body = [summary ?? "", parsedText].join(" ");
   const date = dayOf(d?.doc_date) ?? dayOf(d?.created_at);
   if (!matches(tokens, [title, kind, kindLabel, date ?? "", markerNames.join(" "), body].join(" "))) return null;
   return {
@@ -211,7 +212,8 @@ function documentHit(d: any, tokens: string[]): ClientRecordsDocumentHit | null 
     title,
     date,
     summary,
-    snippet: snippetOf(tokens, [summary ?? "", markerNames.join(", "), body].join(" ")),
+    // The summary once: `body` already opens with it, so it is not joined in again.
+    snippet: snippetOf(tokens, [summary ?? "", markerNames.join(", "), parsedText].join(" ")),
     marker_count: markers.length,
   };
 }
@@ -271,7 +273,9 @@ function trailingSections(
   return [
     { key: "visit_notes", label: "Visit notes", hits: [...visitNotes].sort(byNewest) },
     { key: "documents", label: "Documents", hits: [...documents].sort(byNewest) },
-    { key: "body", label: "Body readings", hits: [...body].sort(byNewest) },
+    // Not `body`: that is the Body Composition panel's MARKER_GROUPS key, and in `panel`
+    // mode both sections sit side by side, so one response would carry the key twice.
+    { key: "body_readings", label: "Body readings", hits: [...body].sort(byNewest) },
   ];
 }
 

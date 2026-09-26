@@ -73,6 +73,17 @@ test("by panel: sections follow MARKER_GROUPS order, then the non-marker section
     );
 });
 
+test("by panel: a Body Composition panel and the body readings never share a section key", () => {
+  seedPanel();
+  repo.logWeight(170.2, "2026-05-20");
+  repo.addBodyMeasurement("2026-05-21", { waist_in: 33.5 });
+  const read = searchRecords({ group: "panel", asOf: AS_OF });
+  const keys = read.sections.map((s) => s.key);
+  assert.ok(keys.includes("body"), "the weigh-in files under the Body Composition panel");
+  assert.ok(keys.includes("body_readings"), "the tape sites are their own section");
+  assert.equal(new Set(keys).size, keys.length, "every section key is unique");
+});
+
 test("out of range first keys on the lab flag; outside-optimal is a separate mark", () => {
   seedPanel();
   const read = searchRecords({ group: "out_of_range", asOf: AS_OF });
@@ -168,6 +179,7 @@ test("search spans documents, visit notes and body readings; every word must mat
   const note = allHits(lipid).find((h) => h.type === "visit_note");
   assert.ok(note, "the visit note matches its own words");
   assert.match(note.snippet, /lipid panel/i);
+  assert.equal(note.snippet.match(/Synthetic follow-up visit/g).length, 1, "the summary is quoted once");
   assert.ok(
     allHits(lipid).every((h) => h.type !== "body"),
     "body readings do not match 'lipid panel'"
@@ -196,7 +208,7 @@ test("search spans documents, visit notes and body readings; every word must mat
 
   const everything = searchRecords({ q: "", group: "out_of_range", asOf: AS_OF });
   const sectionKeys = everything.sections.map((s) => s.key);
-  assert.ok(sectionKeys.includes("visit_notes") && sectionKeys.includes("documents") && sectionKeys.includes("body"));
+  assert.ok(sectionKeys.includes("visit_notes") && sectionKeys.includes("documents") && sectionKeys.includes("body_readings"));
   assert.ok(everything.counts.visit_notes === 1 && everything.counts.body === 1);
 
   const none = searchRecords({ q: "ferritin zzzsynthetic", asOf: AS_OF });
