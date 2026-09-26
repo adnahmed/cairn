@@ -173,7 +173,6 @@ test("primeFanIn primes every Today path from ONE widened aggregate, and skips a
       asked.push(path);
       return Promise.resolve({ responses: { "/directives": { directives: [] } } });
     },
-    peekCached: () => null,
     localISO: () => "2026-09-26",
   };
   context.CairnTodayPrefetch.primeFanIn("2026-09-26", deps);
@@ -197,9 +196,8 @@ test("primeFanIn primes every Today path from ONE widened aggregate, and skips a
   context.CairnTodayPrefetch.primeFanIn("2026-09-20", deps);
   assert.equal(primed[1].paths.some((p) => p.startsWith("/training-agenda")), false);
 
-  // The aggregate landed seconds ago (a soft repaint): its primes still stand.
-  const fresh = { ...deps, peekCached: () => ({ data: {}, fresh: true }) };
-  context.CairnTodayPrefetch.primeFanIn("2026-09-26", fresh);
+  // This page primed the same date seconds ago (a soft repaint): those primes stand.
+  context.CairnTodayPrefetch.primeFanIn("2026-09-20", deps);
   assert.equal(primed.length, 2);
   assert.equal(asked.length, 2);
 });

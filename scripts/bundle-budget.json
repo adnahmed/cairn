@@ -4,22 +4,22 @@
   "bundles": {
     "public/js/bundle-01-core.js": {
       "measured": {
-        "raw": 221057,
-        "brotli": 42846
+        "raw": 230501,
+        "brotli": 44642
       },
       "budget": {
-        "raw": 226304,
-        "brotli": 44032
+        "raw": 235520,
+        "brotli": 46080
       }
     },
     "public/js/bundle-02-today.js": {
       "measured": {
-        "raw": 877989,
-        "brotli": 153790
+        "raw": 882447,
+        "brotli": 154546
       },
       "budget": {
-        "raw": 878592,
-        "brotli": 154624
+        "raw": 900096,
+        "brotli": 157696
       }
     },
     "public/js/bundle-03-capture-progress.js": {

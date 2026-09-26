@@ -19,7 +19,6 @@ type TodayPrefetchApi = {
 };
 type TodayFanInDeps = {
   api(path: string): Promise<unknown>;
-  peekCached<T = unknown>(key: string, freshFor?: number): { data: T; fresh: boolean } | null;
   localISO(date?: Date): string;
 };
 
@@ -85,6 +84,7 @@ type TodayFanInDeps = {
   // over ONCE, only while young, and only for the exact path it was asked for — so a
   // later render, another date or an override always goes to the network.
   const EARLY_TTL_MS = 15000;
+  const PRIME_REUSE_MS = 3000;
 
   function takeEarly(path: string): Promise<Response | null> | undefined {
     try {
@@ -110,12 +110,13 @@ type TodayFanInDeps = {
   // request layer with it (apiPrime, api-core.ts) lets every loader keep asking for
   // its own path and simply get its answer without a round trip; a path the fan-in
   // came back without falls through to its own request, and any write clears every
-  // prime. When the aggregate was fetched seconds ago (a soft repaint), the primes
-  // that fetch set still stand, so nothing is asked again.
+  // prime. When THIS page primed the same date seconds ago (a soft repaint), those
+  // primes still stand, so nothing is asked again — a fresh page load always primes.
+  let lastPrime: { date: string; at: number } | null = null;
   function primeFanIn(date: string, deps: TodayFanInDeps): void {
     try {
-      const fresh = deps.peekCached(`today:aggregate:${date}`, 3000);
-      if (fresh && fresh.fresh) return;
+      if (lastPrime && lastPrime.date === date && Date.now() - lastPrime.at < PRIME_REUSE_MS) return;
+      lastPrime = { date, at: Date.now() };
       const q = encodeURIComponent;
       const paths = [
         `/today-plan-day?date=${q(date)}`, `/today-agenda?date=${q(date)}`, "/coaching-focus", "/strength-journey",

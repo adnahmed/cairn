@@ -11,8 +11,8 @@
 //   • the local DATE, the device zone, and a short wall-clock SLOT (below).
 // plus ONE addition of its own: an odometer over the bookkeeping tables those reads
 // consult but the coach context deliberately leaves out — app_state (the "since you
-// last looked" stamp, the Changes feed's seen marker, a drained backlog), agent_jobs
-// and ai_cache (a week-ahead or weekly read landing), agent_availability (whether an
+// last looked" stamp, the Changes feed's seen marker, a drained backlog), ai_cache
+// (a week-ahead or weekly read landing), agent_availability (whether an
 // agent is usable colours the Brief's agent status), the exercise-guide index and the
 // Garmin source rows. Freshness beats speed: over-invalidation only costs a recompute.
 //
@@ -36,8 +36,12 @@ export const RESPONSE_FRESHNESS_SLOT_MINUTES = 10;
 // few seconds by the scheduler and is read by nothing a memoized surface renders.
 const APP_STATE_IGNORED_KEYS = ["scheduler_heartbeat"] as const;
 
+// agent_jobs is deliberately NOT here: a job's own bookkeeping (queued → running →
+// phase ticks → failed) moves on every step while nothing a memoized read shows has
+// changed, and a job that lands writes its result where the read looks (ai_cache,
+// day_reads, insights), which IS covered. Keyed on it, one retrying background job
+// kept every Today read from ever being remembered.
 const AUX_TABLES = [
-  "agent_jobs",
   "ai_cache",
   "agent_availability",
   "exercise_guides",

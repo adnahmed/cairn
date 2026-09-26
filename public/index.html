@@ -59,7 +59,7 @@
      api() sends. api() takes each Response once through CairnTodayPrefetch.takeEarly
      (src/client/today-data-loader.ts). Allowed by a CSP hash (src/earlyFetch.ts), so
      any edit here re-hashes itself at boot. -->
-<script id="cairn-early-fetch">(function(){try{var p=location.pathname;if(p!=="/"&&p!=="/app"&&p!=="/app/"&&p!=="/app/today"&&p!=="/app/today/")return;var n=new Date(),z=function(v){return(v<10?"0":"")+v},d=n.getFullYear()+"-"+z(n.getMonth()+1)+"-"+z(n.getDate()),h={},t="",tz="";try{t=(localStorage.getItem("cairn_token")||"").trim()}catch(e){}if(t)h["X-Cairn-Token"]=t;try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""}catch(e){}if(tz)h["X-Cairn-TZ"]=tz;var m={};["/today?date="+d+"&surface=today","/today-read?date="+d+"&agent=auto","/daily-session/preview?date="+d].forEach(function(q){m[q]={at:Date.now(),res:fetch("/api"+q,{headers:h,credentials:"same-origin"}).catch(function(){return null})}});window.__cairnEarly=m}catch(e){}})();</script>
+<script id="cairn-early-fetch">(function(){try{var p=location.pathname;if(p!=="/"&&p!=="/app"&&p!=="/app/"&&p!=="/app/today"&&p!=="/app/today/")return;var n=new Date(),z=function(v){return(v<10?"0":"")+v},d=n.getFullYear()+"-"+z(n.getMonth()+1)+"-"+z(n.getDate()),h={},t="",tz="";try{t=(localStorage.getItem("cairn_token")||"").trim()}catch(e){}if(t)h["X-Cairn-Token"]=t;try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""}catch(e){}if(tz)h["X-Cairn-TZ"]=tz;var m={};["/today-read?date="+d+"&agent=auto","/daily-session/preview?date="+d,"/today?date="+d+"&surface=today"].forEach(function(q){m[q]={at:Date.now(),res:fetch("/api"+q,{headers:h,credentials:"same-origin"}).catch(function(){return null})}});window.__cairnEarly=m}catch(e){}})();</script>
 </head>
 <body>
   <header>

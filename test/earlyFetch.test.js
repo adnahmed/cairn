@@ -55,9 +55,10 @@ test("on a Today open it starts the aggregate, the Brief's read and the preview 
   assert.deepEqual(
     calls.map((c) => c.url),
     [
-      "/api/today?date=2026-09-26&surface=today",
+      // The cheap Brief reads first: the server answers in order on one thread.
       "/api/today-read?date=2026-09-26&agent=auto",
       "/api/daily-session/preview?date=2026-09-26",
+      "/api/today?date=2026-09-26&surface=today",
     ]
   );
   for (const call of calls) {
