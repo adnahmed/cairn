@@ -111,11 +111,9 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     "age",
     "supplements",
   ]);
-  // domain-detail catalog state (mirrors the Markers view): which domain is open,
-  // the free-text search, and the out-of-range filter. Reset each time a domain opens.
-  let curDomain: string | null = null;
-  let standQuery = "";
-  let standOff = false;
+  // The teardown of whatever component(s) the current view mounted; paint() runs it
+  // before the next view replaces the DOM.
+  let viewTeardown: () => void = () => {};
 
   // Every Stand sub-view is a first-class, deep-linkable route (/app/stand/<seg>).
   // state.standSeg is the single source of which view is open; setting it keeps the
@@ -510,6 +508,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       if (DATA && priority && typeof priority === "object") {
         DATA.markers = Array.isArray(priority.markers) ? priority.markers : DATA.markers;
         DATA.groups = Array.isArray(priority.groups) ? priority.groups : DATA.groups;
+        swrSet("markers:priority", priority); // records-search's SWR copy stays as fresh as DATA
       }
     } catch {
       /* the overview simply repaints from the last snapshot */
@@ -663,8 +662,20 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   function showShare(): void {
     curView = "share";
     setStandSeg("share");
-    paint(toolShellHtml("Share with your doctor", `<div id="hContent"></div><div id="hbSymptomLinks"></div>`));
+    paint(
+      toolShellHtml(
+        "Share with your doctor",
+        `<div id="standPacket" class="records-slot" data-slot="packet"></div><div id="hContent"></div><div id="hbSymptomLinks"></div>`
+      )
+    );
     wireBack();
+    // The doctor-packet builder (Wave 3 stream C) mounts through the records slot;
+    // with nothing registered the slot stays empty and the view reads as before.
+    viewTeardown = CairnRecordsSlot.mount("packet", view.querySelector<HTMLElement>("#standPacket"), {
+      ...shareDeps(),
+      reducedMotion,
+      openCheckup: () => showCheckup(),
+    });
     CairnHealthShareController.render(shareDeps());
     // "Worth mentioning to your doctor" belongs with the clinician-facing tools.
     void CairnHealthReadController.loadSymptomLinks(readDeps(), pollToken);
@@ -813,129 +824,75 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     });
   }
 
-  // ---- domain detail — the Markers catalog, scoped to one domain -----------------
-  // The old Markers affordances come along: search (when there are many), an
-  // out-of-range filter, clinical sub-group sections, and expandable rows carrying
-  // the chart, the range/optimal target, and the trend. Controls render ONCE (so the
-  // search field keeps focus); only #standResults re-fills on filter/search.
-  const HC = () =>
-    (globalThis as unknown as { CairnHealthClient?: Record<string, (...a: unknown[]) => unknown> }).CairnHealthClient;
-  function markerOutOfRange(m: StandMarker): boolean {
-    return !!HM()?.markerOutOfRange?.(m);
+  // ---- domain detail + All markers — the records-search component ----------------
+  // A drill-in and All markers mount records-search into #standRecords; All markers adds the
+  // evidence-wanted line, and searches documents, notes and body readings once
+  // RECORDS_SEARCH_LIVE is on (GET /api/records/search, stream A: flipped at integration, as
+  // api() reports every non-2xx). viewerStorage: `localStorage` can throw; null skips it.
+  const RECORDS_SEARCH_LIVE = false;
+  function viewerStorage(): Storage | null {
+    try {
+      return localStorage;
+    } catch {
+      return null;
+    }
   }
-  function matchesQuery(m: StandMarker): boolean {
-    const q = standQuery.toLowerCase().replace(/\s+/g, " ").trim();
-    if (!q) return true;
-    return `${String(m.name || m.key || "")} ${String(m.group_label || "")}`.toLowerCase().includes(q);
-  }
-
-  function standControlsHtml(total: number, outCount: number): string {
-    const search =
-      total > 5
-        ? `<div class="hmk-search"><svg class="hmk-search-i" viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.7"/><line x1="13.5" y1="13.5" x2="18" y2="18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><input id="standSearch" type="search" class="hmk-search-in" placeholder="Search…" aria-label="Search markers" autocomplete="off" spellcheck="false" enterkeyhint="search"></div>`
-        : "";
-    const pill = outCount
-      ? `<button id="standOut" class="hmk-filter-toggle${standOff ? " on" : ""}" aria-pressed="${standOff ? "true" : "false"}"><span class="hdot hdot-warn"></span>Out of range · ${outCount}</button>`
-      : "";
-    return search || pill ? `<div class="hmk-controls reveal">${search}${pill}</div>` : "";
-  }
-
-  function domainResultsHtml(): string {
-    const all = curDomain === "__all__";
-    const d = all ? null : DOMAINS.find((x) => x.key === curDomain);
-    if (!all && !d) return "";
-    // Sections = clinical groups, each with its own head + sub-group sub-heads so the
-    // fine taxonomy stays usable one tap down. A domain view sorts its groups worst-
-    // first (what needs attention rises); the full "All markers" catalog keeps the
-    // backend's canonical clinical-review order (CBC → CMP → lipids → …).
-    const present = (DATA?.groups || []).filter(
-      (g) => (all || d!.groups.includes(g.key)) && markersOfGroup(g.key).length
-    );
-    if (!all) present.sort((a, b) => RANK[worstOf(markersOfGroup(b.key))] - RANK[worstOf(markersOfGroup(a.key))]);
-    let rowIndex = 0;
-    const sections = present
-      .map((g, gi) => {
-        let list = markersOfGroup(g.key);
-        if (standOff) list = list.filter(markerOutOfRange);
-        list = list.filter(matchesQuery);
-        if (!list.length) return "";
-        const ordered = (HC()?.orderMarkersForDisplay?.(g.key, list) as StandMarker[]) || list;
-        let lastSub = "";
-        const rows = ordered
-          .map((m) => {
-            const sub = HC()?.markerSubgroup?.(g.key, String(m.name || m.key || "")) as string | null;
-            const subhead = sub && sub !== lastSub ? `<div class="hmk-subhead">${escHtml(sub)}</div>` : "";
-            if (sub) lastSub = sub;
-            return subhead + (HM()?.hmkRowHtml?.(m, rowIndex++) as string);
-          })
-          .join("");
-        const off = ordered.filter(markerOutOfRange).length;
-        const badge = off ? `<span class="hmk-headcount">${off} off</span>` : "";
-        const head = `<div class="hmk-grouphead lbl reveal" style="--i:${Math.min(gi, 12)}">${escHtml(g.label)}${badge}</div>`;
-        const note = g.key === "lipids" ? (HC()?.lipidGroupNoteHtml?.(ordered, { relAge }) as string) || "" : "";
-        return `<section class="hmk-section">${head}${note}<div class="hmk-card">${rows}</div></section>`;
-      })
-      .join("");
-    return (
-      sections ||
-      CairnUi.emptyStateHtml({
-        className: "stand-empty empty-state reveal",
-        title: standQuery || standOff ? "Nothing matches — clear the filter." : "No readings here yet.",
-      })
-    );
+  function recordsSearchDeps(scope: string[] | null, all: boolean): ClientRecordsSearchDeps {
+    return {
+      api,
+      cachedApi,
+      peekCached,
+      storage: viewerStorage(),
+      seed: DATA ? { markers: DATA.markers, groups: DATA.groups } : null,
+      scope,
+      searchable: all || (DATA?.markers || []).filter((m) => !scope || scope.includes(String(m.group))).length > 5,
+      searchRecords: all && RECORDS_SEARCH_LIVE,
+      placeholder: all && RECORDS_SEARCH_LIVE ? "Search markers, documents, notes…" : "Search markers…",
+      askCoach: (question) => CairnHealthClient.askCoach(question),
+      onDirective: () => showConnections(),
+      onOpenRecord: (item) => (item.kind === "body" ? showBody() : showRecords()),
+      onAdd: () => showRecords({ openPicker: true }),
+    };
   }
 
-  // A domain drill-in is a real route (/app/stand/domain?id=<key>), not a silent
-  // in-place swap: setting standSeg=null left the URL sitting on the overview, so
-  // browser/OS Back walked straight out of Stand instead of stepping back up to it.
-  // An unknown/absent key is not an error — it falls back to the overview.
+  // A domain drill-in is a real route (/app/stand/domain?id=<key>), not a silent in-place
+  // swap (standSeg=null left the URL on the overview, so Back walked straight out of
+  // Stand). An unknown/absent key is not an error — it falls back to the overview.
   function showDomain(key: string): void {
     const all = key === "__all__";
-    if (!all && !DOMAINS.some((x) => x.key === key)) {
+    const d = all ? null : DOMAINS.find((x) => x.key === key);
+    if (!all && !d) {
       showOverview();
       return;
     }
-    curDomain = key;
-    standQuery = "";
-    standOff = false;
     curView = all ? "markers" : "domain";
     state.standDomain = all ? null : key;
     setStandSeg(all ? "markers" : "domain");
-    const d = all ? null : DOMAINS.find((x) => x.key === key);
-    const markers = all ? DATA?.markers || [] : d ? markersOfDomain(d) : [];
-    const outCount = markers.filter(markerOutOfRange).length;
     paint(`<div class="stand-detail stand-root">
       <button class="stand-back linkbtn linkbtn-plain" data-back>‹ Stand</button>
       <h2 class="stand-detail-h">${escHtml(all ? "All markers" : d?.label || "Markers")}</h2>
-      ${standControlsHtml(markers.length, outCount)}
-      <div id="standResults"></div>
+      ${all ? `<div id="standEvidence" class="records-evw-slot" data-slot="evidence-wanted"></div>` : ""}
+      <div id="standRecords"></div>
     </div>`);
     wireBack();
-    wireControls();
-    renderResults();
+    const evw = view.querySelector<HTMLElement>("#standEvidence");
+    const teardowns = [
+      evw
+        ? CairnEvidenceWantedController.mount(evw, {
+            checkup: DATA?.checkup || null,
+            storage: viewerStorage(),
+            onOpen: () => showCheckup(),
+          })
+        : () => {},
+      CairnRecordsSearchController.mount(
+        view.querySelector<HTMLElement>("#standRecords") as HTMLElement,
+        recordsSearchDeps(d ? d.groups : null, all)
+      ),
+    ];
+    viewTeardown = () => teardowns.forEach((t) => t());
   }
   function showAllMarkers(): void {
     showDomain("__all__");
-  }
-  function renderResults(): void {
-    const el = view.querySelector<HTMLElement>("#standResults");
-    if (!el) return;
-    el.innerHTML = domainResultsHtml();
-    wireRows(el);
-  }
-  function wireControls(): void {
-    const search = view.querySelector<HTMLInputElement>("#standSearch");
-    search?.addEventListener("input", () => {
-      standQuery = search.value;
-      renderResults();
-    });
-    const pill = view.querySelector<HTMLElement>("#standOut");
-    pill?.addEventListener("click", () => {
-      standOff = !standOff;
-      pill.classList.toggle("on", standOff);
-      pill.setAttribute("aria-pressed", standOff ? "true" : "false");
-      renderResults();
-    });
   }
 
   function bodyDetailHtml(): string {
@@ -958,6 +915,9 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
 
   // ---- render + wire -------------------------------------------------------------
   function paint(html: string): void {
+    const teardown = viewTeardown;
+    viewTeardown = () => {};
+    teardown();
     view.innerHTML = html;
     // A background (stale-while-revalidate) repaint must not re-run the view-enter
     // animation — that would flash the whole screen for an invisible data refresh.
@@ -980,7 +940,6 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   }
   function showOverview(): void {
     curView = "overview";
-    curDomain = null;
     state.standDomain = null;
     setStandSeg(null);
     // Stepped back from a self-contained tool before the overview data landed →

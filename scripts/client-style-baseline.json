@@ -64,7 +64,7 @@
       "style": 6
     },
     "src/client/health-markers-client.ts": {
-      "lines": 465
+      "lines": 433
     },
     "src/client/health-read-controller.ts": {
       "style": 1
@@ -169,7 +169,7 @@
       "style": 37
     },
     "src/client/stand-screen.ts": {
-      "lines": 1387,
+      "lines": 1346,
       "style": 3
     },
     "src/client/today-add-exercise-controller.ts": {

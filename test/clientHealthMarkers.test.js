@@ -37,6 +37,7 @@ function loadHealthMarkers() {
     "public/js/health-client.js",
     "public/js/health-picture-client.js",
     "public/js/health-markers-client.js",
+    "public/js/marker-row-client.js",
   ]) {
     vm.runInNewContext(readFileSync(join(root, file), "utf8"), context);
   }
