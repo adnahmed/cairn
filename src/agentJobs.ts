@@ -29,6 +29,7 @@ import {
   consolidateMemory,
   growAboutMe,
   onboardFromText,
+  whatIf,
 } from "./coachOps.js";
 import { readToday } from "./domain/brain/day-read-use-case.js";
 import { runCaseConference } from "./domain/brain/case-conference.js";
@@ -637,6 +638,13 @@ async function processAgentJob(id: number): Promise<void> {
       }
       case "onboard": {
         result = await onboardFromText(agent, String(input.text ?? ""), hooks);
+        break;
+      }
+      case "what_if": {
+        // A READ: the op persists nothing, so there is no ref row — the job's own
+        // result snapshot is the answer the Ask ripple card renders.
+        result = await whatIf(agent, { text: input.text, hint: input.hint }, hooks);
+        chosen = result?.agent ?? null;
         break;
       }
       case "health_review": {

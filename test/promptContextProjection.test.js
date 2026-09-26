@@ -32,6 +32,7 @@ import {
   buildPlanDraftVerifyPrompt,
   buildWeekAheadPrompt,
   buildWeeklyReadPrompt,
+  buildWhatIfPrompt,
 } from "../dist/prompt.js";
 import { projectCoachContext, PROMPT_CONTEXT_SITES } from "../dist/prompt/context-projection.js";
 import { renderCoachingFocus } from "../dist/prompt/shared.js";
@@ -214,6 +215,14 @@ const SITES = [
     build: () => buildPlanDraftVerifyPrompt({ summary: "thin", days: [] }),
     kept: ["training_intent", "weekly_set_targets", "plan", "recent_sessions", "strength_schedule", "context_events", "directives"],
     dropped: ["recovery", "garmin", "meal_plan", "day_intake", "coaching_focus", "run_plan", "day_read"],
+  },
+  {
+    // The what-if ripple: the read layer behind each of the six stones, none of what
+    // was already said about the picture.
+    site: "what_if",
+    build: () => buildWhatIfPrompt("What if I ran four days a week?"),
+    kept: ["plan", "recent_sessions", "race_build", "day_intake", "directives", "recovery", "signal_state", "road_ahead"],
+    dropped: ["garmin", "day_read", "recent_decisions", "insights", "health", "imaging"],
   },
 ];
 

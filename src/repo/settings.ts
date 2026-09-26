@@ -193,6 +193,8 @@ export const TASK_EXECUTION_PROFILES: Record<string, AbstractExecutionProfile> =
   weekly_read: { model_class: "fast", reasoning: "medium" },
   nutrition_checkin: { model_class: "fast", reasoning: "medium" },
   week_ahead: { model_class: "fast", reasoning: "medium" },
+  // The what-if (Ask): one proposed change and its ripple, read and never applied.
+  what_if: { model_class: "fast", reasoning: "medium" },
   reaction_narrative: { model_class: "fast", reasoning: "medium" },
   exercise_explanation: { model_class: "fast", reasoning: "low" },
   chat_distill: { model_class: "fast", reasoning: "low" },

@@ -23,6 +23,7 @@ export const AGENT_JOB_KINDS = [
   "memory_consolidate",
   "about_me_grow",
   "onboard",
+  "what_if",
 ] as const;
 
 export type AgentJobKind = (typeof AGENT_JOB_KINDS)[number];

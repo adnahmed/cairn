@@ -41,6 +41,8 @@ import {
   normalizeSessionSuggestionResult,
 } from "./repo/adaptive-session.js";
 import { coerceFinite } from "./lib/numbers.js";
+import { WHAT_IF_CHANGE_KINDS, WHAT_IF_CONFIDENCE, WHAT_IF_DIRECTIONS } from "./contracts/what-if.js";
+import { violatesReadingGrammar } from "./repo/day-read-grammar.js";
 
 export { DAILY_SESSION_SUGGESTION_NORMALIZATION, normalizeSessionSuggestionResult };
 
@@ -1770,3 +1772,86 @@ export const CASE_CONFERENCE_DECISION_SCHEMA: JsonSchema = {
     revision: CONFERENCE_REVISION_SCHEMA,
   },
 };
+
+// The what-if (src/coachOps/whatif.ts): ONE proposed change and its ripple across the
+// six stones. Every field whatIf() READS is named here — constrained decoding drops an
+// unnamed one — and the vocabularies are closed enums, so a direction or a confidence
+// can only ever be a word. The stone key is a plain string: an unknown stone is
+// dropped by the op rather than failing a whole answer.
+const WHAT_IF_PLAN_CHANGE_SCHEMA: JsonSchema = {
+  type: "object",
+  additionalProperties: true,
+  required: ["day_number"],
+  properties: {
+    day_number: { type: "integer", minimum: 1 },
+    exercise: { type: "string" },
+    swap: {
+      type: "object",
+      additionalProperties: true,
+      required: ["from", "to"],
+      properties: { from: { type: "string" }, to: { type: "string" } },
+    },
+    remove: { type: "boolean" },
+    sets: { type: ["integer", "null"], minimum: 0 },
+    rep_low: { type: ["integer", "null"], minimum: 0 },
+    rep_high: { type: ["integer", "null"], minimum: 0 },
+    target_weight: { type: ["number", "null"] },
+    target_seconds: { type: ["number", "null"], minimum: 0 },
+    reason: { type: "string" },
+  },
+};
+
+export const WHAT_IF_SCHEMA: JsonSchema = {
+  type: "object",
+  additionalProperties: true,
+  required: ["change", "ripple"],
+  properties: {
+    change: {
+      type: "object",
+      additionalProperties: true,
+      required: ["kind", "summary"],
+      properties: {
+        kind: { type: "string", enum: [...WHAT_IF_CHANGE_KINDS] },
+        summary: { type: "string", minLength: 1 },
+        changes: { type: "array", items: WHAT_IF_PLAN_CHANGE_SCHEMA },
+        nutrition: {
+          type: ["object", "null"],
+          additionalProperties: true,
+          properties: {
+            target_kcal: { type: ["number", "null"] },
+            protein_g: { type: ["number", "null"] },
+          },
+        },
+      },
+    },
+    ripple: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: true,
+        required: ["stone", "direction", "why", "confidence"],
+        properties: {
+          stone: { type: "string" },
+          direction: { type: "string", enum: [...WHAT_IF_DIRECTIONS] },
+          why: { type: "string", minLength: 1 },
+          confidence: { type: "string", enum: [...WHAT_IF_CONFIDENCE] },
+        },
+      },
+    },
+  },
+};
+
+// Structure through the schema, then the reading grammar over every athlete-facing
+// string: a summary or a why that grades, scores or gates ("you must") is not an
+// answer the team can show, so the rotation tries the next agent instead.
+export function isWhatIfResult(value: unknown): boolean {
+  if (!matchesJsonSchema(WHAT_IF_SCHEMA, value, { coerce: true })) return false;
+  const p = object(value);
+  const change = object(p?.change);
+  if (!change || !text(change.summary) || violatesReadingGrammar(change.summary)) return false;
+  if (!Array.isArray(p?.ripple)) return false;
+  return p.ripple.every((raw: unknown) => {
+    const effect = object(raw);
+    return !!effect && text(effect.why) && !violatesReadingGrammar(effect.why);
+  });
+}

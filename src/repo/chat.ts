@@ -806,6 +806,17 @@ export function finishAgentJob(
   return getAgentJob(id);
 }
 
+// Point a DONE job at the row a later hand-off persisted from it (the what-if's
+// "Do it" draft), so a second tap on the same answer finds the first draft instead
+// of writing another. Only a done job with no pointer yet is linked; the result
+// snapshot is untouched.
+export function linkAgentJobRef(id: number, refTable: string, refId: number): boolean {
+  const info = db
+    .prepare(`UPDATE agent_jobs SET ref_table=?, ref_id=? WHERE id=? AND status='done' AND ref_id IS NULL`)
+    .run(refTable, refId, id);
+  return Number(info.changes) > 0;
+}
+
 export function failAgentJob(id: number, error: unknown) {
   db.prepare(`UPDATE agent_jobs
                  SET status='error', phase='error', finished_at=datetime('now'), error=?
