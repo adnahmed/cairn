@@ -5207,4 +5207,101 @@ declare global {
     skeleton?(): string;
     onReverted?(change: import("./brain-changes.js").ClientBrainChange | null): unknown;
   };
+
+  // ---- v2 wave 2 · meal card (meal-card-model.ts, meal-card-client.ts, meal-card-controller.ts) ----
+  type ClientMealCardMacroKey = "kcal" | "protein_g" | "carbs_g" | "fat_g" | "fiber_g";
+  type ClientMealCardTotals = Record<ClientMealCardMacroKey, number | null>;
+  /** One editable row, in the src/foodCapture.ts ingredient shape plus its edit state. */
+  type ClientMealCardRow = {
+    key: string;
+    item: string;
+    /** The logged quantity as its own field ("205 g", "2 eggs"). */
+    amount: string;
+    /** Grams the stored row stated, or null when its amount carries no weight. */
+    baseGrams: number | null;
+    /** Grams now (what the field holds). */
+    grams: number | null;
+    /** The stored row's macros, at baseGrams. */
+    base: Record<ClientMealCardMacroKey, number | null>;
+    basis: string | null;
+    /** "low" only when the server marked the row a rough estimate after an edit. */
+    confidence: "low" | null;
+    added: boolean;
+    edited: boolean;
+  };
+  type ClientMealCardModel = {
+    id: number | null;
+    rows: ClientMealCardRow[];
+    totals: ClientMealCardTotals;
+    basis: string | null;
+    provenance: string;
+  };
+  type ClientMealCardDeps = {
+    /** The food note (GET /api/food-notes/:id row) the card edits. */
+    note: unknown;
+    api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+    toast?(message: string): void;
+    expandEl?(el: Element): void;
+    collapseEl?(el: Element, done: () => void): void;
+    reducedMotion?(): boolean;
+    /** false: the host prints the totals itself (from onTotals). */
+    totals?: boolean;
+    /** Live totals: optimistic while editing, the server's once saved. */
+    onTotals?(totals: ClientMealCardTotals, meta: { saved: boolean; unsaved: boolean }): void;
+    /** The updated note the PUT returned. */
+    onSaved?(note: unknown): void;
+  };
+  type CairnMealCardModelApi = {
+    MACRO_KEYS: readonly ClientMealCardMacroKey[];
+    gramsFromAmount(amount: unknown): number | null;
+    parseGramsInput(value: unknown): number | null;
+    formatGrams(grams: number | null): string;
+    mealCardModel(note: unknown): ClientMealCardModel;
+    mealCardRows(note: unknown): ClientMealCardRow[];
+    storedTotals(note: unknown): ClientMealCardTotals;
+    rowMacros(row: ClientMealCardRow): Record<ClientMealCardMacroKey, number | null>;
+    optimisticTotals(
+      stored: ClientMealCardTotals,
+      original: readonly ClientMealCardRow[],
+      current: readonly ClientMealCardRow[]
+    ): ClientMealCardTotals;
+    rowBody(row: ClientMealCardRow): Record<string, unknown>;
+    rowsChanged(original: readonly ClientMealCardRow[], rows: readonly ClientMealCardRow[]): boolean;
+    savableRows(rows: readonly ClientMealCardRow[]): ClientMealCardRow[];
+    rowBasisLine(row: ClientMealCardRow, mealBasis: unknown): string;
+    rowNoteLine(row: ClientMealCardRow, mealBasis: unknown): string;
+    basisWords(basis: unknown): string;
+    confidenceWords(confidence: unknown): string;
+  };
+  interface Window {
+    CairnMealCardModel: CairnMealCardModelApi;
+    CairnMealCard: {
+      mealCardHtml(model: ClientMealCardModel, opts?: { totals?: boolean }): string;
+      rowHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
+      rowMainHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
+      rowNutriText(row: ClientMealCardRow): string;
+      totalsText(totals: ClientMealCardTotals): string;
+    };
+    CairnMealCardController: {
+      mount(host: Element, deps: ClientMealCardDeps): () => void;
+    };
+    CairnChatCaptureCard: {
+      editable(note: unknown): boolean;
+      noteFromStamp(id: number, food: unknown): unknown | null;
+      mount(review: HTMLElement, note: unknown, deps: ClientChatCaptureCardDeps, opts?: { settle?: boolean }): boolean;
+      settleFromRow(review: HTMLElement, row: unknown, deps: ClientChatCaptureCardDeps): boolean;
+      mountAll(scope: ParentNode, applied: readonly unknown[], deps: ClientChatCaptureCardDeps): void;
+      repaintChips(note: unknown): void;
+      chatDeps(): ClientChatCaptureCardDeps;
+    };
+  }
+  /** The chat capture card's deps (chat-capture-card-client.ts): the meal card's, minus the note. */
+  type ClientChatCaptureCardDeps = Pick<
+    ClientMealCardDeps,
+    "api" | "toast" | "expandEl" | "collapseEl" | "reducedMotion" | "onSaved"
+  >;
+  declare const CairnMealCardModel: Window["CairnMealCardModel"];
+  declare const CairnMealCard: Window["CairnMealCard"];
+  declare const CairnMealCardController: Window["CairnMealCardController"];
+  declare const CairnChatCaptureCard: Window["CairnChatCaptureCard"];
 }

@@ -216,7 +216,9 @@ test("the applied-tag renderer branches a trackable food log to a live capture c
 });
 
 test("appendMsg arms the enrichment watch on any live re-render, never in the readonly overlay", () => {
-  assert.match(messageClient, /if \(!readonly && applied\.length\) armCaptureFoodWatches\(applied\)/);
+  assert.match(messageClient, /if \(!readonly && applied\.length\) \{\s*armCaptureFoodWatches\(applied\);/);
+  // The same live render mounts the meal card on a settled capture (never the overlay).
+  assert.match(messageClient, /CairnChatCaptureCard\.mountAll\(el, applied, CairnChatCaptureCard\.chatDeps\(\)\)/);
   assert.match(messageClient, /function armCaptureFoodWatches/);
   assert.match(messageClient, /CairnChatClient\.captureFoodActive\(info\.status\)\) watchCaptureFoodNote/);
 });
@@ -250,6 +252,8 @@ test("the review fills the ORIGINAL message in place — a slot on render, fille
   assert.match(messageClient, /document\.querySelector\(`\.capture-review\[data-capture-review="\$\{id\}"\]`\)/);
   assert.match(messageClient, /CairnChatClient\.captureFoodReviewInner\(status, food\)/);
   assert.match(messageClient, /review\.hidden = !inner/);
+  // A settled row with rows to edit becomes the meal card instead (chat-capture-card-client.ts).
+  assert.match(messageClient, /if \(CairnChatCaptureCard\.settleFromRow\(review, row, CairnChatCaptureCard\.chatDeps\(\)\)\) return;/);
 });
 
 // A plan change that did NOT go live must never render as "✓ plan update": the chip was
