@@ -347,20 +347,30 @@ interface RowVoice {
   asOf: string;
 }
 
-// The date said relative to the row's own day, when that can be said plainly.
+// The date said the way the feed says its own days (`dayWord`: today, yesterday, a
+// weekday inside the near week), so a reason and the status line above it speak one
+// language. Further back, the row's own day is already said by the day it sits under,
+// so it is left out (""), and the day before it is "the day before". null when the
+// date cannot be said plainly at all.
 function relativeDay(iso: string, voice: RowVoice): string | null {
-  const today = voice.day === voice.asOf;
-  if (iso === voice.day) return today ? "today" : "that day";
-  if (iso === addDaysISO(voice.day, -1)) return today ? "yesterday" : "the day before";
+  const near = (addDaysISO(voice.asOf, -6) ?? voice.asOf) <= iso && iso <= (addDaysISO(voice.asOf, 6) ?? voice.asOf);
+  if (near) return dayWord(iso, voice.asOf);
+  if (iso === voice.day) return "";
+  if (iso === addDaysISO(voice.day, -1)) return "the day before";
   return null;
 }
 
-const POSSESSIVE: Record<string, string> = {
-  today: "today's",
-  "that day": "that day's",
-  yesterday: "yesterday's",
-  "the day before": "the previous day's",
-};
+const isWeekday = (word: string): boolean => WEEKDAYS.includes(word);
+
+// "on <day>": a weekday keeps its "on"; the other words stand alone.
+const onDay = (word: string): string => (isWeekday(word) ? `on ${word}` : word);
+
+// "<day>'s": the row's own day, further back, is just "the".
+function possessive(word: string): string {
+  if (word === "") return "the";
+  if (word === "the day before") return "the previous day's";
+  return `${word}'s`;
+}
 
 function relativeWeek(iso: string, voice: RowVoice): string {
   const week = weekStart(iso);
@@ -389,6 +399,7 @@ function withoutAbsoluteDates(text: string, voice: RowVoice): string | null {
   if (!ANY_DATE.test(text)) return text;
   const re = (pattern: string) => new RegExp(pattern.replace(/DATE/g, `(${DATE_SOURCE})`), "gi");
   const iso = (phrase: string) => isoOfDate(phrase, voice.day);
+  let dropped = false;
   let out = text
     .replace(re("\\bthe week of DATE\\b"), (match, phrase: string, offset: number, source: string) => {
       const day = iso(phrase);
@@ -405,28 +416,36 @@ function withoutAbsoluteDates(text: string, voice: RowVoice): string | null {
         const day = iso(phrase);
         if (!day) return match;
         const word = relativeDay(day, voice);
-        return cased(word ? POSSESSIVE[word] : "the last", source, offset);
+        return cased(word == null ? "the last" : possessive(word), source, offset);
       }
     )
     .replace(re("\\bon DATE\\b"), (match, phrase: string, offset: number, source: string) => {
       const day = iso(phrase);
       if (!day) return match;
-      return cased(relativeDay(day, voice) ?? (day < voice.day ? "earlier" : "later"), source, offset);
+      const word = relativeDay(day, voice);
+      if (word === "") {
+        dropped = true;
+        return "";
+      }
+      return cased(word == null ? (day < voice.day ? "earlier" : "later") : onDay(word), source, offset);
     })
     .replace(re("\\bthe DATE(?= [A-Za-z])"), (match, phrase: string, offset: number, source: string) => {
       const day = iso(phrase);
       if (!day) return match;
       const word = relativeDay(day, voice);
-      return cased(word ? POSSESSIVE[word] : day < voice.day ? "the earlier" : "the later", source, offset);
+      return cased(word == null ? (day < voice.day ? "the earlier" : "the later") : possessive(word), source, offset);
     })
     .replace(re("\\bDATE\\b"), (match, phrase: string, offset: number, source: string) => {
       const day = iso(phrase);
       const word = day ? relativeDay(day, voice) : null;
-      return word ? cased(word, source, offset) : match;
+      if (word == null) return match;
+      return cased(word === "" ? "that day" : word, source, offset);
     })
     .replace(/\s+([,.;:!?])/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();
+  // A day left out at the head of a sentence hands its capital to the next word.
+  if (dropped) out = out.replace(/(^|[.!?]["'’”)\]]?\s+)([a-z])/g, (_m, lead: string, c: string) => lead + c.toUpperCase());
   // A date nothing above could say plainly takes its sentence with it.
   out = splitSentences(out)
     .filter((sentence) => !ANY_DATE.test(sentence))
