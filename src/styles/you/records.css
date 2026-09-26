@@ -176,3 +176,44 @@
 .linj-swap{font-size:.76rem;color:var(--ink-2);background:var(--card);
   border:1px solid var(--line-2);border-radius:var(--radius-pill);padding:3px 10px}
 
+
+/* ---- Atelier v2 (wave 6A): Records reads as a ledger, not a stack of cards ----
+   The upload is one compact card (a segmented type, a dashed drop row, a short
+   paste well, one small solid button); the documents below are hairline rows in
+   one card — a sans title, the badge right, a muted teaser — that open in place. */
+.hupload{background:var(--surface);border:1px solid var(--line);box-shadow:none;padding:12px 14px}
+.upload-mode{gap:2px;padding:3px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--ground);width:max-content}
+.upload-mode-btn{border:0;padding:6px 12px;font:500 var(--text-sm) var(--font-ui);letter-spacing:0;text-transform:none;color:var(--ink2)}
+.upload-mode-btn.is-active{background:var(--ink);color:var(--on-ink)}
+.hupload-file{padding:12px;font-size:var(--text-md);border-color:var(--line-strong);border-radius:var(--radius-md);justify-content:flex-start}
+/* The prompt names every format it takes, so it wraps rather than clipping; a long
+   chosen file name breaks anywhere instead of running off the card. */
+.hupload-file{white-space:normal;text-align:left}
+#hFileName{min-width:0;overflow-wrap:anywhere;line-height:1.35}
+.hupload-plus{flex:none;font-size:1.05rem;line-height:1;color:var(--dawn)}
+.hupload-text{min-height:64px;background:var(--ground);border-radius:var(--radius-md);font-size:var(--text-md)}
+.hupload-text:focus{outline:none;border-color:var(--dawn)}
+.hupload-btn.logbtn{width:auto;height:auto;padding:8px 18px;font-size:.84rem;font-weight:500;letter-spacing:0}
+#hlist{margin-top:var(--space-9);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:0 14px}
+#hlist:empty{display:none}
+#hlist > .empty{padding:14px 0}
+#hlist .sess.hdoc{background:none;border:0;border-top:1px solid var(--line);border-radius:0;box-shadow:none;margin:0;padding:12px 0}
+#hlist .sess.hdoc:first-child{border-top:0}
+#hlist .hdoc-done{box-shadow:none}
+#hlist .hdoc .sess-date{font-family:var(--font-ui);font-variation-settings:normal;font-weight:600;font-size:var(--text-base);
+  letter-spacing:0;color:var(--ink)}
+#hlist .hdoc .sess-line{font-size:var(--text-sm);color:var(--muted);margin-top:3px}
+#hlist .hdoc-teaser{padding:3px 0 0;font-size:var(--text-sm);color:var(--muted)}
+.hdoc-teaser-more{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);color:var(--dawn-deep)}
+.hdoc-link{font-family:var(--font-ui);font-size:var(--text-sm);font-weight:500;letter-spacing:0;text-transform:none;color:var(--ink);
+  padding:6px 13px;border-color:var(--line)}
+.hdoc-link:active,.hdoc-link:hover{color:var(--ink);border-color:var(--line-strong)}
+.hdoc-foot{margin-top:12px;padding-top:10px}
+.hdoc-date-save,.hdoc-date-cancel{font-size:var(--text-sm);font-weight:500;letter-spacing:0;text-transform:none;padding:6px 13px}
+.hdoc-tag{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono)}
+.hm-val{font-family:var(--font-ui);font-variation-settings:normal;font-weight:600;font-variant-numeric:tabular-nums}
+.hm-flag{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:.08em}
+/* memory: tags in mono, rows lighter */
+.memtag{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono)}
+.memadd select,.memadd input{background:var(--surface)}
+.memadd input:focus{outline:none;border-color:var(--dawn)}

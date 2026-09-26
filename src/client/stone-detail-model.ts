@@ -70,6 +70,20 @@
     heart: "Heart",
   };
 
+  // What each stone moves with: the connected picture, read the same way every day.
+  // Only the order and the pairing live here; each peer speaks its own server word.
+  const PEERS: Readonly<Record<ClientStoneKey, readonly ClientStoneKey[]>> = {
+    strength: ["recovery", "fuel", "body"],
+    endurance: ["recovery", "fuel", "heart"],
+    fuel: ["body", "strength", "endurance"],
+    recovery: ["strength", "endurance", "heart"],
+    body: ["fuel", "heart", "strength"],
+    heart: ["body", "endurance", "fuel"],
+  };
+
+  /** The six in the server's order, for the switcher. */
+  const ORDER: readonly ClientStoneKey[] = ["strength", "endurance", "fuel", "recovery", "body", "heart"];
+
   function isStone(key: unknown): key is ClientStoneKey {
     return typeof key === "string" && Object.prototype.hasOwnProperty.call(STONE_HOMES, key);
   }
@@ -94,7 +108,18 @@
       }
       return { ...h, href };
     });
-    return { key, stone, name: stone ? stone.label : NAMES[key], links };
+    const peerOf = (peer: ClientStoneKey): ClientStonePeer => {
+      const found = stack?.stones.find((s) => s.key === peer) || null;
+      return { key: peer, name: found ? found.label : NAMES[peer], word: found ? found.word : null };
+    };
+    return {
+      key,
+      stone,
+      name: stone ? stone.label : NAMES[key],
+      links,
+      peers: PEERS[key].map(peerOf),
+      all: ORDER.map(peerOf),
+    };
   }
 
   const CAIRN_STONE_DETAIL_MODEL: Window["CairnStoneDetailModel"] = {

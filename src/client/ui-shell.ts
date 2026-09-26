@@ -177,6 +177,16 @@ function segBar(active: unknown, items: ReadonlyArray<UiSegment>): string {
 function wireSeg(handlers: Record<string, () => unknown>): void {
   uiSegments().wireSeg(handlers);
 }
+// About you (Profile, Life, Family, Memory) lives under the You home: its bar is led
+// by one quiet step back there. A bar that is not the About-you set passes through.
+function aboutYouSegBar(active: unknown, items: ReadonlyArray<UiSegment>): string {
+  const aboutYou = items.some(([key]) => key === "profile");
+  return (aboutYou ? homeBackHtml("you", "You") : "") + segBar(active, items);
+}
+function aboutYouWireSeg(handlers: Record<string, () => unknown>): void {
+  wireSeg(handlers);
+  wireHomeBack(view);
+}
 function fitSeg(seg: Element | null | undefined): void {
   uiSegments().fitSeg(seg);
 }
@@ -320,6 +330,8 @@ const CAIRN_UI_SHELL_GLOBALS = {
   openFoodDetail,
   segBar,
   wireSeg,
+  aboutYouSegBar,
+  aboutYouWireSeg,
   fitSeg,
   PROGRESS_SEG,
   PROGRESS_HANDLERS,

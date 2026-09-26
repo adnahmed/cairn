@@ -26,15 +26,15 @@
     </div>
     <div class="packet-toggles" data-packet-toggles>${togglesSkeletonHtml()}</div>
     <div class="packet-questions" data-packet-questions-slot></div>
-    <div class="packet-preview-wrap">
-      <div class="packet-preview-head"><span class="lbl">Preview</span><span class="packet-status" role="status" aria-live="polite" data-packet-status></span></div>
-      <div class="packet-preview" data-packet-preview>${previewSkeletonHtml()}</div>
-    </div>
     <div class="packet-actions">
       <button type="button" class="logbtn packet-act" data-packet-open>Open the packet</button>
       <button type="button" class="ghostbtn packet-act" data-packet-text>Download as text</button>
     </div>
     ${disclaimerHtml(opts.disclaimer)}
+    <div class="packet-preview-wrap">
+      <div class="packet-preview-head"><span class="lbl">Preview</span><span class="packet-status" role="status" aria-live="polite" data-packet-status></span></div>
+      <div class="packet-preview" data-packet-preview>${previewSkeletonHtml()}</div>
+    </div>
   </section>`;
   }
 
@@ -57,7 +57,8 @@
           variant: "plain",
           pressed: true,
           attr: "packet-section",
-          className: "packet-seg",
+          // `is-on` paints the switch where :has() is missing; the controller keeps it in step.
+          className: on.has(o.id) ? "packet-seg is-on" : "packet-seg",
           attrs: { "data-packet-sec": o.id },
         });
         return `<li class="packet-toggle"><span class="packet-toggle-label">${escHtml(o.label)}</span>${seg}</li>`;

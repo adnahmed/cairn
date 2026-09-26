@@ -26,6 +26,15 @@
     let painted: string | null = null;
     let current: ClientStoneDetailModel | null = null;
 
+    // The open stone's chip is always in view, even when it sits past the phone's edge.
+    function revealChip(): void {
+      const strip = host.querySelector<HTMLElement>(".stone-detail-chips");
+      const chip = strip?.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!strip || !chip || typeof chip.offsetLeft !== "number") return;
+      const over = chip.offsetLeft + chip.offsetWidth - (strip.scrollLeft + strip.clientWidth);
+      if (over > 0) strip.scrollLeft = chip.offsetLeft - 16;
+    }
+
     function paint(read: ClientStonesRead | null | undefined, loading: boolean): void {
       if (!live || !host.isConnected) return;
       const model = CairnStoneDetailModel.model(deps.stone, read, { hrefFor: deps.hrefFor });
@@ -36,6 +45,7 @@
       const enter = !!model.stone && !settled.has(settleKey) && !deps.reducedMotion();
       if (model.stone) settled.add(settleKey);
       host.innerHTML = CairnStoneDetail.html(model, { enter, loading });
+      revealChip();
       painted = sig;
       current = model;
     }
@@ -59,6 +69,12 @@
           if (!link) return;
           event.preventDefault();
           deps.navigate(link.target);
+        },
+        "stone-detail-open": (el, event) => {
+          const next = el.getAttribute("data-stone-detail-open") || "";
+          if (!CairnStoneDetailModel.isStone(next) || next === deps.stone) return;
+          event.preventDefault();
+          deps.navigate({ tab: "you", section: "stone", id: next });
         },
         "home-back": (_el, event) => {
           event.preventDefault();

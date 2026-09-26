@@ -36,7 +36,9 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
           title: "Health: where you stand",
           sub: "Your markers, what they connect to, and what to do next",
         },
+        { view: "stand", section: "markers", title: "Markers", sub: "Every result, searchable, out of range first" },
         { view: "stand", section: "records", title: "Records", sub: "Add labs or scans, and everything already uploaded" },
+        { view: "stand", section: "share", title: "Doctor packet", sub: "Your labs in clinical order, ready for a visit" },
         { view: "stand", section: "checkup", title: "Checkup", sub: "What is worth re-checking, and when" },
       ],
     },
@@ -69,12 +71,12 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
         (group, groupIndex) =>
           `<section class="you-group reveal" style="--i:${groupIndex + 1}" aria-labelledby="youGroup-${escAttr(group.key)}">
         <h2 class="lbl you-group-h" id="youGroup-${escAttr(group.key)}">${escHtml(group.title)}</h2>
-        <div class="set-you">${group.rows
+        <div class="set-you you-list">${group.rows
           .map(
             (row) =>
-              `<button class="set-you-card" type="button" data-you-view="${escAttr(row.view)}" data-you-section="${escAttr(row.section || "")}">
-            <span class="set-you-t">${escHtml(row.title)}</span><span class="set-you-s">${escHtml(row.sub)}</span>
-            <span class="set-you-arw" aria-hidden="true">›</span>
+              `<button class="set-you-card you-row" type="button" data-you-view="${escAttr(row.view)}" data-you-section="${escAttr(row.section || "")}">
+            <span class="you-row-text"><span class="set-you-t">${escHtml(row.title)}</span><span class="set-you-s">${escHtml(row.sub)}</span></span>
+            <span class="set-you-arw chev" aria-hidden="true">›</span>
           </button>`
           )
           .join("")}</div>
@@ -163,6 +165,8 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
 
   function renderLanding(): void {
     view.innerHTML = `<div class="you-landing">
+      <div class="you-lede reveal"><p class="voice voice-sm you-voice">Six parts of you, read together.</p>
+        <button class="you-search" type="button" data-you-view="stand" data-you-section="markers"><span class="you-search-glyph" aria-hidden="true"></span>Search markers, records, notes…</button></div>
       <div class="you-cairn" id="cairnStackSlot"></div>
       ${youLandingHtml()}
     </div>`;

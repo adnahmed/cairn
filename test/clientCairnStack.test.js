@@ -152,6 +152,13 @@ test("the stack: a six-stone pile the base widest, and one row per stone with it
   assert.equal(rows[0].getAttribute("aria-label"), "Strength: planned. Upper day is on the plan.");
   assert.equal(rows[3].getAttribute("aria-label"), "Recovery: quiet");
   assert.equal(host.querySelectorAll(".cairn-stack-line").length, 2, "a line only where the server wrote one");
+  assert.deepEqual(
+    pile.querySelectorAll(".stack-pile-word").map((el) => el.textContent),
+    ["planned", "building", "in progress", "quiet", "on course", "worth noting"],
+    "the pile names each stone beside it, in the server's words"
+  );
+  assert.equal(pile.querySelectorAll(".stack-pile-leader").length, 6);
+  assert.equal(pile.querySelectorAll(".stack-pile-flag").length, 1, "only the watch stone carries the dawn mark");
 });
 
 test("the stack never reads as a score, and hostile server text stays text", () => {
@@ -366,6 +373,31 @@ test("a home tap navigates to its route; the step back returns to You; modified 
   assert.deepEqual(rec.backs, ["you"]);
 });
 
+test("the detail switches between the six and names the stones it moves with, each in its own word", async () => {
+  const win = loadClientModule(DETAIL);
+  const host = createHost(win.document);
+  const rec = recorder({ warm: read() });
+  win.CairnStoneDetailController.mount(host, { ...rec.deps, stone: "heart" });
+  const chips = host.querySelectorAll(".stone-detail-chip");
+  assert.equal(chips.length, 6);
+  assert.deepEqual(
+    chips.filter((c) => c.getAttribute("aria-current") === "page").map((c) => c.getAttribute("data-stone-detail-open")),
+    ["heart"]
+  );
+  assert.deepEqual(
+    host.querySelectorAll(".stone-detail-peer").map((p) => p.getAttribute("data-stone-detail-open")),
+    ["body", "endurance", "fuel"]
+  );
+  assert.deepEqual(
+    host.querySelectorAll(".stone-detail-pword").map((w) => w.textContent),
+    ["on course", "building", "in progress"],
+    "a peer speaks the server's word, never one worked out here"
+  );
+  await fire(host.querySelector('.stone-detail-peer[data-stone-detail-open="fuel"]'), click());
+  await fire(host.querySelector('.stone-detail-chip[data-stone-detail-open="heart"]'), click());
+  assert.deepEqual(rec.navigations, [{ tab: "you", section: "stone", id: "fuel" }], "the open stone's own chip goes nowhere");
+});
+
 // ---------- the You landing ----------
 
 function loadYou(stateOverrides = {}) {
@@ -393,13 +425,17 @@ function loadYou(stateOverrides = {}) {
   return { win, tabs, state, replaced };
 }
 
-test("the You landing leads with the whole cairn, then Health, About you and Settings", async () => {
+test("the You landing leads with one voice line and the search, then the whole cairn, then Health, About you and Settings", async () => {
   const { win, tabs, state } = loadYou();
   win.renderYou();
   assert.equal(win.headerTitle.textContent, "You");
   const landing = win.view.querySelector(".you-landing");
-  assert.equal(landing.children[0].className, "you-cairn", "the stack leads");
-  assert.ok(landing.children[0].querySelector(".cairn-stack"));
+  assert.equal(landing.children[0].className, "you-lede reveal", "one calm voice line leads");
+  const search = landing.children[0].querySelector(".you-search");
+  assert.equal(search.getAttribute("data-you-view"), "stand");
+  assert.equal(search.getAttribute("data-you-section"), "markers", "the search opens the searchable markers");
+  assert.equal(landing.children[1].className, "you-cairn", "the stack follows");
+  assert.ok(landing.children[1].querySelector(".cairn-stack"));
   assert.equal(win.view.querySelectorAll(".cairn-stack-row").length, 6);
   assert.deepEqual(
     win.view.querySelectorAll(".you-group-h").map((h) => h.textContent),
@@ -407,6 +443,7 @@ test("the You landing leads with the whole cairn, then Health, About you and Set
   );
   assert.match(win.view.textContent, /Health: where you stand/);
   assert.match(win.view.textContent, /Add labs or scan/);
+  assert.match(win.view.textContent, /Doctor packet/, "the packet is one tap from You");
   assert.doesNotMatch(win.view.textContent, /\bStand\b/, "Stand reads as Health in athlete-facing copy");
 
   await fire(win.view.querySelector('a[data-cairn-stack-go="heart"]'), click());
@@ -477,8 +514,20 @@ test("Health is Health: its title, its steps back, and no decade tile on its ove
 });
 
 test("About you and Settings step back to You", () => {
+  // One shared rule (ui-shell) leads every About-you bar with the step back; Profile and
+  // Memory (me-health-screen), Life and Family (me-records-screen) all route through it.
+  const shell = readFileSync(path.join(ROOT, "src/client/ui-shell.ts"), "utf8");
+  assert.match(shell, /function aboutYouSegBar[\s\S]*?homeBackHtml\("you", "You"\)/);
   const me = readFileSync(path.join(ROOT, "src/client/me-health-screen.ts"), "utf8");
-  assert.match(me, /isAboutYouBar\(items\) \? homeBackHtml\("you", "You"\)/);
+  assert.match(me, /segBar: aboutYouSegBar/);
+  assert.match(me, /wireSeg: aboutYouWireSeg/);
+  const records = readFileSync(path.join(ROOT, "src/client/me-records-screen.ts"), "utf8");
+  for (const fn of ["lifeControllerDeps", "familyControllerDeps"]) {
+    const body = records.slice(records.indexOf(`function ${fn}`));
+    const deps = body.slice(0, body.indexOf("\n}\n"));
+    assert.match(deps, /segBar: aboutYouSegBar/, `${fn} steps back to You`);
+    assert.match(deps, /wireSeg: aboutYouWireSeg/, `${fn} wires the step back`);
+  }
   const settings = readFileSync(path.join(ROOT, "src/client/settings-screen.ts"), "utf8");
   assert.match(settings, /homeBackHtml\("you", "You"\)/);
   assert.doesNotMatch(settings, /renderYouSlice/, "the old You slice is the You landing now");

@@ -7,8 +7,8 @@
   border-radius:var(--radius-sm);padding:11px;font-size:.9rem;color-scheme:light}
 
 .agentmeta{flex:1;min-width:0}
-.agentname{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 32;
-  font-size:1.02rem;display:flex;align-items:center;gap:7px}
+.agentname{font-family:var(--font-display);font-weight:400;
+  font-size:var(--text-lg);display:flex;align-items:center;gap:7px}
 .agentstatus{display:flex;align-items:center;gap:6px;font-size:.68rem;font-weight:600;
   letter-spacing:.04em;color:var(--muted);margin-top:3px}
 .agentdot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:var(--line-2)}
@@ -28,7 +28,7 @@
 .agenthealth-rows{margin-top:9px;border-top:1px solid var(--line);padding-top:8px}
 .agenthealth-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
   padding:4px 0;font-size:.82rem}
-.agenthealth-name{font-family:var(--font-display);font-weight:540;font-variation-settings:"opsz" 28;
+.agenthealth-name{font-family:var(--font-ui);font-weight:600;
   color:var(--ink)}
 .agenthealth-stat{color:var(--muted);font-variant-numeric:lining-nums;text-align:right;
   flex:0 0 auto}

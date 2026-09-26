@@ -14,7 +14,7 @@ type HealthRecordDocument = import("../contracts/client-api.js").ClientHealthDoc
         <span id="hFileName">${escHtml(filePrompt)}</span>
       </label>
       <textarea id="hText" class="hupload-text" rows="4" placeholder="Paste result text or HTML export"></textarea>
-      <button id="hUpload" class="logbtn hupload-btn" disabled>ADD &amp; ANALYZE</button>
+      <button id="hUpload" class="logbtn hupload-btn" disabled>Add and read it</button>
       <div id="hStatus" role="status" aria-live="polite" style="margin-top:6px;color:var(--muted);font-size:.82rem"></div>
     </div>`;
   }

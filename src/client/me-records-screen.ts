@@ -109,9 +109,9 @@ function lifeControllerDeps(): ClientLifeControllerDeps {
     invalidatePoll: () => {
       pollToken++;
     },
-    segBar,
+    segBar: aboutYouSegBar,
     toast,
-    wireSeg,
+    wireSeg: aboutYouWireSeg,
   };
 }
 
@@ -137,10 +137,10 @@ function familyControllerDeps(): ClientFamilyControllerDeps {
       pollToken++;
     },
     localISO,
-    segBar,
+    segBar: aboutYouSegBar,
     toast,
     viewEnter,
-    wireSeg,
+    wireSeg: aboutYouWireSeg,
     withViewTransition,
     renderLife,
   };

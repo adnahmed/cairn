@@ -4,15 +4,14 @@
    gets a display title + a hairline rule, so the long Settings view reads
    as a few clear sections instead of one flat stack of toggles.
    ------------------------------------------------------------------- */
-.set-lede{font-size:.9rem;color:var(--ink-2);line-height:1.55;margin:8px 2px 0}
 .set-group{margin-top:30px}
-.set-group:first-child,.set-lede + .set-group{margin-top:20px}
+.set-group:first-child{margin-top:20px}
 .set-group-title{
-  font-family:var(--font-display);font-weight:560;font-size:1.22rem;
-  font-variation-settings:"opsz" 40;letter-spacing:-.01em;color:var(--ink);
-  padding-bottom:9px;border-bottom:1px solid var(--line);
+  font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);
+  letter-spacing:-.01em;color:var(--ink);
+  padding-bottom:8px;border-bottom:1px solid var(--line);
 }
-.set-group-sub{font-size:.83rem;color:var(--muted);line-height:1.5;margin-top:8px}
+.set-group-sub{font-size:var(--text-sm);color:var(--muted);line-height:1.5;margin-top:8px}
 
 /* per-task agent routing — a calm, collapsed-by-default advanced disclosure */
 .route-card>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px}
@@ -41,8 +40,8 @@
 /* Agent connect-cards: an inset card per agent (state chip + meta on top, the
    order/enable controls + connect/detail actions below). Reuses agentname/agentdesc/agentctl/ordbtn/togglebtn from the agent
    block above and the standard --card-2 inset surface. */
-.agent-card{background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius);
-  padding:13px 14px;margin-bottom:10px}
+.agent-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:13px 14px;margin-bottom:var(--space-card)}
 .agent-card.off{opacity:.6}
 .agent-card-top{display:flex;align-items:flex-start;gap:10px}
 .agent-card-top .agentmeta{flex:1;min-width:0}
@@ -58,7 +57,7 @@
 
 /* state chip — calm, never an alarming red. Sage = connected, terracotta-ink invite
    = connect, neutral = installed, gold = not installed (an input is simply absent). */
-.agent-chip{flex:0 0 auto;font-family:var(--font-ui);font-size:.58rem;font-weight:700;
+.agent-chip{flex:0 0 auto;font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:400;
   letter-spacing:.08em;text-transform:uppercase;border-radius:var(--radius-pill);padding:3px 9px;
   white-space:nowrap;line-height:1.5}
 .agent-chip-ok{color:var(--sage);background:var(--sage-bg)}
@@ -125,3 +124,32 @@
 .weekfold[open] .weekfold-chev{transform:rotate(180deg)}
 .weekfold[open] .statstrip-compass{animation:rise var(--dur-3) var(--ease) both}
 
+
+/* ---- Atelier v2 (wave 6A): a source is one card — its name in serif with a mono
+   tag, the live state and its one action first, the fields, then "how it works"
+   folded behind a quiet disclosure so the first view is never a wall of prose. ---- */
+.set-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px;margin-top:var(--space-6)}
+/* The mono tag always sits under the name, so every source card's head reads alike
+   at any width (inline, a longer tag wrapped under one name and not another). */
+.set-card-head{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.set-card-h{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);letter-spacing:-.01em;color:var(--ink)}
+.set-card .syncrow{margin:6px 0 12px}
+.set-card .field{margin-bottom:12px}
+#setSlice .field label{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);margin-bottom:5px}
+.set-card .field input,.set-card .field select{background:var(--ground);border-radius:var(--radius-xs);padding:9px 11px;font-size:var(--text-base)}
+.set-card .field input:focus,.set-card .field select:focus{outline:none;border-color:var(--dawn)}
+.set-toggle{margin-top:4px;font-size:var(--text-md)}
+.set-card .sess-line{font-size:var(--text-sm);line-height:1.5}
+.set-more{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.set-more>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;min-height:32px;
+  font-size:var(--text-sm);color:var(--ink2)}
+.set-more>summary::-webkit-details-marker{display:none}
+.set-more>summary::after{content:"›";color:var(--muted);transition:transform var(--dur-1) var(--ease)}
+.set-more[open]>summary::after{transform:rotate(90deg)}
+.set-more>.sess-line{color:var(--muted);margin-top:6px}
+.set-more .ah-fields{margin:8px 0 4px}
+.ah-rows .sess-line{color:var(--muted)}
+.set-card .ah-builder-actions{margin-top:10px}
+.set-card .ghostbtn{margin-top:0}
+@media (prefers-reduced-motion:reduce){.set-more>summary::after{transition:none}}

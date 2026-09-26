@@ -2141,8 +2141,8 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   border-radius:var(--radius-sm);padding:11px;font-size:.9rem;color-scheme:light}
 
 .agentmeta{flex:1;min-width:0}
-.agentname{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 32;
-  font-size:1.02rem;display:flex;align-items:center;gap:7px}
+.agentname{font-family:var(--font-display);font-weight:400;
+  font-size:var(--text-lg);display:flex;align-items:center;gap:7px}
 .agentstatus{display:flex;align-items:center;gap:6px;font-size:.68rem;font-weight:600;
   letter-spacing:.04em;color:var(--muted);margin-top:3px}
 .agentdot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:var(--line-2)}
@@ -2162,7 +2162,7 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .agenthealth-rows{margin-top:9px;border-top:1px solid var(--line);padding-top:8px}
 .agenthealth-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
   padding:4px 0;font-size:.82rem}
-.agenthealth-name{font-family:var(--font-display);font-weight:540;font-variation-settings:"opsz" 28;
+.agenthealth-name{font-family:var(--font-ui);font-weight:600;
   color:var(--ink)}
 .agenthealth-stat{color:var(--muted);font-variant-numeric:lining-nums;text-align:right;
   flex:0 0 auto}
@@ -2496,6 +2496,47 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .linj-swap{font-size:.76rem;color:var(--ink-2);background:var(--card);
   border:1px solid var(--line-2);border-radius:var(--radius-pill);padding:3px 10px}
 
+
+/* ---- Atelier v2 (wave 6A): Records reads as a ledger, not a stack of cards ----
+   The upload is one compact card (a segmented type, a dashed drop row, a short
+   paste well, one small solid button); the documents below are hairline rows in
+   one card — a sans title, the badge right, a muted teaser — that open in place. */
+.hupload{background:var(--surface);border:1px solid var(--line);box-shadow:none;padding:12px 14px}
+.upload-mode{gap:2px;padding:3px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--ground);width:max-content}
+.upload-mode-btn{border:0;padding:6px 12px;font:500 var(--text-sm) var(--font-ui);letter-spacing:0;text-transform:none;color:var(--ink2)}
+.upload-mode-btn.is-active{background:var(--ink);color:var(--on-ink)}
+.hupload-file{padding:12px;font-size:var(--text-md);border-color:var(--line-strong);border-radius:var(--radius-md);justify-content:flex-start}
+/* The prompt names every format it takes, so it wraps rather than clipping; a long
+   chosen file name breaks anywhere instead of running off the card. */
+.hupload-file{white-space:normal;text-align:left}
+#hFileName{min-width:0;overflow-wrap:anywhere;line-height:1.35}
+.hupload-plus{flex:none;font-size:1.05rem;line-height:1;color:var(--dawn)}
+.hupload-text{min-height:64px;background:var(--ground);border-radius:var(--radius-md);font-size:var(--text-md)}
+.hupload-text:focus{outline:none;border-color:var(--dawn)}
+.hupload-btn.logbtn{width:auto;height:auto;padding:8px 18px;font-size:.84rem;font-weight:500;letter-spacing:0}
+#hlist{margin-top:var(--space-9);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:0 14px}
+#hlist:empty{display:none}
+#hlist > .empty{padding:14px 0}
+#hlist .sess.hdoc{background:none;border:0;border-top:1px solid var(--line);border-radius:0;box-shadow:none;margin:0;padding:12px 0}
+#hlist .sess.hdoc:first-child{border-top:0}
+#hlist .hdoc-done{box-shadow:none}
+#hlist .hdoc .sess-date{font-family:var(--font-ui);font-variation-settings:normal;font-weight:600;font-size:var(--text-base);
+  letter-spacing:0;color:var(--ink)}
+#hlist .hdoc .sess-line{font-size:var(--text-sm);color:var(--muted);margin-top:3px}
+#hlist .hdoc-teaser{padding:3px 0 0;font-size:var(--text-sm);color:var(--muted)}
+.hdoc-teaser-more{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);color:var(--dawn-deep)}
+.hdoc-link{font-family:var(--font-ui);font-size:var(--text-sm);font-weight:500;letter-spacing:0;text-transform:none;color:var(--ink);
+  padding:6px 13px;border-color:var(--line)}
+.hdoc-link:active,.hdoc-link:hover{color:var(--ink);border-color:var(--line-strong)}
+.hdoc-foot{margin-top:12px;padding-top:10px}
+.hdoc-date-save,.hdoc-date-cancel{font-size:var(--text-sm);font-weight:500;letter-spacing:0;text-transform:none;padding:6px 13px}
+.hdoc-tag{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono)}
+.hm-val{font-family:var(--font-ui);font-variation-settings:normal;font-weight:600;font-variant-numeric:tabular-nums}
+.hm-flag{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:.08em}
+/* memory: tags in mono, rows lighter */
+.memtag{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono)}
+.memadd select,.memadd input{background:var(--surface)}
+.memadd input:focus{outline:none;border-color:var(--dawn)}
 /* -------------------------------------------------------------------
    21 · Modals — bottom sheet (mobile) / dialog (desktop)
    ------------------------------------------------------------------- */
@@ -4244,15 +4285,14 @@ body.swr-busy::after{
    gets a display title + a hairline rule, so the long Settings view reads
    as a few clear sections instead of one flat stack of toggles.
    ------------------------------------------------------------------- */
-.set-lede{font-size:.9rem;color:var(--ink-2);line-height:1.55;margin:8px 2px 0}
 .set-group{margin-top:30px}
-.set-group:first-child,.set-lede + .set-group{margin-top:20px}
+.set-group:first-child{margin-top:20px}
 .set-group-title{
-  font-family:var(--font-display);font-weight:560;font-size:1.22rem;
-  font-variation-settings:"opsz" 40;letter-spacing:-.01em;color:var(--ink);
-  padding-bottom:9px;border-bottom:1px solid var(--line);
+  font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);
+  letter-spacing:-.01em;color:var(--ink);
+  padding-bottom:8px;border-bottom:1px solid var(--line);
 }
-.set-group-sub{font-size:.83rem;color:var(--muted);line-height:1.5;margin-top:8px}
+.set-group-sub{font-size:var(--text-sm);color:var(--muted);line-height:1.5;margin-top:8px}
 
 /* per-task agent routing — a calm, collapsed-by-default advanced disclosure */
 .route-card>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:7px}
@@ -4281,8 +4321,8 @@ body.swr-busy::after{
 /* Agent connect-cards: an inset card per agent (state chip + meta on top, the
    order/enable controls + connect/detail actions below). Reuses agentname/agentdesc/agentctl/ordbtn/togglebtn from the agent
    block above and the standard --card-2 inset surface. */
-.agent-card{background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius);
-  padding:13px 14px;margin-bottom:10px}
+.agent-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:13px 14px;margin-bottom:var(--space-card)}
 .agent-card.off{opacity:.6}
 .agent-card-top{display:flex;align-items:flex-start;gap:10px}
 .agent-card-top .agentmeta{flex:1;min-width:0}
@@ -4298,7 +4338,7 @@ body.swr-busy::after{
 
 /* state chip — calm, never an alarming red. Sage = connected, terracotta-ink invite
    = connect, neutral = installed, gold = not installed (an input is simply absent). */
-.agent-chip{flex:0 0 auto;font-family:var(--font-ui);font-size:.58rem;font-weight:700;
+.agent-chip{flex:0 0 auto;font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:400;
   letter-spacing:.08em;text-transform:uppercase;border-radius:var(--radius-pill);padding:3px 9px;
   white-space:nowrap;line-height:1.5}
 .agent-chip-ok{color:var(--sage);background:var(--sage-bg)}
@@ -4365,6 +4405,35 @@ body.swr-busy::after{
 .weekfold[open] .weekfold-chev{transform:rotate(180deg)}
 .weekfold[open] .statstrip-compass{animation:rise var(--dur-3) var(--ease) both}
 
+
+/* ---- Atelier v2 (wave 6A): a source is one card — its name in serif with a mono
+   tag, the live state and its one action first, the fields, then "how it works"
+   folded behind a quiet disclosure so the first view is never a wall of prose. ---- */
+.set-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px;margin-top:var(--space-6)}
+/* The mono tag always sits under the name, so every source card's head reads alike
+   at any width (inline, a longer tag wrapped under one name and not another). */
+.set-card-head{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.set-card-h{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);letter-spacing:-.01em;color:var(--ink)}
+.set-card .syncrow{margin:6px 0 12px}
+.set-card .field{margin-bottom:12px}
+#setSlice .field label{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);margin-bottom:5px}
+.set-card .field input,.set-card .field select{background:var(--ground);border-radius:var(--radius-xs);padding:9px 11px;font-size:var(--text-base)}
+.set-card .field input:focus,.set-card .field select:focus{outline:none;border-color:var(--dawn)}
+.set-toggle{margin-top:4px;font-size:var(--text-md)}
+.set-card .sess-line{font-size:var(--text-sm);line-height:1.5}
+.set-more{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.set-more>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;min-height:32px;
+  font-size:var(--text-sm);color:var(--ink2)}
+.set-more>summary::-webkit-details-marker{display:none}
+.set-more>summary::after{content:"›";color:var(--muted);transition:transform var(--dur-1) var(--ease)}
+.set-more[open]>summary::after{transform:rotate(90deg)}
+.set-more>.sess-line{color:var(--muted);margin-top:6px}
+.set-more .ah-fields{margin:8px 0 4px}
+.ah-rows .sess-line{color:var(--muted)}
+.set-card .ah-builder-actions{margin-top:10px}
+.set-card .ghostbtn{margin-top:0}
+@media (prefers-reduced-motion:reduce){.set-more>summary::after{transition:none}}
 /* -------------------------------------------------------------------
    30 · Reduced motion — kill the decorative, keep the functional
    ------------------------------------------------------------------- */
@@ -5009,8 +5078,10 @@ button.hmk-row:active{background:var(--card-2)}
 .stand-read-top .stand-read-k{margin-bottom:6px}
 .stand-read-refresh{flex:0 0 auto;font-size:.72rem;letter-spacing:.02em;display:inline-flex;align-items:center;gap:5px}
 .stand-read-gen{margin-top:2px}
-.stand-read-lede{font-family:var(--font-display);font-weight:460;font-variation-settings:"opsz" 48;
-  font-size:1.2rem;line-height:1.32;color:var(--ink);margin:0 0 15px;text-wrap:balance;max-width:60ch}
+.stand-read-lede{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1.18;
+  letter-spacing:-.01em;color:var(--ink);margin:0 0 14px;text-wrap:balance;max-width:28ch}
+/* the invite to read the whole picture: one small solid button, never a full-width slab */
+.draftbtn.stand-read-gen{display:inline-flex;width:auto;padding:8px 16px;margin-top:0}
 .stand-zones{display:flex;flex-direction:column;gap:10px}
 .stand-zone{background:var(--card);border-radius:15px;box-shadow:var(--shadow-sm);border-left:3px solid var(--line-2);
   padding:13px 15px;cursor:pointer;transition:transform var(--dur-1) var(--ease)}
@@ -5050,47 +5121,52 @@ button.hmk-row:active{background:var(--card-2)}
 .stand-sp-why{max-height:none;overflow:visible;margin-top:8px;font-size:.83rem;color:var(--muted);line-height:1.45}
 .stand-sp-why .stand-ask{display:block;margin-top:8px}
 .stand-ask-all{display:inline-block;margin-top:2px}
-.stand-browse{display:flex;align-items:baseline;justify-content:space-between;gap:12px;color:var(--muted);margin:0 2px 9px}
-.stand-allmk{flex:0 0 auto;font-size:.72rem;letter-spacing:.02em}
+.stand-browse{display:flex;align-items:baseline;justify-content:space-between;gap:12px;color:var(--muted);margin:22px 2px 8px}
+.stand-allmk{flex:0 0 auto;font-family:var(--font-ui);font-size:var(--text-sm);letter-spacing:0;text-transform:none}
 .stand-bodymetrics{margin-bottom:4px}
 
-.stand-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stand-tile{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:13px 13px 12px;
-  text-align:left;cursor:pointer;position:relative;font-family:var(--font-ui);
-  transition:box-shadow var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
-@media (hover:hover){.stand-tile:hover{box-shadow:var(--shadow-sm);border-color:var(--line-2)}}
-.stand-tile:active{transform:var(--press)}
-.stand-tile-top{display:flex;align-items:center;gap:7px}
-.stand-tile-name{font-size:.84rem;font-weight:680;color:var(--ink)}
-.stand-tile-read{display:block;font-size:.8rem;color:var(--ink-2);margin-top:7px;line-height:1.35}
-.stand-tile-read b{font-variant-numeric:lining-nums;font-weight:640}
+/* The markers index: one quiet card of hairline rows, worst-first — a dot in the
+   reading's tone, the group's name, its one-line read, a chevron. */
+.stand-grid{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:0 14px}
+.stand-tile{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:var(--space-6);
+  width:100%;background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:11px 0;
+  text-align:left;cursor:pointer;position:static;font-family:var(--font-ui);color:inherit;
+  transition:transform var(--dur-1) var(--ease)}
+.stand-tile:first-child{border-top:0}
+@media (hover:hover){.stand-tile:hover .stand-tile-name{color:var(--dawn-deep)}}
+.stand-tile:active{transform:var(--press-lg)}
+.stand-tile-top{display:flex;align-items:center;gap:var(--space-5);grid-column:1}
+.stand-tile-top .hdot{width:9px;height:9px}
+.stand-tile-name{font-size:var(--text-base);font-weight:600;color:var(--ink);transition:color var(--dur-1) var(--ease)}
+.stand-tile-read{grid-column:1;display:block;font-size:var(--text-sm);color:var(--muted);margin:2px 0 0 19px;line-height:1.4}
+.stand-tile-read b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink2)}
 .stand-tile-read.warn b{color:var(--warn)}
 .stand-tile-read.watch b{color:var(--gold-deep)}
-.stand-tile-arw{position:absolute;right:12px;bottom:11px;color:var(--line-2);font-size:.85rem}
+.stand-tile-arw{grid-column:2;grid-row:1 / span 2;color:var(--muted);font-size:1rem}
 
-/* Sticky action bar — pinned to the top of Stand so Add labs is always one tap
-   away, never buried at the scroll bottom. Full-bleed blurred scrim like the seg nav. */
+/* Sticky action bar — Add labs is always one tap away; the rest sits behind "⋯". */
 .stand-actionbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:var(--z-sticky);
   display:flex;align-items:center;justify-content:space-between;gap:10px;
-  margin:-4px calc(-1 * var(--gutter)) 14px;padding:8px var(--gutter);
+  margin:-4px calc(-1 * var(--gutter)) 10px;padding:8px var(--gutter);
   background:color-mix(in srgb,var(--ground) 86%,transparent);backdrop-filter:blur(12px) saturate(1.1);-webkit-backdrop-filter:blur(12px) saturate(1.1)}
-.stand-addbtn{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:var(--on-accent);
-  border:none;border-radius:var(--radius-pill);padding:8px 16px 8px 12px;font-family:var(--font-ui);font-weight:600;font-size:.82rem;
-  cursor:pointer;box-shadow:var(--shadow-sm);transition:transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
-.stand-addbtn:hover{background:var(--accent-deep)}
+.stand-addbtn{display:inline-flex;align-items:center;gap:6px;background:var(--ink);color:var(--on-ink);
+  border:1px solid var(--ink);border-radius:var(--radius-pill);padding:7px 14px 7px 11px;font-family:var(--font-ui);font-weight:500;font-size:.84rem;
+  cursor:pointer;transition:transform .15s var(--ease),background var(--dur-1) var(--ease)}
+.stand-addbtn:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
 .stand-addbtn:active{transform:var(--press)}
-.stand-addbtn-p{font-size:1.05rem;line-height:1}
+.stand-addbtn-p{font-size:1rem;line-height:1}
 .stand-more{position:relative}
-.stand-morebtn{background:var(--card);border:1px solid var(--line-2);color:var(--ink-2);border-radius:var(--radius-pill);
-  width:38px;height:34px;font-size:1.1rem;line-height:1;cursor:pointer;letter-spacing:.06em}
+.stand-morebtn{background:var(--surface);border:1px solid var(--line);color:var(--ink2);border-radius:var(--radius-pill);
+  width:38px;height:32px;font-size:1.05rem;line-height:1;cursor:pointer;letter-spacing:.06em}
 .stand-morebtn:active{transform:var(--press)}
 .stand-moremenu{position:absolute;right:0;top:calc(100% + 6px);z-index:var(--z-sticky-menu);min-width:200px;
-  background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-md);
   padding:6px;display:flex;flex-direction:column;animation:chipin var(--dur-1) var(--ease)}
 .stand-moremenu[hidden]{display:none}
-.stand-moreitem{text-align:left;background:none;border:none;color:var(--ink);font-family:var(--font-ui);font-size:.85rem;
+.stand-moreitem{text-align:left;background:none;border:none;color:var(--ink);font-family:var(--font-ui);font-size:var(--text-md);
   padding:9px 11px;border-radius:9px;cursor:pointer}
-.stand-moreitem:hover{background:var(--card-2)}
+.stand-moreitem:hover{background:var(--well)}
 
 /* Next checkup — the doctor-loop surfaced. Editorial recheck / follow-through read:
    due & coming-up rechecks, visible follow-through on what you've started, calm prep. */
@@ -5133,7 +5209,7 @@ button.hmk-row:active{background:var(--card-2)}
 .stand-back,.home-back{margin:2px 0 4px;font-size:.84rem}
 .stand-subhead{font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   color:var(--muted);margin:16px 2px 2px}
-.stand-detail-h{font-family:var(--font-display);font-weight:560;font-size:1.5rem;letter-spacing:-.01em;margin:2px 0 12px}
+.stand-detail-h{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1.15;letter-spacing:-.01em;margin:4px 0 12px;text-wrap:balance}
 .stand-empty{color:var(--muted);font-size:.88rem;padding:10px 2px}
 .stand-figrow{display:flex;gap:15px;align-items:center;background:var(--card);border-radius:var(--radius);
   box-shadow:var(--shadow-sm);padding:14px 16px;margin:2px 0 14px}
@@ -5192,18 +5268,21 @@ button.hmk-row:active{background:var(--card-2)}
 /* share — report/export utilities separated from the marker catalog */
 .hshare{display:grid;gap:14px}
 .hshare-grid{display:grid;gap:14px}
-.hshare-card{background:var(--card);box-shadow:var(--shadow-sm);border:1px solid var(--line);
-  border-radius:var(--radius);padding:18px;min-width:0}
+.hshare-card{background:var(--surface);box-shadow:none;border:1px solid var(--line);
+  border-radius:var(--radius);padding:16px;min-width:0}
+/* the packet is the page: it sits on the ground, not in a card of its own */
+.hshare-card.packet{background:none;border:0;padding:0}
 .hshare-card-main{display:grid;gap:16px}
-.hshare-kicker{margin:0 0 6px;color:var(--ink-2)}
-.hshare-title,.hshare-subtitle{font-family:var(--font-display);font-style:italic;
-  font-variation-settings:"opsz" 60;color:var(--ink);letter-spacing:0}
-.hshare-title{margin:0;font-weight:540;font-size:1.28rem;line-height:1.12}
-.hshare-subtitle{margin:0;font-weight:530;font-size:1.02rem;line-height:1.2}
-.hshare-copy{margin:8px 0 0;color:var(--muted);font-size:.86rem;line-height:1.5}
-.hshare-meta{margin-top:12px;color:var(--ink-2);font-size:.74rem;letter-spacing:.04em;text-transform:uppercase}
+.hshare-kicker{margin:0 0 4px;color:var(--muted)}
+.hshare-title,.hshare-subtitle{font-family:var(--font-display);font-style:normal;font-weight:400;
+  color:var(--ink);letter-spacing:-.01em}
+.hshare-title{margin:0;font-size:var(--text-xl);line-height:1.15;text-wrap:balance}
+.hshare-subtitle{margin:0;font-size:var(--text-lg);line-height:1.2}
+.hshare-copy{margin:6px 0 0;color:var(--muted);font-size:var(--text-md);line-height:1.5}
+.hshare-meta{margin-top:12px;color:var(--muted);font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);text-transform:uppercase}
 .hshare-actions{display:flex;align-items:center}
-.hshare-card .logbtn,.hshare-card .ghostbtn{width:100%;min-height:42px}
+/* small rounded buttons, never a full-width bar (the brief's button) */
+.hshare-card .logbtn,.hshare-card .ghostbtn{width:auto;justify-self:start;min-height:40px;padding:0 18px;font-size:.84rem}
 @media (prefers-reduced-motion: no-preference){
   .hchart-line{stroke-dasharray:680;stroke-dashoffset:680}
   .hmk.open .hchart-line{animation:sparkdraw .8s var(--ease) .1s forwards}
@@ -5214,6 +5293,16 @@ button.hmk-row:active{background:var(--card-2)}
 }
 @keyframes sparkdraw{to{stroke-dashoffset:0}}
 
+
+/* the conductor's focus, after the markers: context, not the lead — one quiet card */
+.stand-focus-after{margin-top:var(--space-10)}
+.stand-focus-after:empty{display:none}
+.stand-focus-after .cfocus{box-shadow:none;border:1px solid var(--line);border-left:1px solid var(--line);background:var(--surface)}
+.stand-focus-after .cfocus-headline,.stand-focus-after .cfocus-lead-title{font-weight:400;font-variation-settings:normal}
+.stand-focus-after .cfocus-headline{font-size:var(--text-lg);line-height:1.25}
+.stand-focus-after .cfocus-lead-title{font-size:var(--text-base)}
+.stand-read .stand-read-k{margin-bottom:4px}
+.stand-tool-lede{margin:-4px 0 14px;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}
 /* =====================================================================
    About-me editor (Me -> Profile) — calm invitational free-text field
    ===================================================================== */
@@ -5418,6 +5507,36 @@ button.hmk-row:active{background:var(--card-2)}
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .ctxbanner-go{margin-left:auto;flex:0 0 auto;color:var(--sage);font-weight:600}
 
+
+/* =====================================================================
+   About you, Atelier v2 (wave 6A): a plain muted intro (never a card), the list
+   the coach already reads, then "Add …" folded one tap deeper. Serif names
+   settle to Young Serif's one weight; buttons are small and sentence-case.
+   ===================================================================== */
+.you-intro{margin:2px 2px 0;font-size:var(--text-md);line-height:1.55;color:var(--muted);max-width:56ch}
+.you-list-h{margin:var(--space-9) 2px var(--space-4)}
+.you-add{margin-top:var(--space-9)}
+.you-add-sum{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+  padding:7px 14px 7px 11px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--surface);
+  font-size:.84rem;font-weight:500;color:var(--ink);transition:transform .15s var(--ease),border-color var(--dur-1) var(--ease)}
+.you-add-sum::-webkit-details-marker{display:none}
+.you-add-sum:hover{border-color:var(--line-strong)}
+.you-add-sum:active{transform:var(--press)}
+.you-add-plus{font-size:1rem;line-height:1;color:var(--dawn)}
+.you-add[open] .you-add-sum{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+.you-add[open] .you-add-plus{color:inherit;transform:rotate(45deg)}
+.you-add[open] .lifeadd{margin-top:var(--space-6);animation:settlein var(--dur-2) var(--ease) both}
+.lifeadd{background:var(--surface);border:1px solid var(--line);box-shadow:none;padding:14px}
+.lifeadd .ob-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lifeadd .field label,.lifeadd .field .field-label{font-family:var(--font-mono);font-weight:400;letter-spacing:var(--tracking-mono);font-size:var(--text-2xs)}
+.lifeadd .field input,.lifeadd .field select,.lifeadd .form-input,.lifeadd .selflex{background:var(--ground);border-radius:var(--radius-xs);padding:9px 11px;font-size:var(--text-base);min-width:0}
+.lifeadd input:focus,.lifeadd select:focus{outline:none;border-color:var(--dawn)}
+.logbtn.you-add-btn{width:auto;height:auto;padding:8px 18px;font-size:.84rem;font-weight:500;letter-spacing:0}
+.fam-mono{font-weight:400;font-variation-settings:normal;box-shadow:none}
+.fam-name{font-weight:400;font-variation-settings:normal;font-size:var(--text-lg)}
+.aboutme textarea{background:var(--surface);border-radius:var(--radius-md);font-size:var(--text-md)}
+.aboutme textarea:focus{border-color:var(--dawn);box-shadow:none}
+@media (prefers-reduced-motion:reduce){.you-add[open] .lifeadd{animation:none}.you-add-sum{transition:none}}
 /* -------------------------------------------------------------------
    36 · Responsive layout — tablet 2-up grids + real desktop two-column
    ------------------------------------------------------------------- */
@@ -7452,6 +7571,48 @@ body[data-tab="session"] .tabbar{display:none}
 .evw-act{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
 .records-slot{margin:0 0 var(--space-card)}
 @media (prefers-reduced-motion:reduce){.records-hit{transition:none}}
+
+/* ---- Atelier v2 ledger (wave 6A): the marker catalog reads like a lab sheet —
+   a mono group head with its count at the right on a hairline, one quiet card of
+   hairline rows per group, a sans name with its trend beside it, a tabular value,
+   and the two marks as small chips: the lab's own flag (mono, heart wash) apart
+   from the optimal phrase (dawn wash). ---- */
+.records-controls .hmk-search-in{height:42px;background:var(--surface);border-color:var(--line);font-size:var(--text-base)}
+.records-controls .hmk-search-in:focus{border-color:var(--dawn)}
+.hmk-groups{gap:0}
+.hmk-section + .hmk-section{margin-top:var(--space-10)}
+.hmk-grouphead{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-6);max-width:none;
+  margin:0 calc(-1 * var(--gutter)) var(--space-4);padding:8px calc(var(--gutter) + 2px) 7px;border:0;border-radius:0;
+  border-bottom:1px solid var(--line);color:var(--muted);background:color-mix(in srgb,var(--ground) 90%,transparent)}
+.hmk-headcount{margin-left:auto;padding:0;background:none;color:var(--muted);font-family:var(--font-ui);
+  font-size:var(--text-xs);font-weight:500;letter-spacing:0;text-transform:none}
+.hmk-card{background:var(--surface);border:1px solid var(--line);box-shadow:none;border-radius:var(--radius);padding:0 14px}
+.hmk-subhead{padding:10px 0 6px;font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono)}
+.hmk-row{padding:11px 0;gap:var(--space-5);align-items:flex-start}
+.hmk-row > .hdot{margin-top:7px}
+button.hmk-row:active{background:none;transform:var(--press-lg)}
+.hmk .trend-lead{gap:2px 8px}
+.hmk .trend-lead-name{font-family:var(--font-ui);font-variation-settings:normal;font-weight:600;font-size:var(--text-base);
+  line-height:1.35;color:var(--ink);letter-spacing:0}
+.hmk .trend-lead-phrase{font-size:var(--text-xs);font-weight:500}
+.hmk-when{font-size:var(--text-xs);line-height:1.4;letter-spacing:0}
+.hmk-right{align-items:baseline;gap:var(--space-4);padding-top:1px}
+.hmk-val{font-family:var(--font-ui);font-variation-settings:normal;font-weight:600;font-size:var(--text-base);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.hmk-unit{font-size:var(--text-xs);font-weight:400;letter-spacing:0}
+.hmk-delta{font-size:var(--text-xs);font-variant-numeric:tabular-nums}
+.hmk-marks{margin:3px 0 2px;gap:var(--space-2)}
+.hmk-flag,.hmk-opt{padding:1px 7px;border:0;font-size:var(--text-xs);font-weight:500}
+.hmk-flag{background:color-mix(in srgb,var(--s-heart) 28%,transparent);color:var(--d-heart);font-family:var(--font-mono);
+  font-size:var(--text-2xs);letter-spacing:.08em;text-transform:uppercase;padding:2px 7px}
+.hmk-flag-src{font-size:inherit;opacity:.75}
+.hmk-opt{background:var(--dawn-wash);color:var(--dawn-deep)}
+.hmk-directive{border-left:0;border-radius:var(--radius-sm);background:var(--dawn-wash);font-size:var(--text-sm);
+  margin:0 0 12px;padding:9px 12px}
+.hmk-directive:hover{background:color-mix(in srgb,var(--dawn) 16%,transparent)}
+.records-hits{background:var(--surface);border:1px solid var(--line);box-shadow:none;padding:0 14px}
+.records-hit{padding:11px 0}
+.records-hit-kind{font-family:var(--font-mono);font-weight:400;letter-spacing:var(--tracking-mono)}
 /* =====================================================================
    Doctor packet (Wave 3 stream C): packet-builder (.packet-*) and
    visit-questions (.vq-*), mounted in the Share view's records slot. One
@@ -7519,6 +7680,69 @@ ul.packet-rows{list-style:none;padding-left:0}
   .packet-preview,.packet-seg .segbtn{transition:none}
   .packet-paper.settle-in,.vq-item.settle-in{animation:none}
 }
+
+/* ---- Atelier v2 (wave 6A): the packet as the moonshot draws it ----
+   Each section's Include / Leave out pair renders as ONE switch: the choice not
+   taken covers the whole track, so a tap anywhere flips it; the taken one sits
+   underneath. Both buttons keep their words for assistive tech (font-size 0 is
+   still their accessible name) and aria-pressed carries the state. The preview
+   is paper — it stays paper-light in both themes, because it is what prints. */
+.packet{gap:var(--space-9)}
+.packet-toggles{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:0 14px}
+.hshare-card .packet-toggles{background:none;border:0;border-radius:0;padding:0}
+.packet-toggle-list{gap:0}
+.packet-toggle{flex-wrap:nowrap;padding:10px 0;min-height:48px}
+.packet-toggle-label{flex:1 1 auto;font-size:var(--text-base)}
+.seg.packet-seg{position:relative;flex:0 0 auto;width:44px;height:26px;margin:0;padding:0;border:0;
+  border-radius:var(--radius-pill);background:var(--line-strong);overflow:hidden;display:block;
+  transition:background var(--dur-1) var(--ease)}
+.seg.packet-seg.is-on,.seg.packet-seg:has([data-packet-section="on"].active){background:var(--d-endurance)}
+.packet-seg .segbtn{position:absolute;inset:0;min-height:0;padding:0;font-size:0;color:transparent;
+  background:transparent;border-radius:var(--radius-pill);flex:none}
+.packet-seg .segbtn.active{background:transparent;color:transparent;z-index:0;pointer-events:none}
+.packet-seg .segbtn:not(.active){z-index:2}
+.packet-seg .segbtn:active{transform:none}
+.seg.packet-seg::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);z-index:1;pointer-events:none;
+  transition:transform var(--dur-1) var(--ease)}
+.seg.packet-seg.is-on::after,.seg.packet-seg:has([data-packet-section="on"].active)::after{transform:translateX(18px)}
+.packet-seg:focus-within{outline:2px solid var(--dawn);outline-offset:2px}
+
+.packet-paper{--paper-bg:#fdfbf7;--paper-ink:#23201d;--paper-muted:#6b635c;--paper-rule:#e3dccf;
+  background:var(--paper-bg);color:var(--paper-ink);border:0;border-radius:6px;padding:18px 16px;gap:12px;
+  box-shadow:0 1px 2px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.12);
+  font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-size:12px;line-height:1.5}
+.packet-paper .packet-pv-head{font-family:inherit;font-size:11px;color:var(--paper-muted)}
+.packet-paper .packet-pv-title{margin:0 0 4px;padding-bottom:3px;border-bottom:1px solid var(--paper-rule);
+  font-family:var(--font-ui);font-size:9.5px;font-weight:600;letter-spacing:.12em;color:var(--paper-muted)}
+.packet-paper .packet-rows{gap:0;padding-left:0}
+.packet-paper ol.packet-rows{padding-left:16px}
+.packet-paper .packet-row{font-size:12px;color:var(--paper-ink);padding:3px 0;border-top:1px dotted var(--paper-rule)}
+.packet-paper .packet-row:first-child{border-top:0}
+.packet-paper .packet-row-meta{font-size:10.5px;color:var(--paper-muted)}
+.packet-paper .packet-flag,.packet-paper .packet-opt{font-family:var(--font-ui);font-size:9.5px;padding:0;background:none;border:0}
+.packet-paper .packet-flag{color:#a3372c;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.packet-paper .packet-opt{color:#8a5a12}
+.packet-paper .packet-more,.packet-paper .packet-empty-line{font-size:10.5px;color:var(--paper-muted)}
+.packet-actions{gap:var(--space-4)}
+.hshare-card .packet-act.logbtn{width:auto;flex:1 1 auto;height:auto;min-height:42px;font-size:.88rem;font-weight:500;padding:0 18px}
+.hshare-card .packet-act.ghostbtn{width:auto;flex:1 1 auto;margin-top:0}
+
+/* visit questions: hairline rows, and an add row that never loses its field */
+.vq-head .lbl{display:block}
+.vq-item{padding:10px 0}
+.vq-src{font-family:var(--font-mono);font-weight:400;letter-spacing:var(--tracking-mono);color:var(--dawn-deep)}
+.vq-remove{color:var(--ink2);text-decoration:underline;text-underline-offset:3px;font-size:var(--text-sm)}
+.vq-add{align-items:center}
+.vq-input{min-height:40px;border-radius:var(--radius-pill);padding:0 14px;background:var(--surface);border-color:var(--line)}
+.vq-input:focus{outline:none;border-color:var(--dawn)}
+.hshare-card .vq-add-btn.ghostbtn{width:auto;min-height:40px;margin-top:0;padding:0 16px}
+/* on Health's own Doctor packet view the page already names it: the card's own title steps aside */
+.stand-detail .packet-head .hshare-kicker,.stand-detail .packet-head .hshare-title{display:none}
+.stand-detail .packet-head .hshare-copy{margin-top:0}
+/* on a wide screen a long packet previews in its own well; on a phone it stays in the
+   page's one scroll, so a thumb never gets caught inside the paper */
+@media (min-width:700px){.packet-paper{max-height:560px;overflow:auto;overscroll-behavior:contain}}
 /* =====================================================================
    Race view (Wave 4 stream B): race-view (.race-view-*), race-estimate
    (.race-estimate-*) and race-ladder (.race-ladder-*), the race section of
@@ -7689,42 +7913,80 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
    Cairn stack + stone detail (v2 wave 5 stream B): the You home leads with
    the whole cairn (.cairn-stack-*) — six stones drawn by CairnStone (§04e),
    piled top to bottom, the base widest so Heart carries the rest, each in its
-   OWN hue (a "watch" read adds only the stone's dawn dot, never a fill) — and
+   OWN hue (a "watch" read adds only the stone's dawn dot, never a fill), each
+   labelled on the left (mono name, serif word) by a leader line — and
    one row per stone: a hued dot, the name, the server's word in the stone's
    deep hue, its line in muted prose. A stone opens its detail
    (.stone-detail-*): the one stone large, its read, then "Where it lives".
    Entrance: the pile settles once, base stone first (--dur-3, --ease); the
    stones then drift; reduced motion shows them standing still.
    ===================================================================== */
-.you-cairn{margin:0 0 var(--space-10)}
+/* ---- the landing's lead: one voice line, then the way into every record ---- */
+.you-landing{padding-bottom:var(--space-10)}
+.you-lede{display:flex;flex-direction:column;gap:var(--space-6);margin:0 0 var(--space-4)}
+.you-voice{margin:0;max-width:18ch}
+.you-search{display:flex;align-items:center;gap:var(--space-4);width:100%;text-align:left;
+  border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-pill);
+  padding:10px 16px;color:var(--muted);font:inherit;font-size:var(--text-md);
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.you-search:hover{border-color:var(--line-strong)}
+.you-search:active{transform:var(--press)}
+.you-search-glyph{flex:none;width:11px;height:11px;border:1.5px solid currentColor;border-radius:50%;position:relative;opacity:.8}
+.you-search-glyph::after{content:"";position:absolute;right:-4px;bottom:-4px;width:5px;height:1.5px;background:currentColor;
+  transform:rotate(45deg);transform-origin:left center}
+
+/* ---- the cairn: stones right, a mono name and a serif word left, joined by leader lines ---- */
+.you-cairn{margin:0 0 var(--space-9)}
 .you-cairn:empty{display:none}
-.cairn-stack-pile{display:flex;justify-content:center;padding:var(--space-2) 0 var(--space-6);position:relative}
-.cairn-stack-pile .stone-cairn{width:min(180px,52%);height:auto}
+.cairn-stack-pile{position:relative;margin:var(--space-2) 0 var(--space-8)}
+.cairn-stack-pile .stone-cairn{display:block;width:100%;height:auto;max-width:420px}
+.stack-pile-leader{fill:none;stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.stack-pile-name{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;fill:var(--muted)}
+.stack-pile-flag{fill:var(--dawn);font-size:7px}
+.stack-pile-word{font-family:var(--font-display);font-size:16.5px;fill:var(--ink)}
 .cairn-stack-rock{-webkit-tap-highlight-color:transparent}
-.cairn-stack-skel .stone-ghost .stone-rock{fill:var(--surface2);stroke:var(--line)}
+.cairn-stack-skel .stone-ghost .stone-rock{fill:var(--well);stroke:var(--line)}
 .cairn-stack-skel .stone-ghost .stone-sheen,.cairn-stack-skel .stone-ghost .stone-under{display:none}
 .cairn-stack-skel .stone-cairn{animation:stone-breathe 2.4s ease-in-out infinite}
-.cairn-stack-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;
-  border-top:1px solid var(--line)}
-.cairn-stack-item{display:flex;min-width:0;border-bottom:1px solid var(--line)}
-.cairn-stack-row{flex:1;min-width:0;min-height:52px;display:flex;align-items:flex-start;gap:var(--space-4);
-  padding:var(--space-4) var(--space-8) var(--space-4) var(--space-1);position:relative;color:inherit;
-  text-decoration:none;-webkit-tap-highlight-color:transparent;
-  transition:background-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
-@media (hover:hover){a.cairn-stack-row:hover{background:var(--card-2)}}
+
+/* ---- one row per stone, hairline-divided inside one card ---- */
+.cairn-stack-list{list-style:none;margin:0;padding:2px 14px;display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.cairn-stack-item{display:flex;min-width:0;border-top:1px solid var(--line)}
+.cairn-stack-item:first-child{border-top:0}
+.cairn-stack-row{flex:1;min-width:0;min-height:48px;display:grid;grid-template-columns:9px minmax(0,1fr) auto;
+  align-items:center;gap:var(--space-6);padding:11px 0;color:inherit;text-decoration:none;
+  -webkit-tap-highlight-color:transparent;transition:transform var(--dur-1) var(--ease)}
 a.cairn-stack-row:active{transform:var(--press-lg)}
-.cairn-stack-mark{flex:none;width:12px;height:12px;margin-top:5px;border-radius:50%;background:var(--c,var(--surface2))}
+.cairn-stack-mark{width:9px;height:9px;border-radius:50%;background:var(--c,var(--well));align-self:start;margin-top:6px}
 /* "worth a look": a dawn ring around the stone's own dot — the dot keeps its hue */
-.cairn-stack-watch .cairn-stack-mark{box-shadow:0 0 0 2px var(--ground),0 0 0 3.5px var(--dawn)}
-.cairn-stack-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.cairn-stack-top{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-4)}
-.cairn-stack-label{font-weight:600;font-size:var(--text-md);color:var(--ink)}
-.cairn-stack-word{font-family:var(--font-display);font-weight:400;font-size:var(--text-md);color:var(--cd,var(--ink2));
-  text-align:right;overflow-wrap:anywhere}
+.cairn-stack-watch .cairn-stack-mark{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--dawn)}
+.cairn-stack-text{min-width:0;display:flex;flex-direction:column;gap:2px}
+.cairn-stack-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:0 6px;line-height:1.35}
+.cairn-stack-label{font-weight:600;font-size:var(--text-base);color:var(--ink)}
+.cairn-stack-sep{color:var(--muted)}
+.cairn-stack-word{font-size:var(--text-base);color:var(--cd,var(--ink2));overflow-wrap:anywhere}
 .cairn-stack-line{font-size:var(--text-sm);line-height:1.45;color:var(--muted);max-width:60ch}
-.cairn-stack-arw{position:absolute;right:var(--space-3);top:50%;transform:translateY(-50%);color:var(--muted);
-  font-size:.9rem}
+.cairn-stack-arw{color:var(--muted);font-size:1rem;align-self:center}
 .cairn-stack-ghost{display:block;width:60%;height:var(--space-4);margin:var(--space-1) 0}
+
+/* ---- the quiet groups under the cairn: an eyebrow, then one card of rows ---- */
+.you-group{margin-top:var(--space-9)}
+.you-group-h{margin:0 0 var(--space-3) 2px}
+.set-you.you-list{display:flex;flex-direction:column;gap:0;padding:2px 14px;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius)}
+.set-you-card.you-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-6);
+  position:static;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);
+  border-radius:0;padding:11px 0;box-shadow:none;color:inherit;font:inherit;
+  transition:transform var(--dur-1) var(--ease)}
+.set-you-card.you-row:first-child{border-top:0}
+@media (hover:hover){.set-you-card.you-row:hover{border-color:var(--line)}.set-you-card.you-row:hover .set-you-t{color:var(--dawn-deep)}}
+.set-you-card.you-row:active{transform:var(--press-lg)}
+.you-row-text{min-width:0;display:flex;flex-direction:column;gap:2px}
+.you-row .set-you-t{font-weight:600;font-size:var(--text-base);transition:color var(--dur-1) var(--ease)}
+.you-row .set-you-s{font-size:var(--text-sm)}
+.you-row .set-you-arw{position:static;transform:none;color:var(--muted);font-size:1rem}
+
 @keyframes cairn-stack-settle{
   0%{opacity:0;translate:0 -12px;rotate:-4deg}
   60%{opacity:1;translate:0 1px;rotate:1deg}
@@ -7736,23 +7998,59 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
 .cairn-stack-rock{transform-box:fill-box;transform-origin:center}
 .cairn-stack.is-entering .cairn-stack-rock{animation:cairn-stack-settle var(--dur-3) var(--ease) both;
   animation-delay:calc((var(--n,6) - 1 - var(--i,0)) * 70ms)}
+.cairn-stack.is-entering .stack-pile-label{animation:settlein var(--dur-3) var(--ease) both;
+  animation-delay:calc(var(--i,0) * 50ms + 260ms)}
 .cairn-stack.is-entering .cairn-stack-item{animation:settlein var(--dur-3) var(--ease) both;
   animation-delay:calc(min(var(--i,0),12) * 40ms + 200ms)}
 
-.stone-detail-hero{display:flex;align-items:center;gap:var(--space-6);margin:var(--space-4) 0 var(--space-8)}
-.stone-detail-rock{flex:none;display:block;width:96px;height:60px}
+/* ---- the stone detail: switcher, a head washed in the stone's hue, then its places ---- */
+.stone-detail{padding-bottom:var(--space-10)}
+.stone-detail-chips{position:relative;display:flex;gap:var(--space-3);overflow-x:auto;scrollbar-width:none;
+  margin:var(--space-2) calc(-1 * var(--gutter)) 0;padding:2px var(--gutter)}
+.stone-detail-chips::-webkit-scrollbar{display:none}
+.stone-detail-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:var(--text-sm);
+  padding:5px 12px;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--surface);color:var(--ink2);
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.stone-detail-chip:active{transform:var(--press)}
+.stone-detail-chip[aria-current="page"]{border-color:var(--ink);color:var(--ink);font-weight:600}
+.stone-detail-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--space-6);
+  margin:var(--space-7) 0 0;padding:16px 16px 18px;border-radius:var(--radius-lg);
+  background:color-mix(in srgb,var(--c,var(--well)) 26%,var(--surface))}
+.stone-detail-read{min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.stone-detail-h{margin:0;font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);text-transform:uppercase;
+  letter-spacing:var(--tracking-mono);color:var(--ink2)}
+.stone-detail-word{margin:0;font-family:var(--font-display);font-weight:400;font-size:2rem;line-height:1.05;
+  letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
+.stone-detail-line{margin:var(--space-3) 0 0;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}
+.stone-detail-rock{display:block;width:72px;height:46px;margin-top:2px}
 .stone-detail-rock .stone-svg{width:100%;height:100%}
-.stone-detail-read{min-width:0;display:flex;flex-direction:column;gap:var(--space-1)}
-.stone-detail-h{font-family:var(--font-display);font-weight:400;font-size:var(--text-2xl);letter-spacing:-.01em;margin:0;
-  color:var(--ink)}
-.stone-detail-word{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);color:var(--cd,var(--ink2))}
-.stone-detail-line{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--muted);max-width:60ch}
-.stone-detail-ghost{display:inline-block;width:96px;height:var(--space-4)}
-.stone-detail-sub{margin:0 0 var(--space-5)}
+.stone-detail-ghost{display:inline-block;width:140px;height:26px;border-radius:var(--radius-xs)}
+.stone-detail-sec{margin-top:var(--space-9)}
+.stone-detail-sub{margin:0 0 var(--space-3) 2px}
+.set-you.stone-detail-links,.stone-detail-peers{display:flex;flex-direction:column;gap:0;padding:2px 14px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.set-you-card.stone-detail-link{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-6);
+  position:static;background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:11px 0;
+  color:inherit;text-decoration:none;box-shadow:none;transition:transform var(--dur-1) var(--ease)}
+.set-you-card.stone-detail-link:first-child{border-top:0}
+.set-you-card.stone-detail-link:active{transform:var(--press-lg)}
+.stone-detail-ltext{min-width:0;display:flex;flex-direction:column;gap:2px}
+.stone-detail-link .set-you-t{font-weight:600;font-size:var(--text-base)}
+.stone-detail-link .set-you-s{font-size:var(--text-sm)}
+.stone-detail-link .set-you-arw{position:static;transform:none;color:var(--muted);font-size:1rem}
+.stone-detail-peer{display:grid;grid-template-columns:9px minmax(0,1fr) auto;align-items:center;gap:var(--space-6);
+  width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-top:1px solid var(--line);
+  padding:11px 0;transition:transform var(--dur-1) var(--ease)}
+.stone-detail-peer:first-child{border-top:0}
+.stone-detail-peer:active{transform:var(--press-lg)}
+.stone-detail-ptext{min-width:0;display:flex;align-items:baseline;flex-wrap:wrap;gap:0 6px;font-size:var(--text-base)}
+.stone-detail-ptext b{font-weight:600;color:var(--ink)}
+.stone-detail-pword::before{content:"·";content:"·" / "";color:var(--muted);margin-right:6px}
 a.stone-detail-link{color:inherit;text-decoration:none}
 .stone-detail.is-entering .stone-detail-rock{animation:cairn-stack-settle var(--dur-3) var(--ease) both}
 @media (prefers-reduced-motion:reduce){
   .cairn-stack.is-entering .cairn-stack-rock,.cairn-stack.is-entering .cairn-stack-item,
+  .cairn-stack.is-entering .stack-pile-label,
   .stone-detail.is-entering .stone-detail-rock{animation:none}
 }
 

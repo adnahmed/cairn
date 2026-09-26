@@ -95,6 +95,8 @@ const ROUTES = [
   { name: "you-markers", path: "/app/you/markers", tab: "stand" },
   { name: "you-share", path: "/app/you/share", tab: "stand" },
   { name: "you-settings", path: "/app/you/settings", tab: "settings" },
+  { name: "you-life", path: "/app/you/life", tab: "me" },
+  { name: "you-family", path: "/app/you/family", tab: "me" },
 ];
 
 // ---------- helpers ----------
