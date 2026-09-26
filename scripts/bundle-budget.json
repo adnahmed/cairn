@@ -1,0 +1,77 @@
+{
+  "note": "Byte budget for scripts/check-bundle-budget.mjs (run in npm run verify). A bundle may not grow past its budget; raise one deliberately with `node scripts/check-bundle-budget.mjs --update` after npm run build.",
+  "margin": 0.02,
+  "bundles": {
+    "public/js/bundle-01-core.js": {
+      "measured": {
+        "raw": 205494,
+        "brotli": 39704
+      },
+      "budget": {
+        "raw": 209920,
+        "brotli": 40960
+      }
+    },
+    "public/js/bundle-02-today.js": {
+      "measured": {
+        "raw": 816976,
+        "brotli": 142537
+      },
+      "budget": {
+        "raw": 833536,
+        "brotli": 145408
+      }
+    },
+    "public/js/bundle-03-capture-progress.js": {
+      "measured": {
+        "raw": 145587,
+        "brotli": 29092
+      },
+      "budget": {
+        "raw": 149504,
+        "brotli": 29696
+      }
+    },
+    "public/js/bundle-04-coach-meals.js": {
+      "measured": {
+        "raw": 205960,
+        "brotli": 37215
+      },
+      "budget": {
+        "raw": 210944,
+        "brotli": 38912
+      }
+    },
+    "public/js/bundle-05-me-health.js": {
+      "lazy": "me-health",
+      "measured": {
+        "raw": 511391,
+        "brotli": 89240
+      },
+      "budget": {
+        "raw": 522240,
+        "brotli": 91136
+      }
+    },
+    "public/js/bundle-06-chat-plan.js": {
+      "measured": {
+        "raw": 227083,
+        "brotli": 43601
+      },
+      "budget": {
+        "raw": 232448,
+        "brotli": 45056
+      }
+    },
+    "public/js/bundle-07-settings-boot.js": {
+      "measured": {
+        "raw": 193881,
+        "brotli": 36859
+      },
+      "budget": {
+        "raw": 198656,
+        "brotli": 37888
+      }
+    }
+  }
+}

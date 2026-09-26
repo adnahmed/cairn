@@ -1,0 +1,250 @@
+#!/usr/bin/env node
+// Byte budget for the served client bundles (docs/DESIGN.md "Size limits"; v2 Wave 6
+// "Performance"). Every bundle in `BUNDLES` (scripts/build-client.mjs) has two ceilings
+// in the checked-in `scripts/bundle-budget.json`: its raw size and its brotli size
+// (compressed exactly the way `precompressAssets()` writes the `.br` the server
+// ships). The check fails when a built bundle is over either ceiling, when a bundle
+// has no budget, or when a budget names a bundle that no longer exists, and prints
+// each bundle's delta against the size recorded at the last `--update`.
+//
+// A budget sits a small margin above the size it was set at, so ordinary work fits
+// and a real jump does not. Raising one is deliberate: build, then run `--update`,
+// which re-measures every bundle and rewrites the file (so a budget diff is a
+// review signal, like the style ratchet's baseline). `--report` also lists each
+// bundle's largest inputs, which is how you see what a lazy split would move.
+//
+// Reads the BUILT bundles, so it runs after `npm run build` (the post-build lane of
+// `npm run verify`).
+//
+// Usage: node scripts/check-bundle-budget.mjs [--update] [--report]
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import zlib from "node:zlib";
+
+const currentFile = fileURLToPath(import.meta.url);
+const root = path.resolve(path.dirname(currentFile), "..");
+const BUDGET_FILE = "scripts/bundle-budget.json";
+/** Headroom above the measured size when a budget is (re)set: 2%, rounded up to a whole KiB. */
+export const BUDGET_MARGIN = 0.02;
+const KIB = 1024;
+
+/** Brotli with the same parameters `precompressAssets()` uses for the served `.br`. */
+export function brotliSize(bytes) {
+  return zlib.brotliCompressSync(bytes, {
+    params: {
+      [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY,
+      [zlib.constants.BROTLI_PARAM_SIZE_HINT]: bytes.length,
+    },
+  }).length;
+}
+
+/** The ceiling for one measured size: the margin on top, rounded up to a whole KiB. */
+export function ceilingFor(bytes, margin = BUDGET_MARGIN) {
+  return Math.ceil((bytes * (1 + margin)) / KIB) * KIB;
+}
+
+/** A budget file for the given measurements (`[{ output, lazy, raw, brotli }]`). */
+export function budgetFromMeasurements(measurements, margin = BUDGET_MARGIN) {
+  const bundles = {};
+  for (const m of measurements) {
+    bundles[m.output] = {
+      ...(m.lazy ? { lazy: m.lazy } : {}),
+      measured: { raw: m.raw, brotli: m.brotli },
+      budget: { raw: ceilingFor(m.raw, margin), brotli: ceilingFor(m.brotli, margin) },
+    };
+  }
+  return {
+    note:
+      "Byte budget for scripts/check-bundle-budget.mjs (run in npm run verify). A bundle may not grow past its budget; raise one deliberately with `node scripts/check-bundle-budget.mjs --update` after npm run build.",
+    margin,
+    bundles,
+  };
+}
+
+export function formatBytes(n) {
+  const abs = Math.abs(n);
+  if (abs < KIB) return `${n} B`;
+  return `${(n / KIB).toFixed(1)} KB`;
+}
+
+export function formatDelta(n) {
+  if (n === 0) return "±0";
+  return `${n > 0 ? "+" : "-"}${formatBytes(Math.abs(n))}`;
+}
+
+/**
+ * Compare measurements against a budget file. Pure: returns one row per bundle and
+ * a list of human-readable failures (empty when everything fits).
+ */
+export function evaluateBudget(measurements, budgetFile) {
+  const entries = budgetFile?.bundles ?? {};
+  const rows = [];
+  const failures = [];
+  const seen = new Set();
+  for (const m of measurements) {
+    seen.add(m.output);
+    const entry = entries[m.output];
+    if (!entry) {
+      rows.push({ ...m, entry: null, over: [] });
+      failures.push(`${m.output} has no budget — build, then run node scripts/check-bundle-budget.mjs --update`);
+      continue;
+    }
+    const over = [];
+    for (const kind of ["raw", "brotli"]) {
+      const limit = entry.budget?.[kind];
+      if (typeof limit !== "number") {
+        failures.push(`${m.output} has no ${kind} budget`);
+        continue;
+      }
+      if (m[kind] > limit) {
+        over.push(kind);
+        const since = typeof entry.measured?.[kind] === "number" ? m[kind] - entry.measured[kind] : null;
+        failures.push(
+          `${m.output} ${kind} ${formatBytes(m[kind])} is ${formatDelta(m[kind] - limit)} over its ${formatBytes(limit)} budget` +
+            (since == null ? "" : ` (${formatDelta(since)} since the budget was set)`),
+        );
+      }
+    }
+    rows.push({ ...m, entry, over });
+  }
+  for (const output of Object.keys(entries)) {
+    if (!seen.has(output)) failures.push(`${output} has a budget but is no longer a bundle — run --update to drop it`);
+  }
+  return { rows, failures };
+}
+
+function pad(text, width, right = false) {
+  const s = String(text);
+  return right ? s.padStart(width) : s.padEnd(width);
+}
+
+export function renderTable(rows) {
+  const lines = [];
+  const header = [
+    pad("bundle", 30),
+    pad("raw", 10, true),
+    pad("budget", 10, true),
+    pad("Δ set", 10, true),
+    pad("brotli", 10, true),
+    pad("budget", 10, true),
+    pad("Δ set", 10, true),
+  ].join(" ");
+  lines.push(header);
+  for (const row of rows) {
+    const name = `${path.basename(row.output)}${row.lazy ? " (lazy)" : ""}`;
+    const cell = (kind) => {
+      if (!row.entry) return [pad(formatBytes(row[kind]), 10, true), pad("—", 10, true), pad("—", 10, true)];
+      const measured = row.entry.measured?.[kind];
+      const delta = typeof measured === "number" ? formatDelta(row[kind] - measured) : "—";
+      const mark = row.over.includes(kind) ? "!" : "";
+      return [
+        pad(`${mark}${formatBytes(row[kind])}`, 10, true),
+        pad(formatBytes(row.entry.budget?.[kind] ?? 0), 10, true),
+        pad(delta, 10, true),
+      ];
+    };
+    lines.push([pad(name, 30), ...cell("raw"), ...cell("brotli")].join(" "));
+  }
+  return lines.join("\n");
+}
+
+function measureBuilt(bundles) {
+  const measurements = [];
+  const missing = [];
+  for (const bundle of bundles) {
+    const file = path.join(root, bundle.output);
+    if (!existsSync(file)) {
+      missing.push(bundle.output);
+      continue;
+    }
+    const bytes = readFileSync(file);
+    measurements.push({ output: bundle.output, lazy: bundle.lazy ?? null, raw: bytes.length, brotli: brotliSize(bytes) });
+  }
+  return { measurements, missing };
+}
+
+function inputReport(bundles) {
+  const lines = ["", "Largest inputs per bundle (raw / brotli of the individual module):"];
+  for (const bundle of bundles) {
+    const sizes = [];
+    for (const input of bundle.inputs) {
+      const file = path.join(root, input);
+      if (!existsSync(file)) continue;
+      const bytes = readFileSync(file);
+      sizes.push({ input, raw: bytes.length, brotli: brotliSize(bytes) });
+    }
+    sizes.sort((a, b) => b.raw - a.raw);
+    lines.push(`  ${path.basename(bundle.output)}${bundle.lazy ? ` (lazy: ${bundle.lazy})` : ""}`);
+    for (const s of sizes.slice(0, 8)) {
+      lines.push(`    ${pad(formatBytes(s.raw), 9, true)} ${pad(formatBytes(s.brotli), 9, true)}  ${path.basename(s.input)}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+async function main() {
+  const args = new Set(process.argv.slice(2));
+  const { BUNDLES } = await import("./build-client.mjs");
+  const { measurements, missing } = measureBuilt(BUNDLES);
+  if (missing.length) {
+    console.error(`Bundle budget: ${missing.length} bundle(s) not built — run npm run build first:`);
+    for (const m of missing) console.error(`  ${m}`);
+    process.exit(1);
+  }
+
+  const budgetPath = path.join(root, BUDGET_FILE);
+  if (args.has("--update")) {
+    const previous = existsSync(budgetPath) ? JSON.parse(readFileSync(budgetPath, "utf8")) : null;
+    const next = budgetFromMeasurements(measurements);
+    writeFileSync(budgetPath, `${JSON.stringify(next, null, 2)}\n`);
+    console.log(`✓ wrote ${BUDGET_FILE} (${measurements.length} bundles, ${Math.round(BUDGET_MARGIN * 100)}% margin)`);
+    for (const [output, entry] of Object.entries(next.bundles)) {
+      const old = previous?.bundles?.[output]?.budget;
+      if (!old) {
+        console.log(`  + ${path.basename(output)}: raw ${formatBytes(entry.budget.raw)}, brotli ${formatBytes(entry.budget.brotli)}`);
+      } else if (old.raw !== entry.budget.raw || old.brotli !== entry.budget.brotli) {
+        console.log(
+          `  ~ ${path.basename(output)}: raw ${formatBytes(old.raw)} → ${formatBytes(entry.budget.raw)} (${formatDelta(entry.budget.raw - old.raw)}), ` +
+            `brotli ${formatBytes(old.brotli)} → ${formatBytes(entry.budget.brotli)} (${formatDelta(entry.budget.brotli - old.brotli)})`,
+        );
+      }
+    }
+    for (const output of Object.keys(previous?.bundles ?? {})) {
+      if (!next.bundles[output]) console.log(`  - ${path.basename(output)} dropped`);
+    }
+    if (args.has("--report")) console.log(inputReport(BUNDLES));
+    return;
+  }
+
+  if (!existsSync(budgetPath)) {
+    console.error(`${BUDGET_FILE} is missing; create it with: node scripts/check-bundle-budget.mjs --update`);
+    process.exit(1);
+  }
+  const budget = JSON.parse(readFileSync(budgetPath, "utf8"));
+  const { rows, failures } = evaluateBudget(measurements, budget);
+  const eagerRaw = measurements.filter((m) => !m.lazy).reduce((sum, m) => sum + m.raw, 0);
+  const eagerBrotli = measurements.filter((m) => !m.lazy).reduce((sum, m) => sum + m.brotli, 0);
+
+  if (failures.length || args.has("--report")) console.log(renderTable(rows));
+  if (args.has("--report")) {
+    console.log(`\nEager (index.html) total: ${formatBytes(eagerRaw)} raw, ${formatBytes(eagerBrotli)} brotli`);
+    console.log(inputReport(BUNDLES));
+  }
+  if (failures.length) {
+    console.error(`\nBundle budget exceeded (${failures.length}):`);
+    for (const f of failures) console.error(`  ✗ ${f}`);
+    console.error(
+      "\nShrink the bundle, move a heavy surface into a lazy bundle, or — if the growth is deliberate —\n" +
+        "raise the budget with: node scripts/check-bundle-budget.mjs --update",
+    );
+    process.exit(1);
+  }
+  console.log(
+    `✓ bundle budget: ${measurements.length} bundles within budget (eager ${formatBytes(eagerRaw)} raw / ${formatBytes(eagerBrotli)} brotli)`,
+  );
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
+  await main();
+}
