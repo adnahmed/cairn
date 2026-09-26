@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**357 routes** across 121 groups.
+**358 routes** across 121 groups.
 
 ## `/activities`
 
@@ -75,6 +75,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | GET | `/api/art` | Cache hit -> the cached image, immutable-cached, ETag = asset key. The URL is versioned (`v=`) so immutable stays honest. Miss -> 204 immediately. Exercise misses never fire a name-only generate: they enqueue `exercise_art` (or produce from classifyMuscleGroup / detectImplement when no row exists). |
 | GET | `/api/art/manifest` | Which PWA art queries already have a cached image, as "kind\|q" tokens. Not cached because readiness changes as the background queue produces images. |
 | POST | `/api/art/regenerate` | Repair path for an image that came back wrong. Drops the parked failure, bumps `art_index.version`, and generates under a new pose-aware key with the richest prompt we can build. A repeat within 60s or while a regen is in flight returns {ok:true, regenerated:false, reason}. Designed-failure convention: {ok:false} at HTTP 200 when generation is unavailable. |
+| GET | `/api/art/state` | The boot read: ready tokens + enabled + exercise versions in one call (the two routes above stay for older clients). Not cached — readiness and versions move as the background queue draws. |
 | GET | `/api/art/stats` | Artwork spend telemetry: estimated Gemini cost since art was last enabled, all-time totals, generations avoided via semantic reuse, and cache size. Also returns `health`: when art last rendered, failures in the last 7 days, the last upstream error code, and whether the circuit breaker has paused generation. |
 | GET | `/api/art/versions` | Current exercise art versions, keyed like the PWA token (`exercise\|Name`). Optional `?q=a,b,c` (≤200 names, each ≤120 chars) returns only those; with no `q`, the most recently used 500 rows. Fetched once at boot and kept in memory. |
 | POST | `/api/art/warm` | Warm the art cache: enqueue generation for everything the PWA will ask for. Safe no-op when generation is unavailable. Exercises go through the context-aware producer, never a name-only prompt. |

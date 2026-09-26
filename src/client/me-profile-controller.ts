@@ -140,7 +140,7 @@
         deps.setEnduranceGoalSet(!!body.endurance_goal);
         if (!hadGoal && body.endurance_goal) deps.toast("Your running plan now lives in Plan → Endurance");
       }
-      ["profile", GOAL_CACHE_KEY, "stats", "progress:weight", "progress:energy"].forEach(deps.swrInvalidate);
+      ["profile", GOAL_CACHE_KEY, "stats", "progress:weight", "progress:energy", "horizon:"].forEach(deps.swrInvalidate);
       deps.renderMe();
       return true;
     };

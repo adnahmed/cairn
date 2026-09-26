@@ -4891,9 +4891,25 @@ navigation. `scripts/check-sw-cache.mjs` holds `index.html` to exactly the non-l
 `CORE_ASSETS` to the whole manifest; `scripts/check-public-scripts.mjs` scans the lazy bundle too,
 since it lands in the same global scope.
 `10-boot.js` is a 2-line shim (`startAppShell()`) — the boot sequence lives in
-`src/client/app/startup.ts`. `sw.js` `skipWaiting()`s on install and the client reloads once on
-`controllerchange` (`src/client/app/service-worker.ts`, guarded against the first-ever install), so a
-deploy goes live on the next open. **The cache version is derived, never hand-bumped**: `sw.js`
+`src/client/app/startup.ts`. The worker is registered after `load`, in idle time, so its precache
+never competes with a cold first paint. `sw.js` `skipWaiting()`s on install and the client reloads
+once on `controllerchange` (`src/client/app/service-worker.ts`, guarded against the first-ever
+install) — but only when that cannot cost the athlete anything: `src/client/app/update-gate.ts`
+reloads at once when nothing is in flight (no Session screen, open sheet, focused or half-typed
+field, running rest timer, unsent chat/food draft, or queued outbox write), or when the page is
+hidden and nothing is being typed; otherwise it shows one quiet "Updated — tap to refresh" pill and
+reloads by itself the next time the page is hidden; a deferred page that navigates to a lazy
+bundle takes the update then, so an old page never runs a new lazy bundle. So a deploy still goes
+live on the next open.
+**Precache is incremental.** The served `sw.js` also carries a hash per precached url (the literal
+`const ASSET_HASHES = /*cairn-asset-hashes*/ {};`, substituted by `src/swVersion.ts`); each cache
+stores the hashes its entries were fetched under (`/__cairn/asset-hashes.json`), and an install
+copies every unchanged file out of the previous shell cache and downloads only what moved. Fonts,
+`/vendor/` and the versioned icons live in a separate, fixed-name `cairn-static-v1` cache that
+outlives deploys (pruned on activate to what the worker lists). A fetch revalidates with the
+server (`cache:"no-cache"`, so never a stale copy, and a 304 for what the page already loaded)
+except for a filename-versioned `.vN` asset, which may come from the HTTP cache. A one-bundle deploy re-downloads that
+bundle and `sw.js`, not the ~1.3 MB shell. **The cache version is derived, never hand-bumped**: `sw.js`
 ships the placeholder `const CACHE = "cairn-shell-dev"` and `src/swVersion.ts` (mounted at
 `GET /sw.js` ahead of both static layers) substitutes `cairn-<hash>`, a content hash over every url
 in the worker's own `CORE_ASSETS` + `OPTIONAL_ASSETS` plus `sw.js` itself. Same shell bytes → the
@@ -4912,6 +4928,19 @@ Settings → Data shows it beside `/api/health`'s `shell` so a deploy can be che
 Icon URLs share one `.vN` moved only by `scripts/bump-icons.mjs` (docs/OPERATIONS.md), and
 `APP_IDENTITY_VERSION` (`src/client/app-identity-model.ts`) keys the one-time iOS re-add note.
 
+Client read caches stay honest through two shared modules. **Writes name every cache they make
+stale in ONE table** (`src/client/write-invalidation-client.ts`): each chat action type the server
+can apply (held complete against `CHAT_ACTION_TYPES` by `test/clientWriteInvalidation.test.js`) and
+each PWA-side write (decision Undo, session finish, proposal apply, meal edits) maps to its SWR keys
+and prefixes plus named snapshots (`@train`, `@endurance`, `@brief`) that a surface registers; a
+finished chat turn runs its `meta.applied` through it and clears api()'s own tier (`apiInvalidate`).
+**Out of reach is not empty** (`src/client/offline-state-client.ts`, `CairnOffline`): a read that
+failed because the server is unreachable falls back to the last-known read with one "Last known"
+line, or an honest unreachable state — never the first-run empty state (Train overview, Horizon's
+race view, Records, the doctor packet). Art readiness, the enabled flag and exercise art versions
+arrive in one boot read (`GET /api/art/state`; `/art/manifest` and `/art/versions` stay served), and
+the versions are persisted and read synchronously at load so the first render's urls carry `v=`.
+
 What the build emits, and what a deploy ships:
 
 - **Comments are stripped** from the generated output (`removeComments: true`); the source of truth
@@ -4919,7 +4948,9 @@ What the build emits, and what a deploy ships:
   comment against the TypeScript source, never against `public/js/*.js`.
 - **Precompressed siblings.** After bundling, the script writes a `.gz` (level 9) and a `.br`
   (quality 11) next to every asset `index.html` loads — the seven bundles, `styles.css`,
-  `index.html`, `art.js`, `cairn-body-figure.js`. `src/staticCompression.ts` serves the sibling when
+  `index.html`, `art.js`, `cairn-body-figure.js` — plus the precached vendored terminal
+  (`vendor/xterm.js`, `vendor/xterm.css`). `scripts/check-sw-cache.mjs` fails a precached text asset
+  over 16 KB that is not precompressed. `src/staticCompression.ts` serves the sibling when
   `Accept-Encoding` allows, mounted in front of `express.static`, with the ORIGINAL content type, a
   weak per-representation ETag and `Vary: Accept-Encoding`. Zero runtime CPU for the shell, and the
   raw file still answers anything that cannot decode. `sw.js` and `manifest.json` are deliberately

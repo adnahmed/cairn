@@ -404,6 +404,8 @@ export interface ClientArtVersionsResponse {
   versions: Record<string, number>;
 }
 
+export interface ClientArtStateResponse extends ClientArtManifestResponse, ClientArtVersionsResponse {}
+
 export interface ClientArtRegenerateResponse extends ClientOkResponse {
   regenerated?: boolean;
   version?: number;
@@ -3497,6 +3499,7 @@ export interface ClientApiResponses {
   "/api/agent-clis/update": ClientAgentCliUpdateStatus;
   "/api/art/manifest": ClientArtManifestResponse;
   "/api/art/versions": ClientArtVersionsResponse;
+  "/api/art/state": ClientArtStateResponse;
   "/api/art/regenerate": ClientArtRegenerateResponse;
   "/api/art/stats": ClientArtStatsResponse;
   "/api/apple-health/config": ClientAppleHealthConfig;

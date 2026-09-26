@@ -103,6 +103,25 @@
    over the page rather than crashing into the header edge. Information, never alarm. */
 .offline-bar{box-shadow:0 2px 10px rgba(72,58,35,.10)}
 
+/* last-known line — one quiet sentence over a read Cairn could not refresh
+   (src/client/offline-state-client.ts). Information, never an alarm. */
+.offline-lastknown{margin:var(--space-3) 0;font-family:var(--font-ui);font-size:var(--text-xs);line-height:1.5;color:var(--muted)}
+.offline-state .linkbtn{margin-top:var(--space-3)}
+
+/* update line — a new shell is live but the athlete is mid-task
+   (src/client/app/update-gate.ts): one calm pill they tap when ready. */
+.update-line{
+  appearance:none;position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 10px);
+  transform:translate(-50%,-8px);opacity:0;z-index:var(--z-outbox);
+  display:flex;align-items:center;gap:8px;padding:8px 15px;border-radius:var(--radius-pill);
+  background:var(--sage-bg);color:var(--ink-2);border:1px solid var(--line-2);box-shadow:var(--shadow-sm);
+  font-family:var(--font-ui);font-weight:600;font-size:.74rem;letter-spacing:.01em;cursor:pointer;
+  transition:opacity var(--dur-2) var(--ease),transform var(--dur-2) var(--ease);
+}
+.update-line.show{opacity:1;transform:translate(-50%,0)}
+.update-line:focus-visible{outline:2px solid var(--sage);outline-offset:3px}
+@media (prefers-reduced-motion:reduce){.update-line{transition:none}}
+
 /* offline outbox — a calm "N to sync" line while the queue replays failed
    captures / set-logs back to the server once Cairn is reachable again. A sage
    "work in progress" voice, deliberately distinct from the .offline-bar warn

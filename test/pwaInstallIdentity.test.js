@@ -42,7 +42,10 @@ test("every icon URL resolves, shares one .vN, is precached, and matches APP_IDE
   for (const url of new Set([...identity.manifestIcons, identity.appleTouch, ...identity.indexIcons])) {
     assert.ok(fs.existsSync(path.join(root, "public", url)), `${url} exists`);
     assert.match(url, new RegExp(`\\.v${version}\\.[a-z]+$`), `${url} carries .v${version}`);
-    assert.ok(optional.includes(`"${url}"`), `${url} is in OPTIONAL_ASSETS`);
+    // The og: share image is fetched only by link-preview crawlers, never by the
+    // app, so it is deliberately NOT precached (scripts/check-sw-cache.mjs).
+    if (/^\/icons\/og\./.test(url)) assert.ok(!optional.includes(`"${url}"`), `${url} is not precached`);
+    else assert.ok(optional.includes(`"${url}"`), `${url} is in OPTIONAL_ASSETS`);
   }
   assert.equal(identity.modelVersion, version);
 });
@@ -140,13 +143,14 @@ const PERSISTED_KEYS = {
   "cairn.sessnotes.": ["today-session-controller"],
   "cairn.swr.v1.": ["swr-cache"],
   "cairn.brief.v1": ["today-brief-controller"],
-  "cairn.train.v1": ["progress-overview-client"],
+  "cairn.train.v1": ["progress-overview-snapshot-client"],
   "cairn.checkin.dismissed.v1": ["capture"],
   "cairn.diagnostics.v1": ["client-diagnostics"],
   "cairn.records.evw": ["evidence-wanted-controller"],
   "cairn.records.group": ["records-search-controller"],
   "cairn-bm-unit": ["body-metrics-client", "me-profile-form-client"],
   "cairn-art-ready": ["art-controller"],
+  "cairn-art-versions": ["art-memory-client"],
   cairn_phone_coach_dismissed: ["pwa-install-coach"],
   "cairn:healthDocCount": ["me-records-health-doc-controller", "health-picture-controller"],
   "cairn:lastInsightGen": ["capture-read-jobs-client"],
@@ -164,6 +168,7 @@ const NOT_PERSISTED = new Set([
   "cairn.today.plan.v2",
   "cairn.stand.v1",
   "cairn.endurance.v4",
+  "cairn-art-miss", // art-memory-client: images the server just answered "not drawn yet"
   "cairn.dicom-import-jobs.v1",
   "cairn.chat.retry.v1",
   "cairn.ask.whatif.v1", // the ask surface's in-flight what-if job id (v2 wave 5)

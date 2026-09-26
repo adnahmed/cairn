@@ -17,6 +17,7 @@ type ChatTurnRoot = typeof globalThis & {
   ) => Element | null;
   rememberChatFuelContext?: (...messages: unknown[]) => unknown;
   loadChatFuel?: (token: number, messages?: unknown[]) => Promise<void>;
+  CairnWriteInvalidation?: { invalidateChatApplied(applied: unknown): string[] };
 };
 
 (() => {
@@ -245,10 +246,11 @@ type ChatTurnRoot = typeof globalThis & {
       const result = chatTurnRecord(entry.result);
       return result.verified === true || result.persisted === true || result.committed === true;
     });
-    if (hasPersistedPlanUpdate) {
-      state.plan = [];
-      swrInvalidate("plan");
-    }
+    if (hasPersistedPlanUpdate) state.plan = [];
+    // Every applied action retires every cache it made stale — Fuel after log_food,
+    // Train after log_set, the Brief after a check-in — through the one table in
+    // write-invalidation-client.ts, not a per-type list here.
+    root.CairnWriteInvalidation?.invalidateChatApplied(applied);
     const drafts = Array.isArray(chatTurnRecord(row.meta).drafts) ? (chatTurnRecord(row.meta).drafts as unknown[]) : [];
     if (drafts.length) {
       state.plan = [];

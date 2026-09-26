@@ -1320,6 +1320,8 @@ declare global {
   // Binary reads (DICOM frames): the same token/time-zone headers as api(), no cache.
   declare function apiBinary(p: string, opts?: RequestInit): Promise<{ body: ArrayBuffer; headers: Headers }>;
   declare function setOffline(on: unknown): void;
+  // Drop api()'s own micro/stale tier (api-core.ts) — a write that landed elsewhere.
+  declare function apiInvalidate(): void;
 
   // Offline outbox — a durable localStorage queue that replays failed capture /
   // set-log POSTs when Cairn is reachable again (see outbox-queue.ts / outbox.ts).
@@ -3665,6 +3667,7 @@ declare global {
     };
 
     CairnRestTimer: {
+      isActive(): boolean;
       ensureRestBar(): HTMLElement;
       paintRest(): void;
       startRest(seconds?: number): void;
@@ -5817,7 +5820,7 @@ declare global {
       togglesSkeletonHtml(): string;
       previewHtml(preview: ClientPacketPreview, opts?: { enter?: boolean }): string;
       previewSkeletonHtml(): string;
-      previewErrorHtml(): string;
+      previewErrorHtml(unreachable?: boolean): string;
       emptyHtml(opts?: { disclaimer?: string }): string;
       statusText(preview: ClientPacketPreview): string;
     };
@@ -6140,4 +6143,63 @@ declare global {
   declare const CairnPebbleStripModel: Window["CairnPebbleStripModel"];
   declare const CairnPebbleStrip: Window["CairnPebbleStrip"];
   declare const CairnPebbleStripController: Window["CairnPebbleStripController"];
+  // Client cache freshness + offline honesty (write-invalidation-client.ts,
+  // offline-state-client.ts, app/update-gate.ts).
+  interface Window {
+    CairnWriteInvalidation: {
+      CHAT_ACTION_TARGETS: Readonly<Record<string, readonly string[]>>;
+      WRITE_TARGETS: Readonly<Record<string, readonly string[]>>;
+      targetsForChatAction(type: unknown): readonly string[];
+      targetsForWrite(name: string): readonly string[];
+      invalidate(targets: readonly string[], opts?: { keep?: readonly string[] }): string[];
+      invalidateChatApplied(applied: unknown): string[];
+      invalidateWrite(name: string, opts?: { keep?: readonly string[] }): string[];
+      register(name: string, clear: () => void): void;
+    };
+    CairnArtMemory: {
+      version(token: string): number;
+      setVersion(token: string, version: number): void;
+      mergeVersions(versions: Record<string, unknown> | null | undefined): void;
+      missedRecently(token: string): boolean;
+      recordMiss(token: string): void;
+      forgetMiss(token: string): void;
+    };
+    CairnTrainSnapshot: {
+      KEY: string;
+      load(): unknown;
+      save(data: unknown): void;
+      clear(): void;
+    };
+    CairnOffline: {
+      isUnreachable(error: unknown): boolean;
+      read<T = unknown>(
+        path: string,
+        key: string
+      ): Promise<{ data: T | null; source: "network" | "last-known" | "none"; unreachable: boolean }>;
+      unreachableHtml(opts?: { title?: string; body?: string; retry?: boolean }): string;
+      lastKnownHtml(): string;
+      wireRetry(root: ParentNode | null | undefined, retry: () => unknown): void;
+    };
+    CairnUpdateGate: {
+      isSafe(input: {
+        hidden: boolean;
+        sessionActive: boolean;
+        sheetOpen: boolean;
+        editing: boolean;
+        typing: boolean;
+        restActive: boolean;
+        draftUnsent: boolean;
+        outboxPending: boolean;
+      }): boolean;
+      onControllerChange(reload: () => void): "reloaded" | "deferred";
+      reloadIfPending(): boolean;
+      LINE_TEXT: string;
+      DRAFT_KEYS: readonly string[];
+    };
+  }
+  declare const CairnWriteInvalidation: Window["CairnWriteInvalidation"];
+  declare const CairnOffline: Window["CairnOffline"];
+  declare const CairnTrainSnapshot: Window["CairnTrainSnapshot"];
+  declare const CairnArtMemory: Window["CairnArtMemory"];
+  declare const CairnUpdateGate: Window["CairnUpdateGate"];
 }

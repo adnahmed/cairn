@@ -7,6 +7,7 @@ import {
   warmArt,
   artManifest,
   artVersions,
+  artState,
   regenerateArt,
   enqueueExerciseArt,
   buildExerciseArtContext,
@@ -140,6 +141,14 @@ artRouter.get("/art/versions", (req, res) => {
         .slice(0, 200)
     : undefined;
   res.json(artVersions({ queries: queries?.length ? queries : undefined }));
+});
+
+// The boot read: ready tokens + enabled + exercise versions in one call (the two
+// routes above stay for older clients). Not cached — readiness and versions move
+// as the background queue draws.
+artRouter.get("/art/state", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(artState());
 });
 
 // Artwork spend telemetry: estimated Gemini cost since art was last enabled,

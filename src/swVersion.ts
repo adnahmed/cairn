@@ -29,8 +29,19 @@ import type { Request, Response, NextFunction } from "express";
  */
 export const SW_CACHE_PLACEHOLDER = "cairn-shell-dev";
 
+/**
+ * The committed per-file hash placeholder in public/sw.js. The server substitutes
+ * it with `{ "<url>": "<hash>", … }` for every precached url, so an install can
+ * copy an unchanged file out of the previous cache instead of re-downloading the
+ * whole shell (incremental precache). Asserted by scripts/check-sw-cache.mjs; a
+ * worker served unmodified sees `{}` and falls back to fetching everything.
+ */
+export const SW_ASSET_HASHES_PLACEHOLDER = "/*cairn-asset-hashes*/ {}";
+
 /** Short enough to read in DevTools, long enough that a collision is not a concern. */
 const VERSION_HASH_LENGTH = 12;
+/** Per-file identity: the same length, over the file's own bytes only. */
+const ASSET_HASH_LENGTH = 12;
 
 /** Pull the quoted entries out of a `const NAME = [ … ];` array in sw.js source. */
 export function swAssetList(source: string, name: string): string[] {
@@ -94,11 +105,33 @@ export function shellContentHash(swSource: string, files: string[]): string {
   return hash.digest("hex").slice(0, VERSION_HASH_LENGTH);
 }
 
+/**
+ * `{ url: hash }` for every precached url that exists on disk, in list order.
+ * "/" and "/index.html" are the same file and carry the same hash. A missing
+ * (optional) asset is simply absent: the worker then fetches it as before.
+ */
+export function shellAssetHashes(publicDir: string, source: string): Record<string, string> {
+  const urls = [...swAssetList(source, "CORE_ASSETS"), ...swAssetList(source, "OPTIONAL_ASSETS")];
+  const hashes: Record<string, string> = {};
+  for (const url of urls) {
+    if (!url.startsWith("/") || hashes[url]) continue;
+    const file = path.join(publicDir, url === "/" ? "/index.html" : url);
+    try {
+      hashes[url] = crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex").slice(0, ASSET_HASH_LENGTH);
+    } catch {
+      // absent on disk: leave it out
+    }
+  }
+  return hashes;
+}
+
 export interface ServiceWorkerScript {
   /** The cache name this build serves, e.g. `cairn-6f21a0c93b4e`. */
   version: string;
-  /** sw.js with the placeholder substituted. */
+  /** sw.js with the placeholders substituted. */
   body: string;
+  /** Per-file hashes the body carries (see SW_ASSET_HASHES_PLACEHOLDER). */
+  assetHashes: Record<string, string>;
 }
 
 /** Compute the served worker from a public directory. Pure apart from disk reads. */
@@ -107,7 +140,13 @@ export function buildServiceWorkerScript(publicDir: string): ServiceWorkerScript
   const source = fs.readFileSync(swPath, "utf8");
   const files = shellAssetPaths(publicDir, source);
   const version = `cairn-${shellContentHash(source, files)}`;
-  return { version, body: source.split(SW_CACHE_PLACEHOLDER).join(version) };
+  const assetHashes = shellAssetHashes(publicDir, source);
+  const body = source
+    .split(SW_CACHE_PLACEHOLDER)
+    .join(version)
+    .split(SW_ASSET_HASHES_PLACEHOLDER)
+    .join(JSON.stringify(assetHashes));
+  return { version, body, assetHashes };
 }
 
 /**

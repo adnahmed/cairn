@@ -389,5 +389,12 @@ type ApiFetchOutcome = {
     }
   }
 
-  Object.assign(globalThis, { authToken, withToken, deviceTimeZone, api, apiBinary, setOffline });
+  // A write that landed somewhere this page did not send it from (a chat turn's
+  // actions, applied server-side long after the POST that queued them) clears the
+  // micro/stale tier the same way a local write does (write-invalidation-client.ts).
+  function apiInvalidate(): void {
+    apiCoalescer().invalidateAll();
+  }
+
+  Object.assign(globalThis, { authToken, withToken, deviceTimeZone, api, apiBinary, setOffline, apiInvalidate });
 }

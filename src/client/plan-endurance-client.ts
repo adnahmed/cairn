@@ -20,6 +20,8 @@ type EndurancePaintExtra = {
   laterRaceBuild?: EnduranceRaceBuild | null;
   today?: string;
   units?: "km" | "mi";
+  /** Cairn was out of reach for some read: an empty week is unknown, not "no runs". */
+  unreachable?: boolean;
 };
 
 type EnduranceProposal = {
@@ -47,6 +49,19 @@ async function renderPlanEndurance(): Promise<void> {
   const today = localISO();
   const nextMonday = enduranceModel().nextMonday(today);
   const laterMonday = nextMonday ? enduranceModel().nextMonday(nextMonday) : "";
+  // Network-first reads that fall back to the last-known answer only when Cairn is
+  // out of reach (CairnOffline), so an offline open never reads as a fresh install.
+  let unreachable = false;
+  let fromLastKnown = false;
+  let goalKnown = false;
+  const lastKnown = async <T,>(path: string, key: string): Promise<T | null> => {
+    if (typeof CairnOffline === "undefined") return (await api(path).catch(() => null)) as T | null;
+    const read = await CairnOffline.read<T>(path, key);
+    if (read.unreachable) unreachable = true;
+    if (read.source === "last-known") fromLastKnown = true;
+    if (key === "horizon:endurance-goal" && read.source !== "none") goalKnown = true;
+    return read.data;
+  };
   let goal: EnduranceGoalRow | null = null;
   let compliance: EnduranceComplianceRow | null = null;
   let agenda: EnduranceAgenda | null = null;
@@ -61,12 +76,12 @@ async function renderPlanEndurance(): Promise<void> {
   let laterRaceBuild: EnduranceRaceBuild | null = null;
   try {
     [goal, compliance, agenda, settings, raceBuild, runPlan, nextAgenda, nextRunPlan, nextRaceBuild, laterAgenda, laterRunPlan, laterRaceBuild] = await Promise.all([
-      api("/endurance-goal").catch(() => null),
+      lastKnown<EnduranceGoalRow>("/endurance-goal", "horizon:endurance-goal"),
       api("/run-compliance").catch(() => null),
-      api(`/training-agenda?date=${encodeURIComponent(today)}`).catch(() => null),
+      lastKnown<EnduranceAgenda>(`/training-agenda?date=${encodeURIComponent(today)}`, `horizon:agenda:${today}`),
       api("/settings").then((response) => (enduranceModel().record(response).settings as Record<string, unknown> | null) || null).catch(() => null),
-      api("/race-build").catch(() => null),
-      api("/run-plan").catch(() => null),
+      lastKnown<EnduranceRaceBuild>("/race-build", "horizon:race-build"),
+      lastKnown<EnduranceRunPlan>("/run-plan", "horizon:run-plan"),
       nextMonday ? api(`/training-agenda?date=${encodeURIComponent(nextMonday)}`).catch(() => null) : Promise.resolve(null),
       nextMonday ? api(`/run-plan?date=${encodeURIComponent(nextMonday)}`).catch(() => null) : Promise.resolve(null),
       nextMonday ? api(`/race-build?date=${encodeURIComponent(nextMonday)}`).catch(() => null) : Promise.resolve(null),
@@ -76,6 +91,16 @@ async function renderPlanEndurance(): Promise<void> {
     ]);
   } catch { /* paint with whatever resolved */ }
   if (token !== pollToken || !view.querySelector("#endPlanBody")) return;
+  // Out of reach with no remembered goal: "No goal set yet" / "No runs waiting"
+  // would be a lie about a real race build, so say what is true instead.
+  if (unreachable && !goalKnown) {
+    const body = view.querySelector("#endPlanBody");
+    if (body) {
+      body.innerHTML = CairnOffline.unreachableHtml({ body: "Your race build and runs fill in as soon as it's back." });
+      CairnOffline.wireRetry(body, () => renderPlanEndurance());
+    }
+    return;
+  }
   const units = typeof runUnits === "function" ? runUnits(settings?.run_units) : (settings?.run_units === "mi" ? "mi" : "km");
   paintPlanEndurance(goal, compliance, agenda, settings, raceBuild, {
     runPlan,
@@ -87,7 +112,9 @@ async function renderPlanEndurance(): Promise<void> {
     laterRaceBuild,
     today,
     units,
+    unreachable,
   });
+  if (unreachable && fromLastKnown) view.querySelector("#endPlanBody")?.insertAdjacentHTML("afterbegin", CairnOffline.lastKnownHtml());
 }
 
 function paintPlanEndurance(
@@ -142,7 +169,7 @@ function paintPlanEndurance(
   const emptyHtml = !briefing.next && !briefing.remaining.length && !briefing.later.length
     ? `<div class="end-runs-empty card-stack-item reveal" style="${stagger(2)}">
          <div class="lbl">Upcoming runs</div>
-         <p>No runs waiting. Open this week's map below for the hybrid picture, or ask at the bottom if you want the coach to shape the next week around your lifting.</p>
+         <p>${extra?.unreachable ? "Can't reach Cairn right now — your upcoming runs fill in as soon as it's back." : "No runs waiting. Open this week's map below for the hybrid picture, or ask at the bottom if you want the coach to shape the next week around your lifting."}</p>
        </div>`
     : "";
   const complianceHtml = typeof runComplianceLine === "function" ? runComplianceLine(compliance) : "";

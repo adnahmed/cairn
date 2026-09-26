@@ -3,6 +3,7 @@
 
 type ClientArtManifestResponse = import("../contracts/client-api.js").ClientArtManifestResponse;
 type ClientArtVersionsResponse = import("../contracts/client-api.js").ClientArtVersionsResponse;
+type ClientArtStateResponse = import("../contracts/client-api.js").ClientArtStateResponse;
 type ClientArtRegenerateResponse = import("../contracts/client-api.js").ClientArtRegenerateResponse;
 
 // CairnArt (public/art.js) returns trusted static SVG strings — never user text — so its
@@ -40,10 +41,7 @@ const artKey = (kind: unknown, q: unknown): string =>
     .trim()
     .slice(0, 120)}`;
 const ART_READY_LS = "cairn-art-ready";
-// Exercise art versions (`GET /api/art/versions`), in memory. The URL carries
-// `v=` so a redraw / pose-aware replace busts the SW cache. Chosen over stuffing
-// art_v onto session rows so every surface shares one map.
-const artVersions = new Map<string, number>();
+// Versions and recent misses live in art-memory-client.ts (CairnArtMemory).
 let _artReadyTimer: ReturnType<typeof setTimeout> | number = 0;
 function persistArtReady(): void {
   clearTimeout(_artReadyTimer);
@@ -72,16 +70,11 @@ function markArtReady(token: unknown): void {
 })();
 
 function applyArtVersions(payload: ClientArtVersionsResponse | null | undefined): void {
-  const versions = payload?.versions;
-  if (!versions || typeof versions !== "object") return;
-  for (const [token, value] of Object.entries(versions)) {
-    const n = Number(value);
-    if (token && Number.isFinite(n) && n > 0) artVersions.set(token, n);
-  }
+  CairnArtMemory.mergeVersions(payload?.versions);
 }
 
 function artUrl(kind: string, query: string, version?: number): string {
-  const v = version ?? (kind === "exercise" ? artVersions.get(artKey(kind, query)) || 0 : 0);
+  const v = version ?? (kind === "exercise" ? CairnArtMemory.version(artKey(kind, query)) : 0);
   let path = `/api/art?kind=${encodeURIComponent(kind)}&q=${encodeURIComponent(query)}`;
   if (kind === "exercise" && v > 0) path += `&v=${encodeURIComponent(String(v))}`;
   return withToken(path);
@@ -90,24 +83,26 @@ function artUrl(kind: string, query: string, version?: number): string {
 // Prime from the server's on-disk manifest — makes a cold client (cleared cache,
 // new browser) render already-generated art instantly instead of re-flashing the
 // wire on its first paint. Fire-and-forget at boot; failures are silent.
+// One read (`/art/state`): readiness, the enabled flag and the version map.
 async function primeArtManifest(): Promise<void> {
   try {
-    const m: ClientArtManifestResponse = await api("/art/manifest");
+    const m: ClientArtStateResponse | ClientArtManifestResponse = await api("/art/state");
     if (m && "enabled" in m) artEnabled = !!m.enabled;
     if (m && Array.isArray(m.ready) && m.ready.length) {
       m.ready.forEach((k: unknown) => {
-        if (typeof k === "string") artReady.add(k);
+        if (typeof k !== "string") return;
+        artReady.add(k);
+        CairnArtMemory.forgetMiss(k); // drawn since it last missed
       });
       persistArtReady();
     }
-  } catch {}
-  try {
-    applyArtVersions(await api("/art/versions"));
+    if (m && "versions" in m) applyArtVersions(m);
   } catch {}
 }
 
 function artPhotoLoaded(img: HTMLImageElement): void {
   img.classList.add("on");
+  if (img.dataset.artkey) CairnArtMemory.forgetMiss(img.dataset.artkey);
   markArtReady(img.dataset.artkey); // remember for instant render next time
 }
 function artPhotoFailed(img: HTMLImageElement): void {
@@ -117,6 +112,7 @@ function artPhotoFailed(img: HTMLImageElement): void {
   // A token we promised was ready didn't load (server cache cleared, file gone) —
   // forget it so we stop rendering it eager and fall back to the SVG cleanly.
   const k = img.dataset.artkey;
+  if (k) CairnArtMemory.recordMiss(k);
   if (k && artReady.has(k)) {
     artReady.delete(k);
     persistArtReady();
@@ -169,7 +165,7 @@ function pollArtUntilReady(
 
 async function redrawExerciseArt(img: HTMLImageElement, query: string): Promise<void> {
   const token = artKey("exercise", query);
-  const currentV = artVersions.get(token) || 1;
+  const currentV = CairnArtMemory.version(token) || 1;
   const tile = img.closest(".artile");
   tile?.classList.add("art-redrawing");
   try {
@@ -189,7 +185,8 @@ async function redrawExerciseArt(img: HTMLImageElement, query: string): Promise<
       return;
     }
     const nextV = Number(res.version) || currentV + 1;
-    artVersions.set(token, nextV);
+    CairnArtMemory.setVersion(token, nextV);
+    CairnArtMemory.forgetMiss(token);
     markArtReady(token);
     const src = artUrl("exercise", query, nextV);
     img.dataset.retried = "";
@@ -330,8 +327,11 @@ function artImg(kind: string, q: unknown, cls = "artile-md", svg: string | null 
     .slice(0, 120);
   if (!artEnabled || !query) return `<div class="artile ${cls}">${s}</div>`;
   const token = artKey(kind, query);
-  const src = artUrl(kind, query);
   const ready = artReady.has(token);
+  // Just answered "not drawn yet": a re-render keeps the SVG rather than asking
+  // again for the same miss (the failed tile's own quiet retry still runs).
+  if (!ready && CairnArtMemory.missedRecently(token)) return `<div class="artile ${cls}">${s}</div>`;
+  const src = artUrl(kind, query);
   const imgCls = ready ? "artimg-photo on instant" : "artimg-photo";
   const load = ready ? "eager" : "lazy";
   return `<div class="artile artimg ${cls}">${s}<img class="${imgCls}" alt="${escAttr(query)}" loading="${load}" decoding="async" data-art-photo="1" data-artkey="${escAttr(token)}" data-art-kind="${escAttr(kind)}" data-art-q="${escAttr(query)}" src="${escAttr(src)}"></div>`;

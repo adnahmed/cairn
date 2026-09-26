@@ -116,8 +116,10 @@
     return `<article class="packet-paper${opts.enter ? " settle-in" : ""}">${head}${body}</article>`;
   }
 
-  function previewErrorHtml(): string {
-    return `<div class="packet-error"><p class="packet-empty-line">Couldn't build the preview just now.</p><button type="button" class="linkbtn linkbtn-plain packet-retry" data-packet-retry>Try again</button></div>`;
+  // `unreachable`: Cairn is out of reach (CairnOffline), not a failed build.
+  function previewErrorHtml(unreachable = false): string {
+    const line = unreachable ? "Can't reach Cairn right now — the preview fills in once it's back." : "Couldn't build the preview just now.";
+    return `<div class="packet-error"><p class="packet-empty-line">${escHtml(line)}</p><button type="button" class="linkbtn linkbtn-plain packet-retry" data-packet-retry>Try again</button></div>`;
   }
 
   function emptyHtml(opts: { disclaimer?: string } = {}): string {

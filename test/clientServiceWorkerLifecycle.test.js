@@ -50,8 +50,11 @@ function loadLifecycle(options = {}) {
       return intervalCalls.length;
     };
   }
+  if (options.gate) context.CairnUpdateGate = options.gate;
+  if (options.requestIdleCallback) context.requestIdleCallback = options.requestIdleCallback;
   if (!options.noDocument) {
     context.document = {
+      ...(options.readyState ? { readyState: options.readyState } : {}),
       visibilityState: options.visibilityState || "visible",
       addEventListener(type, handler) {
         documentListeners.set(type, handler);
@@ -213,5 +216,47 @@ for (const file of ["app-service-worker.js", "app-sw-recovery.js"]) {
     assert.equal(env.intervalCalls.length, 0);
     assert.equal(typeof env.documentListener("visibilitychange"), "function");
     assert.equal(typeof env.windowListener("pageshow"), "function");
+  });
+}
+
+for (const file of ["app-service-worker.js", "app-sw-recovery.js"]) {
+  test(`${file}: controllerchange hands the reload to the update gate`, async () => {
+    const decisions = [];
+    const gate = {
+      onControllerChange(reload) {
+        decisions.push(reload);
+        return "deferred";
+      },
+    };
+    const env = loadLifecycle({ file, controller: true, gate });
+    env.context.registerServiceWorkerLifecycle();
+    env.listener("controllerchange")();
+    assert.equal(decisions.length, 1);
+    assert.equal(env.reloadCount(), 0, "the gate deferred it");
+    decisions[0]();
+    decisions[0]();
+    assert.equal(env.reloadCount(), 1, "the gate's reload still fires once");
+  });
+
+  test(`${file}: registration waits for load, then idle time`, async () => {
+    const idle = [];
+    const env = loadLifecycle({
+      file,
+      controller: true,
+      readyState: "loading",
+      requestIdleCallback: (fn, opts) => {
+        idle.push({ fn, opts });
+        return 1;
+      },
+    });
+    env.context.registerServiceWorkerLifecycle();
+    await Promise.resolve();
+    assert.deepEqual(env.registerCalls, [], "nothing registered while the page is still loading");
+    env.windowListener("load")();
+    assert.equal(idle.length, 1);
+    assert.ok(idle[0].opts.timeout > 0, "bounded idle wait");
+    assert.deepEqual(env.registerCalls, []);
+    idle[0].fn();
+    assert.deepEqual(env.registerCalls, ["/sw.js"]);
   });
 }

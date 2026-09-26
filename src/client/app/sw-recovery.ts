@@ -8,6 +8,26 @@ type ServiceWorkerRoot = typeof globalThis & {
 };
 
 {
+  // After the window's load event, then the next idle slot (bounded, so a busy
+  // page still registers within a few seconds). Without a DOM or the timing APIs
+  // (tests, an old engine) it runs at once.
+  function whenLoadedAndIdle(run: () => void): void {
+    const idle = (): void => {
+      const ric = (globalThis as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
+        .requestIdleCallback;
+      if (typeof ric === "function") ric(run, { timeout: 3000 });
+      else if (typeof setTimeout === "function") setTimeout(run, 1);
+      else run();
+    };
+    const doc = typeof document !== "undefined" ? document : null;
+    const win = typeof window !== "undefined" ? window : null;
+    if (!doc || !doc.readyState || doc.readyState === "complete" || !win || typeof win.addEventListener !== "function") {
+      idle();
+      return;
+    }
+    win.addEventListener("load", idle, { once: true });
+  }
+
   function startServiceWorkerLifecycle(): void {
     if (!("serviceWorker" in navigator)) return;
     const root = globalThis as ServiceWorkerRoot;
@@ -18,13 +38,27 @@ type ServiceWorkerRoot = typeof globalThis & {
     // OR shortly after resume — not only on a cold navigation. sw.js skipWaiting()s
     // on install, so the new worker activates as soon as it downloads; reload once
     // when it takes control. The first-ever install has no prior controller and
-    // must not reload.
+    // must not reload. WHEN to reload is the update gate's call (app/update-gate.ts):
+    // at once when nothing is in flight, otherwise a quiet "tap to refresh" line and
+    // a reload the next time the page is hidden — never mid-set or mid-sentence.
     const hadController = !!navigator.serviceWorker.controller;
     let swReloading = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!hadController || swReloading) return;
+    const reloadOnce = (): void => {
+      if (swReloading) return;
       swReloading = true;
       location.reload();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController || swReloading) return;
+      const gate = (globalThis as { CairnUpdateGate?: { onControllerChange?: (reload: () => void) => unknown } })
+        .CairnUpdateGate;
+      if (gate && typeof gate.onControllerChange === "function") {
+        try {
+          gate.onControllerChange(reloadOnce);
+          return;
+        } catch {}
+      }
+      reloadOnce();
     });
 
     // The browser only re-checks sw.js for a new version on navigation, so an
@@ -45,9 +79,14 @@ type ServiceWorkerRoot = typeof globalThis & {
       registration.update().catch(() => {});
     }
 
-    navigator.serviceWorker.register("/sw.js").then((reg) => {
-      registration = reg;
-    }).catch(() => {});
+    // Register after load, in idle time: the worker's install precaches the whole
+    // shell, and on a cold first open that download must not compete with the
+    // bundles and API reads the first paint is waiting on.
+    whenLoadedAndIdle(() => {
+      navigator.serviceWorker.register("/sw.js").then((reg) => {
+        registration = reg;
+      }).catch(() => {});
+    });
 
     if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
       document.addEventListener("visibilitychange", () => {

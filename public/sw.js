@@ -31,34 +31,139 @@ const OPTIONAL_ASSETS = [
   // Versioned icon set (…vN). Never hand-edit the suffix: `node scripts/bump-icons.mjs`
   // moves every icon url (here, manifest.json, index.html) to the next .vN at once,
   // so the new urls bust every cache layer and test/pwaInstallIdentity.test.js agrees.
+  // The og: share image is deliberately NOT here: only link-preview crawlers fetch
+  // it, never the app, so precaching it only cost every install its bytes.
   "/icons/icon.v3.svg", "/icons/apple-touch-icon.v3.png", "/icons/mask-icon.v3.svg",
   "/icons/favicon-16.v3.png", "/icons/favicon-32.v3.png",
   "/icons/icon-192.v3.png", "/icons/icon-512.v3.png",
   "/icons/icon-192-maskable.v3.png", "/icons/icon-512-maskable.v3.png",
-  "/icons/og.v3.png",
 ];
 
+// ---- incremental precache ----
+// The server rewrites the literal below to `{ "<url>": "<hash>", … }` — a content
+// hash per precached file (src/swVersion.ts). An install then COPIES every file
+// whose hash it already holds (from the previous shell cache, or the stable cache)
+// and downloads only what actually changed, instead of re-fetching the whole shell
+// on every deploy. Served unmodified (a plain static server) it stays `{}` and the
+// install falls back to downloading everything. Keep the literal EXACTLY as written:
+// it is substituted by exact match and asserted by scripts/check-sw-cache.mjs.
+const ASSET_HASHES = /*cairn-asset-hashes*/ {};
+// Fonts, vendor code and the versioned icons change almost never, so they live in a
+// STABLE cache that outlives a shell version (like the art cache): a deploy that
+// touches a bundle never downloads them again. Membership is by url; the hash
+// index below still re-downloads one whose bytes did change.
+const STABLE_CACHE = "cairn-static-v1";
+function isStableAsset(url) {
+  return /^\/(fonts|vendor|icons)\//.test(url);
+}
+// Each cache remembers the hash every entry was stored under, as a JSON entry at
+// this url (never requested by the app).
+const HASH_INDEX_URL = "/__cairn/asset-hashes.json";
+async function readHashIndex(cache) {
+  try {
+    const res = await cache.match(HASH_INDEX_URL);
+    return res ? (await res.json()) || {} : {};
+  } catch {
+    return {};
+  }
+}
+function writeHashIndex(cache, index) {
+  return cache.put(HASH_INDEX_URL, new Response(JSON.stringify(index), { headers: { "Content-Type": "application/json" } }));
+}
+// A filename-versioned asset (`….v3.png`) can never change under its url, so the
+// browser's HTTP cache is a valid source for it. Anything else is REVALIDATED with
+// the server (`no-cache`: a conditional request every time, never a stale copy), so
+// a file the page itself just downloaded — the first install now registers after
+// load — answers 304 instead of crossing the network twice.
+function precacheRequest(url) {
+  return new Request(url, { cache: /\.v\d+\.[a-z0-9]+$/i.test(url) ? "default" : "no-cache" });
+}
+
+async function precacheShell() {
+  const hashes = ASSET_HASHES || {};
+  const [shell, stable] = await Promise.all([caches.open(CACHE), caches.open(STABLE_CACHE)]);
+  const previousNames = (await caches.keys()).filter(
+    (k) => k.startsWith("cairn-") && k !== CACHE && k !== ART_CACHE && k !== STABLE_CACHE
+  );
+  const previous = await Promise.all(
+    previousNames.map(async (name) => {
+      const cache = await caches.open(name);
+      return { cache, index: await readHashIndex(cache) };
+    })
+  );
+  const stableIndex = await readHashIndex(stable);
+  const shellIndex = {};
+
+  async function one(url, required) {
+    const hash = hashes[url];
+    const isStable = isStableAsset(url);
+    const target = isStable ? stable : shell;
+    const index = isStable ? stableIndex : shellIndex;
+    try {
+      if (hash) {
+        // Already held, byte-identical: nothing to do (stable) or copy it over (shell).
+        if (isStable && stableIndex[url] === hash && (await stable.match(url))) return;
+        for (const prior of previous) {
+          if (prior.index[url] !== hash) continue;
+          const hit = await prior.cache.match(url);
+          if (!hit) continue;
+          await target.put(url, hit);
+          index[url] = hash;
+          return;
+        }
+      }
+      const res = await fetch(precacheRequest(url));
+      if (!res || !res.ok) throw new Error(`precache ${url}: ${res ? res.status : "no response"}`);
+      await target.put(url, res);
+      if (hash) index[url] = hash;
+      else delete index[url];
+    } catch (error) {
+      if (required) throw error;
+    }
+  }
+
+  await Promise.all(CORE_ASSETS.map((url) => one(url, true)));
+  await Promise.all(OPTIONAL_ASSETS.map((url) => one(url, false)));
+  await Promise.all([writeHashIndex(shell, shellIndex), writeHashIndex(stable, stableIndex)]);
+}
+
+// Drop stable entries the current shell no longer lists (a bumped icon set, a
+// removed font), so the stable cache holds exactly what this worker precaches.
+async function pruneStableCache() {
+  const listed = new Set([...CORE_ASSETS, ...OPTIONAL_ASSETS].filter(isStableAsset));
+  const stable = await caches.open(STABLE_CACHE);
+  const index = await readHashIndex(stable);
+  let changed = false;
+  for (const req of await stable.keys()) {
+    const path = new URL(req.url).pathname;
+    if (path === HASH_INDEX_URL || listed.has(path)) continue;
+    await stable.delete(req);
+    if (index[path]) {
+      delete index[path];
+      changed = true;
+    }
+  }
+  if (changed) await writeHashIndex(stable, index);
+}
+
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then(async (c) => {
-    // Bypass the HTTP cache on install: a browser-cached (not just service-worker
-    // cached) response for these urls would otherwise defeat the whole point of
-    // fetching fresh precache bytes on every version bump.
-    await c.addAll(CORE_ASSETS.map((u) => new Request(u, { cache: "reload" })));
-    await Promise.all(OPTIONAL_ASSETS.map((asset) => c.add(new Request(asset, { cache: "reload" })).catch(() => null)));
-  }));
+  // Download what changed, copy what did not (precacheShell).
+  e.waitUntil(precacheShell());
   // Single-user self-hosted app: a deploy should always be live on the next open,
   // never stranded behind a manual tap (which is how a client once fell ~40 cache
   // versions behind). Activate the new worker immediately; the page reloads itself
-  // once on controllerchange (app shell), and chat drafts + in-flight turns persist so
-  // the reload loses nothing.
+  // on controllerchange once nothing is in flight (src/client/app/update-gate.ts),
+  // and chat drafts + in-flight turns persist so the reload loses nothing.
   self.skipWaiting();
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
       // Drop stale app caches, but PRESERVE the art cache — its images are
-      // immutable and expensive to regenerate, so they outlive a version bump.
-      .then((ks) => Promise.all(ks.filter((k) => k !== CACHE && k !== ART_CACHE).map((k) => caches.delete(k))))
+      // immutable and expensive to regenerate, so they outlive a version bump —
+      // and the stable cache, pruned to what this worker lists.
+      .then((ks) => Promise.all(ks.filter((k) => k !== CACHE && k !== ART_CACHE && k !== STABLE_CACHE).map((k) => caches.delete(k))))
+      .then(() => pruneStableCache().catch(() => {}))
       .then(() => self.clients.claim())
   );
 });
