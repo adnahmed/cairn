@@ -41,6 +41,8 @@ import {
   type WhatIfDirection,
   type WhatIfHint,
   type WhatIfPlanChange,
+  type WhatIfDoResult,
+  type WhatIfDoState,
   type WhatIfResult,
   type WhatIfRippleEffect,
 } from "../contracts/what-if.js";
@@ -485,12 +487,41 @@ export interface WhatIfDoInput {
   job_id?: unknown;
 }
 
-const nothing = (error: string, extra: Record<string, unknown> = {}) => ({
-  ok: false as const,
-  error,
-  ...extra,
-  tried: [],
-});
+function doResult(
+  state: WhatIfDoState,
+  fields: Partial<Omit<WhatIfDoResult, "ok" | "state" | "tried">> = {}
+): WhatIfDoResult {
+  return {
+    ok: state !== "refused",
+    state,
+    proposal_id: null,
+    proposal_status: null,
+    decision_id: null,
+    tier: null,
+    effective_date: null,
+    plan_moved: false,
+    change: null,
+    ...fields,
+    tried: [],
+  };
+}
+
+const nothing = (error: string, extra: Partial<WhatIfDoResult> = {}): WhatIfDoResult =>
+  doResult("refused", { ...extra, error });
+
+/**
+ * The autonomy policy's routed result, read into the what-if's own state. The policy
+ * decided; this only names which of its outcomes it was.
+ */
+function routedState(routed: any): WhatIfDoState {
+  if (routed?.ok === false) return "refused";
+  const tier = routed?.tier ?? routed?.decision?.autonomy_tier ?? null;
+  if (tier === "clinician") return "clinician";
+  // The immediate-apply path carries applyProposal's `applied` ARRAY of what landed.
+  if (Array.isArray(routed?.applied) || routed?.applied === true) return "landed";
+  if (routed?.announced === true || routed?.pending === true) return "lands";
+  return "waiting";
+}
 
 /**
  * Hand a what-if's change to the team as a DRAFT, routed by the autonomy policy.
@@ -499,7 +530,7 @@ const nothing = (error: string, extra: Record<string, unknown> = {}) => ({
  * `{ok:false, error, tried:[]}` when there is nothing concrete to draft. A second tap
  * on the same answer returns the first draft rather than writing another.
  */
-export function whatIfDo(input: WhatIfDoInput): any {
+export function whatIfDo(input: WhatIfDoInput): WhatIfDoResult {
   const jobId = Number(input?.job_id);
   if (!Number.isInteger(jobId) || jobId < 1) return nothing("a what-if answer is needed to hand over");
   const job = getAgentJob(jobId) as any;
@@ -513,15 +544,11 @@ export function whatIfDo(input: WhatIfDoInput): any {
   if (job.ref_table === "plan_proposals" && Number(job.ref_id) > 0) {
     const existing = getProposal(Number(job.ref_id)) as any;
     if (existing) {
-      return {
-        ok: true,
-        already: true,
+      return doResult("already", {
         proposal_id: Number(existing.id),
         proposal_status: existing.status ?? null,
         change,
-        tier: null,
-        tried: [],
-      };
+      });
     }
   }
   if (!change.doable) {
@@ -574,17 +601,18 @@ export function whatIfDo(input: WhatIfDoInput): any {
     clinical_provenance: provenance ?? undefined,
   }) as any;
   const stored = getProposal(Number(proposal.id)) as any;
-  const refused = routed?.ok === false;
-  return {
-    ...routed,
-    ok: !refused,
+  const state = routedState(routed);
+  const decisionId = Number(routed?.decision?.id);
+  return doResult(state, {
     proposal_id: Number(proposal.id),
     proposal_status: stored?.status ?? null,
-    change,
-    ...(planMoved ? { plan_moved: true } : {}),
+    decision_id: Number.isInteger(decisionId) && decisionId > 0 ? decisionId : null,
     tier: routed?.tier ?? routed?.decision?.autonomy_tier ?? null,
-    ...(refused ? { error: String(routed?.error ?? "the team couldn't take this change"), tried: [] } : {}),
-  };
+    effective_date: typeof routed?.effective_date === "string" ? routed.effective_date : null,
+    plan_moved: planMoved,
+    change,
+    ...(state === "refused" ? { error: String(routed?.error ?? "the team couldn't take this change") } : {}),
+  });
 }
 
 function safeGoalCheck(): unknown {

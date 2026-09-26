@@ -109,3 +109,41 @@ export interface WhatIfResult {
   agent: string | null;
   tried: { agent: string; error: string }[];
 }
+
+/**
+ * How the team took a "Do it", decided on the server from the autonomy policy's own
+ * routed result — a client frames the state, it never works one out:
+ * - `landed`: applied now (its decision row carries the Undo);
+ * - `lands`: announced or pending, landing at the next natural boundary;
+ * - `waiting`: held as a draft for the athlete's yes;
+ * - `clinician`: held, clinician-directed;
+ * - `already`: a second tap on an answer already handed over;
+ * - `refused`: nothing was drafted, or the apply was refused (`ok:false`).
+ */
+export const WHAT_IF_DO_STATES = ["landed", "lands", "waiting", "clinician", "already", "refused"] as const;
+export type WhatIfDoState = (typeof WHAT_IF_DO_STATES)[number];
+
+/** `POST /api/what-if/do` (MCP `what_if_do`): one shape on every branch. */
+export interface WhatIfDoResult {
+  ok: boolean;
+  state: WhatIfDoState;
+  /** Present on `refused`: a what-if talk-it-through reason (with `kind`) or a raw failure. */
+  error?: string;
+  /** Present on a talk-it-through refusal: the change kind that is not drafted. */
+  kind?: WhatIfChangeKind;
+  /** Present when the what-if job has not been answered yet. */
+  job_status?: string | null;
+  proposal_id: number | null;
+  proposal_status: string | null;
+  /** The durable brain_decisions id, when the policy recorded one. */
+  decision_id: number | null;
+  /** The autonomy tier the policy chose, when it routed the draft. */
+  tier: string | null;
+  /** When an announced or pending change lands. */
+  effective_date: string | null;
+  /** A training answer read against a plan that has moved since: held for the athlete. */
+  plan_moved: boolean;
+  change: WhatIfChange | null;
+  /** "Do it" never runs an agent, so nothing was tried. */
+  tried: [];
+}

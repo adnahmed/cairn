@@ -205,33 +205,38 @@ test("the question always reaches the team as one 'What if' sentence", () => {
   assert.equal(win.CairnRippleCardModel.questionBody("What if I ran more?"), "I ran more?");
 });
 
-test("handed() frames the server's routed result and never decides a tier itself", () => {
+test("handed() frames the server's own state and never decides a tier itself", () => {
   const win = load();
   const h = win.CairnRippleCardModel.handed;
-  // The server's immediate-apply shape: applyProposal's `applied` is the array of items that landed.
-  const landed = h({
+  const done = (state, extra = {}) => ({
     ok: true,
-    applied: [{ target_id: 3, field: "target_reps", value: 8 }],
-    tier: "quiet_apply",
-    decision: { id: 41 },
+    state,
     proposal_id: 9,
+    proposal_status: "applied",
+    decision_id: 41,
+    tier: "quiet_apply",
+    effective_date: null,
+    plan_moved: false,
+    change: null,
+    tried: [],
+    ...extra,
   });
+  const landed = h(done("landed"));
   assert.equal(landed.state, "landed");
-  assert.equal(h({ ok: true, applied: [], tier: "quiet_apply", decision: { id: 2 } }).state, "landed");
   assert.equal(landed.decisionId, 41);
   assert.equal(landed.proposalId, 9);
-  assert.equal(h({ ok: true, announced: true, tier: "announce", decision: { id: 3 } }).state, "lands");
-  assert.equal(
-    h({ ok: true, applied: false, review_required: true, tier: "ask", decision: { id: 5 } }).state,
-    "waiting"
-  );
-  assert.match(h({ ok: true, review_required: true, tier: "ask", plan_moved: true }).line, /plan has moved/);
-  assert.equal(h({ ok: true, review_required: true, tier: "clinician" }).state, "clinician");
-  assert.equal(h({ ok: true, already: true, proposal_id: 9 }).state, "already");
-  const refused = h({ ok: false, error: "a goal is yours to name", kind: "goal", tried: [] });
+  assert.equal(h(done("lands", { tier: "announce" })).state, "lands");
+  assert.equal(h(done("waiting", { tier: "ask" })).state, "waiting");
+  assert.match(h(done("waiting", { tier: "ask", plan_moved: true })).line, /plan has moved/);
+  assert.equal(h(done("clinician", { tier: "clinician" })).state, "clinician");
+  assert.equal(h(done("already", { decision_id: null })).state, "already");
+  // The card never reads the policy's raw fields: a tier or an `applied` array is not a state.
+  assert.equal(h({ ok: true, applied: [{ target_id: 3 }], tier: "quiet_apply" }).state, "refused");
+  assert.equal(h(done("elsewhere")).state, "refused", "an unknown state is never guessed at");
+  const refused = h({ ok: false, state: "refused", error: "a goal is yours to name", kind: "goal", tried: [] });
   assert.equal(refused.state, "refused");
   assert.equal(refused.line, "A goal is yours to name", "what-if's own reason, as a sentence");
-  const raw = h({ ok: false, error: "the autonomous apply decision was not stored", tier: "quiet_apply" });
+  const raw = h({ ok: false, state: "refused", error: "the autonomous apply decision was not stored", tried: [] });
   assert.equal(raw.line, "The team couldn't take this change just now.", "a raw failure never reaches the athlete");
   assert.equal(h(null).state, "refused");
 });
@@ -410,10 +415,15 @@ test("Do it posts only the job id, then prints the Changes feed's own row with i
       "/what-if": { ok: true, job: { id: 77 } },
       "/what-if/do": {
         ok: true,
-        applied: [{ target_id: 3, field: "target_reps", value: 8 }],
-        tier: "quiet_apply",
-        decision: { id: 41 },
+        state: "landed",
         proposal_id: 9,
+        proposal_status: "applied",
+        decision_id: 41,
+        tier: "quiet_apply",
+        effective_date: null,
+        plan_moved: false,
+        change: null,
+        tried: [],
       },
       "/brain/changes": changesRead(41),
       "/brain/decisions/41/revert": { ok: true },
@@ -451,7 +461,7 @@ test("a held hand-over without a feed row says where it waits", async () => {
   const rec = recorder({
     respond: {
       "/what-if": { ok: true, job: { id: 8 } },
-      "/what-if/do": { ok: true, applied: false, review_required: true, tier: "ask", decision: { id: 50 } },
+      "/what-if/do": { ok: true, state: "waiting", tier: "ask", decision_id: 50, proposal_id: 12, tried: [] },
       "/brain/changes": changesRead(41),
     },
   });
@@ -472,6 +482,7 @@ test("a refused hand-over prints the server's reason and offers the conversation
       "/what-if": { ok: true, job: { id: 8 } },
       "/what-if/do": {
         ok: false,
+        state: "refused",
         error: "this one is talked through rather than drafted — ask the team in chat",
         kind: "other",
         tried: [],

@@ -3283,26 +3283,10 @@ export type ClientWhatIfQueuedResponse =
 
 /**
  * POST /api/what-if/do: the what-if's change handed to the team as a draft, routed by
- * the server's autonomy policy (src/coachOps/whatif.ts whatIfDo). The tier and the
- * decision are the policy's; a client only frames them.
+ * the server's autonomy policy (src/coachOps/whatif.ts whatIfDo). The `state` is the
+ * server's reading of the policy's outcome; a client only frames it.
  */
-export interface ClientWhatIfDoResponse {
-  ok: boolean;
-  error?: string;
-  already?: boolean;
-  applied?: boolean;
-  announced?: boolean;
-  pending?: boolean;
-  review_required?: boolean;
-  tier?: string | null;
-  decision?: { id: number; autonomy_tier?: string | null; [key: string]: unknown } | null;
-  proposal_id?: number;
-  proposal_status?: string | null;
-  change?: import("./what-if.js").WhatIfChange;
-  plan_moved?: boolean;
-  effective_date?: string;
-  tried: ClientAgentAttempt[];
-}
+export type ClientWhatIfDoResponse = import("./what-if.js").WhatIfDoResult;
 
 export interface ClientAgentJobResponse {
   ok: boolean;
