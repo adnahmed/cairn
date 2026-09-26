@@ -6961,3 +6961,68 @@ body[data-tab="session"] .tabbar{display:none}
 .evw-act{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
 .records-slot{margin:0 0 var(--space-card)}
 @media (prefers-reduced-motion:reduce){.records-hit{transition:none}}
+/* =====================================================================
+   Doctor packet (Wave 3 stream C): packet-builder (.packet-*) and
+   visit-questions (.vq-*), mounted in the Share view's records slot. One
+   Include / Leave out segmented toggle per section, a live paper preview, and
+   the informational line under the actions in every state. The lab flag and
+   "outside optimal" stay two marks.
+   ===================================================================== */
+.packet{display:grid;gap:var(--space-8)}
+.packet-toggle-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-2)}
+.packet-toggle{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3) var(--space-6);
+  padding:var(--space-2) 0;border-top:1px solid var(--line)}
+.packet-toggle:first-child{border-top:none}
+.packet-toggle-label{flex:1 1 150px;min-width:0;font-size:var(--text-md);color:var(--ink)}
+.packet-seg{flex:0 0 auto;margin:0}
+.packet-seg .segbtn{min-height:44px;padding:0 var(--space-6);transition:background var(--dur-1) var(--ease),color var(--dur-1) var(--ease)}
+.packet-seg .segbtn:active{transform:var(--press)}
+.packet-questions[hidden]{display:none}
+.packet-questions:empty{display:none}
+.packet-preview-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-5);margin:0 0 var(--space-4)}
+.packet-status{font-size:var(--text-xs);color:var(--muted)}
+.packet-preview{transition:opacity var(--dur-1) var(--ease)}
+.packet-preview.is-refreshing{opacity:.7}
+.packet-paper{background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:var(--space-8);display:grid;gap:var(--space-8)}
+.packet-pv-head{margin:0;font-size:var(--text-xs);color:var(--muted)}
+.packet-pv-title{margin:0 0 var(--space-3);font-size:var(--text-2xs);font-weight:650;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-2)}
+.packet-rows{margin:0;padding:0 0 0 var(--space-8);display:grid;gap:var(--space-3)}
+ul.packet-rows{list-style:none;padding-left:0}
+.packet-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-4);font-size:var(--text-sm);color:var(--ink)}
+.packet-row-title{min-width:0;overflow-wrap:anywhere}
+.packet-row-meta{flex-basis:100%;font-size:var(--text-xs);color:var(--muted);overflow-wrap:anywhere}
+.packet-marks{display:inline-flex;flex-wrap:wrap;gap:var(--space-2)}
+.packet-flag,.packet-opt{display:inline-flex;align-items:center;font-size:var(--text-2xs);line-height:1.5;
+  border-radius:var(--radius-pill);padding:0 var(--space-4)}
+.packet-flag{color:var(--warn);background:var(--warn-bg);font-weight:650}
+.packet-opt{color:var(--gold-deep);border:1px solid var(--line-2)}
+.packet-more,.packet-empty-line{margin:var(--space-2) 0 0;font-size:var(--text-xs);color:var(--muted)}
+.packet-error{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-6)}
+.packet-retry{min-height:44px}
+.packet-actions{display:flex;flex-wrap:wrap;gap:var(--space-5)}
+.packet-act{min-height:44px}
+.packet-disclaimer{margin:0;font-size:var(--text-xs);color:var(--muted);line-height:1.45}
+.packet-skel{box-shadow:none;margin:0}
+.vq{display:grid;gap:var(--space-5)}
+.vq-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
+.vq-item{display:flex;align-items:flex-start;gap:var(--space-5);padding:var(--space-4) 0;border-top:1px solid var(--line)}
+.vq-item:first-child{border-top:none}
+.vq-main{flex:1 1 auto;min-width:0;display:grid;gap:var(--space-1)}
+.vq-text{font-size:var(--text-md);color:var(--ink);line-height:1.4;overflow-wrap:anywhere}
+.vq-src{font-size:var(--text-2xs);font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.vq-basis{font-size:var(--text-xs);color:var(--muted);line-height:1.45}
+.vq-remove{flex:0 0 auto;min-height:44px;min-width:44px;padding:0 var(--space-4);background:none;border:none;
+  color:var(--accent-deep);font:inherit;font-size:var(--text-sm);cursor:pointer}
+.vq-remove:active{transform:var(--press-sm)}
+.vq-add{display:flex;gap:var(--space-4)}
+.vq-input{flex:1 1 auto;min-width:0;min-height:44px;padding:0 var(--space-6);font:inherit;font-size:var(--text-base);
+  color:var(--ink);background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-sm)}
+.vq-add-btn{flex:0 0 auto;min-height:44px}
+.vq-note{margin:0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
+.vq-link{min-height:44px;display:inline-flex;align-items:center}
+@media (prefers-reduced-motion:reduce){
+  .packet-preview,.packet-seg .segbtn{transition:none}
+  .packet-paper.settle-in,.vq-item.settle-in{animation:none}
+}
