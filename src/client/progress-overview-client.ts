@@ -590,42 +590,33 @@ function tovSessionsHtml(data: TovData): string {
   </div>`;
 }
 
-function tovJourneyHtml(data: TovData): string {
-  return CairnProgressJourney?.journeyCardHtml?.(data.journey, data.journeyMilestones, { stagger }) || "";
-}
-
-function tovTimelineHtml(data: TovData): string {
-  return CairnJourneyTimeline?.timelineCardHtml?.(data.timeline, { stagger }) || "";
-}
-
-// The compact "Journey" fold: the journey story + the road-ahead timeline, tucked
-// behind one calm two-line read so Train leads with the muscle-group progress.
-// Line 1 is the journey phase read; line 2 is the nearest checkpoint on the road.
-// Both cards render UNCHANGED inside the body. Collapsed by default; `open` only
-// when the muscle sections have nothing to lead with (a fresh install), so the
-// journey story is never hidden behind an empty screen. Returns "" when neither
-// card has anything to say.
-function tovJfoldHtml(data: TovData, opts: { open?: boolean } = {}): string {
-  const journey = tovJourneyHtml(data);
-  const timeline = tovTimelineHtml(data);
-  if (!journey && !timeline) return "";
+// The journey's one line: the phase read (or, before one exists, the nearest
+// checkpoint on the road ahead), pointing to Horizon's goal line, where the journey
+// story and the road-ahead timeline live in full. "" when neither read has anything
+// to say. No score, no countdown: the same plain-language lead the goal line prints.
+function tovJourneyPointerHtml(data: TovData): string {
+  const hasJourney = !!CairnProgressJourney?.hasRead?.(data.journey, data.journeyMilestones);
+  const hasRoad = Array.isArray(data.timeline) && data.timeline.length > 0;
+  if (!hasJourney && !hasRoad) return "";
   const phase = CairnProgressJourney?.phaseSummary?.(data.journey, data.journeyMilestones) || "";
   const next = CairnJourneyTimeline?.nextLabel?.(data.timeline) || "";
-  const lines = [phase, next].filter(Boolean);
-  const primary = lines[0] || "Your journey so far";
-  const secondary = lines.length > 1 ? lines[1] : "";
-  const open = opts.open ? " open" : "";
-  return `<details class="tov-jfold reveal"${open} style="${stagger(5)}">
-    <summary class="tov-jfold-sum">
-      <span class="tov-jfold-sum-main">
-        <span class="lbl tov-jfold-kick">Journey &amp; the road ahead</span>
-        <span class="tov-jfold-phase">${escHtml(primary)}</span>
-        ${secondary ? `<span class="tov-jfold-next">${escHtml(secondary)}</span>` : ""}
-      </span>
-      <span class="tov-jfold-chev" aria-hidden="true">&#9656;</span>
-    </summary>
-    <div class="tov-jfold-body">${journey}${timeline}</div>
-  </details>`;
+  const line = phase || next || "Your journey and the road ahead";
+  const routes = typeof routeApi === "function" ? routeApi() : null;
+  const href = routes?.routeToUrl({ tab: "horizon", section: "goal" }) || "/app/horizon/goal";
+  return `<a class="tov-jpoint reveal" style="${stagger(5)}" href="${escAttr(href)}" data-tov-horizon>
+    <span class="lbl tov-jpoint-kick">Journey</span>
+    <span class="tov-jpoint-line">${escHtml(line)}</span>
+    <span class="tov-jpoint-arw" aria-hidden="true">›</span>
+  </a>`;
+}
+
+function wireTovJourneyPointer(): void {
+  view.querySelector<HTMLElement>("[data-tov-horizon]")?.addEventListener("click", (event: MouseEvent) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    state.horizonSeg = "goal";
+    activateTab("horizon");
+  });
 }
 
 // ---- paint ----------------------------------------------------------------------
@@ -635,20 +626,20 @@ function paintTrainOverview(data: TovData): void {
   const rows = tovFoldRows(data);
   const hasAny = rows.some((r) => r.sets > 0) || CairnProgressData.rows(data.sessions).length > 0;
   if (!hasAny) {
-    // Nothing trained yet — lead with the journey story (fold auto-open) so a
-    // fresh install still opens to something, not an empty screen.
+    // Nothing trained yet — lead with the journey line so a fresh install still
+    // opens to something, not an empty screen.
     view.innerHTML = head + `<div class="tov-empty">` +
-      tovJfoldHtml(data, { open: true }) +
+      tovJourneyPointerHtml(data) +
       tovStartHtml() +
       emptyStateHtml(art("exercise", "barbell row"), "Log a session and this becomes your training map — what's trained, what's due, and where to push next.") +
       `</div>`;
     wireSeg(PROGRESS_HANDLERS);
     wireTovStart();
-    CairnProgressJourney?.wire?.(view);
+    wireTovJourneyPointer();
     return;
   }
-  // Train leads with the muscle-group progress read; the journey story and the
-  // road-ahead timeline auto-compact into one calm fold (collapsed by default).
+  // Train leads with the muscle-group progress read; the journey is one line that
+  // opens Horizon's goal line.
   view.innerHTML = head +
     tovMastHtml(data, rows) +
     tovLoadBandHtml(data) +
@@ -656,12 +647,12 @@ function paintTrainOverview(data: TovData): void {
     tovMapHtml(rows) +
     tovFocusHtml(data) +
     tovRowsHtml(rows) +
-    tovJfoldHtml(data, { open: false }) +
+    tovJourneyPointerHtml(data) +
     tovMovesHtml(data) +
     tovSessionsHtml(data);
   wireSeg(PROGRESS_HANDLERS);
   wireTovStart();
-  CairnProgressJourney?.wire?.(view);
+  wireTovJourneyPointer();
   runCountUps(view);
   view.querySelectorAll<HTMLElement>("[data-tovgo]").forEach((el) =>
     el.addEventListener("click", () => {
@@ -693,8 +684,8 @@ function paintTrainOverview(data: TovData): void {
   });
 }
 
-// tovJfoldHtml is exposed alongside the render entry so the compact-Journey-fold
-// grammar can be unit-tested in isolation (test/clientRoadFold.test.js), the same
-// way the journey/timeline card renderers are.
-Object.assign(globalThis, { renderTrainOverview, tovJfoldHtml });
-if (typeof window !== "undefined") Object.assign(window, { renderTrainOverview, tovJfoldHtml });
+// tovJourneyPointerHtml is exposed alongside the render entry so the journey line
+// can be unit-tested in isolation (test/clientRoadFold.test.js), the same way the
+// journey/timeline card renderers are.
+Object.assign(globalThis, { renderTrainOverview, tovJourneyPointerHtml });
+if (typeof window !== "undefined") Object.assign(window, { renderTrainOverview, tovJourneyPointerHtml });

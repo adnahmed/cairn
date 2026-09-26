@@ -8,7 +8,7 @@ import vm from "node:vm";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // Load the three IIFE-global client modules into ONE shared VM context — the way
-// they share scope in the browser bundle — so tovJfoldHtml exercises the REAL
+// they share scope in the browser bundle — so tovJourneyPointerHtml exercises the REAL
 // CairnProgressJourney.phaseSummary / CairnJourneyTimeline.nextLabel helpers.
 function loadRoadFold() {
   const esc = (value) =>
@@ -91,12 +91,6 @@ function timelineFixture() {
   ];
 }
 
-// Grab only the <summary>…</summary> text — the fold summary must carry no score.
-function summaryOf(html) {
-  const m = /<summary[^>]*>([\s\S]*?)<\/summary>/.exec(html);
-  return m ? m[1] : "";
-}
-
 test("journey phaseSummary reuses the card's plain-language phase read, empty when no read", () => {
   const ctx = loadRoadFold();
   const line = ctx.CairnProgressJourney.phaseSummary(journeyFixture(), []);
@@ -114,67 +108,28 @@ test("timeline nextLabel names the nearest checkpoint and the road-ahead lead", 
   assert.equal(ctx.CairnJourneyTimeline.nextLabel([]), "");
 });
 
-test("tovJfoldHtml is a collapsed fold by default with populated journey data", () => {
+test("the journey line points to Horizon's goal line, carrying the phase read and no score", () => {
   const ctx = loadRoadFold();
   const data = { journey: journeyFixture(), journeyMilestones: [], timeline: timelineFixture() };
-  const html = ctx.tovJfoldHtml(data, {});
-  assert.match(html, /<details class="tov-jfold/);
-  // Collapsed: the <details> opening tag carries no `open` attribute.
-  const openTag = /<details[^>]*>/.exec(html)[0];
-  assert.doesNotMatch(openTag, /\bopen\b/);
+  const html = ctx.tovJourneyPointerHtml(data);
+  assert.match(html, /<a class="tov-jpoint/);
+  assert.match(html, /href="\/app\/horizon\/goal"/);
+  assert.match(html, /data-tov-horizon/);
+  assert.match(html, /Mid-cut/);
+  // One line: the cards themselves live on the goal line now, never folded here.
+  assert.doesNotMatch(html, /jprog-card|ftl-card|<details/);
+  assert.doesNotMatch(html, /\/100|\bscore\b|\bgrade\b/i);
 });
 
-test("tovJfoldHtml auto-opens when asked (muscle sections have nothing to lead with)", () => {
+test("without a phase read, the journey line names the next checkpoint on the road", () => {
   const ctx = loadRoadFold();
-  const data = { journey: journeyFixture(), journeyMilestones: [], timeline: timelineFixture() };
-  const openTag = /<details[^>]*>/.exec(ctx.tovJfoldHtml(data, { open: true }))[0];
-  assert.match(openTag, /\bopen\b/);
+  const html = ctx.tovJourneyPointerHtml({ journey: null, journeyMilestones: [], timeline: timelineFixture() });
+  assert.match(html, /Next: Lipid recheck/);
 });
 
-test("tovJfoldHtml summary carries the phase read + next checkpoint, and no score", () => {
+test("the journey line is empty when neither read has anything to say", () => {
   const ctx = loadRoadFold();
-  const data = { journey: journeyFixture(), journeyMilestones: [], timeline: timelineFixture() };
-  const summary = summaryOf(ctx.tovJfoldHtml(data, {}));
-  // phase read (line 1) + next checkpoint (line 2)
-  assert.match(summary, /Mid-cut/);
-  assert.match(summary, /Next: Lipid recheck/);
-  // Constitution: no 0-100 grade, no score/grade wording. A composition target like
-  // "toward 15% BF" is a legitimate journey target (the card's own h3 shows it), so a
-  // bare percentage is NOT banned here — only score-shaped framing is.
-  assert.doesNotMatch(summary, /\/100|\bscore\b|\bgrade\b/i);
-});
-
-test("tovJfoldHtml renders BOTH cards inside the fold body, after the summary", () => {
-  const ctx = loadRoadFold();
-  const data = { journey: journeyFixture(), journeyMilestones: [], timeline: timelineFixture() };
-  const html = ctx.tovJfoldHtml(data, {});
-  assert.match(html, /jprog-card/); // journey card
-  assert.match(html, /ftl-card/); // road-ahead timeline card
-  const bodyStart = html.indexOf('class="tov-jfold-body"');
-  assert.ok(bodyStart > 0);
-  assert.ok(html.indexOf("jprog-card") > bodyStart, "journey card is inside the fold body");
-  assert.ok(html.indexOf("ftl-card") > bodyStart, "timeline card is inside the fold body");
-  // The summary itself carries none of the card markup.
-  assert.doesNotMatch(summaryOf(html), /jprog-card|ftl-card/);
-});
-
-test("tovJfoldHtml degrades: only the surviving summary half, and only that card", () => {
-  const ctx = loadRoadFold();
-  // Journey only, no road ahead.
-  const jOnly = ctx.tovJfoldHtml({ journey: journeyFixture(), journeyMilestones: [], timeline: [] }, {});
-  assert.match(jOnly, /jprog-card/);
-  assert.doesNotMatch(jOnly, /ftl-card/);
-  assert.match(summaryOf(jOnly), /Mid-cut/);
-  // Road ahead only, no journey read.
-  const tOnly = ctx.tovJfoldHtml({ journey: null, journeyMilestones: [], timeline: timelineFixture() }, {});
-  assert.match(tOnly, /ftl-card/);
-  assert.doesNotMatch(tOnly, /jprog-card/);
-  assert.match(summaryOf(tOnly), /Next: Lipid recheck/);
-});
-
-test("tovJfoldHtml is empty when neither card has anything to say", () => {
-  const ctx = loadRoadFold();
-  assert.equal(ctx.tovJfoldHtml({ journey: null, journeyMilestones: [], timeline: [] }, {}), "");
+  assert.equal(ctx.tovJourneyPointerHtml({ journey: null, journeyMilestones: [], timeline: [] }), "");
 });
 
 test("train overview masthead never surfaces a day streak", () => {
