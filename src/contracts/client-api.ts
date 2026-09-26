@@ -612,6 +612,31 @@ export interface ClientJourneyRead {
   milestones: ClientJourneyMilestone[];
   leanness_rate?: unknown;
   recomposition: ClientRecompositionRead;
+  goal_consistency: ClientGoalConsistencyRead;
+}
+
+// Profile goal (weight/date) vs the active journey phase (target/end date), reported
+// in words (src/repo/goal-consistency.ts). A read only: neither side is overwritten.
+export interface ClientGoalDisagreement {
+  field: "goal_weight" | "goal_date" | "active_phases";
+  profile_value: number | string | null;
+  phase_value: number | string | null;
+  words: string;
+}
+
+export interface ClientGoalConsistencyRead {
+  consistent: boolean;
+  goal: { weight_lb: number | null; date: string | null } | null;
+  active_phase: {
+    id: number;
+    kind: string;
+    target_weight_lb: number | null;
+    end_date: string | null;
+    heads_to_goal: boolean;
+  } | null;
+  active_phase_count: number;
+  disagreements: ClientGoalDisagreement[];
+  summary: string | null;
 }
 
 export interface ClientGoalCheck {
@@ -3556,6 +3581,7 @@ export interface ClientApiResponses {
   "/api/dexa-targeting": ClientDexaTargeting;
   "/api/journey": ClientJourneyRead;
   "/api/journey/milestones": ClientJourneyMilestone[];
+  "/api/journey/goal-consistency": ClientGoalConsistencyRead;
   "/api/journey/timeline": ClientForwardTimelineEntry[];
   "/api/journey/transition-suggestion": ClientJourneyTransitionSuggestion | null;
   "/api/program/run-plan/apply": ClientProposalResult;

@@ -8,6 +8,7 @@ import type { ExpenditureEstimate } from "./expenditure.js";
 import type { ProgramState } from "./program-state.js";
 import type { WholePersonTrajectory } from "./whole-person-trajectory.js";
 import { currentUnderfuelingRead } from "./underfueling-snapshot.js";
+import { goalConsistencyRead } from "./goal-consistency.js";
 
 export type JourneyPhaseKind = "cut" | "maintenance" | "diet_break" | "reverse" | "gain";
 export type JourneyPhaseStatus = "proposed" | "active" | "completed" | "discarded";
@@ -150,13 +151,23 @@ export function createJourneyPhase(input: JourneyPhaseInput) {
         ? num(input.target_bodyfat_pct, 3, 70)
         : num(profile.goal_bodyfat_pct, 3, 70),
       planned,
-      status,
+      // A phase created already active goes through the one-active rule like any
+      // other activation: it lands as proposed and is activated just below, so a
+      // create can never leave two phases active side by side.
+      status === "active" ? "proposed" : status,
       input.reason == null ? null : String(input.reason).trim().slice(0, 400) || null,
       input.source == null ? "manual" : String(input.source).trim().slice(0, 80) || "manual"
     );
-  return getJourneyPhase(Number(info.lastInsertRowid));
+  const id = Number(info.lastInsertRowid);
+  return status === "active" ? activateJourneyPhase(id) : getJourneyPhase(id);
 }
 
+// ONE active phase. Activating completes every other phase still marked active (as
+// of the new phase's start; an end date it already carries is kept), so exactly one
+// is active afterwards — including a store that already held two. The profile goal
+// is never touched here: a disagreement between the goal and the active phase is
+// reported in words by goalConsistencyRead (src/repo/goal-consistency.ts), never
+// settled silently on either side.
 export function activateJourneyPhase(id: number) {
   const row = getJourneyPhase(id);
   if (!row) throw new Error(`No journey phase ${id}`);
@@ -462,6 +473,9 @@ export function journeyRead(
       : null,
     body_fat: bodyFat,
     active_phase: activePhase,
+    // Profile goal vs the active phase, in words — a disagreement is reported, never
+    // settled by overwriting either side.
+    goal_consistency: goalConsistencyRead({ profile: p ?? null, activePhases: listJourneyPhases("active") }),
     proposed_phases: listJourneyPhases("proposed"),
     transition_suggestion: journeyTransitionSuggestion(today),
     milestones: journeyMilestones(today),

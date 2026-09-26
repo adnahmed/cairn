@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**345 routes** across 117 groups.
+**346 routes** across 117 groups.
 
 ## `/activities`
 
@@ -451,6 +451,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/journey` |  |
+| GET | `/api/journey/goal-consistency` | One goal, said once: any disagreement between the profile goal weight/date and the active phase's target/end date, in plain words. A pure read — neither side is overwritten; the athlete says which one stands. |
 | GET | `/api/journey/milestones` |  |
 | GET | `/api/journey/phases` |  |
 | POST | `/api/journey/phases` |  |
