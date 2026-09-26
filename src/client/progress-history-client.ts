@@ -32,8 +32,9 @@ const HISTORY_LEAD = 6;
 
 // Build + wire the History view from a sessions list. Idempotent: re-queries the
 // freshly-written DOM each call (warm peek + changed revalidate both route here).
-function paintHistoryBody(sessions: HistorySession[]) {
+function paintHistoryBody(all: HistorySession[]) {
   const head = segBar("sessions", PROGRESS_SEG);
+  const sessions = CairnProgressHistoryModel.listed(all);
   if (!sessions.length) {
     view.innerHTML = head + progressHero("Training history", []) +
       emptyStateHtml(art("exercise", "barbell squat"), "No sessions logged yet — your story starts on Today.");

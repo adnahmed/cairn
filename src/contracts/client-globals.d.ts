@@ -3770,6 +3770,8 @@ declare global {
       sessionCardModel(session: unknown): ProgressHistorySessionCardModel;
       editGroups(session: HistorySession): ProgressHistoryEditGroup[];
       summary(sessions: HistorySession[], now?: Date): ProgressHistorySummary;
+      listed(sessions: HistorySession[]): HistorySession[];
+      hasSets(session: HistorySession): boolean;
     };
 
     CairnProgressHistoryRender: {
