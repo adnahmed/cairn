@@ -242,25 +242,77 @@ test("Intake opens on one spoken line; the coverage read waits one tap deeper", 
   const progress = fixture();
   const html = intake.intakeBodyHtml(progress, "kcal");
   const lead = html.slice(0, html.indexOf("<details"));
-  assert.match(lead, /class="nprog-voice">About [^<]+ a day, on the [^<]+ you logged\.</);
+  assert.match(lead, /class="nprog-voice">About [^<]+ a day, across [^<]+ with known totals\.</);
   // The machine-register coverage bookkeeping is not on the first view.
   assert.doesNotMatch(lead, /Record coverage|One next move/);
   assert.match(html, /<details class="nprog-more">\s*<summary>How complete this is<\/summary>[\s\S]*Record coverage is sparse[\s\S]*One next move/);
 
   // Nothing logged is said plainly, never as a low number.
-  const empty = { ...progress, coverage: { ...progress.coverage, logged_days: 0 } };
+  const empty = { ...progress, coverage: { ...progress.coverage, logged_days: 0, open_day_logged: false } };
   assert.match(intake.intakeVoiceLine(empty), /^Nothing logged in the last \d+ days yet\.$/);
 });
 
-test("the Intake voice rounds energy to tens and speaks only of logged days", () => {
+test("the Intake voice rounds energy to tens and counts the averaged days, not the logged ones", () => {
   const intake = load();
   const line = intake.intakeVoiceLine({
     window_days: 35,
-    coverage: { logged_days: 17 },
+    coverage: { logged_days: 19, macro_known_days: 17, partial_days: 2 },
     nutrients: [
       { nutrient: "kcal", average: 1664, known_days: 17 },
       { nutrient: "protein_g", average: 113.8, known_days: 17 },
     ],
   });
-  assert.equal(line, "About 1,660 kcal and 114 g protein a day, on the 17 days you logged.");
+  assert.equal(line, "About 1,660 kcal and 114 g protein a day, across the 17 days with known totals.");
+  // Energy and protein known on different day counts: no single count is claimed.
+  const split = intake.intakeVoiceLine({
+    window_days: 35,
+    coverage: { logged_days: 19, macro_known_days: 17, partial_days: 2 },
+    nutrients: [
+      { nutrient: "kcal", average: 1664, known_days: 18 },
+      { nutrient: "protein_g", average: 113.8, known_days: 17 },
+    ],
+  });
+  assert.equal(split, "About 1,660 kcal and 114 g protein a day, across the days with known totals.");
+});
+
+test("food logged only today reads as an open day, never as nothing logged", () => {
+  const intake = load();
+  const line = intake.intakeVoiceLine({
+    window_days: 35,
+    read: "There is not enough recorded intake yet for a useful multi-week read.",
+    coverage: { logged_days: 0, closed_logged_days: 0, macro_known_days: 0, partial_days: 0, open_day_logged: true },
+    nutrients: [{ nutrient: "kcal", average: null, known_days: 0 }],
+  });
+  assert.doesNotMatch(line, /Nothing logged/);
+  assert.equal(line, "Today's food is still open; closed days read once they're logged.");
+});
+
+test("logged days whose totals are still being read never say nothing was logged", () => {
+  const intake = load();
+  const line = intake.intakeVoiceLine({
+    window_days: 35,
+    read: "Recorded intake is visible.",
+    coverage: { logged_days: 3, macro_known_days: 0, partial_days: 3, open_day_logged: false, pending_entries: 4 },
+    nutrients: [
+      { nutrient: "kcal", average: null, known_days: 0 },
+      { nutrient: "protein_g", average: null, known_days: 0 },
+    ],
+  });
+  assert.doesNotMatch(line, /Nothing logged/);
+  assert.equal(line, "Logged, still being read.");
+});
+
+test("when partial days outnumber complete ones the coverage read leads, not an average", () => {
+  const intake = load();
+  const read = "Recorded intake is visible across 5 of 34 closed days, but the complete-day picture is still loose.";
+  const line = intake.intakeVoiceLine({
+    window_days: 35,
+    read,
+    coverage: { logged_days: 5, macro_known_days: 1, partial_days: 4, open_day_logged: false },
+    nutrients: [
+      { nutrient: "kcal", average: 900, known_days: 5 },
+      { nutrient: "protein_g", average: 60, known_days: 5 },
+    ],
+  });
+  assert.equal(line, read);
 });

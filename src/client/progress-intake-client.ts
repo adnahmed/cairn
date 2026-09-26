@@ -38,8 +38,14 @@ type IntakeNutrient = import("../contracts/client.js").ClientNutritionProgressNu
 
   /**
    * The spoken lead: the recorded daily average of energy and protein, over the days
-   * that carry food. Words, not a verdict — an unlogged day is absent, never low, so
-   * the line speaks only of the days that were logged.
+   * whose totals are known. Words, not a verdict — an unlogged or partial day is absent,
+   * never low, so the line speaks only of what the record can carry:
+   *  - nothing at all (no closed day, nothing today) is said plainly;
+   *  - food logged only today is an OPEN day, not an empty window (closed days exclude today);
+   *  - logged food whose totals are not known yet (still being read) is said as such;
+   *  - when partial days outnumber complete ones, the server's coverage `read` leads
+   *    instead of an average that would be mostly partial days;
+   *  - the day count is the averaged nutrient's own `known_days`, never `logged_days`.
    */
   function intakeVoiceLine(progress: IntakeProgress): string {
     const rows = Array.isArray(progress.nutrients) ? progress.nutrients : [];
@@ -48,15 +54,30 @@ type IntakeNutrient = import("../contracts/client.js").ClientNutritionProgressNu
     const protein = of("protein_g");
     const kcalAvg = Number(kcal?.average);
     const proteinAvg = Number(protein?.average);
-    const hasKcal = !!kcal && Number(kcal.known_days) > 0 && Number.isFinite(kcalAvg) && kcalAvg > 0;
-    const hasProtein = !!protein && Number(protein.known_days) > 0 && Number.isFinite(proteinAvg) && proteinAvg > 0;
-    const logged = Number(progress.coverage?.logged_days) || 0;
-    if (!logged || (!hasKcal && !hasProtein)) return `Nothing logged in the last ${progress.window_days} days yet.`;
+    const kcalDays = Number(kcal?.known_days) || 0;
+    const proteinDays = Number(protein?.known_days) || 0;
+    const hasKcal = kcalDays > 0 && Number.isFinite(kcalAvg) && kcalAvg > 0;
+    const hasProtein = proteinDays > 0 && Number.isFinite(proteinAvg) && proteinAvg > 0;
+    const coverage = progress.coverage || ({} as Partial<IntakeProgress["coverage"]>);
+    const logged = Number(coverage.logged_days) || 0;
+    const openToday = coverage.open_day_logged === true;
+    if (!logged) {
+      return openToday
+        ? "Today's food is still open; closed days read once they're logged."
+        : `Nothing logged in the last ${progress.window_days} days yet.`;
+    }
+    if (!hasKcal && !hasProtein) return "Logged, still being read.";
+    const partial = Number(coverage.partial_days) || 0;
+    const complete = Number(coverage.macro_known_days) || 0;
+    const serverRead = typeof progress.read === "string" ? progress.read.trim() : "";
+    if (partial > complete && serverRead) return serverRead;
     const bits = [
       hasKcal ? `${(Math.round(kcalAvg / 10) * 10).toLocaleString("en-US")} kcal` : "",
       hasProtein ? `${Math.round(proteinAvg)} g protein` : "",
     ].filter(Boolean);
-    return `About ${bits.join(" and ")} a day, on the ${logged === 1 ? "day" : `${logged} days`} you logged.`;
+    const days = hasKcal && hasProtein ? (kcalDays === proteinDays ? kcalDays : 0) : hasKcal ? kcalDays : proteinDays;
+    const span = days ? (days === 1 ? "the one day" : `the ${days} days`) : "the days";
+    return `About ${bits.join(" and ")} a day, across ${span} with known totals.`;
   }
 
   function unavailableHtml(): string {
