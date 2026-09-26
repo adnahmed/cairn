@@ -13,15 +13,22 @@
 //     A portion is shrunk to fit the band ONLY when the smaller portion still covers
 //     the whole protein gap — an idea never trades protein away to fit the band. When
 //     the protein-carrying portion does not fit, it is offered anyway and says so.
-//   - The band bounds energy only, and only when there IS a band: with no band the
-//     ideas keep the usual portion and make no energy claim.
+//   - The band bounds energy only, and only when there IS a band the ideas can lean
+//     on: with no band — or a band too loose to size inside (mixed weeks, or low
+//     confidence) — the ideas keep the usual portion and make no energy claim.
+//   - DURING A CUT the room is not the no-gain ceiling (that is observed maintenance,
+//     and filling it would quietly undo the cut the athlete chose). A 'lose' goal
+//     bounds the room by the lowest of: the ceiling, the band's loss edge (the most
+//     eaten in a week the weight still came down — the athlete's own evidence), and a
+//     target the athlete ACCEPTED (never the formula's guess). And while the only bound
+//     a cut has is the no-gain ceiling, a portion is never sized up.
 //   - No agent turn. An agent refinement, if one is ever layered on, must never block
 //     this response.
 
-import type { ClientFuelIdea, ClientFuelIdeas } from "../contracts/fuel.js";
+import type { ClientFuelEnergyBound, ClientFuelIdea, ClientFuelIdeas, ClientIntakeBand } from "../contracts/fuel.js";
 import { db } from "../db.js";
 import { intakeBand } from "./intake-band.js";
-import { dayIntakeCoverage, frequentFoodKey, frequentFoods, getDayIntake } from "./nutrition.js";
+import { dayIntakeCoverage, dayIntakeTarget, frequentFoodKey, frequentFoods, getDayIntake } from "./nutrition.js";
 import { computeGoalCheck } from "./profile.js";
 import { addDaysISO, localDateISO } from "./shared.js";
 
@@ -131,8 +138,47 @@ interface Sized {
   fits: boolean | null;
 }
 
-// Size one staple for the room left (rules in the header). PURE.
-export function sizeFuelIdea(staple: FuelStaple, proteinNeed: number | null, energyRoom: number | null): Sized {
+export interface FuelEnergyBound {
+  /** The kcal the day's room is measured under; null = no energy claim at all. */
+  kcal: number | null;
+  kind: ClientFuelEnergyBound | null;
+  /** Whether a portion may be sized UP to fill the room. */
+  allow_up: boolean;
+}
+
+/**
+ * What today's energy room is measured under (rules in the header). PURE. `target` is
+ * `dayIntakeTarget(goal)` — its `mode` says whether this is a cut, its `source` whether
+ * the kcal is a target the athlete accepted or only the formula's.
+ */
+export function fuelEnergyBound(
+  band: Pick<ClientIntakeBand, "status" | "band" | "energy_ceiling_kcal" | "confidence">,
+  target: { kcal: number; mode: string; source: string } | null
+): FuelEnergyBound {
+  const none: FuelEnergyBound = { kcal: null, kind: null, allow_up: false };
+  if (band.status !== "ok" || !band.band || band.energy_ceiling_kcal == null) return none;
+  // A loose read sizes nothing: its ceiling may be one noisy week.
+  if (band.band.mixed || band.confidence === "low") return none;
+  const ceiling = band.energy_ceiling_kcal;
+  if (target?.mode !== "lose") return { kcal: ceiling, kind: "observed_ceiling", allow_up: true };
+  // Ties go to the cut's own bound, so the words say what actually holds the room.
+  const candidates: Array<{ kcal: number; kind: ClientFuelEnergyBound }> = [];
+  if (target.source === "accepted" && target.kcal > 0) candidates.push({ kcal: target.kcal, kind: "accepted_target" });
+  if (band.band.low_is_loss_edge) candidates.push({ kcal: band.band.low_kcal, kind: "loss_edge" });
+  candidates.push({ kcal: ceiling, kind: "observed_ceiling" });
+  let best = candidates[0];
+  for (const c of candidates) if (c.kcal < best.kcal) best = c;
+  return { kcal: best.kcal, kind: best.kind, allow_up: best.kind !== "observed_ceiling" };
+}
+
+// Size one staple for the room left (rules in the header). PURE. `allowUp` false keeps
+// a portion from growing to fill the room (a cut bounded only by the no-gain ceiling).
+export function sizeFuelIdea(
+  staple: FuelStaple,
+  proteinNeed: number | null,
+  energyRoom: number | null,
+  allowUp = true
+): Sized {
   const at = (portion: number): Sized => {
     const kcal = staple.kcal * portion;
     const protein = staple.protein_g * portion;
@@ -148,7 +194,7 @@ export function sizeFuelIdea(staple: FuelStaple, proteinNeed: number | null, ene
   const usual = at(1);
   // Up: more of a protein staple, only with a band to size inside and only while it
   // still fits and still buys protein that is owed.
-  if (energyRoom != null && proteinNeed != null && proteinNeed > usual.covered && usual.fits) {
+  if (allowUp && energyRoom != null && proteinNeed != null && proteinNeed > usual.covered && usual.fits) {
     let best = usual;
     for (const portion of PORTIONS.filter((p) => p > 1)) {
       const s = at(portion);
@@ -167,7 +213,22 @@ export function sizeFuelIdea(staple: FuelStaple, proteinNeed: number | null, ene
   return usual;
 }
 
-function ideaWhy(s: Sized, proteinNeed: number | null, energyRoom: number | null): string {
+const BOUND_WORDS: Record<ClientFuelEnergyBound, { fits: string; past: string }> = {
+  observed_ceiling: { fits: "left in your observed range", past: "your observed range" },
+  loss_edge: {
+    fits: "left under the intake your weight still came down at",
+    past: "the intake your weight still came down at",
+  },
+  accepted_target: { fits: "left under the target you accepted", past: "the target you accepted" },
+};
+
+function ideaWhy(
+  s: Sized,
+  proteinNeed: number | null,
+  energyRoom: number | null,
+  boundKind: ClientFuelEnergyBound | null
+): string {
+  const words = BOUND_WORDS[boundKind ?? "observed_ceiling"];
   const protein = Math.round(s.protein);
   let lead: string;
   if (proteinNeed != null && proteinNeed > 0) {
@@ -177,12 +238,11 @@ function ideaWhy(s: Sized, proteinNeed: number | null, energyRoom: number | null
   } else {
     lead = `One of your staples, about ${protein} g protein`;
   }
-  if (s.fits === true)
-    return `${lead}, and it fits the ${Math.round(energyRoom as number)} kcal left in your observed range.`;
+  if (s.fits === true) return `${lead}, and it fits the ${Math.round(energyRoom as number)} kcal ${words.fits}.`;
   if (s.fits === false) {
     return proteinNeed != null && proteinNeed > 0
-      ? `${lead}. It runs past your observed range today; protein comes first.`
-      : `${lead}. It runs past your observed range today.`;
+      ? `${lead}. It runs past ${words.past} today; protein comes first.`
+      : `${lead}. It runs past ${words.past} today.`;
   }
   return `${lead}.`;
 }
@@ -216,7 +276,14 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
       : "in progress";
 
   const proteinNeed = anchor ? Math.max(0, anchor.protein_g - totals.protein_g) : null;
-  const energyRoom = band.energy_ceiling_kcal != null ? Math.round(band.energy_ceiling_kcal - totals.kcal) : null;
+  let target: ReturnType<typeof dayIntakeTarget> = null;
+  try {
+    target = dayIntakeTarget(goal);
+  } catch {
+    target = null;
+  }
+  const bound = fuelEnergyBound(band, target);
+  const energyRoom = bound.kcal != null ? Math.round(bound.kcal - totals.kcal) : null;
 
   const excluded = new Set((opts.exclude ?? []).map((k) => String(k).split("@")[0]));
   const eatenToday = new Set(day.entries.map((e: any) => frequentFoodKey(String(e.summary ?? ""))));
@@ -224,7 +291,7 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
 
   const fitRank = (f: boolean | null) => (f === true ? 2 : f === null ? 1 : 0);
   const sized = staples
-    .map((staple) => sizeFuelIdea(staple, proteinNeed, energyRoom))
+    .map((staple) => sizeFuelIdea(staple, proteinNeed, energyRoom, bound.allow_up))
     .sort(
       (a, b) =>
         (proteinNeed != null && proteinNeed > 0 ? Math.round(b.covered / 5) - Math.round(a.covered / 5) : 0) ||
@@ -249,7 +316,7 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
       carbs_g: s.staple.carbs_g == null ? null : Math.round(s.staple.carbs_g * s.portion),
       fat_g: s.staple.fat_g == null ? null : Math.round(s.staple.fat_g * s.portion),
       fits_band: s.fits,
-      why: ideaWhy(s, proteinNeed, energyRoom),
+      why: ideaWhy(s, proteinNeed, energyRoom, bound.kind),
       prefill: s.portion === 1 ? s.staple.title : `${s.staple.title} (${portion_words})`,
       times_logged: s.staple.times_logged,
       last_logged: s.staple.last_logged,
@@ -267,7 +334,11 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
       fiber_g: totals.fiber_g,
       state,
     },
-    room: { protein_g: proteinNeed == null ? null : Math.round(proteinNeed), energy_kcal: energyRoom },
+    room: {
+      protein_g: proteinNeed == null ? null : Math.round(proteinNeed),
+      energy_kcal: energyRoom,
+      energy_bound: bound.kind,
+    },
     band_status: band.status,
     ideas,
     words: ideas.length

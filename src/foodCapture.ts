@@ -408,25 +408,38 @@ export function normalizeFoodCaptureParsed(
 //
 // THE RULES (each one deterministic):
 //   1. A row's macros SCALE with its quantity, from the row's OWN estimate. The
-//      reference estimate is the stored twin (matched by item name, first unused
-//      stored row), else the edited row's own macros at its own amount. "205 g" →
-//      "250 g" multiplies every macro by 250/205; "2 eggs" → "3 eggs" by 3/2. Units
-//      must agree after normalization (g/kg/oz/lb → g, ml/l → ml, a count word →
-//      itself); a quantity that cannot be compared keeps the old macros and the row
+//      reference estimate is the stored twin (matched by item name AND amount first,
+//      then by item name alone — first unused stored row either way, so reordering
+//      two same-named rows never swaps their estimates), else the edited row's own
+//      macros at its own amount. "205 g" → "250 g" multiplies every macro by
+//      250/205; "2 eggs" → "3 eggs" by 3/2. Units must agree after normalization
+//      (g/kg/oz/lb → g, ml/l → ml, a count word → itself); a quantity that cannot be compared keeps the old macros and the row
 //      reads low confidence, because its numbers no longer describe its amount.
 //   2. Macros a person TYPES win: an edited row whose macros differ from its stored
 //      twin's is taken as stated (a label read, say) and never re-scaled.
-//   3. A row with no nutrition at all — typically a row the person just added —
-//      stays on the meal flagged `confidence: "low"` and contributes nothing, so the
-//      totals are still the sum of what is known. There is no food table in Cairn to
-//      look an unknown food up in, and inventing a number here would be exactly the
-//      estimate-dressed-as-measurement foodCapture exists to prevent.
+//   3. A row the person ADDED or CHANGED that has no nutrition — typically a row they
+//      just typed in — stays on the meal flagged `confidence: "low"` and contributes
+//      nothing, so the totals are still the sum of what is known. There is no food
+//      table in Cairn to look an unknown food up in, and inventing a number here would
+//      be exactly the estimate-dressed-as-measurement foodCapture exists to prevent. A
+//      row the person did not touch (the agent's "salt, a pinch" left at null on
+//      purpose) is not re-judged by an unrelated edit.
 //   4. The meal total is the rows plus whatever the stored total carried BEYOND the
 //      stored rows (the "unitemized" part — cooking oil an agent counted at meal
-//      level, or a whole meal-level estimate on a note that had no rows yet). That
-//      remainder is never negative: when the stored rows already summed past the
+//      level, or a whole meal-level estimate on a note whose rows carry no macros).
+//      That remainder is never negative: when the stored rows already summed past the
 //      stored total, the rows are the finer truth. A macro neither the rows nor the
 //      stored total ever carried stays null, never 0.
+//   5. The remainder belongs to the stored rows that carry no estimate of their own
+//      for that macro — all of it to a lone such row, else split by amount when every
+//      one of them states a comparable amount (all grams, say). A share that can be
+//      placed follows its row: it scales with the row's quantity, leaves with the row,
+//      and leaves when the person types that row's own number (so it is never counted
+//      twice). A share that cannot be placed stays in the remainder, and a quantity
+//      change it could not follow is reported (`unfollowed`) and reads low confidence.
+//   6. An EMPTY replacement list clears the breakdown only: the rows go, the meal
+//      totals stay exactly as stored. Deleting the note is how "nothing was eaten" is
+//      said.
 
 export interface FoodIngredientRow extends FoodIngredient {
   // Set only by a person's edit, and only to "low": the row has no nutrition, or
@@ -515,10 +528,38 @@ export interface FoodIngredientRecompute {
   // Only the macros the meal carries: a key absent here stays whatever it was
   // (null), never becomes 0.
   totals: Partial<Record<FoodMacroKey, number>>;
-  // Rows with no kcal estimate (rule 3) — the note reads low confidence while any remain.
+  // Rows the person added or changed that carry no kcal estimate (rule 3) — the note
+  // reads low confidence while any remain. Untouched rows never count.
   unestimated: number;
   // Rows whose macros were scaled to a new quantity (rule 1).
   scaled: number;
+  // Rows whose quantity changed but whose kcal the total could not follow: no estimate
+  // of their own, and no remainder share that could be placed on them (rule 5).
+  unfollowed: number;
+  // The edit removed every row: the meal totals are the stored ones, unchanged (rule 6).
+  cleared: boolean;
+}
+
+function amountKey(amount: unknown): string {
+  return String(amount ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+// Whether two free-text amounts describe the same quantity ("200 g" and "200g" do).
+function sameAmount(a: unknown, b: unknown): boolean {
+  const qa = parseFoodQuantity(a);
+  const qb = parseFoodQuantity(b);
+  if (qa && qb) return qa.unit === qb.unit && Math.abs(qa.value - qb.value) <= 1e-6;
+  return amountKey(a) === amountKey(b);
+}
+
+// Ratio new/old when both amounts parse to the same unit; null when they cannot be compared.
+function quantityRatio(from: unknown, to: unknown): number | null {
+  const a = parseFoodQuantity(from);
+  const b = parseFoodQuantity(to);
+  return a && b && a.unit === b.unit ? b.value / a.value : null;
 }
 
 /**
@@ -532,25 +573,66 @@ export function recomputeFoodIngredients(
   previous: { ingredients?: unknown } & Partial<Record<FoodMacroKey, unknown>>,
   edits: unknown
 ): FoodIngredientRecompute {
-  const stored = (coerceFoodIngredients(previous?.ingredients) ?? []) as FoodIngredientRow[];
-  // coerceFoodIngredients reads no row confidence (agents never send one), so an
-  // earlier edit's "low" is carried over from the raw stored rows by position.
-  const rawStored = Array.isArray(previous?.ingredients) ? (previous.ingredients as unknown[]) : [];
-  stored.forEach((row, i) => {
-    const raw = rawStored[i];
+  // Coerce the stored rows ONE AT A TIME, so a raw row the coercion drops cannot shift
+  // an earlier edit's "low" (which coerceFoodIngredients does not read — agents never
+  // send one) onto its neighbour.
+  const rawStored = Array.isArray(previous?.ingredients)
+    ? (previous.ingredients as unknown[]).slice(0, MAX_INGREDIENTS)
+    : [];
+  const stored: FoodIngredientRow[] = [];
+  for (const raw of rawStored) {
+    const row = coerceFoodIngredients([raw])?.[0] as FoodIngredientRow | undefined;
+    if (!row) continue;
     if (raw && typeof raw === "object" && (raw as Record<string, unknown>).confidence === "low") row.confidence = "low";
-  });
+    stored.push(row);
+  }
+
+  // Rule 4/5: the unitemized remainder per macro, and each stored row's placeable share of it.
+  const storedTotal: Partial<Record<FoodMacroKey, number>> = {};
+  const remainder: Partial<Record<FoodMacroKey, number>> = {};
+  const shareOf: Partial<Record<FoodMacroKey, Map<number, number>>> = {};
+  for (const key of FOOD_MACRO_KEYS) {
+    const total = asNum(previous?.[key]);
+    if (total !== undefined) storedTotal[key] = total;
+    const prevSum = stored.reduce((sum, row) => sum + (row[key] ?? 0), 0);
+    const r = total === undefined ? 0 : Math.max(0, total - prevSum);
+    remainder[key] = r;
+    const without = stored.map((row, i) => ({ row, i })).filter(({ row }) => row[key] === undefined);
+    const shares = new Map<number, number>();
+    if (r > 0 && without.length === 1) shares.set(without[0].i, 1);
+    else if (r > 0 && without.length > 1) {
+      const qty = without.map(({ row }) => parseFoodQuantity(row.amount));
+      const unit = qty[0]?.unit;
+      if (qty.every((q) => q && q.unit === unit)) {
+        const sum = qty.reduce((acc, q) => acc + (q as FoodQuantity).value, 0);
+        if (sum > 0) without.forEach(({ i }, j) => shares.set(i, (qty[j] as FoodQuantity).value / sum));
+      }
+    }
+    shareOf[key] = shares;
+  }
+
   const used = new Set<number>();
   const rawEdits = Array.isArray(edits) ? edits.slice(0, MAX_INGREDIENTS) : [];
   const rows: FoodIngredientRow[] = [];
+  const delta: Partial<Record<FoodMacroKey, number>> = {};
+  const addDelta = (key: FoodMacroKey, n: number) => {
+    delta[key] = (delta[key] ?? 0) + n;
+  };
   let unestimated = 0;
   let scaled = 0;
+  let unfollowed = 0;
 
   for (const raw of rawEdits) {
     const base = coerceFoodIngredients([raw])?.[0];
     if (!base) continue;
     const src = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-    const twinIndex = stored.findIndex((row, i) => !used.has(i) && itemKey(row.item) === itemKey(base.item));
+    // The stored twin: same item AND same amount first, then same item alone.
+    const sameItem = (row: FoodIngredientRow, i: number) => !used.has(i) && itemKey(row.item) === itemKey(base.item);
+    let twinIndex =
+      base.amount !== undefined
+        ? stored.findIndex((row, i) => sameItem(row, i) && amountKey(row.amount) === amountKey(base.amount))
+        : -1;
+    if (twinIndex < 0) twinIndex = stored.findIndex(sameItem);
     const twin = twinIndex >= 0 ? stored[twinIndex] : null;
     if (twinIndex >= 0) used.add(twinIndex);
 
@@ -565,6 +647,7 @@ export function recomputeFoodIngredients(
       !!twin &&
       hasEditMacros &&
       FOOD_MACRO_KEYS.some((key) => editMacros[key] !== undefined && editMacros[key] !== twinMacros[key]);
+    const amountChanged = !!twin && !sameAmount(twin.amount, amount);
 
     // The estimate a quantity change scales FROM.
     const ref = statedByPerson
@@ -579,17 +662,7 @@ export function recomputeFoodIngredients(
     // A brand-new row that states its macros but no amount of its own describes the
     // grams it was given; there is nothing to scale from.
     const ownUnstatedRef = !!ref && !hasTwinMacros && !String(base.amount ?? "").trim();
-    const quantityChanged =
-      !!ref &&
-      !ownUnstatedRef &&
-      (refQty && newQty
-        ? refQty.unit !== newQty.unit || Math.abs(refQty.value - newQty.value) > 1e-6
-        : String(amount ?? "")
-            .trim()
-            .toLowerCase() !==
-          String(ref.amount ?? "")
-            .trim()
-            .toLowerCase());
+    const quantityChanged = !!ref && !ownUnstatedRef && !sameAmount(ref.amount, amount);
 
     const row: FoodIngredientRow = { item: base.item };
     if (amount) row.amount = amount;
@@ -615,29 +688,61 @@ export function recomputeFoodIngredients(
       basis = "user_report"; // the quantity is now the person's own
     } else {
       macros = hasEditMacros ? editMacros : twinMacros;
-      basis = base.basis ?? twin?.basis;
+      basis = amountChanged ? "user_report" : (base.basis ?? twin?.basis);
       // Nothing re-estimated this row, so an earlier "low" still describes it.
       if (twin?.confidence === "low") low = true;
     }
     for (const key of FOOD_MACRO_KEYS) if (macros[key] !== undefined) row[key] = macros[key];
-    if (basis) row.basis = basis;
-    if (row.kcal === undefined) {
+
+    // Rule 5: the remainder share this stored row carried, for each macro it has no
+    // number of its own for, follows the edit.
+    let kcalFollowed = false;
+    if (twin) {
+      const ratio = amountChanged ? quantityRatio(twin.amount, amount) : 1;
+      for (const key of FOOD_MACRO_KEYS) {
+        if (twinMacros[key] !== undefined) continue;
+        const share = shareOf[key]?.get(twinIndex);
+        const r = remainder[key] ?? 0;
+        if (share === undefined || !(r > 0)) continue;
+        if (row[key] !== undefined)
+          addDelta(key, -r * share); // now itemized: counted once
+        else if (ratio != null) {
+          addDelta(key, r * share * (ratio - 1));
+          if (key === "kcal") kcalFollowed = true;
+        }
+      }
+    }
+
+    if (row.kcal === undefined && !kcalFollowed && (!twin || amountChanged)) {
       unestimated++;
       low = true;
+      if (twin && amountChanged) unfollowed++;
     }
+    if (basis) row.basis = basis;
     if (low) row.confidence = "low";
     rows.push(row);
   }
 
+  // Rule 6: every row removed clears the breakdown, never the meal.
+  if (!rows.length) {
+    return { ingredients: [], totals: { ...storedTotal }, unestimated: 0, scaled: 0, unfollowed: 0, cleared: true };
+  }
+
+  // Rule 5: a stored row the edit removed takes its placeable share with it.
+  stored.forEach((_row, i) => {
+    if (used.has(i)) return;
+    for (const key of FOOD_MACRO_KEYS) {
+      const share = shareOf[key]?.get(i);
+      if (share !== undefined) addDelta(key, -(remainder[key] ?? 0) * share);
+    }
+  });
+
   const totals: Partial<Record<FoodMacroKey, number>> = {};
   for (const key of FOOD_MACRO_KEYS) {
-    let prevSum = 0;
-    for (const row of stored) prevSum += row[key] ?? 0;
-    const storedTotal = asNum(previous?.[key]);
     const carried = rows.filter((row) => row[key] !== undefined);
-    if (!carried.length && storedTotal === undefined) continue;
-    const unitemized = storedTotal === undefined ? 0 : Math.max(0, storedTotal - prevSum);
+    if (!carried.length && storedTotal[key] === undefined) continue;
+    const unitemized = Math.max(0, (remainder[key] ?? 0) + (delta[key] ?? 0));
     totals[key] = unitemized + carried.reduce((sum, row) => sum + (row[key] ?? 0), 0);
   }
-  return { ingredients: rows, totals, unestimated, scaled };
+  return { ingredients: rows, totals, unestimated, scaled, unfollowed, cleared: false };
 }

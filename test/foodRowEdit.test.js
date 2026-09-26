@@ -7,7 +7,7 @@
 // pass — queued or already running.
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { db, repo, resetTables } from "./_seed.js";
+import { db, localDaysAgo, repo, resetTables } from "./_seed.js";
 import { nutritionRouter } from "../dist/routes/nutrition.js";
 import { registerNutritionTools } from "../dist/surfaces/mcp/nutrition.js";
 import { parseFoodQuantity, recomputeFoodIngredients } from "../dist/foodCapture.js";
@@ -227,13 +227,13 @@ test("a late text-enrichment estimate never overwrites a person's edit (the race
   assert.equal(row.enrichment_status, "done", "an edited note stays settled");
 });
 
-test("the photo path and the raw enrichment writer both refuse an edited note; an untouched note still enriches", async () => {
+test("the photo path and the raw enrichment writer both refuse a note whose estimate a person edited", async () => {
   const edited = seedMeal();
-  await putFoodNote(edited.id, { meal: "dinner" });
+  await putFoodNote(edited.id, { kcal: 480 });
   assert.equal(foodNoteEditedByPerson(edited.id), true);
   assert.equal(applyFoodPhoto(edited.id, { kcal: 999, protein_g: 10 }), false);
   assert.equal(updateFoodNoteParsed(edited.id, { kcal: 1 }), null);
-  assert.equal(repo.getFoodNote(edited.id).parsed.kcal, 525);
+  assert.equal(repo.getFoodNote(edited.id).parsed.kcal, 480);
 
   // processFoodPhotoJob returns before any agent and leaves the settled status alone.
   db.prepare(`UPDATE food_notes SET image_path = '/tmp/plate.jpg' WHERE id = ?`).run(edited.id);
@@ -244,4 +244,196 @@ test("the photo path and the raw enrichment writer both refuse an edited note; a
   assert.equal(foodNoteEditedByPerson(untouched.id), false);
   assert.equal(applyFoodEstimate(untouched.id, { kcal: 700, protein_g: 60 }), true);
   assert.equal(repo.getFoodNote(untouched.id).parsed.kcal, 700);
+});
+
+test("filing a pending note (slot, day, time, note) locks nothing: its queued estimate still lands", async () => {
+  // "2 eggs and toast" is waiting in the enrichment queue with no estimate yet.
+  const pending = repo.addFoodNote("meal", "2 eggs and toast", { summary: "2 eggs and toast" });
+  setFoodNoteEnrichStatus(pending.id, "pending");
+  const [status, moved] = await putFoodNote(pending.id, {
+    meal: "breakfast",
+    eaten_at: "07:30",
+    date: pending.date,
+    notes: "before the run",
+  });
+  assert.equal(status, 200);
+  assert.equal(moved.meal, "breakfast");
+  assert.equal(moved.eaten_at, "07:30");
+  assert.equal(moved.person_edited_at, null, "filing is not a correction of what was eaten");
+  assert.equal(moved.enrichment_status, "pending", "the queued job is still owed");
+  assert.equal(foodNoteEditedByPerson(pending.id), false);
+  assert.equal(applyFoodEstimate(pending.id, { kcal: 330, protein_g: 16 }), true, "the estimate lands");
+  const row = repo.getFoodNote(pending.id);
+  assert.equal(row.parsed.kcal, 330);
+  assert.equal(row.parsed.notes, "before the run", "the note survives the estimate's merge");
+
+  // An edit sheet that echoes the stored estimate beside a new slot corrected nothing either.
+  const echoed = seedMeal();
+  setFoodNoteEnrichStatus(echoed.id, "pending");
+  const [, echo] = await putFoodNote(echoed.id, {
+    meal: "dinner",
+    summary: "Chicken and rice",
+    kcal: 525,
+    protein_g: 66,
+    carbs_g: 42,
+    fat_g: 8,
+    fiber_g: null,
+  });
+  assert.equal(echo.person_edited_at, null);
+  assert.equal(echo.enrichment_status, "pending");
+
+  // A photo note whose date chat corrects before the vision read runs: still enrichable.
+  const photo = repo.addFoodNote("meal", "", { summary: "photo" });
+  await putFoodNote(photo.id, { date: localDaysAgo(1) });
+  assert.equal(applyFoodPhoto(photo.id, { kcal: 610, protein_g: 40 }), true);
+});
+
+test("an empty or null row list clears the breakdown and keeps the meal totals", async () => {
+  const note = seedMeal();
+  const [, cleared] = await putFoodNote(note.id, { ingredients: [] });
+  assert.deepEqual(cleared.parsed.ingredients, []);
+  assert.equal(cleared.parsed.kcal, 525, "clearing the rows is never read as nothing eaten");
+  assert.equal(cleared.parsed.protein_g, 66);
+  assert.equal(cleared.parsed.carbs_g, 42);
+  assert.equal(cleared.ingredient_edit.cleared, true);
+  assert.match(cleared.ingredient_edit.words, /totals stay/);
+
+  const viaMcp = seedMeal();
+  const out = JSON.parse(
+    (await mcpTool("update_food_note").handler({ id: viaMcp.id, ingredients: null })).content[0].text
+  );
+  assert.deepEqual(out.parsed.ingredients, []);
+  assert.equal(out.parsed.kcal, 525);
+});
+
+test("rows with no macros of their own carry the meal-level estimate: a grams change moves the total", async () => {
+  // The agent estimated the plate at meal level only.
+  const note = repo.addFoodNote("dinner", "", {
+    summary: "Salmon and rice",
+    kcal: 700,
+    protein_g: 45,
+    ingredients: [
+      { item: "salmon", amount: "150 g" },
+      { item: "rice", amount: "200 g" },
+    ],
+    confidence: "medium",
+  });
+  const [, updated] = await putFoodNote(note.id, {
+    ingredients: [
+      { item: "salmon", amount: "150 g", grams: 250 },
+      { item: "rice", amount: "200 g" },
+    ],
+  });
+  // Salmon holds 150/350 of the 700 kcal (300), and 250 g of it is 500: +200.
+  assert.equal(updated.parsed.kcal, 900);
+  assert.equal(updated.parsed.protein_g, Math.round(45 + 45 * (150 / 350) * (250 / 150 - 1)));
+  assert.equal(updated.parsed.confidence, "medium", "the total followed the edit");
+  assert.equal(updated.ingredient_edit.unfollowed, 0);
+  assert.equal(updated.ingredient_edit.unestimated, 0);
+  assert.equal(updated.parsed.ingredients[1].confidence, undefined, "the untouched row is not re-judged");
+
+  // Removing a row takes its share with it: rice held 400 of the original 700.
+  const [, removed] = await putFoodNote(note.id, { ingredients: [updated.parsed.ingredients[0]] });
+  assert.equal(removed.parsed.kcal, 500);
+
+  // Typing that row's own number moves its share out of the remainder, never counting it twice.
+  const [, typed] = await putFoodNote(note.id, {
+    ingredients: [{ item: "salmon", amount: "250 g", kcal: 520, protein_g: 50 }],
+  });
+  assert.equal(typed.parsed.kcal, 520);
+});
+
+test("a changed amount the total cannot follow is said, and an untouched null row never downgrades the meal", async () => {
+  // Mixed units: the meal-level estimate cannot be split between the rows.
+  const mixed = repo.addFoodNote("breakfast", "", {
+    summary: "Eggs and toast",
+    kcal: 300,
+    ingredients: [
+      { item: "eggs", amount: "2 eggs" },
+      { item: "toast", amount: "1 slice" },
+    ],
+    confidence: "medium",
+  });
+  const [, eggs] = await putFoodNote(mixed.id, {
+    ingredients: [
+      { item: "eggs", amount: "3 eggs" },
+      { item: "toast", amount: "1 slice" },
+    ],
+  });
+  assert.equal(eggs.parsed.kcal, 300, "the total could not move");
+  assert.equal(eggs.ingredient_edit.unfollowed, 1);
+  assert.match(eggs.ingredient_edit.words, /couldn't follow the new amount/);
+  assert.equal(eggs.parsed.ingredients[0].confidence, "low");
+  assert.equal(eggs.parsed.confidence, "low");
+
+  // "salt, a pinch" left at null on purpose by the agent: an unrelated edit leaves it be.
+  const salted = seedMeal({
+    ingredients: [
+      { item: "chicken breast", amount: "200 g", kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7 },
+      { item: "white rice", amount: "150 g", kcal: 195, protein_g: 4, carbs_g: 42, fat_g: 1 },
+      { item: "salt", amount: "a pinch" },
+    ],
+  });
+  const [, edited] = await putFoodNote(salted.id, {
+    ingredients: [
+      { item: "chicken breast", amount: "200 g", grams: 250 },
+      { item: "white rice", amount: "150 g" },
+      { item: "salt", amount: "a pinch" },
+    ],
+  });
+  assert.equal(edited.parsed.kcal, 608);
+  assert.equal(edited.parsed.confidence, "medium");
+  assert.equal(edited.parsed.ingredients[2].confidence, undefined);
+  assert.equal(edited.ingredient_edit.unestimated, 0);
+  assert.equal(edited.ingredient_edit.words, null);
+});
+
+test("same-named rows keep their own estimates when reordered, and a carried low flag stays on its row", () => {
+  const previous = {
+    kcal: 225,
+    ingredients: [
+      { item: "egg", amount: "2 eggs", kcal: 150, basis: "estimated_from_foods" },
+      { item: "egg", amount: "1 egg", kcal: 75, basis: "estimated_from_foods" },
+    ],
+  };
+  const out = recomputeFoodIngredients(previous, [
+    { item: "egg", amount: "1 egg", kcal: 75 },
+    { item: "egg", amount: "2 eggs", kcal: 150 },
+  ]);
+  assert.deepEqual(
+    out.ingredients.map((r) => [r.amount, r.kcal, r.basis]),
+    [
+      ["1 egg", 75, "estimated_from_foods"],
+      ["2 eggs", 150, "estimated_from_foods"],
+    ],
+    "nothing was changed, so nothing reads as the person's own"
+  );
+  assert.equal(out.totals.kcal, 225);
+
+  // A stored row the coercion drops (no item) must not shift "low" onto its neighbour.
+  const carried = recomputeFoodIngredients(
+    {
+      kcal: 175,
+      ingredients: [
+        { item: "", kcal: 0 },
+        { item: "toast", amount: "1 slice", kcal: 100, confidence: "low" },
+        { item: "egg", amount: "1 egg", kcal: 75 },
+      ],
+    },
+    [
+      { item: "toast", amount: "1 slice" },
+      { item: "egg", amount: "1 egg" },
+    ]
+  );
+  assert.equal(carried.ingredients[0].confidence, "low");
+  assert.equal(carried.ingredients[1].confidence, undefined);
+});
+
+test("a REST edit with a bad date writes nothing at all", async () => {
+  const note = seedMeal();
+  const [status] = await putFoodNote(note.id, { kcal: 900, date: "not-a-date" });
+  assert.equal(status, 400);
+  const row = repo.getFoodNote(note.id);
+  assert.equal(row.parsed.kcal, 525, "the macro edit did not land");
+  assert.equal(row.person_edited_at, null, "and the note is not locked");
 });

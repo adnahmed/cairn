@@ -8,7 +8,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { repo, resetTables, localDaysAgo, seedIntake, seedWeight } from "./_seed.js";
-import { intakeBand, proteinAnchor } from "../dist/repo/intake-band.js";
+import { classifyWeekResponse, intakeBand, proteinAnchor } from "../dist/repo/intake-band.js";
 import { nutritionRouter } from "../dist/routes/nutrition.js";
 import { registerNutritionTools } from "../dist/surfaces/mcp/nutrition.js";
 import { projectCoachContext } from "../dist/prompt/context-projection.js";
@@ -131,4 +131,66 @@ test("REST and MCP serve the same read, and every fuel prompt site carries it", 
   for (const site of ["chat", "meal_plan"]) {
     assert.deepEqual(projectCoachContext(ctx, site).intake_band, rest, `${site} carries intake_band`);
   }
+});
+
+// Deterministic noise: a seeded PRNG and a Box-Muller normal, so a noisy scale is
+// reproducible run to run.
+function seededNormal(seed) {
+  let state = seed >>> 0;
+  const uniform = () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return (state + 1) / 4294967297;
+  };
+  return () => Math.sqrt(-2 * Math.log(uniform())) * Math.cos(2 * Math.PI * uniform());
+}
+
+test("a steady cut on a noisy scale does not read false 'up' weeks", () => {
+  // A true -0.5 lb/week trend under a pound of daily scale noise, over ten-day
+  // response windows with a daily weigh-in — the shape of one band week.
+  const normal = seededNormal(20260925);
+  const xs = Array.from({ length: 10 }, (_, i) => i);
+  let up = 0;
+  let deadbandOnlyUp = 0;
+  const trials = 4000;
+  for (let t = 0; t < trials; t++) {
+    const ys = xs.map((x) => 180 - (0.5 / 7) * x + normal());
+    const mx = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const my = ys.reduce((a, b) => a + b, 0) / ys.length;
+    let sxx = 0;
+    let sxy = 0;
+    xs.forEach((x, i) => {
+      sxx += (x - mx) ** 2;
+      sxy += (x - mx) * (ys[i] - my);
+    });
+    const slope = sxy / sxx;
+    if (slope * 7 >= 0.25) deadbandOnlyUp++;
+    // sigma: the athlete's scatter, as the band pools it across the window.
+    if (classifyWeekResponse(slope, sxx, 1).response === "up") up++;
+  }
+  assert.ok(deadbandOnlyUp / trials > 0.1, "the bare deadband would call a real cut 'up' often");
+  assert.ok(up / trials < 0.01, `false 'up' weeks: ${((up / trials) * 100).toFixed(2)}%`);
+});
+
+test("the band on a noisy steady cut never says the weight trended up", () => {
+  // Eight weeks at ~1,900 kcal/day, weight truly falling half a pound a week, a pound of
+  // daily scale noise. Every week's complete days are there.
+  const normal = seededNormal(7);
+  for (let daysAgo = 56; daysAgo >= 0; daysAgo--) {
+    const truth = 180 - (0.5 / 7) * (56 - daysAgo);
+    seedWeight(localDaysAgo(daysAgo), Math.round((truth + normal()) * 10) / 10);
+    if (daysAgo >= 1 && (daysAgo - 1) % 7 < 5) completeDay(daysAgo, 1900);
+  }
+  const band = intakeBand();
+  assert.ok(!band.weeks.some((w) => w.response === "up"), JSON.stringify(band.weeks.map((w) => w.response)));
+  assert.doesNotMatch(band.words, /trended up/);
+  if (band.status === "ok") assert.ok(band.energy_ceiling_kcal == null || band.energy_ceiling_kcal >= 1800);
+});
+
+test("a steady week needs a slope precise enough to rule out a real move", () => {
+  // A flat slope read off a noisy week is not evidence of 'steady'.
+  const sxx = 82.5; // ten daily weigh-ins
+  assert.equal(classifyWeekResponse(0, sxx, 0.3).response, "steady");
+  assert.equal(classifyWeekResponse(0, sxx, 1.2).response, "unknown");
+  assert.equal(classifyWeekResponse(-1.2 / 7, sxx, 0.3).response, "down");
+  assert.equal(classifyWeekResponse(0.4 / 7, sxx, 1.2).response, "unknown", "inside the noise, no direction");
 });

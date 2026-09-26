@@ -6,7 +6,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { db, repo, resetTables, localDaysAgo, seedIntake, seedWeight } from "./_seed.js";
-import { fuelIdeas, sizeFuelIdea } from "../dist/repo/fuel-ideas.js";
+import { fuelEnergyBound, fuelIdeas, sizeFuelIdea } from "../dist/repo/fuel-ideas.js";
 import { nutritionRouter } from "../dist/routes/nutrition.js";
 import { registerNutritionTools } from "../dist/surfaces/mcp/nutrition.js";
 
@@ -151,4 +151,70 @@ test("REST and MCP mirror, and exclude asks for different ideas", async () => {
   const first = rest.ideas[0].key;
   const next = await new Promise((resolve) => handler({ query: { exclude: first } }, { json: resolve }));
   assert.ok(!next.ideas.some((i) => i.key.split("@")[0] === first.split("@")[0]));
+});
+
+const okBand = (over = {}) => ({
+  status: "ok",
+  confidence: "moderate",
+  energy_ceiling_kcal: 2300,
+  band: { low_kcal: 1900, high_kcal: 2500, low_is_loss_edge: true, high_is_gain_edge: true, mixed: false },
+  ...over,
+});
+
+test("a loose band sizes nothing: mixed weeks or low confidence make no energy claim", () => {
+  const mixed = okBand({ band: { ...okBand().band, mixed: true } });
+  assert.deepEqual(fuelEnergyBound(mixed, null), { kcal: null, kind: null, allow_up: false });
+  assert.equal(fuelEnergyBound(okBand({ confidence: "low" }), null).kcal, null);
+  assert.equal(
+    fuelEnergyBound({ status: "too_few_days", band: null, energy_ceiling_kcal: null, confidence: null }, null).kcal,
+    null
+  );
+  // Maintain/gain: the no-gain ceiling, sized up and down.
+  assert.deepEqual(fuelEnergyBound(okBand(), { kcal: 2400, mode: "maintain", source: "formula" }), {
+    kcal: 2300,
+    kind: "observed_ceiling",
+    allow_up: true,
+  });
+});
+
+test("during a cut the room is the athlete's own cut bound, never observed maintenance", () => {
+  // The loss edge (the most eaten in a week the weight still came down) holds the room.
+  assert.deepEqual(fuelEnergyBound(okBand(), { kcal: 2100, mode: "lose", source: "formula" }), {
+    kcal: 1900,
+    kind: "loss_edge",
+    allow_up: true,
+  });
+  // A target the athlete accepted, when it is lower, holds it instead; a formula guess never does.
+  assert.equal(fuelEnergyBound(okBand(), { kcal: 1800, mode: "lose", source: "accepted" }).kind, "accepted_target");
+  assert.equal(fuelEnergyBound(okBand(), { kcal: 1800, mode: "lose", source: "formula" }).kind, "loss_edge");
+  // No loss edge and no accepted target: the ceiling bounds fit, but nothing is sized up to fill it.
+  const noLossEdge = okBand({ band: { ...okBand().band, low_is_loss_edge: false } });
+  assert.deepEqual(fuelEnergyBound(noLossEdge, { kcal: 2100, mode: "lose", source: "formula" }), {
+    kcal: 2300,
+    kind: "observed_ceiling",
+    allow_up: false,
+  });
+  const staple = {
+    key: "k",
+    title: "T",
+    kcal: 400,
+    protein_g: 40,
+    carbs_g: null,
+    fat_g: null,
+    times_logged: 3,
+    last_logged: null,
+    usual_now: false,
+  };
+  assert.equal(sizeFuelIdea(staple, 100, 2000, false).portion, 1, "no portion grows toward maintenance");
+  assert.equal(sizeFuelIdea(staple, 100, 2000, true).portion, 2);
+});
+
+test("the ideas say what the room is measured under", () => {
+  seedStaples();
+  seedBand(); // every week trended down at ~1,800 kcal, and the profile is a cut
+  seedIntake(0, 1500, { protein_g: 10 }, { eatenAt: "12:00" });
+  const out = fuelIdeas();
+  assert.equal(out.room.energy_bound, "loss_edge");
+  const fitting = out.ideas.find((i) => i.fits_band === true);
+  assert.match(fitting.why, /came down at/);
 });

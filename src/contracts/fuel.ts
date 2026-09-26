@@ -18,6 +18,13 @@
 // Self-contained on purpose: src/client/** can read these types through
 // `import("../contracts/fuel.js")`, and this module imports nothing.
 
+/**
+ * What today's energy room is measured under (src/repo/fuel-ideas.ts fuelEnergyBound):
+ * the band's no-gain ceiling; during a cut, the band's loss edge (the most eaten in a
+ * week the weight still came down) or a target the athlete accepted, whichever is lower.
+ */
+export type ClientFuelEnergyBound = "observed_ceiling" | "loss_edge" | "accepted_target";
+
 /** How sure the band read is, as a word. Never a percentage. */
 export type ClientIntakeBandConfidence = "low" | "moderate" | "high";
 
@@ -107,7 +114,7 @@ export interface ClientFuelIdea {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
-  /** True when it fits the rest of today inside the observed band; null with no band. */
+  /** True when it fits the rest of today's energy room; null when there is no room to claim. */
   fits_band: boolean | null;
   /** Spoken reason it was offered (protein first, then the room left). */
   why: string;
@@ -134,8 +141,13 @@ export interface ClientFuelIdeas {
   room: {
     /** Grams still to reach the protein anchor (0 once met); null with no anchor. */
     protein_g: number | null;
-    /** kcal left under the observed band's ceiling; null with no band. */
+    /**
+     * kcal left under `energy_bound`; null with no band, or with a band too loose to
+     * size inside (mixed weeks or low confidence) — then no idea makes an energy claim.
+     */
     energy_kcal: number | null;
+    /** What `energy_kcal` is measured under; null exactly when `energy_kcal` is null. */
+    energy_bound: ClientFuelEnergyBound | null;
   };
   band_status: ClientIntakeBandStatus;
   ideas: ClientFuelIdea[];

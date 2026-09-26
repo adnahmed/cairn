@@ -16,7 +16,11 @@
 //     construction, so it can never license a surplus.
 //   - Protein first. The band bounds ENERGY only; the protein anchor is read from the
 //     day's target and nothing here ever trims it.
-//   - Too few complete days (or no weigh-ins beside them) → no band, said in words.
+//   - A week's weight direction counts only when its slope stands clear of the
+//     athlete's own scale noise (classifyWeekResponse); a week the scale cannot call
+//     is absent, like a partial day — never a guessed direction.
+//   - Too few complete days (or no readable weight response beside them) → no band,
+//     said in words.
 
 import type {
   ClientIntakeBand,
@@ -41,6 +45,17 @@ export const INTAKE_BAND_WEEK_MIN_COMPLETE_DAYS = 3;
 export const INTAKE_BAND_MIN_RESPONSE_WEEKS = 2;
 // Weight moving less than this per week is "steady" — below scale noise.
 export const INTAKE_BAND_TREND_DEADBAND_LB = 0.25;
+// A week's slope is a direction only when it stands this many standard errors clear of
+// zero. Daily scale noise (water, food in transit) is about a pound, so a ten-day slope
+// carries a standard error near 0.8 lb/week: without this, a steady cut reads a false
+// "up" week in roughly one of six weeks, and that one week moves the ceiling.
+export const INTAKE_BAND_TREND_MIN_SE = 2;
+// "Steady" is a claim too — that the weight did not move — so it needs a slope precise
+// enough to rule out a real move: the 2-SE half-width must stay within this (lb/week).
+export const INTAKE_BAND_STEADY_MAX_UNCERTAINTY_LB = 0.75;
+// The scale-noise floor (lb) the standard error is never computed below: a two-point
+// week has no residual to measure, and a perfectly smooth series is not a noiseless one.
+export const INTAKE_BAND_NOISE_FLOOR_LB = 0.3;
 // Intake shows on the scale a little later, so a week's response window runs on.
 const RESPONSE_LAG_DAYS = 3;
 const RESPONSE_MIN_WEIGH_INS = 2;
@@ -54,8 +69,18 @@ function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 }
 
+interface SlopeFit {
+  /** lb/day */
+  slope: number;
+  /** Σ(x − x̄)², for the slope's standard error. */
+  sxx: number;
+  /** Residual sum of squares around the fitted line, and its degrees of freedom. */
+  rss: number;
+  df: number;
+}
+
 // Least-squares slope in lb/day over (dayIndex, weight) points.
-function slopePerDay(points: Array<{ x: number; y: number }>): number | null {
+function fitSlope(points: Array<{ x: number; y: number }>): SlopeFit | null {
   if (points.length < 2) return null;
   const n = points.length;
   const mx = points.reduce((s, p) => s + p.x, 0) / n;
@@ -66,7 +91,40 @@ function slopePerDay(points: Array<{ x: number; y: number }>): number | null {
     num += (p.x - mx) * (p.y - my);
     den += (p.x - mx) ** 2;
   }
-  return den > 0 ? num / den : null;
+  if (!(den > 0)) return null;
+  const slope = num / den;
+  let rss = 0;
+  for (const p of points) rss += (p.y - (my + slope * (p.x - mx))) ** 2;
+  return { slope, sxx: den, rss, df: n - 2 };
+}
+
+/**
+ * Which way one week's weight moved, read against the scale's own noise. `sigma` is
+ * the athlete's day-to-day scatter pooled across the whole window (one week's handful
+ * of weigh-ins is far too few to measure its own noise). PURE.
+ *   - up / down: past the deadband AND at least INTAKE_BAND_TREND_MIN_SE standard
+ *     errors clear of zero;
+ *   - steady: inside the deadband AND precise enough to rule out a real move;
+ *   - unknown: anything else — a week the scale cannot call is absent, never a guess.
+ */
+export function classifyWeekResponse(
+  slopePerDay: number,
+  sxx: number,
+  sigma: number
+): { perWeek: number; response: ClientIntakeWeekResponse } {
+  const perWeek = slopePerDay * 7;
+  const se = (Math.max(sigma, INTAKE_BAND_NOISE_FLOOR_LB) / Math.sqrt(sxx)) * 7;
+  const clear = Math.abs(perWeek) >= INTAKE_BAND_TREND_MIN_SE * se;
+  const response: ClientIntakeWeekResponse =
+    perWeek <= -INTAKE_BAND_TREND_DEADBAND_LB && clear
+      ? "down"
+      : perWeek >= INTAKE_BAND_TREND_DEADBAND_LB && clear
+        ? "up"
+        : Math.abs(perWeek) < INTAKE_BAND_TREND_DEADBAND_LB &&
+            INTAKE_BAND_TREND_MIN_SE * se <= INTAKE_BAND_STEADY_MAX_UNCERTAINTY_LB
+          ? "steady"
+          : "unknown";
+  return { perWeek, response };
 }
 
 /**
@@ -109,8 +167,15 @@ export function intakeBand(asOf: string = localDateISO(), opts: IntakeBandOption
   const weights = canonicalBodyweightSeries({ since, through: asOf });
   const anchor = proteinAnchor(opts.goal);
 
-  // Calendar weeks ending on `through`, oldest first.
-  const weeks: ClientIntakeBandWeek[] = [];
+  // Calendar weeks ending on `through`, oldest first. Each week's slope is fitted
+  // first; the classification waits for the pooled noise below.
+  const fitted: Array<{
+    week_start: string;
+    week_end: string;
+    days: number;
+    kcal_avg: number | null;
+    fit: SlopeFit | null;
+  }> = [];
   for (let i = INTAKE_BAND_WINDOW_WEEKS - 1; i >= 0; i--) {
     const week_end = addDaysISO(through, -7 * i) ?? through;
     const week_start = addDaysISO(week_end, -6) ?? week_end;
@@ -127,26 +192,24 @@ export function intakeBand(asOf: string = localDateISO(), opts: IntakeBandOption
       .filter((p) => p.date >= week_start && p.date <= responseEnd)
       .map((p) => ({ x: daysBetween(week_start, p.date), y: p.weight_lb }));
     const span = points.length ? Math.max(...points.map((p) => p.x)) - Math.min(...points.map((p) => p.x)) : 0;
-    const slope =
-      points.length >= RESPONSE_MIN_WEIGH_INS && span >= RESPONSE_MIN_SPAN_DAYS ? slopePerDay(points) : null;
-    const perWeek = slope == null ? null : Math.round(slope * 7 * 100) / 100;
-    const response: ClientIntakeWeekResponse =
-      perWeek == null
-        ? "unknown"
-        : perWeek <= -INTAKE_BAND_TREND_DEADBAND_LB
-          ? "down"
-          : perWeek >= INTAKE_BAND_TREND_DEADBAND_LB
-            ? "up"
-            : "steady";
-    weeks.push({
-      week_start,
-      week_end,
-      complete_days: days.length,
-      kcal_avg,
-      weight_change_lb_per_week: perWeek,
-      response,
-    });
+    const fit = points.length >= RESPONSE_MIN_WEIGH_INS && span >= RESPONSE_MIN_SPAN_DAYS ? fitSlope(points) : null;
+    fitted.push({ week_start, week_end, days: days.length, kcal_avg, fit });
   }
+  // The athlete's own scale noise, pooled over every week that has residuals to give.
+  const pooledRss = fitted.reduce((sum, w) => sum + (w.fit && w.fit.df > 0 ? w.fit.rss : 0), 0);
+  const pooledDf = fitted.reduce((sum, w) => sum + (w.fit && w.fit.df > 0 ? w.fit.df : 0), 0);
+  const sigma = pooledDf > 0 ? Math.sqrt(pooledRss / pooledDf) : INTAKE_BAND_NOISE_FLOOR_LB;
+  const weeks: ClientIntakeBandWeek[] = fitted.map((w) => {
+    const read = w.fit ? classifyWeekResponse(w.fit.slope, w.fit.sxx, sigma) : null;
+    return {
+      week_start: w.week_start,
+      week_end: w.week_end,
+      complete_days: w.days,
+      kcal_avg: w.kcal_avg,
+      weight_change_lb_per_week: read ? Math.round(read.perWeek * 100) / 100 : null,
+      response: read ? read.response : "unknown",
+    };
+  });
 
   const base = {
     kind: "observation" as const,
@@ -183,14 +246,18 @@ export function intakeBand(asOf: string = localDateISO(), opts: IntakeBandOption
     );
   }
 
+  // Weeks with enough weigh-ins to fit a slope at all, readable or not.
+  const weighedWeeks = fitted.filter((w) => w.kcal_avg != null && w.fit).length;
   const read = weeks.filter(
     (w): w is ClientIntakeBandWeek & { kcal_avg: number } => w.kcal_avg != null && w.response !== "unknown"
   );
   if (read.length < INTAKE_BAND_MIN_RESPONSE_WEEKS) {
     return none(
       "no_weight_response",
-      `${complete.length} complete days are logged, but there aren't enough weigh-ins beside them yet to see which way your weight moved.`,
-      `${read.length} week(s) carry both a complete-day average and a readable weight slope; the band needs ${INTAKE_BAND_MIN_RESPONSE_WEEKS}.`
+      weighedWeeks < INTAKE_BAND_MIN_RESPONSE_WEEKS
+        ? `${complete.length} complete days are logged, but there aren't enough weigh-ins beside them yet to see which way your weight moved.`
+        : `${complete.length} complete days are logged, but the scale's day-to-day swings are still larger than the trend, so it doesn't yet show which way your weight moved in those weeks.`,
+      `${read.length} week(s) carry both a complete-day average and a weight slope clear of the scale's own noise (pooled scatter ${Math.round(sigma * 100) / 100} lb); the band needs ${INTAKE_BAND_MIN_RESPONSE_WEEKS}.`
     );
   }
 
@@ -264,6 +331,7 @@ export function intakeBand(asOf: string = localDateISO(), opts: IntakeBandOption
     words,
     reason:
       `${read.length} readable week(s) from ${complete.length} complete day(s) in ${since}..${window.through} ` +
-      `(${window.partial_days} partial excluded): down=[${down.join(",")}] steady=[${steady.join(",")}] up=[${up.join(",")}] kcal/day.`,
+      `(${window.partial_days} partial excluded): down=[${down.join(",")}] steady=[${steady.join(",")}] up=[${up.join(",")}] kcal/day; ` +
+      `weeks the scale could not call (pooled scatter ${Math.round(sigma * 100) / 100} lb) are left out.`,
   };
 }

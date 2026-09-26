@@ -319,7 +319,12 @@ nutritionRouter.post("/food-notes", (req, res) => {
 // `ingredients` replaces the meal's ingredient rows (foodCapture.ts row shape, plus an
 // optional numeric `grams` per row): add a row, drop a row, change grams — the totals
 // are recomputed from the rows deterministically, in this one call, with no agent turn.
-// Any edit locks the note against a late enrichment pass (`person_edited_at`).
+// An edit to the estimate (rows, items, summary, any macro) locks the note against a
+// late enrichment pass (`person_edited_at`); moving the slot, day or time locks
+// nothing. An empty `ingredients` list clears the rows and keeps the meal totals. With
+// `ingredients`, the response carries `ingredient_edit` — what the totals could and
+// could not follow, with `words` to say when a row's amount changed but the total could
+// not move with it.
 nutritionRouter.put("/food-notes/:id", (req, res) => {
   try {
     const updated = updateFoodNote(Number(req.params.id), { ...(req.body ?? {}), lenient: false });
