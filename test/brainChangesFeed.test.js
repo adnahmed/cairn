@@ -11,6 +11,7 @@ import {
   adoptOrphanedDrafts,
   applyDueAnnouncedDecisions,
   applyProposalWithAutonomy,
+  buildProgressionWithAutonomy,
   revertDecision,
   thawParkedReviewDecisions,
 } from "../dist/domain/brain/autonomy-service.js";
@@ -21,6 +22,7 @@ import { registerConnectedBrainTools } from "../dist/surfaces/mcp/connected-brai
 import * as repo from "../dist/repo.js";
 import { stampsByPlanKey } from "../dist/repo/prescription-authorship.js";
 import { db } from "../dist/db.js";
+import { savePlanDaySettled } from "./_seed.js";
 
 const PRESS = "ZFeed Press";
 
@@ -365,6 +367,120 @@ test("since_seen counts the team's changes after the marker, and the marker neve
   read = brainChangesRead();
   assert.equal(read.since_seen, feedRows(read).filter((row) => row.new).length);
   assert.ok(read.since_seen >= 1);
+});
+
+// ---------- producer labels never reach the athlete ----------
+
+const BENCH = "Barbell Bench Press";
+
+function isoDaysAgo(n) {
+  return new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+}
+
+// A bench history that EARNS a +5 lb step (the routineProgressionBudget seed), so the
+// real deterministic producer writes its own draft.
+function seedEarnedBench() {
+  repo.upsertExercise({ name: BENCH, muscle_group: "chest" });
+  savePlanDaySettled(1, "Push", "Push", [{ exercise: BENCH, sets: 3, rep_low: 6, rep_high: 8, target_weight: 185 }]);
+  const ex = repo.findExercise(BENCH);
+  for (const [daysAgo, weight] of [
+    [28, 175],
+    [21, 180],
+    [10, 185],
+  ]) {
+    const session = repo.getOrCreateSession(isoDaysAgo(daysAgo), null);
+    db.prepare(
+      "INSERT INTO logged_sets (session_id, exercise_id, set_number, weight, reps, rir) VALUES (?, ?, 1, ?, 8, 2)"
+    ).run(session.id, ex.id, weight);
+  }
+}
+
+const PRODUCER_LABEL = /auto-progression|progression$|\bday \d+\b|→|swap .* →|evolve program/i;
+
+test("a real auto-progression reads as the lift it moved, never the producer's label", () => {
+  seedEarnedBench();
+  repo.setSettings({ lead_mode: "lead" });
+  const out = buildProgressionWithAutonomy(1);
+  assert.equal(out.ok, true);
+  assert.match(out.proposal.parsed.summary, /^Auto-progression for day 1/, "the producer still writes its label");
+  assert.equal(out.proposal.instruction, "day 1 progression");
+
+  const [row] = feedRows();
+  assert.ok(row, "the progression is in the feed");
+  assert.equal(row.title, `Moved your ${BENCH} target`);
+  assert.doesNotMatch(row.title, PRODUCER_LABEL);
+  if (row.why != null) {
+    assert.doesNotMatch(row.why, PRODUCER_LABEL);
+    assert.notEqual(row.why, out.proposal.instruction);
+  }
+});
+
+test("a real swap draft reads as the swap, and its why is the change's own reason", () => {
+  repo.setSettings({ lead_mode: "lead" });
+  seedPress(100);
+  const built = repo.buildSwapProposal(1, PRESS, "ZFeed Incline Press");
+  assert.equal(built.ok, true);
+  const routed = applyProposalWithAutonomy(Number(built.proposal.id), { requested_tier: "ask" });
+  assert.equal(routed.decision.status, "announced");
+
+  const [row] = feedRows();
+  assert.equal(row.title, `Swapped ${PRESS} for ZFeed Incline Press`);
+  assert.equal(row.why, `Rotate a same-pattern variation in for ${PRESS}.`);
+  assert.doesNotMatch(`${row.title} ${row.why}`, PRODUCER_LABEL);
+  assert.deepEqual(row.undo, { available: true, label: `Keep ${PRESS}` });
+});
+
+test("with nothing written for the athlete the why is null, never an invented cause", () => {
+  repo.setSettings({ lead_mode: "lead" });
+  repo.savePlanDay(1, "Push", "chest", [
+    { exercise: PRESS, sets: 3, rep_low: 6, rep_high: 8, target_weight: 100 },
+    { exercise: "ZFeed Row", sets: 3, rep_low: 8, rep_high: 10, target_weight: 80 },
+  ]);
+  const draft = repo.createProposal("stub", "evolve program", "", {
+    summary: "Nudged two of your pressing and pulling targets",
+    changes: [
+      { day_number: 1, exercise: PRESS, target_weight: 105 },
+      { day_number: 1, exercise: "ZFeed Row", target_weight: 85 },
+    ],
+  });
+  applyProposalWithAutonomy(Number(draft.id));
+  const [row] = feedRows();
+  assert.equal(row.title, "Nudged two of your pressing and pulling targets");
+  assert.equal(row.why, null, "the instruction is not a why, and no cause is made up");
+});
+
+test("an athlete-facing sentence that opens with a colon phrase still reads", () => {
+  repo.setSettings({ lead_mode: "lead" });
+  seedPress(100);
+  applyProposalWithAutonomy(
+    Number(
+      repo.createProposal("stub", "auto: heads-up", "", {
+        summary: `Heads up: the ${PRESS} moves to 105`,
+        rationale: "Heads up: every set landed at the top of the range, so the load steps up.",
+        changes: [{ day_number: 1, exercise: PRESS, target_weight: 105 }],
+      }).id
+    )
+  );
+  const [row] = feedRows();
+  assert.equal(row.title, `Heads up: the ${PRESS} moves to 105`);
+  assert.match(row.why, /^Heads up: every set landed/);
+});
+
+test("one decision is news once: seen when announced, its landing is not counted again", () => {
+  repo.setSettings({ lead_mode: "lead" });
+  seedPress(100);
+  const routed = applyProposalWithAutonomy(Number(pressDraft(105).id), { requested_tier: "ask" });
+  assert.equal(routed.decision.status, "announced");
+  const first = brainChangesRead();
+  assert.equal(first.since_seen, 1);
+  markBrainChangesSeen({ through: first.seen_through });
+
+  applyDueAnnouncedDecisions(routed.effective_date);
+  const read = brainChangesRead({ asOf: routed.effective_date });
+  const [row] = feedRows(read);
+  assert.equal(row.state, "applied");
+  assert.equal(row.new, false, "the announcement already told the athlete");
+  assert.equal(read.since_seen, 0);
 });
 
 // ---------- REST + MCP near-mirror ----------

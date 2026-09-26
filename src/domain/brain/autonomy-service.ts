@@ -1664,8 +1664,9 @@ export function applyProposalWithAutonomy(
 // under 'announce_first' it announces first; under 'review_everything' the layer records
 // an explicit review decision so Today can distinguish a genuine ask from automatic
 // orphan noise. `requested_tier:'quiet_apply'` mirrors the brain-review boundary path
-// (executeBrainReviewAction) and never LOOSENS policy — decideAutonomyTier only ever
-// clamps to a MORE restrictive tier. A designed ok:false (nothing to propose) passes
+// (executeBrainReviewAction) and never LOOSENS policy — a requested quiet_apply is only
+// ever clamped to a MORE restrictive tier (the one easing decideAutonomyTier makes is a
+// requested ask/clinician on a LEAD_DECIDED_KINDS change, to announce, under lead). A designed ok:false (nothing to propose) passes
 // straight through unchanged.
 export function buildProgressionWithAutonomy(
   day: number
@@ -2800,7 +2801,8 @@ export function adoptOrphanedDrafts(opts: { tells?: RequestTellBudget } = {}): {
       // After a recent same-kind veto the system does NOT silently re-apply similar
       // substance: it ANNOUNCES (lands at the natural boundary with a Coach discussion
       // path, no decision demanded). With no veto, normal quiet-apply policy applies. Either way
-      // decideAutonomyTier only ever clamps to a MORE restrictive tier, so an ask-tier
+      // a requested announce/quiet_apply is only ever clamped MORE restrictive (the one
+      // easing, LEAD_DECIDED_KINDS, applies to a requested ask/clinician), so an ask-tier
       // situation (review_everything posture, freshness expiry, a true same-kind budget,
       // goal/clinical) records an explicit review hold and leaves the draft unchanged;
       // a later pass can re-evaluate it when posture or policy inputs change.

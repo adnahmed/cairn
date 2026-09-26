@@ -16,7 +16,6 @@ import { latestBrainEvaluation } from "../../repo/brain-evaluations.js";
 import { getAppState, setAppState } from "../../repo/app-state.js";
 import { getProposal } from "../../repo/proposals.js";
 import { violatesReadingGrammar } from "../../repo/day-read-grammar.js";
-import { pickDayVariant } from "../../repo/brain/day-read-rules.js";
 import {
   addDaysISO,
   clipText,
@@ -33,7 +32,7 @@ import {
 // It invents nothing: every row is a decision the ledger already holds, and Undo is
 // the existing server revert (`revertDecision`) over the snapshot the autonomy layer
 // stored. What it adds is the athlete register — a finished title, the why in the
-// spoken voice (never the machine `summary`/`reason` prose, never a leaked internal),
+// spoken voice (never signal-state `summary`/`reason` prose, never a producer label),
 // one of the four fixed outcome phrases, a confidence WORD, and the Undo label naming
 // the concrete effect. No evaluator verdict text, score or number-as-grade crosses it.
 //
@@ -117,43 +116,86 @@ function payloadTouched(changes: unknown, swaps: unknown): Pick<Touched, "exerci
   return { exercises, swaps: swapList };
 }
 
-function touched(decision: BrainDecision): Touched {
+// The draft a plan-proposal decision was routed from, read once per row. Null when the
+// decision has no draft behind it, or the draft cannot be read.
+interface Draft {
+  instruction: string;
+  parsed: Record<string, any>;
+}
+
+function draftOf(decision: BrainDecision): Draft | null {
+  const action = (decision.action ?? {}) as Record<string, any>;
+  const proposalId =
+    Number(action.proposal_id) ||
+    (decision.source_ref_type === "plan_proposal" ? Number(decision.source_ref_key) : Number.NaN);
+  if (!(proposalId > 0)) return null;
+  try {
+    const proposal = getProposal(proposalId) as any;
+    if (!proposal) return null;
+    const parsed = proposal.parsed && typeof proposal.parsed === "object" ? proposal.parsed : {};
+    return { instruction: String(proposal.instruction ?? ""), parsed };
+  } catch {
+    return null; // an unreadable draft only thins the row
+  }
+}
+
+function touched(decision: BrainDecision, draft: Draft | null): Touched {
   const action = (decision.action ?? {}) as Record<string, any>;
   const base = { recoveryCycle: Number(action.recovery_cycle_id) > 0 };
   if (Array.isArray(action.changes) || Array.isArray(action.swaps))
     return { ...base, ...payloadTouched(action.changes, action.swaps) };
   // An announced change has not written its action yet; its draft says what it will do.
-  const proposalId = Number(action.proposal_id);
-  if (proposalId > 0) {
-    try {
-      const parsed = (getProposal(proposalId) as any)?.parsed ?? {};
-      const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
-      const swaps = changes
-        .filter((change: any) => change?.swap?.from && change?.swap?.to)
-        .map((change: any) => change.swap);
-      return {
-        ...base,
-        ...payloadTouched(
-          changes.filter((change: any) => !change?.swap),
-          swaps
-        ),
-      };
-    } catch {
-      /* an unreadable draft only thins the label */
-    }
+  if (draft) {
+    const changes = Array.isArray(draft.parsed.changes) ? draft.parsed.changes : [];
+    const swaps = changes
+      .filter((change: any) => change?.swap?.from && change?.swap?.to)
+      .map((change: any) => change.swap);
+    return {
+      ...base,
+      ...payloadTouched(
+        changes.filter((change: any) => !change?.swap),
+        swaps
+      ),
+    };
   }
   return { ...base, exercises: [], swaps: [] };
 }
 
 // ---------- the athlete register ----------
 
-// Machine prefixes producers write into `instruction`/`rationale` ("auto: …",
-// "case conference: …") — a record of who drafted it, not a sentence for a person.
-const MACHINE_PREFIX = /^\s*[a-z][a-z -]{1,30}:\s/i;
+// Producers' own prefixes on `instruction`/`rationale` ("auto: …", "case conference: …")
+// — a record of who drafted it, not a sentence for a person. Narrowed to the known
+// producers, so an athlete-facing sentence that opens "Heads up: …" still reads.
+const MACHINE_PREFIX = /^\s*(?:auto|case conference|chat|background|nutrition):\s/i;
 
-function spoken(text: unknown, max: number): string | null {
+// Producers whose `summary` is a templated label for the ledger, not a headline
+// ("Auto-progression for day 1 — 2 lifts", "Rotate A → B on day 3"). Their title is
+// worded from what the change touched instead.
+const LABEL_SUMMARY_SOURCES: ReadonlySet<string> = new Set(["auto-progression", "auto-run-plan", "exercise-swap"]);
+// A plan-day NUMBER and an arrow are the ledger's shorthand, never the athlete's words.
+const LABEL_SHAPE = /\bday \d+\b|→|->/i;
+
+// True when `a` is `b`, or a clipped copy of it.
+function sameText(a: unknown, b: unknown): boolean {
+  // A clipped copy ends in an ellipsis; compare what is left of it as a prefix.
+  const norm = (value: unknown) =>
+    String(value ?? "")
+      .replace(/\s+/g, " ")
+      .replace(/(?:…|\.\.\.)$/, "")
+      .trim()
+      .toLowerCase();
+  const clipped = norm(a);
+  const full = norm(b);
+  return !!clipped && !!full && full.startsWith(clipped);
+}
+
+function spoken(text: unknown, max: number, draft: Draft | null = null): string | null {
   const value = clipText(text, max, { collapseWhitespace: true, wordBoundary: true, sentenceBoundary: true });
   if (!value || MACHINE_PREFIX.test(value) || violatesReadingGrammar(value)) return null;
+  // The decision's rationale falls back to the draft's `instruction` when the draft
+  // wrote no rationale — the producer's label ("day 1 progression", "swap A → B",
+  // "evolve program") or an agent-facing instruction. Never a why.
+  if (draft && sameText(value, draft.instruction)) return null;
   return value;
 }
 
@@ -168,39 +210,42 @@ const TITLE_FALLBACK: Record<string, string> = {
   goal_change: "Adjusted your goal timeline",
 };
 
-function changeTitle(decision: BrainDecision, what: Touched): string {
-  const written = spoken(decision.summary, 140);
+function writtenTitle(decision: BrainDecision, draft: Draft | null): string | null {
+  if (LABEL_SUMMARY_SOURCES.has(String(decision.source ?? ""))) return null;
+  const written = spoken(decision.summary, 140, draft);
+  return written && !LABEL_SHAPE.test(written) ? written : null;
+}
+
+function changeTitle(decision: BrainDecision, what: Touched, draft: Draft | null): string {
+  const written = writtenTitle(decision, draft);
   if (written) return written;
-  if (what.swaps.length === 1) return `Swapped ${what.swaps[0].from} for ${what.swaps[0].to}`;
-  if (decision.kind === "training_target" && what.exercises.length === 1)
-    return `Moved your ${what.exercises[0]} target`;
+  const { swaps, exercises } = what;
+  if (swaps.length === 1 && !exercises.length) return `Swapped ${swaps[0].from} for ${swaps[0].to}`;
+  if (decision.kind === "training_target" || decision.kind === "exercise_rotation") {
+    if (exercises.length === 1 && !swaps.length) return `Moved your ${exercises[0]} target`;
+    if (exercises.length === 2 && !swaps.length) return `Moved your ${exercises[0]} and ${exercises[1]} targets`;
+    const lifts = exercises.length + swaps.length;
+    if (lifts > 1) return `Moved your targets on ${lifts} lifts`;
+  }
   return TITLE_FALLBACK[String(decision.kind)] ?? "Made a coaching change";
 }
 
-// Spoken fallbacks, rotated by day so a quiet week does not print one literal on
-// every row (the day-read variant law, applied here).
-const WHY_FALLBACK: Record<string, readonly string[]> = {
-  training: [
-    "Your recent sessions moved, so the plan moved with them.",
-    "What you logged lately pointed this way, so the team followed it.",
-  ],
-  recovery: [
-    "Your recent load and recovery asked for an easier stretch.",
-    "The last few days called for more room to recover.",
-  ],
-  nutrition: [
-    "Your recent weigh-ins and meals pointed this way.",
-    "The trend in what you logged asked for this adjustment.",
-  ],
-  other: ["The team read your recent signals and made this call.", "Your recent picture pointed this way."],
-};
-
-function changeWhy(decision: BrainDecision, day: string): string | null {
+// The why is only ever a sentence someone WROTE for the athlete: the action's own
+// explanation, the draft's rationale, or — for a one-lift change — that lift's own
+// reason. When none survives, the why is null rather than a cause nobody recorded.
+function changeWhy(decision: BrainDecision, draft: Draft | null): string | null {
   const action = (decision.action ?? {}) as Record<string, unknown>;
-  const written = spoken(action.user_explanation, 700) ?? spoken(decision.rationale, 700);
+  const written =
+    spoken(action.user_explanation, 700, draft) ??
+    (draft ? spoken(draft.parsed.rationale, 700, draft) : spoken(decision.rationale, 700));
   if (written) return written;
-  const set = WHY_FALLBACK[String(decision.domain)] ?? WHY_FALLBACK.other;
-  return pickDayVariant(set, day, `change:${decision.id}`);
+  const changes = draft && Array.isArray(draft.parsed.changes) ? draft.parsed.changes : [];
+  if (changes.length === 1) {
+    const reason = spoken(changes[0]?.reason, 400, draft);
+    // A bare delta ("+5 lb") is a number, not a reason.
+    if (reason && reason.split(/\s+/).length >= 3) return reason;
+  }
+  return null;
 }
 
 // ---------- outcome and confidence ----------
@@ -355,8 +400,18 @@ function projectDecision(decision: BrainDecision, asOf: string, floor: string, s
   if (state !== "announced" && day < floor) return null;
   const eventAt =
     state === "applied" ? stamp(decision.applied_at) : state === "announced" ? stamp(decision.created_at) : null;
-  const eventMs = eventAt ? Date.parse(eventAt) : Number.NaN;
-  const what = touched(decision);
+  // ONE piece of news per decision, at its first surfacing: an announced change is news
+  // when it is announced, and landing later is the same decision, not a second one. A
+  // quiet change is never shown while pending, so it first surfaces when it lands.
+  const surfacedAt =
+    state === "announced" || (state === "applied" && decision.autonomy_tier === "announce")
+      ? stamp(decision.created_at)
+      : state === "applied"
+        ? stamp(decision.applied_at)
+        : null;
+  const surfacedMs = surfacedAt ? Date.parse(surfacedAt) : Number.NaN;
+  const draft = draftOf(decision);
+  const what = touched(decision, draft);
   const { expectation, evaluation } = latestOutcome(decision);
   const key = outcomeKey(state, evaluation);
   const landsOn = state === "announced" ? String(decision.effective_date ?? "").slice(0, 10) || null : null;
@@ -365,14 +420,14 @@ function projectDecision(decision: BrainDecision, asOf: string, floor: string, s
     day,
     state,
     domain: String(decision.domain),
-    title: changeTitle(decision, what),
-    why: changeWhy(decision, asOf),
+    title: changeTitle(decision, what, draft),
+    why: changeWhy(decision, draft),
     status_line: statusLine(state, day, landsOn, asOf),
     lands_on: landsOn,
     outcome: { key, phrase: BRAIN_CHANGE_OUTCOME_PHRASES[key] },
     confidence: confidenceWord(expectation),
     undo: undoFor(decision, state, what),
-    new: Number.isFinite(eventMs) && eventMs > seenFrom && !athleteAsked(decision),
+    new: Number.isFinite(surfacedMs) && surfacedMs > seenFrom && !athleteAsked(decision),
     event_at: eventAt,
   };
 }
