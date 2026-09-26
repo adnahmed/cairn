@@ -29,7 +29,7 @@ type LifeImpactAffected = {
 
 (() => {
 const LIFE_KINDS: readonly LifeKindRow[] = [["trip", "Trip"], ["injury", "Injury"], ["life_event", "Life event"]];
-const LIFE_ICONS: Record<string, string> = { trip: "✈", injury: "🤕", life_event: "◆" };
+const LIFE_ICONS: Record<string, string> = { trip: "✈", injury: "✚", life_event: "◆" };
 
 function lifeKindLabel(kind: unknown): string {
   const key = String(kind || "");

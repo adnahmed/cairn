@@ -27,7 +27,8 @@ function progressHistorySessionCardHtml(session: unknown, index: number): string
   const chips = [
     tonnage ? `${fmtK(Math.round(tonnage))} lb` : null,
     row.duration_min ? `${row.duration_min} min` : null,
-    `${setCount} set${setCount === 1 ? "" : "s"}`,
+    // An empty day already says "No sets" below; a "0 sets" chip would say it twice.
+    setCount ? `${setCount} set${setCount === 1 ? "" : "s"}` : null,
   ].filter(Boolean).map((text) => `<span class="hist-chip">${escHtml(text)}</span>`).join("");
   return `<div class="sess hist hist-tap reveal" data-sessid="${escAttr(row.id)}" role="button" tabindex="0" style="${stagger(index)}" aria-label="Edit ${escAttr(weekday)} session">
       <div class="hist-head">

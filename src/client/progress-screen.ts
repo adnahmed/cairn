@@ -387,7 +387,7 @@ function paintVolumeBody(data: ProgressRecord) {
     <div class="volrow reveal" style="${stagger(i + 2)}">
       <div class="volrow-top">
         <span class="volrow-name">${escHtml(g.muscle_group)}</span>
-        <span class="volrow-meta"><b>${CairnProgressData.number(g.sets)}</b> set${CairnProgressData.number(g.sets) === 1 ? "" : "s"} · ${CairnProgressData.number(g.tonnage).toLocaleString()} lb</span>
+        <span class="volrow-meta"><b>${CairnProgressData.number(g.sets)}</b> set${CairnProgressData.number(g.sets) === 1 ? "" : "s"}${CairnProgressData.number(g.tonnage) > 0 ? ` · ${CairnProgressData.number(g.tonnage).toLocaleString()} lb` : ""}</span>
       </div>
       <div class="volbar"><div class="volbar-fill barfill" style="width:${Math.max(3, Math.round((CairnProgressData.number(g.sets) / maxSets) * 100))}%"></div></div>
     </div>`

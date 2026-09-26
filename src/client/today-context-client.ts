@@ -29,7 +29,7 @@ type TodayHealthFocusBanner = {
 };
 
 (() => {
-  const TODAY_CONTEXT_ICONS: Record<string, string> = { trip: "✈", injury: "🤕", life_event: "◆", family_event: "◆" };
+  const TODAY_CONTEXT_ICONS: Record<string, string> = { trip: "✈", injury: "✚", life_event: "◆", family_event: "◆" };
   const TODAY_CONTEXT_NEAR_DAYS = 21;
 
   // An open injury banners every morning it is open, so one literal prints verbatim

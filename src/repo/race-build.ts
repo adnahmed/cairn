@@ -574,6 +574,13 @@ function recentRuns(asOf: string, days: number): RunRow[] {
   return out;
 }
 
+const RUN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** A run's date as the athlete reads it ("Sep 20"), never the ISO key. */
+function runDateWords(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${RUN_MONTHS[Number(m[2]) - 1] ?? m[2]} ${Number(m[3])}` : iso;
+}
+
 function runPrediction(distanceKm: number, runs: RunRow[]): RacePrediction | null {
   // The fastest recent run of at least 5 km, extrapolated with Riegel. Training runs
   // are not races, so this reads conservative — it is said as such.
@@ -586,7 +593,7 @@ function runPrediction(distanceKm: number, runs: RunRow[]): RacePrediction | nul
     estimate_sec: Math.round(estimate),
     estimate_pace_sec_per_km: Math.round(estimate / distanceKm),
     basis: "recent_run_riegel",
-    basis_detail: `your ${round1(best.km)} km run on ${best.date} (${fmtPace((best.min * 60) / best.km)} /km), extended to race distance — a training run, so this reads conservative`,
+    basis_detail: `your ${round1(best.km)} km run on ${runDateWords(best.date)} (${fmtPace((best.min * 60) / best.km)} /km), extended to race distance — a training run, so this reads conservative`,
     as_of: best.date,
     trend: null,
     gap_sec: null,

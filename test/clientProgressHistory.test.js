@@ -106,7 +106,8 @@ test("progress history handles empty sessions and number coercion", () => {
   const html = history.sessionCardHtml({ id: 7, date: "2026-06-30", sets: [] }, 1);
 
   assert.match(html, /No sets/);
-  assert.match(html, /0 sets/);
+  // "No sets" says it once; no "0 sets" chip repeats it.
+  assert.doesNotMatch(html, /0 sets/);
   assert.equal(history.numOrNull(""), null);
   assert.equal(history.numOrNull(null), null);
   assert.equal(history.numOrNull("12.5"), 12.5);
