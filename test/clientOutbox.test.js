@@ -1,20 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import vm from "node:vm";
+import { runApiClientModules } from "./_apiClientModules.mjs";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-// Load the compiled api-client (which carries the outbox) in a bare context — no
+// Load the compiled api/outbox modules (outbox-queue carries createOutbox) in a bare context — no
 // window/document/navigator/setTimeout, so the runtime side effects (boot flush,
 // online listener, affordance render) all self-gate off and we're left with the
 // pure createOutbox core to exercise.
 function loadOutbox() {
   const context = { Date, JSON, Math, Array, Object, String, Number, Promise };
   context.globalThis = context;
-  vm.runInNewContext(readFileSync(join(root, "public/js/api-client.js"), "utf8"), context);
+  runApiClientModules(context);
   return context.CairnOutbox;
 }
 

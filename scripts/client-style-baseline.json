@@ -1,10 +1,10 @@
 {
   "note": "Ratchet for scripts/check-client-style.mjs. Numbers may only go down; run it with --update after one does.",
   "totals": {
-    "hex": 234,
+    "hex": 221,
     "style": 384,
     "over400": 30,
-    "over600": 14
+    "over600": 13
   },
   "files": {
     "src/client/agent-login-modal-client.ts": {
@@ -12,10 +12,6 @@
     },
     "src/client/agent-login-session-client.ts": {
       "hex": 12
-    },
-    "src/client/api-client.ts": {
-      "lines": 2367,
-      "hex": 13
     },
     "src/client/app/onboarding.ts": {
       "style": 3
@@ -117,6 +113,9 @@
     "src/client/meal-plan-client.ts": {
       "lines": 420,
       "style": 20
+    },
+    "src/client/outbox-queue.ts": {
+      "lines": 562
     },
     "src/client/plan-editor-client.ts": {
       "style": 4

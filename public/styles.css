@@ -2338,6 +2338,33 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   .outbox-review-ov{align-items:center}
   .outbox-review-item{grid-template-columns:minmax(0,1fr) auto;align-items:center}
 }
+
+/* access-token sheet (token-sheet.ts) — the entry sheet for the optional shared
+   token, on CairnUiSheet. Deliberately not dismissible, and above everything:
+   the app is unusable until a token is saved. */
+.token-sheet-ov{position:fixed;inset:0;z-index:var(--z-token);display:flex;align-items:center;justify-content:center;
+  padding:max(env(safe-area-inset-top),18px) 16px max(env(safe-area-inset-bottom),18px);
+  background:rgba(33,29,23,.5);background:color-mix(in srgb,var(--ink) 50%,transparent);
+  backdrop-filter:saturate(1.1) blur(2px);animation:tokenSheetFade var(--dur-1) var(--ease) both}
+@keyframes tokenSheetFade{from{opacity:0}to{opacity:1}}
+.token-sheet{width:min(420px,100%);background:var(--card);color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-md);
+  padding:22px 20px 18px;font-family:var(--font-ui)}
+.token-sheet-h{margin:0 0 6px;font-family:var(--font-display);font-size:1.35rem;font-weight:600;line-height:1.15}
+.token-sheet-p{margin:0 0 14px;font-size:.86rem;line-height:1.5;color:var(--ink-2)}
+.token-sheet-in{width:100%;box-sizing:border-box;font-family:var(--font-ui);font-size:1rem;
+  padding:11px 13px;border-radius:var(--radius-sm);border:1px solid var(--line-2);
+  background:var(--card-2);color:var(--ink)}
+.token-sheet-in:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.token-sheet-err{margin-top:8px;font-size:.8rem;color:var(--warn);font-weight:600}
+.token-sheet-ft{display:flex;justify-content:flex-end;margin-top:16px}
+.token-sheet-btn{appearance:none;font-family:inherit;font-size:.92rem;font-weight:600;cursor:pointer;
+  padding:10px 20px;border-radius:var(--radius-pill);border:0;background:var(--accent);color:var(--card);
+  transition:transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
+.token-sheet-btn:hover{background:var(--accent-deep)}
+.token-sheet-btn:active{transform:var(--press)}
+.token-sheet-btn:focus-visible{outline:2px solid var(--accent-deep);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.token-sheet-ov{animation:none}.token-sheet-btn:active{transform:none}}
 @media (prefers-reduced-motion:reduce){.outbox-review-ov{animation:none}.outbox-bar.outbox-actionable:hover{transform:translate(-50%,0)}}
 
 /* -------------------------------------------------------------------
