@@ -233,7 +233,7 @@ test("progress energy helper renders the hero and reviewed check-in card", () =>
   });
 
   assert.match(html.heroHtml, /Energy Balance/);
-  assert.match(html.heroHtml, /est\. expenditure/);
+  assert.match(html.heroHtml, /est\. burn/);
   assert.match(html.cardHtml, /How you're tracking/);
   assert.match(html.cardHtml, /well-established · 21 outcome days · 21-day window/);
   assert.match(html.cardHtml, /Run a check-in/);

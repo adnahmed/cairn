@@ -2,7 +2,6 @@
 // Progress -> Program route controller: SWR fan-out, conductor state, DOM paint, and actions.
 
 type ProgressProgramRecord = Record<string, unknown>;
-type ProgressProgramStat = readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }];
 type ProgressProgramState = import("../contracts/client-api.js").ClientProgramState;
 type ProgressStrengthJourney = import("../contracts/client-api.js").ClientStrengthJourney;
 type ProgressAnchorSuggestion = import("../contracts/client-api.js").ClientAnchorObjectiveSuggestion;
@@ -465,13 +464,7 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
     return;
   }
 
-  const sorted = sortLifts(lifts);
-  const nStalled = sorted.filter((lift) => lift.status === "plateaued" || lift.status === "regressing").length;
-  const nGood = sorted.filter((lift) => lift.status === "progressing").length;
-  const heroStats: ProgressProgramStat[] = [];
-  if (lifts.length) heroStats.push(["lifts tracked", lifts.length]);
-  if (nGood) heroStats.push(["climbing", nGood]);
-  if (nStalled) heroStats.push(["stalled", nStalled]);
+  const heroVoice = programHeroVoice(lifts, deps.countWord);
 
   const conductor = CairnProgressFocus.cardHtml();
   const hasConductor = !!conductor;
@@ -510,7 +503,7 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
   if (hasConductor) {
     html =
       head +
-      deps.hero("Program", heroStats) +
+      deps.hero("Program", [], heroVoice) + `<div data-train-deeper-slot></div>` +
       conductor +
       strengthJourneySlot +
       liftsHtml +
@@ -535,8 +528,8 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
   } else {
     html =
       head +
-      deps.hero("Program", heroStats) +
-      headlineHtml +
+      deps.hero("Program", [], heroVoice) +
+      headlineHtml + `<div data-train-deeper-slot></div>` +
       strengthJourneySlot +
       testSlot +
       perfSlot +

@@ -159,3 +159,51 @@ test("progress endurance controller asks the race build card to drop its own cou
 
   assert.match(view.querySelector("#endBody").innerHTML, /race-build:open:underGoal/);
 });
+
+test("the endurance voice line never sums several sports into one km figure", async () => {
+  const controller = loadProgressEnduranceController();
+  const paint = async (endurance) => {
+    let voice = null;
+    const { deps } = controllerDeps({
+      hero: (title, stats, v) => {
+        voice = v;
+        return `hero:${title}:${stats.length}`;
+      },
+      api: async (path) => {
+        if (path === "/stats") return { endurance };
+        if (path === "/endurance-prs") return { sports: [], longest_km: null, longest_min: null, best_pace: [] };
+        if (path === "/settings") return { settings: {} };
+        if (path.startsWith("/training-agenda")) return { available: false, intents: [] };
+        if (path === "/program-state") return { hybrid: null };
+        if (path.startsWith("/calibration/status")) return { status: { as_of: "2026-06-30", items: [] }, due: [] };
+        return null;
+      },
+    });
+    await controller.render(deps);
+    return voice;
+  };
+  const hybrid = await paint({
+    week_km: 50,
+    total_moving_min: 250,
+    longest_km: 40,
+    by_sport: {
+      run: { sport: "run", distance_km: 10, moving_min: 60 },
+      ride: { sport: "ride", distance_km: 40, moving_min: 190 },
+    },
+  });
+  assert.equal(hybrid.line, "4 h 10 min moving this week.");
+  assert.equal(hybrid.fact, "longest 40 km");
+  assert.doesNotMatch(hybrid.line, /50 km/);
+
+  const noTime = await paint({
+    week_km: 50,
+    by_sport: {
+      run: { sport: "run", distance_km: 10 },
+      ride: { sport: "ride", distance_km: 40 },
+    },
+  });
+  assert.equal(noTime.line, "10 km of running this week.");
+
+  const runOnly = await paint({ week_km: 12, total_moving_min: 70, by_sport: { run: { sport: "run", distance_km: 12, moving_min: 70 } } });
+  assert.equal(runOnly.line, "12 km of running this week.");
+});

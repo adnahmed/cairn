@@ -1815,7 +1815,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(smokeBrowser, /#updateCheckEnabled/);
   assert.match(smokeBrowser, /#phoneGenToken/);
   assert.match(smokeBrowser, /async function smokeProgressSegmentNavigation/);
-  assert.match(smokeBrowser, /data-seg="program"/);
+  assert.match(smokeBrowser, /data-train-leaf="program"/);
   assert.match(smokeBrowser, /async function smokePlanSegmentNavigation/);
   assert.match(smokeBrowser, /#dayFuelSlot/);
   assert.match(smokeBrowser, /async function smokeHealthInnerNavigation/);
@@ -4872,7 +4872,8 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     progressProgramControllerSource,
     /type ProgressProgramState = import\("\.\.\/contracts\/client-api\.js"\)\.ClientProgramState/
   );
-  assert.match(progressProgramControllerSource, /type ProgressProgramStat = readonly \[unknown, unknown\]/);
+  // Program's header is a voice line, never a stat row: no stat type survives there.
+  assert.doesNotMatch(progressProgramControllerSource, /type ProgressProgramStat\b/);
   assert.match(progressProgramControllerSource, /var _progFocusCard: string \| undefined/);
   assert.match(
     progressProgramControllerSource,

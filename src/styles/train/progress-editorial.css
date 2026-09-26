@@ -13,6 +13,31 @@
 .phero-stat{display:flex;flex-direction:column;gap:5px;min-width:0}
 .phero-n{font-size:1.45rem;font-weight:400;letter-spacing:-.005em}
 .phero-n-sm{font-size:1.25rem;line-height:1.45;text-transform:capitalize}
+/* A unit rides inside its value ("2,417 kcal"), so the mono label stays one word. */
+.phero-u{font-family:var(--font-ui);font-size:.72rem;font-weight:500;letter-spacing:0;text-transform:none;
+  color:var(--muted);margin-left:4px;white-space:nowrap}
+/* The voice header: ONE serif line and at most one mono fact — never a stat wall. */
+.phero-voice{padding:6px 2px 18px}
+.phero-line{font-family:var(--font-display);font-weight:400;font-size:1.62rem;line-height:1.14;
+  letter-spacing:-.005em;color:var(--ink);margin:0;text-wrap:balance;max-width:24ch}
+.phero-fact{display:block;margin-top:10px;color:var(--muted)}
+
+/* ---- Train's one-level nav ----
+   A deeper leaf wears one quiet step back to its landing (the .home-back look);
+   a landing lists its deeper leaves as hairline rows: name, one muted line, chevron. */
+.train-crumb{display:inline-block;margin:0 0 10px}
+.train-deeper{margin:24px 0 8px}
+.train-deeper-kick{display:block;margin:0 0 2px}
+.train-deeper-row{width:100%;display:flex;align-items:center;gap:12px;text-align:left;color:inherit;font:inherit;
+  background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:12px 2px;margin:0;box-shadow:none;
+  cursor:pointer;transition:transform var(--dur-1) var(--ease)}
+.train-deeper-kick+.train-deeper-row{border-top:0}
+.train-deeper-row:active{transform:var(--press-lg)}
+.train-deeper-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.train-deeper-name{font-size:var(--text-body);font-weight:500;color:var(--ink);line-height:1.3}
+.train-deeper-meta{font-size:var(--text-xs);color:var(--muted);line-height:1.4}
+.train-deeper-arw{flex:none;color:var(--muted)}
+@media (hover:hover){.train-deeper-row:hover .train-deeper-name{color:var(--ink-2)}}
 .chart-foot{display:block;margin:10px 4px 0;text-align:center;line-height:1.5}
 .chart-foot.lbl{font-family:var(--font-ui);font-size:var(--text-xs);text-transform:none;letter-spacing:0}
 
@@ -28,6 +53,13 @@
 .hist-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .hist-day{font-family:var(--font-display);font-weight:400;font-size:1.3rem;line-height:1.12;margin-top:3px;color:var(--ink)}
 .hist-chips{display:flex;gap:4px 10px;flex-wrap:wrap;justify-content:flex-end;padding-top:2px;max-width:55%}
+/* At phone width the card's facts drop under the weekday as one muted meta line,
+   so neither the kicker nor the facts ever wrap into a column. */
+@media (max-width:520px){
+  .hist-head{flex-direction:column;gap:4px}
+  .hist-chips{justify-content:flex-start;max-width:none;padding-top:0}
+  .hist-chip+.hist-chip::before{content:"·";margin-right:10px;color:var(--line-strong)}
+}
 .hist-chip{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);text-transform:uppercase;
   white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
 .hist-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:baseline;

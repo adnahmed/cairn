@@ -74,19 +74,10 @@ function progressHistorySummary(sessions: HistorySession[], now: Date = new Date
   const ym = localISO(now).slice(0, 7);
   const iso30 = localISO(new Date(now.getTime() - 30 * 864e5));
   const monthSessions = sessions.filter((session) => progressHistoryString(session.date).slice(0, 7) === ym).length;
-  const last30 = sessions.filter((session) => progressHistoryString(session.date) >= iso30);
-  const tonnage30 = last30.reduce((total, session) => total + setsTonnage(session.sets), 0);
-  const sets30 = last30.reduce((total, session) => total + (session.sets || []).length, 0);
-  return {
-    monthSessions,
-    tonnage30,
-    sets30,
-    stats: [
-      ["sessions this month", monthSessions],
-      ["lb moved · 30d", Math.round(tonnage30), { k: true }],
-      ["sets · 30d", sets30],
-    ],
-  };
+  const sets30 = sessions
+    .filter((session) => progressHistoryString(session.date) >= iso30)
+    .reduce((total, session) => total + (session.sets || []).length, 0);
+  return { monthSessions, sets30 };
 }
 
 const CAIRN_PROGRESS_HISTORY_MODEL = {

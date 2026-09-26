@@ -135,8 +135,9 @@ test("the journey line is empty when neither read has anything to say", () => {
 test("train overview masthead never surfaces a day streak", () => {
   const overview = readFileSync(join(root, "src/client/progress-overview-client.ts"), "utf8");
   assert.doesNotMatch(overview, /day streak/);
-  // The week's sessions sit under the "This week" kicker, so the stat reads "sessions".
-  assert.match(overview, /,\s*"sessions"\s*\)/);
+  // The week reads as one voice line and one fact (working sets) — no stat strip.
+  assert.doesNotMatch(overview, /class="statstrip"/);
+  assert.match(overview, /working set\$\{sets === 1 \? "" : "s"\} this week/);
 });
 
 // ---------- the muscle rows fold ----------

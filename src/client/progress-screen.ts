@@ -376,11 +376,11 @@ function paintVolumeBody(data: ProgressRecord) {
   }
   const totalSets = groups.reduce((t, g) => t + CairnProgressData.number(g.sets), 0);
   const maxSets = Math.max(1, ...groups.map((g) => CairnProgressData.number(g.sets)));
-  const hero = progressHero("Volume", [
-    ["sets · 30d", totalSets],
-    ["lb moved · 30d", data.total_tonnage || 0, { k: true }],
-    ["top muscle", groups[0].muscle_group, { text: true }],
-  ]);
+  const tonnage = CairnProgressData.number(data.total_tonnage);
+  const hero = progressHero("Volume", [], {
+    line: `${Math.round(totalSets).toLocaleString()} working set${Math.round(totalSets) === 1 ? "" : "s"} across ${progressCountWord(groups.length)} muscle group${groups.length === 1 ? "" : "s"}.`,
+    fact: tonnage > 0 ? `${tonnage >= 10000 ? `${Math.round(tonnage / 100) / 10}k` : Math.round(tonnage).toLocaleString()} lb moved` : "",
+  });
   const rows = groups
     .map(
       (g, i) => `
@@ -393,13 +393,13 @@ function paintVolumeBody(data: ProgressRecord) {
     </div>`
     )
     .join("");
-  // The balance read (its `summary` line especially) is the honest plain-language
-  // account of what volume has done — unified to LEAD, ahead of the numeral hero,
-  // same precedent as the Weight screen's goal-pace read (Amendment 2).
+  // Words lead (Amendment 2): the voice line is the page's one focal point, and the
+  // balance read — which groups are due, which patterns are missing — sits right
+  // under it, ahead of the ranked bars.
   view.innerHTML =
     head +
-    `<div id="volBalanceSlot" class="vol-balance-slot reveal" style="${stagger(0)}"></div>` +
     hero +
+    `<div id="volBalanceSlot" class="vol-balance-slot reveal" style="${stagger(1)}"></div>` +
     `<div class="vol-kicker lbl reveal" style="${stagger(2)}">Last ${CairnProgressData.number(data.days, 30)} days · ranked by sets</div>` +
     rows;
   wireSeg(PROGRESS_HANDLERS);
@@ -477,17 +477,17 @@ function paintCalendarBody(data: ProgressRecord) {
   // constitution rules out — §2/§6C of VISION.md. The deterministic streak value
   // still exists in getWeeklyStats for agent context; it just isn't surfaced here.)
   const windowSessions = cells.filter((c) => c.lifted).length;
-  const hero = progressHero("Calendar", [
-    ["sessions this month", monthSessions],
-    ["sessions · 12wk", windowSessions],
-    ["active days · 84d", activeDays],
-  ]);
+  const hero = progressHero("Calendar", [], {
+    line: monthSessions
+      ? `${progressCountWord(monthSessions, true)} session${monthSessions === 1 ? "" : "s"} this month.`
+      : `${progressCountWord(windowSessions, true)} session${windowSessions === 1 ? "" : "s"} in twelve weeks.`,
+    fact: `${activeDays} active day${activeDays === 1 ? "" : "s"} · 12 weeks`,
+  });
   const months = [...new Set(cells.map((c) => CairnProgressData.string(c.date).slice(0, 7)))].filter(Boolean).reverse();
   const grids = months.map((mo, i) => calMonthHtml(mo, byDate, todayIso, i + 1)).join("");
   const legend = `<div class="cal-legend"><span>Less</span><i class="cl0"></i><i class="cl1"></i><i class="cl2"></i><i class="cl3"></i><i class="cl4"></i><span>More</span></div>`;
   view.innerHTML = head + hero + grids + legend;
   wireSeg(PROGRESS_HANDLERS);
-  runCountUps(view);
   // tap a day with data → open it on Today
   view.querySelectorAll<HTMLElement>(".cal-day[data-goto]").forEach((el) =>
     el.addEventListener("click", () => {
@@ -555,7 +555,7 @@ async function renderIntake() {
   const token = ++pollToken;
   const head = segBar("intake", PROGRESS_SEG);
   const peek = peekCached<import("../contracts/client.js").ClientNutritionProgress>("progress:intake");
-  view.innerHTML = head + `<div id="intakeProgress">${peek ? "" : loadingState("Reading recorded intake…")}</div>`;
+  view.innerHTML = head + `<div data-train-deeper-slot></div><div id="intakeProgress">${peek ? "" : loadingState("Reading recorded intake…")}</div>`;
   wireSeg(PROGRESS_HANDLERS);
   const paint = (data: unknown) => {
     if (token !== pollToken || state.progressSeg !== "intake") return;

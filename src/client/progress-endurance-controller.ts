@@ -2,7 +2,7 @@
 // Progress -> Endurance route controller: data fan-out, stale guards, and DOM paint.
 
 type ProgressEnduranceRecord = Record<string, unknown>;
-type ProgressEnduranceStat = readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }];
+type ProgressEnduranceStat = readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean }];
 type ProgressEnduranceGoalRow = import("../contracts/client-api.js").ClientEnduranceGoal;
 type ProgressEndurancePRRows = import("../contracts/client-api.js").ClientEndurancePRs;
 type ProgressEnduranceCompliance = import("../contracts/client-api.js").ClientRunCompliance;
@@ -24,7 +24,7 @@ type ProgressEnduranceControllerDeps = {
   wireSegments(): void;
   loading(message: string): string;
   empty(image: string, message: string): string;
-  hero(title: string, stats: ProgressEnduranceStat[]): string;
+  hero(title: string, stats: ProgressEnduranceStat[], voice?: { line?: unknown; fact?: unknown } | null): string;
   art(kind: string, label: string): string;
   runCountUps(root: ParentNode): void;
   renderSelf(): unknown;
@@ -41,6 +41,12 @@ function progressEnduranceNumber(value: unknown, fallback = 0): number {
 
 function hasProgressEnduranceRecord(value: unknown): value is ProgressEnduranceRecord {
   return !!value && typeof value === "object";
+}
+
+// A week's moving time as a voice line says it: "70 minutes", then "4 h 10 min".
+function progressEnduranceMovingWords(min: number): string {
+  if (min < 90) return `${min} minute${min === 1 ? "" : "s"}`;
+  return min % 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min / 60} h`;
 }
 
 function progressEnduranceSportRows(end: ProgressEnduranceRecord): ProgressEnduranceRecord[] {
@@ -268,25 +274,35 @@ function paintProgressEnduranceBody(
     return;
   }
 
-  const heroStats: ProgressEnduranceStat[] = [];
+  // One voice line, one fact (the longest). Several sports never sum into one km
+  // figure (a ride is not running load): they speak moving time, else the lead sport.
+  let heroVoice: { line: string; fact: string } | null = null;
   if (hasProgressEnduranceRecord(end)) {
-    const distanceRows = sportRows.filter((row) => progressEnduranceNumber(row.distance_km) > 0).slice(0, 2);
-    for (const row of distanceRows) {
-      const sport = String(row.sport || "endurance");
-      heroStats.push([`${sport} km · wk`, progressEnduranceNumber(row.distance_km)]);
-    }
-    if (!distanceRows.length && progressEnduranceNumber(endRow.week_km) > 0) {
-      heroStats.push(["run km · wk", endRow.week_km]);
-    }
-    const totalMoving = endRow.total_moving_min ?? endRow.week_moving_min;
-    if (totalMoving != null) heroStats.push(["moving min · wk", Math.round(progressEnduranceNumber(totalMoving))]);
-    if (endRow.longest_km != null) heroStats.push(["longest · km", endRow.longest_km, { text: true }]);
-    else if (endRow.longest_min != null) heroStats.push(["longest · min", Math.round(progressEnduranceNumber(endRow.longest_min)), { text: true }]);
+    const distanceRows = sportRows.filter((row) => progressEnduranceNumber(row.distance_km) > 0);
+    const sportWord: Record<string, string> = { run: "running", ride: "riding", bike: "riding", swim: "swimming", walk: "walking", hike: "hiking", row: "rowing" };
+    const minutes = Math.round(progressEnduranceNumber(endRow.total_moving_min ?? endRow.week_moving_min));
+    const movingLine = minutes > 0 ? `${progressEnduranceMovingWords(minutes)} moving this week.` : "";
+    const leadRow = distanceRows[0]; // sportRows lead with the run, then the longest-moving sport
+    const kmLine = (km: number, sport: unknown) =>
+      km > 0 ? `${fmtKm(km)} km of ${sportWord[String(sport || "")] || "endurance work"} this week.` : "";
+    const line =
+      distanceRows.length > 1
+        ? movingLine || kmLine(progressEnduranceNumber(leadRow?.distance_km), leadRow?.sport)
+        : distanceRows.length === 1
+          ? kmLine(progressEnduranceNumber(distanceRows[0].distance_km), distanceRows[0].sport) || movingLine
+          : kmLine(progressEnduranceNumber(endRow.week_km), "run") || movingLine;
+    const fact =
+      endRow.longest_km != null
+        ? `longest ${fmtKm(endRow.longest_km)} km`
+        : endRow.longest_min != null
+          ? `longest ${Math.round(progressEnduranceNumber(endRow.longest_min))} min`
+          : "";
+    if (line) heroVoice = { line, fact };
   }
 
   const coachLineHtml = enduranceCoachLine(runPlan, agenda);
   const leadHtml =
-    deps.hero("Endurance", heroStats) +
+    deps.hero("Endurance", [], heroVoice) +
     coachLineHtml +
     goalHtml +
     raceBuildHtml +

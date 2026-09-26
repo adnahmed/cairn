@@ -84,6 +84,8 @@ const ROUTES = [
   { name: "train-program", path: "/app/train/program", tab: "progress" },
   { name: "train-sessions", path: "/app/train/sessions", tab: "progress" },
   { name: "train-energy", path: "/app/train/energy", tab: "progress" },
+  { name: "train-intake", path: "/app/train/intake", tab: "progress" },
+  { name: "train-endurance", path: "/app/train/endurance", tab: "progress" },
   { name: "train-weight", path: "/app/train/weight", tab: "progress" },
   { name: "train-plan", path: "/app/train/plan", tab: "plan" },
   { name: "horizon", path: "/app/horizon", tab: "horizon" },

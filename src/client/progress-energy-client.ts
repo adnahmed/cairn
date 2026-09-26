@@ -204,10 +204,14 @@ function energyUsable(exp: EnergyExpenditure | null | undefined): boolean {
 
 function energyHeroHtml(exp: EnergyExpenditure | null | undefined): string {
   if (!energyUsable(exp)) return progressHero("Energy Balance", []);
+  // Short one-word labels; the unit rides inside the value ("2,417 kcal"), so no
+  // label ever wraps at phone width.
   return progressHero("Energy Balance", [
-    ["est. expenditure · kcal", exp?.tdee],
-    exp?.intake_avg_kcal != null ? ["avg intake · kcal", exp.intake_avg_kcal] : null,
-    exp?.trend_lb_wk != null ? ["trend · lb/wk", `${Number(exp.trend_lb_wk) > 0 ? "+" : ""}${Math.round(Number(exp.trend_lb_wk) * 10) / 10}`, { text: true }] : null,
+    ["est. burn", exp?.tdee, { unit: "kcal" }],
+    exp?.intake_avg_kcal != null ? ["intake", exp.intake_avg_kcal, { unit: "kcal" }] : null,
+    exp?.trend_lb_wk != null
+      ? ["trend", `${Number(exp.trend_lb_wk) > 0 ? "+" : Number(exp.trend_lb_wk) < 0 ? "−" : ""}${Math.abs(Math.round(Number(exp.trend_lb_wk) * 10) / 10)}`, { text: true, unit: "lb/wk" }]
+      : null,
   ]);
 }
 

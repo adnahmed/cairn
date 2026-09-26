@@ -119,7 +119,16 @@ and `CairnStone` (`src/client/ui-stone.ts`, SVG strings), CSS in `src/styles/fou
   `.ghostbtn` (outline), `.draftbtn` (full-width call to action; `.applied` is sage and inert),
   `.iconbtn` / `.delbtn` / `.ordbtn`.
 - **Segments:** `.seg` is a surface pill track; the selected `.segbtn` (or the sliding
-  `.seg-thumb`) is ink with ground text. The Progress leaf bar (`.prog-subseg`) is mono text tabs.
+  `.seg-thumb`) is ink with ground text. A rail that scrolls (`.seg-scroll`) fades the edge that
+  still has more behind it (`.seg-fade-l` / `.seg-fade-r`, set by `fitSeg`), so it never looks clipped.
+- **Train is one navigation level:** the group bar (Train · Program · Fuel · Body) sits only on each
+  group's landing (Overview, the Program read, Intake, Weight). Every other leaf is one tap deeper —
+  a `.train-deeper-row` (name, one muted line, chevron) on its landing — and wears a single
+  `.train-crumb` step back ("‹ Train") instead of a second tab row. Routes stay
+  `/app/train/<leaf>`.
+- **Voice headers, not stat walls:** a Progress header is `progressHero(title, [], {line, fact})` —
+  one serif `.phero-line` and at most one mono `.phero-fact`. Only Energy's balance keeps a stat row,
+  with short one-word labels and the unit inside the value (`.phero-u`, "2,417 kcal").
 - **Inputs:** `.input` (`.input-pill`): surface, 1px line, dawn border on focus.
 - **Tab bar:** surface blur, 1px top line, sentence-case .66rem labels; the live tab is ink with a
   dawn icon and dot.
@@ -571,9 +580,6 @@ The motion vocabulary on top of the existing `.reveal` stagger:
   heading (`tabindex="-1"`). A pointer-driven switch marks it `data-focus-quiet` (no
   outline, removed on blur); `:focus:not(:focus-visible)` on `#view`/`[tabindex="-1"]`
   drops the outline too. A keyboard-activated switch keeps the ring.
-- **Leaf sub-bar** — the Progress `.prog-subseg` leaf bar is text tabs (no pill container,
-  smaller caps) whose `.seg-thumb` becomes a 2px ink underline on a hairline rule; it
-  renders only when the active group has more than one leaf.
 - **Toast** slides up + settles (`translate(-50%,14px) scale(.97)` → identity).
 - **Tactile press** — every interactive surface compresses on `:active` using the
   `--press*` scale tokens above, never an ad-hoc literal. Pick by target size:

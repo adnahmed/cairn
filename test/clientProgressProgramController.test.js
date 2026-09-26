@@ -169,7 +169,8 @@ function depsFor(_context, overrides = {}) {
     wireSegments: () => {
       deps.wired = true;
     },
-    hero: (title, stats) => `<section class="hero">${title}:${stats.map((row) => row[0]).join("|")}</section>`,
+    hero: (title, stats, voice) => `<section class="hero">${title}:${stats.map((row) => row[0]).join("|")}${voice ? `:${voice.line}` : ""}</section>`,
+    countWord: (n, lead) => (lead ? `N${n}` : `n${n}`),
     empty: (_image, message) => `<div class="empty">${message}</div>`,
     art: (kind, label) => `${kind}:${label}`,
     busy: (_btn, text) => {

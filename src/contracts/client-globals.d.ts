@@ -179,7 +179,6 @@ declare global {
     formatValue(value: number): string;
   };
   type ProgressHistoryRecord = Record<string, unknown>;
-  type ProgressHistoryStat = readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }];
   type ProgressHistorySet = ProgressHistoryRecord & {
     id?: number | string;
     exercise?: unknown;
@@ -216,9 +215,7 @@ declare global {
   };
   type ProgressHistorySummary = {
     monthSessions: number;
-    tonnage30: number;
     sets30: number;
-    stats: ProgressHistoryStat[];
   };
   type ProgressVolumeGroup = ProgressRecord & { muscle_group?: string; sets?: number | null; tonnage?: number | null };
   type ProgressCalendarCell = ProgressRecord & { date?: string; lifted?: unknown; activity?: unknown };
@@ -920,7 +917,8 @@ declare global {
     empty(image: string, message: string): string;
     hero(
       title: string,
-      stats: Array<readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }]>
+      stats: Array<readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }]>,
+      voice?: { line?: unknown; fact?: unknown } | null
     ): string;
     art(kind: string, label: string): string;
     runCountUps(root: ParentNode): void;
@@ -944,8 +942,11 @@ declare global {
     wireSegments(): void;
     hero(
       title: string,
-      stats: Array<readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }]>
+      stats: Array<readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }]>,
+      voice?: { line?: unknown; fact?: unknown } | null
     ): string;
+    /** A count as a voice line speaks it ("Fifteen"). */
+    countWord(n: unknown, lead?: boolean): string;
     empty(image: string, message: string): string;
     art(kind: string, label: string): string;
     busy(btn: Element | null | undefined, text: string, options?: { ghost?: boolean }): () => void;
@@ -1605,12 +1606,14 @@ declare global {
     title: unknown,
     stats: Array<
       | readonly [unknown, unknown]
-      | readonly [unknown, unknown, { text?: boolean; k?: boolean }]
+      | readonly [unknown, unknown, { text?: boolean; k?: boolean; unit?: string }]
       | null
       | undefined
       | false
-    >
+    >,
+    voice?: { line?: unknown; fact?: unknown } | null
   ): string;
+  declare function progressCountWord(n: unknown, lead?: boolean): string;
   declare function emptyStateHtml(svg: string | null | undefined, line: unknown): string;
   declare function withAlpha(hex: unknown, alpha: number): string;
   declare function drawLineChart(

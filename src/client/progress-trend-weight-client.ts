@@ -77,8 +77,7 @@ function paintProgressBody(exercises: ProgressExercise[]): void {
     state.progressEx && allExercises.some((e) => e.name === state.progressEx)
       ? state.progressEx
       : lastTrainedExercise(exercises);
-  view.innerHTML = segBar("trend", PROGRESS_SEG) + `<p id="trendLead" class="progress-read"></p>
-    <div id="trendHero"></div>
+  view.innerHTML = segBar("trend", PROGRESS_SEG) + `<div id="trendHero"></div>
     <div class="field"><label>Exercise</label>
     <select id="exsel">${(exercises.some((e) => e.name === saved) ? exercises : [...exercises, ...allExercises.filter((e) => e.name === saved)]).map((e) => `<option ${e.name === saved ? "selected" : ""}>${escHtml(e.name)}</option>`).join("")}</select></div>
     <canvas id="chart" class="pchart is-strength"></canvas><div id="pstats"></div>`;
@@ -86,6 +85,17 @@ function paintProgressBody(exercises: ProgressExercise[]): void {
   const select = $<HTMLSelectElement>("#exsel");
   if (select) select.addEventListener("change", () => { state.progressEx = select.value; drawProgress(select.value); });
   drawProgress(saved ?? "");
+}
+
+// Pounds still between the athlete and their goal, in the goal's direction (never
+// negative-means-done for a gain): the stated goal mode wins, then the recorded
+// start weight, then the first weigh-in on the chart.
+function weightToGoal(last: number, goal: number, profile: ProgressRecord, first: number): number {
+  const mode = profile.goal_mode;
+  const start = profile.start_weight_lb != null ? CairnProgressData.number(profile.start_weight_lb) : first;
+  const gaining = mode === "gain" || (mode !== "lose" && mode !== "maintain" && start < goal);
+  if (mode === "maintain") return Math.round(Math.abs(last - goal) * 10) / 10;
+  return Math.max(0, Math.round((gaining ? goal - last : last - goal) * 10) / 10);
 }
 
 function paintWeightBody(rows: ProgressWeightRow[], profile: ProgressRecord): void {
@@ -100,12 +110,20 @@ function paintWeightBody(rows: ProgressWeightRow[], profile: ProgressRecord): vo
   const goalW = profile.goal_weight_lb != null ? CairnProgressData.number(profile.goal_weight_lb) : null;
   const first = pts[0].v, last = pts[pts.length - 1].v;
   const delta = Math.round((last - first) * 10) / 10;
-  const toGoal = goalW != null ? Math.round((last - goalW) * 10) / 10 : null;
-  const hero = progressHero("Bodyweight", [
-    ["current · lb", last, { text: true }],
-    ["change", `${delta >= 0 ? "+" : ""}${delta}`, { text: true }],
-    toGoal != null ? ["to goal", toGoal > 0 ? String(toGoal) : "at goal", { text: true }] : null,
-  ]);
+  // "To go" is measured in the goal's own direction: a gain reads its shortfall
+  // below the goal, a cut its excess above it. Only a reading within half a pound,
+  // or already past the goal in that direction, is "at your goal".
+  const toGoal = goalW != null ? weightToGoal(last, goalW, profile, first) : null;
+  // One voice line and one fact; the goal-pace read above carries the pace.
+  const hero = progressHero("Bodyweight", [], {
+    line:
+      toGoal == null
+        ? `${last} lb today.`
+        : toGoal > 0.5
+          ? `${last} lb, ${toGoal} ${profile.goal_mode === "maintain" ? "from your goal" : "to go"}.`
+          : `${last} lb — at your goal.`,
+    fact: pts.length > 1 ? `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)} lb since ${fmtShortDate(pts[0].date)}` : "",
+  });
   // The goal-pace read (when it resolves) is unified to LEAD, ahead of the numeral
   // hero — see mountGoalPaceChart in progress-screen.ts, which fills this anchor.
   view.innerHTML = head + `<div id="weightLeadMount"></div>` + hero + `<canvas id="chart" class="pchart is-body"></canvas>
@@ -119,30 +137,27 @@ async function drawProgress(name: string): Promise<void> {
   const data = await api("/progress/" + encodeURIComponent(name));
   const row = CairnProgressData.record(data);
   const canvas = $<HTMLCanvasElement>("#chart"), stats = $<HTMLElement>("#pstats"), heroWrap = $<HTMLElement>("#trendHero");
-  const leadWrap = $<HTMLElement>("#trendLead");
   if (!canvas || !canvas.isConnected) return; // navigated away mid-fetch
   const pts = CairnProgressData.rows<ProgressRecord>(row.points).map((p) => ({
     date: CairnProgressData.string(p.date),
     v: CairnProgressData.number(p.best1rm),
   }));
   if (!pts.length) {
-    if (leadWrap) leadWrap.innerHTML = "";
     if (heroWrap) heroWrap.innerHTML = progressHero("Estimated 1RM", []);
     canvas.style.display = "none";
     if (stats) stats.innerHTML = emptyStateHtml(art("exercise", name), `No data for ${name} yet.`);
     return;
   }
   canvas.style.display = "";
-  if (leadWrap) leadWrap.innerHTML = escHtml(oneRmReadLine(name, pts));
+  // The read IS the voice line; one fact carries the number it is about.
   const first = pts[0].v, last = pts[pts.length - 1].v;
   const delta = Math.round((last - first) * 10) / 10;
+  const unit = String(row.unit || "lb");
   if (heroWrap) {
-    heroWrap.innerHTML = progressHero("Estimated 1RM", [
-      ["current est-1rm", Math.round(last)],
-      ["since first", `${delta >= 0 ? "+" : ""}${delta}`, { text: true }],
-      ["sessions", pts.length],
-    ]);
-    runCountUps(heroWrap);
+    heroWrap.innerHTML = progressHero("Estimated 1RM", [], {
+      line: oneRmReadLine(name, pts),
+      fact: `est. 1RM ${Math.round(last)} ${unit}${pts.length > 1 ? ` · ${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)} since the first` : ""}`,
+    });
   }
   drawLineChart(canvas, pts, { peak: true });
   if (stats) stats.innerHTML = `<div class="chart-foot lbl">Epley est. · best set per day · ${escHtml(row.unit || "lb")} · ▲ all-time peak</div>`;

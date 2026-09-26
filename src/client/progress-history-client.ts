@@ -40,7 +40,15 @@ function paintHistoryBody(sessions: HistorySession[]) {
     wireSeg(PROGRESS_HANDLERS);
     return;
   }
-  const hero = progressHero("Training history", CairnProgressHistoryModel.summary(sessions).stats);
+  // One voice line and one fact; pounds moved lives on Volume, one tap deeper.
+  const summary = CairnProgressHistoryModel.summary(sessions);
+  const month = summary.monthSessions;
+  const hero = progressHero("Training history", [], {
+    line: month
+      ? `${progressCountWord(month, true)} session${month === 1 ? "" : "s"} this month.`
+      : "A quiet month so far.",
+    fact: summary.sets30 ? `${summary.sets30} set${summary.sets30 === 1 ? "" : "s"} · last 30 days` : "",
+  });
   // The latest sessions lead; the rest of the month folds under one line, one tap away.
   const lead = sessions.slice(0, HISTORY_LEAD);
   const earlier = sessions.slice(HISTORY_LEAD);

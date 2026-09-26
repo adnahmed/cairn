@@ -26,7 +26,7 @@ function loadSegments() {
   context.globalThis = context;
   context.window = context;
   // The Progress bars are built by the shared segmented control (CairnUi.segmentedHtml).
-  for (const file of ["public/js/html-utils.js", "public/js/ui-components.js"]) {
+  for (const file of ["public/js/html-utils.js", "public/js/ui-components.js", "public/js/train-nav-client.js"]) {
     vm.runInNewContext(readFileSync(join(root, file), "utf8"), context);
   }
   const source = readFileSync(join(root, "src/client/ui-segments-client.ts"), "utf8");
@@ -236,66 +236,102 @@ test("Train's Plan leaf and the editor's Progress leaves are cross-view navigati
   assert.equal(Object.hasOwn(controller.progressLinkHandlers, "plan"), true);
 });
 
-test("Train nav groups its views into 4 top groups with leaf sub-tabs", () => {
+test("Train nav is one level: landings wear the group bar, deeper leaves a step back", () => {
   const context = loadSegments();
   const { controller } = createController(context);
   const PROGRESS_SEG = context.CairnUiSegments.PROGRESS_SEG;
+  const api = context.CairnUiSegments;
 
   // Leaf → group mapping: Program holds the program you run (the plan editor and
   // the program read); Fuel the nutrition trends.
-  assert.deepEqual(segmentKeys(context.CairnUiSegments.PROGRESS_GROUPS), ["train", "program", "fuel", "body"]);
-  assert.deepEqual(segmentLabels(context.CairnUiSegments.PROGRESS_GROUPS), ["Train", "Program", "Fuel", "Body"]);
-  assert.equal(context.CairnUiSegments.progressGroupOf("sessions"), "train");
-  assert.equal(context.CairnUiSegments.progressGroupOf("program"), "program");
-  assert.equal(context.CairnUiSegments.progressGroupOf("plan"), "program");
-  assert.equal(context.CairnUiSegments.progressGroupOf("energy"), "fuel");
-  assert.equal(context.CairnUiSegments.progressGroupOf("intake"), "fuel");
-  assert.equal(context.CairnUiSegments.progressGroupOf("weight"), "body");
+  assert.deepEqual(segmentKeys(api.PROGRESS_GROUPS), ["train", "program", "fuel", "body"]);
+  assert.deepEqual(segmentLabels(api.PROGRESS_GROUPS), ["Train", "Program", "Fuel", "Body"]);
+  assert.equal(api.progressGroupOf("sessions"), "train");
+  assert.equal(api.progressGroupOf("program"), "program");
+  assert.equal(api.progressGroupOf("plan"), "program");
+  assert.equal(api.progressGroupOf("energy"), "fuel");
+  assert.equal(api.progressGroupOf("intake"), "fuel");
+  assert.equal(api.progressGroupOf("weight"), "body");
+  for (const leaf of ["overview", "program", "intake", "weight"]) assert.equal(api.progressIsLanding(leaf), true, leaf);
+  for (const leaf of ["sessions", "trend", "volume", "calendar", "endurance", "plan", "energy", "measurements"]) {
+    assert.equal(api.progressIsLanding(leaf), false, leaf);
+  }
 
-  // A multi-leaf group (Train) renders a top group bar + a leaf sub-bar; the
-  // Endurance leaf is hidden for a strength athlete.
-  context.CairnUiSegments.setDiscipline("strength");
-  const trainNav = controller.segBar("volume", PROGRESS_SEG);
-  assert.match(trainNav, /data-proggroup="train"[^>]*aria-pressed="true"/);
-  assert.match(trainNav, /class="segwrap prog-subwrap"/);
-  assert.match(trainNav, /data-seg="volume"[^>]*aria-pressed="true"/);
-  assert.match(trainNav, /data-seg="sessions"/);
-  assert.doesNotMatch(trainNav, /data-seg="endurance"/);
+  // A landing: the group bar, and never a second row of tabs.
+  api.setDiscipline("strength");
+  const overviewNav = controller.segBar("overview", PROGRESS_SEG);
+  assert.match(overviewNav, /data-proggroup="train"[^>]*aria-pressed="true"/);
+  assert.match(overviewNav, /data-train-landing="overview"/);
+  assert.doesNotMatch(overviewNav, /data-seg=|prog-subwrap/);
 
-  // Fuel exposes Intake before Energy in its compact leaf bar.
-  const fuelNav = controller.segBar("energy", PROGRESS_SEG);
-  assert.match(fuelNav, /class="segwrap prog-subwrap"/);
-  assert.match(fuelNav, />Intake</);
-  assert.match(fuelNav, />Energy</);
-  assert.match(fuelNav, /data-proggroup="fuel"[^>]*aria-pressed="true"/);
-  assert.match(fuelNav, /data-seg="intake"/);
-  assert.match(fuelNav, /data-seg="energy"[^>]*aria-pressed="true"/);
+  // A deeper leaf: no bar at all, one step back to its landing.
+  const volumeNav = controller.segBar("volume", PROGRESS_SEG);
+  assert.doesNotMatch(volumeNav, /data-proggroup|data-seg=/);
+  assert.match(volumeNav, /class="home-back linkbtn linkbtn-plain train-crumb"[^>]*data-train-leaf="overview">‹ Train</);
+  assert.match(controller.segBar("energy", PROGRESS_SEG), /data-train-leaf="intake">‹ Fuel</);
+  assert.match(controller.segBar("measurements", PROGRESS_SEG), /data-train-leaf="weight">‹ Body</);
+  // The editor paints the same nav: one step back to the Program read.
+  assert.match(controller.segBar("plan", PROGRESS_SEG), /data-train-leaf="program">‹ Program</);
 
-  // Program carries two leaves: Plan (the editor) and Program (the read).
-  const programNav = controller.segBar("program", PROGRESS_SEG);
-  assert.match(programNav, /data-proggroup="program"[^>]*aria-pressed="true"/);
-  assert.match(programNav, /data-seg="plan"[^>]*>Plan</);
-  assert.match(programNav, /data-seg="program"[^>]*aria-pressed="true"/);
-  // The editor paints the same nav with its own leaf lit.
-  const editorNav = controller.segBar("plan", PROGRESS_SEG);
-  assert.match(editorNav, /data-proggroup="program"[^>]*aria-pressed="true"/);
-  assert.match(editorNav, /data-seg="plan"[^>]*aria-pressed="true"/);
+  // Each landing lists every deeper leaf of its group as a row, one tap away;
+  // Endurance only for an athlete who runs.
+  const trainRows = api.progressDeeperHtml("overview");
+  for (const leaf of ["sessions", "trend", "volume", "calendar"]) assert.match(trainRows, new RegExp(`data-train-leaf="${leaf}"`));
+  assert.doesNotMatch(trainRows, /data-train-leaf="endurance"/);
+  assert.match(api.progressDeeperHtml("program"), /data-train-leaf="plan"/);
+  assert.match(api.progressDeeperHtml("intake"), /data-train-leaf="energy"/);
+  assert.match(api.progressDeeperHtml("weight"), /data-train-leaf="measurements"/);
+  assert.equal(api.progressDeeperHtml("volume"), "");
 
   // A non-Progress seg-set is untouched (still the flat sliding bar).
   assert.equal(controller.segBar("trend", [["trend", "1RM"]]), `<seg data-active="trend" data-items="1"></seg>`);
 });
 
-test("Progress group and leaf thumbs have distinct view-transition names", () => {
-  assert.match(
-    styles,
-    /\.prog-subseg \.seg-thumb\s*\{view-transition-name:prog-subseg-thumb\}/,
-    "the simultaneously rendered Progress leaf thumb must not share seg-thumb with the group bar"
-  );
-  assert.match(
-    styles,
-    /::view-transition-group\(prog-subseg-thumb\)\{animation-duration:var\(--dur-2\);animation-timing-function:var\(--ease\)\}/,
-    "the scoped thumb retains the standard segmented transition timing"
-  );
+test("wireSeg lays a landing's deeper rows once and wires rows and the step back", async () => {
+  const context = loadSegments();
+  const inserted = [];
+  const historyRow = {
+    dataset: { trainLeaf: "sessions" },
+    listeners: {},
+    addEventListener(type, fn) {
+      this.listeners[type] = fn;
+    },
+    closest() {
+      return null;
+    },
+  };
+  let laid = false;
+  const view = {
+    querySelector(selector) {
+      if (selector === "[data-train-landing]") return { dataset: { trainLanding: "overview" } };
+      if (selector === ".train-deeper") return laid ? {} : null;
+      return null;
+    },
+    insertAdjacentHTML(where, html) {
+      inserted.push([where, html]);
+      laid = true;
+    },
+    querySelectorAll(selector) {
+      return selector === "[data-train-leaf]" ? [historyRow] : [];
+    },
+  };
+  const { calls, controller } = createController(context, { view });
+  controller.wireSeg(controller.progressHandlers);
+  controller.wireSeg(controller.progressHandlers);
+  assert.equal(inserted.length, 1, "a repaint that kept the rows never doubles them");
+  assert.equal(inserted[0][0], "beforeend");
+  assert.match(inserted[0][1], /class="train-deeper"/);
+
+  historyRow.listeners.click();
+  await flush();
+  assert.ok(calls.some((call) => call[0] === "renderHistory"));
+  assert.ok(calls.some((call) => call[0] === "syncRouteFromState"));
+});
+
+test("A scrolling segmented rail fades the edge that still has more behind it", () => {
+  assert.match(styles, /\.seg\.seg-scroll\.seg-fade-l\{--seg-fl:28px\}/);
+  assert.match(styles, /\.seg\.seg-scroll\.seg-fade-r\{--seg-fr:28px\}/);
+  assert.doesNotMatch(styles, /prog-subseg/, "Train's leaf sub-bar is gone");
 });
 
 test("Progress endurance leaf appears for an endurance athlete or when it's active", () => {
@@ -304,13 +340,10 @@ test("Progress endurance leaf appears for an endurance athlete or when it's acti
   const PROGRESS_SEG = context.CairnUiSegments.PROGRESS_SEG;
 
   context.CairnUiSegments.setDiscipline("endurance");
-  const nav = controller.segBar("endurance", PROGRESS_SEG);
-  assert.match(nav, /data-proggroup="train"[^>]*aria-pressed="true"/);
-  assert.match(nav, /data-seg="endurance"[^>]*aria-pressed="true"/);
-
-  // A strength athlete deep-linked to Endurance still sees the tab (never stranded).
+  assert.match(context.CairnUiSegments.progressDeeperHtml("overview"), /data-train-leaf="endurance"/);
+  // A deep link to Endurance always has its way back to the overview.
   context.CairnUiSegments.setDiscipline("strength");
-  assert.match(controller.segBar("endurance", PROGRESS_SEG), /data-seg="endurance"/);
+  assert.match(controller.segBar("endurance", PROGRESS_SEG), /data-train-leaf="overview">‹ Train</);
 });
 
 test("Progress top-group buttons route to the group's default leaf", async () => {

@@ -293,7 +293,24 @@ function adaptationsHtml(adaptations: string[] | null | undefined, index: number
   </div>`;
 }
 
+// The Program read's header: one voice line ("Fifteen lifts, all climbing.") and at
+// most one fact; the lifts themselves are the rows below. null with no lifts.
+function programHeroVoice(
+  lifts: ReadonlyArray<{ status?: unknown }>,
+  countWord: (n: unknown, lead?: boolean) => string
+): { line: string; fact: string } | null {
+  const n = lifts.length;
+  if (!n) return null;
+  const good = lifts.filter((lift) => lift.status === "progressing").length;
+  const stalled = lifts.filter((lift) => lift.status === "plateaued" || lift.status === "regressing").length;
+  const lifted = `${countWord(n, true)} lift${n === 1 ? "" : "s"}`;
+  const line =
+    good === n ? `${lifted}, ${n === 1 ? "" : "all "}climbing.` : good ? `${lifted}, ${countWord(good)} climbing.` : `${lifted} tracked.`;
+  return { line, fact: stalled ? `${stalled} ${stalled === 1 ? "needs" : "need"} a look` : "" };
+}
+
 const CAIRN_PROGRESS_PROGRAM_SUMMARY = {
+  programHeroVoice,
   liftStatusWord,
   liftTrendFig,
   liftBestFig,
@@ -317,6 +334,7 @@ const CAIRN_PROGRESS_PROGRAM_SUMMARY = {
 
 Object.assign(globalThis, {
   CairnProgressProgramSummary: CAIRN_PROGRESS_PROGRAM_SUMMARY,
+  programHeroVoice,
   liftStatusWord,
   liftTrendFig,
   liftBestFig,
@@ -341,6 +359,7 @@ Object.assign(globalThis, {
 if (typeof window !== "undefined") {
   Object.assign(window, {
     CairnProgressProgramSummary: CAIRN_PROGRESS_PROGRAM_SUMMARY,
+    programHeroVoice,
     liftStatusWord,
     liftTrendFig,
     liftBestFig,
