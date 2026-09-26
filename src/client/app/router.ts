@@ -172,7 +172,7 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
     } else if (tab === "plan") {
       const section = routeKey(state.planJump || state.planSeg, options.planSections, "edit");
       route.section = section as AppRoute["section"];
-      if (section === "food" && state.logDate) route.date = state.logDate;
+      if (section === "food" && state.logDate && !isLocalToday(state.logDate)) route.date = state.logDate;
     } else if (tab === "progress") {
       route.section = routeKey(state.progressSeg || options.defaultProgressSection, options.progressSections, options.defaultProgressSection) as AppRoute["section"];
     } else if (tab === "stand") {
