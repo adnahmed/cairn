@@ -158,3 +158,13 @@ test("a calendar run or rest day selects no lift — never the first plan day by
     assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, deps), null, `${calendar} day`);
   }
 });
+
+test("a remembered pick naming a day the plan no longer has asks the athlete offline — never day 1", async () => {
+  const client = loadClient();
+  const cache = memoryCache();
+  const state = { logDate: "2026-07-01", plan };
+  cache.rows.set("today:plan-day:2026-07-01", { day_number: 99, source: "adaptive", candidates: [] });
+  const offline = { state, api: async () => { throw new Error("offline"); }, ...cache };
+  assert.equal(await client.suggestedPlanDayNumber({ sets: [] }, true, offline), null);
+  assert.equal(state.planDayUnknown, true);
+});

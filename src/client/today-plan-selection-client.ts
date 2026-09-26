@@ -144,7 +144,10 @@ type TodayPlanDayRecoveryMap = Record<number, TodayPlanDayRecovery>;
 
   // The server's answer, read against the loaded plan. `null` = a calendar run or
   // rest day (no lift selected).
-  function dayFromSelection(selected: unknown, plan: TodayPlanSelectionDay[]): number | null {
+  // `offline`: the answer is a remembered pick, not the server's word now. A day it
+  // names that the loaded plan no longer has (the plan was edited since) is then no
+  // answer at all — the surface asks the athlete rather than guessing day 1.
+  function dayFromSelection(selected: unknown, plan: TodayPlanSelectionDay[], deps?: TodayPlanSelectionDeps): number | null {
     const row = selected as { day_number?: unknown; source?: unknown } | null;
     // A calendar run or rest day has no plan day at all. Falling back to the first
     // plan day here put Push's lift list under a Brief that said "run day"; null keeps
@@ -152,6 +155,10 @@ type TodayPlanDayRecoveryMap = Record<number, TodayPlanDayRecovery>;
     if (row?.source === "calendar" && row.day_number == null) return null;
     const dayNumber = Number(row?.day_number);
     if (Number.isFinite(dayNumber) && plan.some((day) => day.day_number === dayNumber)) return dayNumber;
+    if (deps) {
+      deps.state.planDayUnknown = true;
+      return null;
+    }
     return plan[0]?.day_number ?? 1;
   }
 
@@ -177,7 +184,7 @@ type TodayPlanDayRecoveryMap = Record<number, TodayPlanDayRecovery>;
       // (a set queued now must land on that day); with none remembered, nothing is
       // selected and the surface asks the athlete to pick — day 1 is only a guess.
       const remembered = peekRemembered(deps, date);
-      if (remembered) return dayFromSelection(remembered.data, plan);
+      if (remembered) return dayFromSelection(remembered.data, plan, deps);
       deps.state.planDayUnknown = true;
       return null;
     }

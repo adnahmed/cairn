@@ -1861,3 +1861,39 @@ test("a 401 forgets every remembered API body (cairn.swr.v1.*) before asking for
   assert.equal(opened, 1);
   assert.deepEqual([...store.keys()].sort(), ["cairn.unrelated"]);
 });
+
+test("a stalled early response times out like any GET, and a reader primed on it still falls back", async () => {
+  const loaded = loadApiClient({ withTimers: true });
+  const urls = [];
+  loaded.context.fetch = async (url) => {
+    urls.push(url);
+    return { status: 200, json: async () => ({ network: true }) };
+  };
+  const aggregatePath = "/today?date=2026-09-26&surface=today";
+  loaded.context.CairnTodayPrefetch = {
+    // index.html's request over a dead link: it never settles.
+    takeEarly: (path) => (path === aggregatePath ? new Promise(() => {}) : undefined),
+  };
+  const aggregate = loaded.context.api(aggregatePath);
+  // primeFanIn parks the plan-day pick on that same aggregate.
+  loaded.context.apiPrime(["/today-plan-day?date=2026-09-26"], aggregate.then((v) => v?.responses ?? null));
+  const planDay = loaded.context.api("/today-plan-day?date=2026-09-26");
+  assert.equal(loaded.timers.length, 1, "the early read is under the 20s GET timeout");
+  assert.equal(loaded.timers[0].delay, 20000);
+  loaded.timers[0].fn(); // the GET timeout elapses
+  await assert.rejects(aggregate, (err) => err.kind === "timeout");
+  // The primed reader is released to its own request — the plan-day pick is never parked forever.
+  assert.equal((await planDay).network, true);
+  assert.deepEqual(urls, ["/api/today-plan-day?date=2026-09-26"]);
+});
+
+test("an early response whose body never arrives times out too", async () => {
+  const loaded = loadApiClient({ withTimers: true });
+  loaded.context.CairnTodayPrefetch = {
+    takeEarly: () => Promise.resolve({ status: 200, headers: { get: () => null }, json: () => new Promise(() => {}) }),
+  };
+  const pending = loaded.context.api("/today-read?date=2026-09-26&agent=auto");
+  await new Promise((resolve) => setImmediate(resolve));
+  loaded.timers[0].fn();
+  await assert.rejects(pending, (err) => err.kind === "timeout");
+});
