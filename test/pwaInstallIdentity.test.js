@@ -152,6 +152,9 @@ const NOT_PERSISTED = new Set([
   "cairn-shell",
   "cairn-",
 ]);
+// Component namespaces whose literals are class names, data attributes and mount
+// names, never storage keys: the You home's cairn-stack (cairn-stack-*.ts).
+const NOT_STORAGE_PREFIXES = ["cairn-stack"];
 
 /** The built output of `src/client/<stem>.ts` — what the browser actually runs. */
 function built(stem) {
@@ -183,6 +186,7 @@ test("every cairn-prefixed key literal in the client is known to the pin list", 
   const unknown = new Set();
   for (const file of files) {
     for (const m of read(file).matchAll(/["'`](cairn[._:-][A-Za-z0-9._:-]*)["'`$]/g)) {
+      if (NOT_STORAGE_PREFIXES.some((prefix) => m[1] === prefix || m[1].startsWith(`${prefix}-`))) continue;
       if (!(m[1] in PERSISTED_KEYS) && !NOT_PERSISTED.has(m[1])) unknown.add(`${m[1]} (${file})`);
     }
   }

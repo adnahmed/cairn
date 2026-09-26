@@ -169,9 +169,21 @@ test("every home's moved-here line is calm prose on that home's landing view", (
 
 function loadYou() {
   const tabs = [];
-  const state = { standSeg: "markers", standDomain: "lipids", meSeg: "profile", setSeg: "you" };
-  const win = loadClientModule(["html-utils", "you-screen"], {
-    globals: { state, headerTitle: { textContent: "" }, activateTab: (name) => tabs.push(name) },
+  const state = { standSeg: "markers", standDomain: "lipids", meSeg: "profile", setSeg: "sources" };
+  const modules = ["html-utils", "ui-actions-client", "cairn-stack-model", "cairn-stack-client", "cairn-stack-controller"];
+  modules.push("stone-detail-model", "stone-detail-client", "stone-detail-controller", "you-screen");
+  const win = loadClientModule(modules, {
+    globals: {
+      state,
+      headerTitle: { textContent: "" },
+      activateTab: (name) => tabs.push(name),
+      // The cairn-stack's read (its own tests live in clientCairnStack.test.js).
+      localISO: () => "2026-09-26",
+      peekCached: () => null,
+      cachedApi: () => new Promise(() => {}),
+      reducedMotion: () => true,
+      routeApi: () => null,
+    },
   });
   win.view = createHost(win.document);
   return { win, tabs, state };
