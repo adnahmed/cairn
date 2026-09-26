@@ -191,17 +191,24 @@ function strengthAnchorsHtml(journeys: ProgressStrengthJourney[], openExercise: 
 let strengthAnchorOpen: string | null = null;
 let strengthAnchorJourneys: ProgressStrengthJourney[] = [];
 
-async function loadStrengthJourney(deps: ClientProgressProgramControllerDeps): Promise<void> {
+// A repaint (its revalidated read changed) reuses the anchors the first paint just asked for; a write reads fresh.
+const strengthJourneyReads = new Map<string, { at: number; api: unknown; read: Promise<unknown> }>();
+function strengthJourneyRead(deps: ClientProgressProgramControllerDeps, path: string, fresh: boolean): Promise<unknown> {
+  const held = strengthJourneyReads.get(path);
+  if (!fresh && held && held.api === deps.api && Date.now() - held.at < 5000) return held.read;
+  const read = deps.api(path);
+  strengthJourneyReads.set(path, { at: Date.now(), api: deps.api, read });
+  return read;
+}
+async function loadStrengthJourney(deps: ClientProgressProgramControllerDeps, fresh = false): Promise<void> {
   // The PLURAL read is the truth — an athlete may hold one active objective per
   // lift. It carries no `suggestion`, so a slate with no anchor at all still
   // asks the singular endpoint for the quiet invitation.
   let journeys: ProgressStrengthJourney[] = [];
   try {
-    const res = (await deps.api("/strength-journeys")) as { journeys?: ProgressStrengthJourney[] } | null;
+    const res = (await strengthJourneyRead(deps, "/strength-journeys", fresh)) as { journeys?: ProgressStrengthJourney[] } | null;
     journeys = Array.isArray(res?.journeys) ? res.journeys.filter((j): j is ProgressStrengthJourney => !!j) : [];
-  } catch {
-    journeys = [];
-  }
+  } catch { journeys = []; }
   const live = journeys.filter((j) => j?.available && j.objective?.exercise);
   let html = "";
   if (live.length) {
@@ -212,10 +219,8 @@ async function loadStrengthJourney(deps: ClientProgressProgramControllerDeps): P
     strengthAnchorOpen = null;
     let single: unknown = null;
     try {
-      single = await deps.api("/strength-journey");
-    } catch {
-      single = null;
-    }
+      single = await strengthJourneyRead(deps, "/strength-journey", fresh);
+    } catch { single = null; }
     html = strengthJourneyCardHtml(single);
   }
   const slot = deps.view.querySelector("#progStrengthJourneySlot");
@@ -268,7 +273,7 @@ function wireStrengthSuggestion(slot: Element, deps: ClientProgressProgramContro
         if (ok) {
           deps.toast("Anchor set — your comeback journey starts here");
           deps.invalidate("progress:program");
-          await loadStrengthJourney(deps);
+          await loadStrengthJourney(deps, true);
           return;
         }
         restore();
@@ -286,9 +291,8 @@ function wireStrengthSuggestion(slot: Element, deps: ClientProgressProgramContro
             headers: { "Content-Type": "application/json" },
             body: "{}",
           });
-        } catch {
-          /* best-effort — hide it regardless */
-        }
+        } catch { /* best-effort — hide it regardless */ }
+        strengthJourneyReads.clear();
         slot.innerHTML = "";
         deps.toast("Set aside — you can choose an anchor anytime");
       })();
