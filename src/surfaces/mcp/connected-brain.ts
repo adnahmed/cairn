@@ -10,7 +10,9 @@ import {
   nextStepDone,
   reactionModelForCoach,
   awaitingBrainDecisions,
+  brainChangesRead,
   listReadableBrainDecisions,
+  markBrainChangesSeen,
   revertDecision,
   snoozeNextStep,
 } from "../../domain/brain/index.js";
@@ -61,6 +63,29 @@ export function registerConnectedBrainTools(server: McpToolRegistrar) {
     "Undo one reversible autonomous coaching decision using its server-owned rollback snapshot. The user's word wins; returns a calm error when the decision is not reversible.",
     { id: z.number().int().positive(), reason: z.string().max(300).optional() },
     async ({ id, reason }) => asText(revertDecision(id, reason ?? "user undo"))
+  );
+
+  server.tool(
+    "get_brain_changes",
+    "The Changes feed (mirrors GET /api/brain/changes): the coaching changes the team decided — announced, in effect, put back, or held — grouped by day, newest first. Each row carries a finished title, why in plain words, one of four fixed outcome phrases, a confidence word (tentative/observed/strong), and Undo {available, label} with the server-owned label; undo goes through revert_brain_decision with the row id. since_seen counts the team's changes since the athlete last opened the feed. No scores.",
+    {
+      days: z.number().int().min(1).max(90).optional().describe("how many days back to read (default 14)"),
+      limit: z.number().int().min(1).max(200).optional().describe("max rows (default 40)"),
+    },
+    async ({ days, limit }) => asText(brainChangesRead({ days, limit }))
+  );
+
+  server.tool(
+    "mark_brain_changes_seen",
+    "Mark the Changes feed as seen (mirrors POST /api/brain/changes/seen), so since_seen restarts from here. Pass the feed's seen_through as `through` to keep a change that landed after that read counted as new; the marker never moves backwards.",
+    {
+      through: z
+        .string()
+        .max(40)
+        .optional()
+        .describe("ISO instant the feed was read at (seen_through); defaults to now"),
+    },
+    async ({ through }) => asText(markBrainChangesSeen({ through }))
   );
 
   server.tool(

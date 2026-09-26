@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**345 routes** across 117 groups.
+**347 routes** across 117 groups.
 
 ## `/activities`
 
@@ -117,6 +117,8 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
+| GET | `/api/brain/changes` | The Changes feed: what the team changed, why, how it went, and the server-owned Undo, grouped by day (src/domain/brain/changes-feed.ts). `since_seen` is the Today line's count — the team's changes since the athlete last opened the feed. |
+| POST | `/api/brain/changes/seen` | The athlete opened the feed. `through` (the read's `seen_through`) keeps a change that landed after the read still new; the marker never moves backwards. |
 | GET | `/api/brain/decisions` | Carries `user_explanation` — the conductor's own athlete-facing sentence, which the case conference has always written and nothing has ever read. |
 | POST | `/api/brain/decisions/:id/revert` |  |
 | GET | `/api/brain/decisions/waiting` | Decisions still waiting on the athlete, ACROSS domains, each with the conference's own sentence. Cross-domain on purpose: the Plan tab's forward note is scoped to training/recovery, so a conference about labs or fuelling has nowhere else to land. |

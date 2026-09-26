@@ -13,7 +13,9 @@ import {
   nextStepDone,
   reactionModelForCoach,
   awaitingBrainDecisions,
+  brainChangesRead,
   listReadableBrainDecisions,
+  markBrainChangesSeen,
   revertDecision,
   snoozeNextStep,
   updateInsight,
@@ -71,6 +73,24 @@ connectedBrainRouter.get("/brain/decisions/waiting", (req, res) => {
 
 connectedBrainRouter.post("/brain/decisions/:id/revert", (req, res) =>
   res.json(revertDecision(Number(req.params.id), String(req.body?.reason ?? "user undo")))
+);
+
+// The Changes feed: what the team changed, why, how it went, and the server-owned Undo,
+// grouped by day (src/domain/brain/changes-feed.ts). `since_seen` is the Today line's
+// count — the team's changes since the athlete last opened the feed.
+connectedBrainRouter.get("/brain/changes", (req, res) =>
+  res.json(
+    brainChangesRead({
+      days: req.query.days != null ? Number(req.query.days) : undefined,
+      limit: req.query.limit != null ? Number(req.query.limit) : undefined,
+    })
+  )
+);
+
+// The athlete opened the feed. `through` (the read's `seen_through`) keeps a change that
+// landed after the read still new; the marker never moves backwards.
+connectedBrainRouter.post("/brain/changes/seen", (req, res) =>
+  res.json(markBrainChangesSeen({ through: req.body?.through }))
 );
 
 // Pull-based health standing: a descriptive, visual-friendly orientation read.

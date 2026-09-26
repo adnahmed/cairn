@@ -2394,7 +2394,21 @@ function retireHoldsWithEndedSource(): number {
 }
 
 // The thaw's own version: a row stamped by an older pass gets one read by this one.
-const THAW_PASS_VERSION = 2;
+// 3 (v2 wave 1): under lead a training target, rotation or restructure is decided and
+// announced rather than asked (LEAD_DECIDED_KINDS, brain/autonomy.ts), so every ask an
+// older pass left parked is owed one read under that policy — after the dead-premise
+// retirement, never applied blindly, the surprise budget in force.
+const THAW_PASS_VERSION = 3;
+
+// A thaw stamp answers "already read under THIS policy". The posture is part of the
+// policy: a hold re-read under announce_first (and re-held there) is owed a read again
+// once the athlete switches to lead. Stamps written before the posture was recorded
+// carry none, and a pass-version bump already re-reads those.
+function thawAlreadyRead(context: Record<string, any>, leadMode: CairnLeadModeValue): boolean {
+  if (context.thaw_attempted !== true || Number(context.thaw_pass ?? 1) < THAW_PASS_VERSION) return false;
+  const stampedUnder = context.thaw_lead_mode;
+  return stampedUnder == null || stampedUnder === leadMode;
+}
 
 // A held draft past its age ceiling, set aside with the receipt a person can read — and,
 // when it was the athlete's own request, an answer in chat.
@@ -2502,7 +2516,7 @@ export function thawParkedReviewDecisions(
       // stale ask) and so never be read again; this pass has terminal endings for those
       // (the age set-aside, the refused-draft retirement), so every such row is owed ONE
       // more read by it — the built-in re-evaluation of what older passes left parked.
-      if (context.thaw_attempted === true && Number(context.thaw_pass ?? 1) >= THAW_PASS_VERSION) {
+      if (thawAlreadyRead(context, leadMode)) {
         skipped += 1;
         continue;
       }
@@ -2560,6 +2574,7 @@ export function thawParkedReviewDecisions(
             ...context,
             thaw_attempted: true,
             thaw_pass: THAW_PASS_VERSION,
+            thaw_lead_mode: leadMode,
             thaw_attempted_at: new Date().toISOString(),
           },
         }) ?? decision;

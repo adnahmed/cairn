@@ -32,7 +32,12 @@ test("a missing lead_mode resolves as lead, not as review-everything", () => {
 
 test("model tier can be demoted by policy but never promoted", () => {
   assert.equal(decideAutonomyTier({ ...base, requested_tier: "observe" }).tier, "quiet_apply");
-  assert.equal(decideAutonomyTier({ ...base, requested_tier: "ask" }).tier, "ask");
+  // Outside the lead-decided kinds a requested ask still holds, in every lead mode.
+  assert.equal(decideAutonomyTier({ ...base, kind: "nutrition_target", requested_tier: "ask" }).tier, "ask");
+  assert.equal(decideAutonomyTier({ ...base, lead_mode: "announce_first", requested_tier: "ask" }).tier, "ask");
+  // Under lead a training target, rotation or restructure is decided and announced
+  // (v2 wave 1): the requested ask is an opinion about volume, never a wait.
+  assert.equal(decideAutonomyTier({ ...base, requested_tier: "ask" }).tier, "announce");
 });
 
 test("clinical, locked, clamp-refused, and irreversible boundaries are sovereign", () => {

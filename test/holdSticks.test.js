@@ -88,6 +88,21 @@ function benchDraft(instruction, targetWeight, opts = {}) {
   });
 }
 
+// Under lead a requested ask on a training target is decided and announced (v2 wave 1),
+// so the review row these retirement tests need is made under announce_first, which
+// keeps the requested ask; the lead posture is restored straight after.
+// The draft is written under that posture too: lead_mode is part of a draft's evidence
+// snapshot, so a draft written under lead and routed under announce_first reads stale.
+function heldUnderAnnounceFirst(makeDraft) {
+  repo.setSettings({ lead_mode: "announce_first" });
+  try {
+    const draft = makeDraft();
+    return { draft, held: applyProposalWithAutonomy(draft.id, { requested_tier: "ask" }) };
+  } finally {
+    repo.setSettings({ lead_mode: "lead" });
+  }
+}
+
 // Route a bench draft into a live review hold (a real live `review` row that
 // listReviewHeldProposals reads). Routed through an explicitly REQUESTED review: since
 // the 2026-08-17 ruling a spent surprise budget delays rather than parking, so it is no
@@ -96,8 +111,7 @@ function makeReviewHeldBenchDraft(instruction = "bounded bench change", targetWe
   seedBenchPlan();
   repo.setSettings({ lead_mode: "lead" });
   seedAppliedAgenticTraining();
-  const draft = benchDraft(instruction, targetWeight);
-  const held = applyProposalWithAutonomy(draft.id, { requested_tier: "ask" });
+  const { draft, held } = heldUnderAnnounceFirst(() => benchDraft(instruction, targetWeight));
   assert.equal(held.review_reason_code, "requested_review", "the draft is parked in a live review hold");
   const reviewRow = repo.listBrainDecisions({ status: "review", domain: "training", limit: 5 })
     .find((d) => d.source_ref_key === String(draft.id));
@@ -186,8 +200,7 @@ test("a weekly auto-evolution supersede retires a review-held draft's live revie
   seedBenchPlan();
   repo.setSettings({ lead_mode: "lead" });
   seedAppliedAgenticTraining();
-  const draft = benchDraft(repo.AUTO_EVOLUTION_INSTRUCTION, 195);
-  const held = applyProposalWithAutonomy(draft.id, { requested_tier: "ask" });
+  const { draft, held } = heldUnderAnnounceFirst(() => benchDraft(repo.AUTO_EVOLUTION_INSTRUCTION, 195));
   assert.equal(held.review_reason_code, "requested_review");
   assert.equal(liveReviewRowsFor(draft.id).length, 1, "precondition: one live review row");
   assert.equal(repo.getProposal(draft.id).status, "draft", "a review hold leaves the draft as a draft");

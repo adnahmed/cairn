@@ -21,3 +21,4 @@ export * from "../../repo/today-agenda.js";
 export * from "../../repo/trajectory.js";
 export * from "../../repo/whole-person-trajectory.js";
 export * from "./rest-trade.js";
+export * from "./changes-feed.js";

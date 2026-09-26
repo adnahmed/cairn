@@ -3434,6 +3434,8 @@ export interface ClientApiResponses {
   "/api/telemetry/client": undefined;
   "/api/brain/decisions": ClientBrainDecisionSummary[];
   "/api/brain/decisions/waiting": ClientBrainDecisionSummary[];
+  "/api/brain/changes": import("./brain-changes.js").ClientBrainChanges;
+  "/api/brain/changes/seen": import("./brain-changes.js").ClientBrainChangesSeenResponse;
   "/api/agent-clis/update": ClientAgentCliUpdateStatus;
   "/api/art/manifest": ClientArtManifestResponse;
   "/api/art/versions": ClientArtVersionsResponse;
