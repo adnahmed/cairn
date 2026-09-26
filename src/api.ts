@@ -32,10 +32,31 @@ import { assertNoDuplicateApiRoutes, type ApiMount } from "./route-audit.js";
 
 export const api = Router();
 
+const NO_STORE_API_PATH = /^\/(?:health|markers?|recovery|records|doctor|imaging|dicom)(?:[-/.?]|$)/;
+
+/** The Cache-Control an API read carries unless its route sets its own. */
+export function apiCacheControlFor(path: string): string {
+  return NO_STORE_API_PATH.test(path) ? "private, no-store" : "private, no-cache";
+}
+
+function apiCacheControl(req: Request, res: Response, next: NextFunction): void {
+  if (req.method === "GET" || req.method === "HEAD") res.setHeader("Cache-Control", apiCacheControlFor(req.path));
+  next();
+}
+
 // Honor X-Idempotency-Key before any router runs, so an offline-outbox replay of a
 // mutating write returns the original response instead of applying it twice. No-op
 // when the header is absent (every non-outbox request).
 api.use(idempotencyGuard);
+
+// HTTP caching policy for every API read, set before any router runs so a route
+// that needs something stricter (art's no-store, an SSE stream, a file download)
+// simply overwrites it. JSON reads are `private, no-cache`: a browser may keep the
+// body but must revalidate it every time — with the ETag the response carries, so
+// an unchanged read costs a 304, never a stale screen. Health data — markers,
+// recovery, records, the doctor packet, imaging — is `private, no-store`: it is
+// never written to a shared or on-disk HTTP cache at all.
+api.use(apiCacheControl);
 
 // The mount table, in mount order. It is a TABLE rather than twenty api.use() calls
 // so the same list can be audited: assertNoDuplicateApiRoutes below reads every

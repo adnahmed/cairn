@@ -28,6 +28,7 @@ import { fuelingFollowThroughDue, listFuelingFeedback, setFuelingFeedback } from
 import { ACCEPTED_MIME } from "../uploadMime.js";
 import { UPLOADS_DIR } from "../uploadPaths.js";
 import { backgroundOp } from "./background-op.js";
+import { memoizedRead } from "./response-memo.js";
 import { streamEnrichRow } from "./enrich-stream.js";
 import { currentUnderfuelingRead } from "../domain/brain/underfueling-service.js";
 import { cutQualityRead } from "../repo/cut-quality.js";
@@ -71,15 +72,20 @@ nutritionRouter.get("/mealplans/:id", (req, res) => {
 // ---- adaptive nutrition (T3 / Phase 3A) ----
 // Best-effort chosen expenditure with explicit outcome/prior anchors. Read-only;
 // powers the calm "Energy Balance" view. ?window= is safely clamped by the domain.
-nutritionRouter.get("/nutrition/expenditure", (req, res) => {
-  const window = req.query.window ? Number(req.query.window) : undefined;
-  const expenditure = estimateExpenditure(Number.isFinite(window as number) ? (window as number) : 21);
-  res.json({
-    ...expenditure,
-    underfueling: currentUnderfuelingRead(undefined, { expenditure }),
-    cut_quality: cutQualityRead(undefined, { expenditure }),
-  });
-});
+// Memoized on the response freshness key (routes/response-memo.ts): a repeat open
+// with nothing logged since answers without re-running the estimator.
+nutritionRouter.get(
+  "/nutrition/expenditure",
+  memoizedRead("nutrition-expenditure", (req) => {
+    const window = req.query.window ? Number(req.query.window) : undefined;
+    const expenditure = estimateExpenditure(Number.isFinite(window as number) ? (window as number) : 21);
+    return {
+      ...expenditure,
+      underfueling: currentUnderfuelingRead(undefined, { expenditure }),
+      cut_quality: cutQualityRead(undefined, { expenditure }),
+    };
+  })
+);
 
 // Goal-pace series behind the motivational weight-progress chart: the canonical
 // weigh-in points, the recent-trend line (with a short forward projection), and
@@ -93,6 +99,11 @@ nutritionRouter.get("/nutrition/goal-pace", (req, res) => {
 // totals/remaining stay numeric (missing values contribute zero); additive
 // `known` flags tell newer clients which nutrient sums are complete. A real
 // target adds the gentle "remaining". ?date=YYYY-MM-DD overrides today.
+export function nutritionDayResponse(date: string | undefined) {
+  const intake = getDayIntake(date);
+  return { ...intake, fuel_demand: dayFuelDemand(date, { carbBasis: carbBasis(intake.target) }) };
+}
+
 nutritionRouter.get("/nutrition/day", (req, res) => {
   const date = typeof req.query.date === "string" ? req.query.date : undefined;
   // `fuel_demand` rides alongside the log rather than inside getDayIntake: the intake
@@ -101,8 +112,7 @@ nutritionRouter.get("/nutrition/day", (req, res) => {
   // wants it: a quiet carb-bias line on a big day and the day's carb range, which is
   // fitted INSIDE the target this same read reports — the accepted target and the
   // "remaining" arithmetic are untouched by it.
-  const intake = getDayIntake(date);
-  res.json({ ...intake, fuel_demand: dayFuelDemand(date, { carbBasis: carbBasis(intake.target) }) });
+  res.json(nutritionDayResponse(date));
 });
 
 // Meaning-first multi-week recorded-intake read. The domain clamps ?days= to
@@ -172,8 +182,12 @@ nutritionRouter.post("/nutrition/target", (req, res) => {
 // one-tap "how's fueling feeling?" read on days the athlete logs food, only inside the
 // change's 7-day window. Read-only due-check + recent reads; `due:false` is the calm
 // common answer, returned at status 200 like the other nutrition reads (never a 404).
+export function fuelingFollowupResponse() {
+  return { ...fuelingFollowThroughDue(), recent: listFuelingFeedback(14) };
+}
+
 nutritionRouter.get("/nutrition/fueling-followup", (_req, res) => {
-  res.json({ ...fuelingFollowThroughDue(), recent: listFuelingFeedback(14) });
+  res.json(fuelingFollowupResponse());
 });
 
 // Save today's (or ?date=) one-tap fueling read. Adherence-neutral; energy/hunger are the

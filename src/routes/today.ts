@@ -10,19 +10,18 @@ import {
 } from "../domain/brain/index.js";
 import { allGuidelines, guidelineFor } from "../domain/health/index.js";
 import {
-  calendarDayRead,
-  planDayRecoveryCandidates,
-  selectedPlanDayForDate,
   todayStrengthLine,
 } from "../domain/training/index.js";
 import { markTodayAgendaSeen, todayAggregate, todayDateParam, todayStones } from "../domain/today/index.js";
+import { memoizedRead } from "./response-memo.js";
+import { publicTodayPlanDay, todaySurfaceResponses } from "./today-responses.js";
 import { recordDismissal } from "../repo/surface-dismissals.js";
 
 export const todayRouter = Router();
 
 // Re-exported so existing importers (tests, tooling) keep one name for the
 // aggregate; the composition itself lives in src/domain/today.
-export { todayAggregate };
+export { todayAggregate, publicTodayPlanDay };
 
 // ---- Era 2 (the calm daily driver, docs/VISION.md §12) ----
 // One server read for the whole Today open: the independent low-risk reads the
@@ -31,51 +30,29 @@ export { todayAggregate };
 // strength journey, the salience agenda and the conductor's focus. Every one of
 // those routes still exists and answers identically — this only collapses the
 // request count; the client still primes their individual SWR keys.
-todayRouter.get("/today", (req, res) => {
-  res.json(todayAggregate(req.query.date));
-});
-
-export function publicTodayPlanDay(dateQuery?: unknown) {
-  const date = todayDateParam(dateQuery);
-  const selected = selectedPlanDayForDate(date);
-  if (!selected) {
-    // No plan day today. Plan days hold strength only, so a weekday the athlete does
-    // not lift has no row: say which CALENDAR day it is — a stated run day or a rest
-    // day — rather than a bare null the client would read as "no plan at all". Still
-    // null when there is genuinely no plan and no lifting week to read.
-    const calendar = (() => {
-      try {
-        return calendarDayRead(date);
-      } catch {
-        return null;
-      }
-    })();
-    if (!calendar || calendar.kind === "lift") return null;
+//
+// `?surface=today` (the Today tab, not the Session destination) widens it with
+// `responses`: the bodies every other Today GET would answer, keyed by the path the
+// client asks with (routes/today-responses.ts), so the whole open is one trip.
+//
+// Memoized on the response freshness key (routes/response-memo.ts): a repeat open
+// with nothing logged since answers the stored body — or a 304 — without recomputing.
+todayRouter.get(
+  "/today",
+  memoizedRead("today", (req) => {
+    const aggregate = todayAggregate(req.query.date);
+    if (req.query.surface !== "today") return aggregate;
     return {
-      day_number: null,
-      focus: null,
-      source: "calendar" as const,
-      calendar: calendar.kind,
-      run_kind: calendar.kind === "run" ? calendar.run_kind : null,
-      reason: null,
-      candidates: planDayRecoveryCandidates(date),
+      ...aggregate,
+      responses: todaySurfaceResponses(aggregate.date, {
+        agenda: aggregate.agenda,
+        progressionDay: aggregate.progression_day,
+        coachingFocus: aggregate.coaching_focus,
+        strengthJourney: aggregate.strength_journey,
+      }),
     };
-  }
-  const adaptiveReason = typeof selected.selection?.reason === "string"
-    ? selected.selection.reason.trim().slice(0, 240)
-    : null;
-  return {
-    day_number: selected.day_number,
-    focus: selected.focus,
-    source: selected.source,
-    reason: adaptiveReason || (selected.source === "existing-session" ? "Continue the session already linked to this date." : null),
-    // Every programmed day, not just the chosen one: the athlete can tap any pill,
-    // and a pill that would hand them work their legs are still doing should say
-    // so before they tap it rather than after. Groups and a boolean only — the
-    // scores behind the pick stay on the server.
-    candidates: planDayRecoveryCandidates(date),
-  };
-}
+  })
+);
 
 // Canonical implicit plan-day choice for Today/Session. Manual day selection is
 // an explicit client override and therefore does not call this route. The public
@@ -146,9 +123,10 @@ todayRouter.post("/today-agenda/dismiss", (req, res) => {
 // week" read that sits under the agentic weekly sentence (pull-only; words, no
 // scores). This is the human-facing surface, so it MAY drain the oldest 1-2
 // unseen backlog insights (flipping new→seen) so nothing rots unseen.
-todayRouter.get("/team-week", (_req, res) => {
-  res.json(teamWeekRead({ drainBacklog: true }));
-});
+todayRouter.get(
+  "/team-week",
+  memoizedRead("team-week", () => teamWeekRead({ drainBacklog: true }))
+);
 
 // The legible "what Cairn has learned about you" timeline (pull-only; no scores).
 todayRouter.get("/learned-timeline", (req, res) => {

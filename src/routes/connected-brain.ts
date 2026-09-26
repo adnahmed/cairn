@@ -324,12 +324,12 @@ connectedBrainRouter.post("/health/synthesis", async (req, res, next) => {
 // a freshness verdict (acute / age_days / stale) anchored to the marker's real reading
 // date, so the PWA can stop surfacing a stale acute finding (e.g. a 2-week-old hs-CRP)
 // as a current training/nutrition shaper while chronic findings stay put.
+export function directivesResponse(all = false) {
+  return { directives: annotateDirectiveRecheck(annotateDirectiveFreshness(listDirectives({ all }))) };
+}
+
 connectedBrainRouter.get("/directives", (req, res) =>
-  res.json({
-    directives: annotateDirectiveRecheck(
-      annotateDirectiveFreshness(listDirectives({ all: req.query.all === "1" || req.query.all === "true" }))
-    ),
-  })
+  res.json(directivesResponse(req.query.all === "1" || req.query.all === "true"))
 );
 
 // Symptom <-> marker connections: a symptom the user logged (in a life event or a
