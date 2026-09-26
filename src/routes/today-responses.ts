@@ -33,7 +33,6 @@ import {
   recentTraining,
   runComplianceRead,
   selectedPlanDayForDate,
-  strengthJourneyRead,
   weekWins,
   weeklyRunPlan,
 } from "../domain/training/index.js";
@@ -123,7 +122,14 @@ function agendaCards(agenda: unknown): Set<string> {
  */
 export function todaySurfaceResponses(
   date: string,
-  opts: { agenda: unknown; progressionDay: number | null; coachingFocus: unknown; strengthJourney: unknown },
+  opts: {
+    agenda: unknown;
+    progressionDay: number | null;
+    coachingFocus: unknown;
+    strengthJourney: unknown;
+    /** Hears the week-ahead cache key this open kicked a refresh job for. */
+    onWeekAheadRefresh?: (cacheKey: string) => void;
+  },
 ): ApiResponses {
   const out: ApiResponses = {};
   const isToday = date === localDateISO();
@@ -153,7 +159,7 @@ export function todaySurfaceResponses(
   const cards = agendaCards(opts.agenda);
   if (cards.has("fuel")) put(out, `/nutrition/day?date=${q(date)}`, () => nutritionDayResponse(date));
   if (cards.has("fueling-followup")) put(out, "/nutrition/fueling-followup", () => fuelingFollowupResponse());
-  if (cards.has("week-ahead")) put(out, "/week-ahead", () => weekAheadResponse(undefined));
+  if (cards.has("week-ahead")) put(out, "/week-ahead", () => weekAheadResponse(undefined, opts.onWeekAheadRefresh));
   if (cards.has("program-adjustments")) put(out, "/program/adjustments", () => programAdjustments());
   if (cards.has("garmin-reconcile")) put(out, "/garmin/unreconciled", () => listUnreconciledGarminStrength(30));
   if (cards.has("lately")) put(out, "/recent-training?limit=6", () => recentTraining(6));

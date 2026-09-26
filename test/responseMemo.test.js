@@ -15,10 +15,12 @@ import { setAppState } from "../dist/repo/app-state.js";
 import { localDateISO } from "../dist/repo/shared.js";
 import * as repo from "../dist/repo.js";
 import { db } from "../dist/db.js";
+import { invalidateAgentConfigured } from "../dist/agents.js";
 
 let server = null;
 let base = "";
 let computes = 0;
+let hits = 0;
 
 async function listener() {
   if (server) return base;
@@ -38,6 +40,10 @@ async function listener() {
       computes++;
       return { ok: false, error: "no agent" };
     })
+  );
+  app.get(
+    "/probe/hit",
+    memoizedRead("probe-hit", () => ({ n: repo.getPlan().length }), { onHit: () => hits++ })
   );
   app.use("/api", api);
   server = await new Promise((resolve, reject) => {
@@ -120,6 +126,22 @@ test("the freshness key moves on bookkeeping a read consults, and ignores the he
   assert.notEqual(k1, k0, "a seen stamp is");
   setAppState("today_last_seen", "2026-01-01T00:00:00Z");
   assert.equal(responseFreshnessKey(), k1, "re-writing the same value is not");
+});
+
+test("the freshness key moves when the in-memory agent state does (a CLI login, install or update)", () => {
+  const k0 = responseFreshnessKey();
+  invalidateAgentConfigured();
+  assert.notEqual(responseFreshnessKey(), k0, "/settings and agent_status read that state");
+});
+
+test("onHit replays a read's side effects on a memo hit, and only then", async () => {
+  resetResponseMemo();
+  hits = 0;
+  await get("/probe/hit");
+  assert.equal(hits, 0, "the compute ran its own side effects");
+  await get("/probe/hit");
+  await get("/probe/hit");
+  assert.equal(hits, 2, "every hit re-kicks what the skipped compute would have");
 });
 
 // ---------- the real routes: every athlete write moves the ETag and the body ----------
@@ -305,9 +327,16 @@ test("API reads revalidate; health reads are never stored", async () => {
   assert.equal(apiCacheControlFor("/records/search"), "private, no-store");
   assert.equal(apiCacheControlFor("/health-docs"), "private, no-store");
   assert.equal(apiCacheControlFor("/healthy-sounding-name"), "private, no-cache");
+  // Reads that embed health data are held to the same no-store.
+  assert.equal(apiCacheControlFor("/today-side"), "private, no-store");
+  assert.equal(apiCacheControlFor("/directives"), "private, no-store");
+  assert.equal(apiCacheControlFor("/today", { surface: "today" }), "private, no-store");
+  assert.equal(apiCacheControlFor("/today", {}), "private, no-cache");
   assert.equal((await get("/api/profile")).cc, "private, no-cache");
   assert.equal((await get("/api/markers/priority")).cc, "private, no-store");
   assert.equal((await get("/api/recovery")).cc, "private, no-store");
+  assert.equal((await get(`/api/today?date=${localDateISO()}&surface=today`)).cc, "private, no-store");
+  assert.equal((await get(`/api/today?date=${localDateISO()}`)).cc, "private, no-cache");
 });
 
 mock.restoreAll();

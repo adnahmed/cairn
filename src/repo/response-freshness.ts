@@ -14,7 +14,10 @@
 // last looked" stamp, the Changes feed's seen marker, a drained backlog), ai_cache
 // (a week-ahead or weekly read landing), agent_availability (whether an
 // agent is usable colours the Brief's agent status), the exercise-guide index and the
-// Garmin source rows. Freshness beats speed: over-invalidation only costs a recompute.
+// Garmin source rows. And the in-memory agent-state generation
+// (repo/agent-state-generation.ts): a CLI login, install or update changes what
+// /settings and the Brief's agent_status say without writing a row.
+// Freshness beats speed: over-invalidation only costs a recompute.
 //
 // The SLOT is ten minutes rather than the coach memo's hour. A few reads carry a
 // minute-level clock of their own (the fuel pace model's "expected by now"), and a
@@ -25,6 +28,7 @@
 // Leaf-ish on purpose: it imports only the two signature leaves and the clock, so a
 // route module can read it without dragging a repo cycle in.
 import { db } from "../db.js";
+import { agentStateGeneration } from "./agent-state-generation.js";
 import { currentMarkerDataVersion } from "./marker-cache.js";
 import { localHourFraction, nowContext } from "./shared.js";
 import { coachContextBackstopSignature } from "./training-cache.js";
@@ -122,5 +126,7 @@ export function responseFreshnessKey(): string | null {
   if (coach.startsWith("nocoach:")) return null;
   const at = new Date();
   const now = nowContext(at);
-  return [coach, currentMarkerDataVersion(), aux, now.date, clockSlot(at), now.tz ?? ""].join("|");
+  return [coach, currentMarkerDataVersion(), aux, agentStateGeneration(), now.date, clockSlot(at), now.tz ?? ""].join(
+    "|",
+  );
 }

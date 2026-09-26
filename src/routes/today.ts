@@ -13,6 +13,7 @@ import {
   todayStrengthLine,
 } from "../domain/training/index.js";
 import { markTodayAgendaSeen, todayAggregate, todayDateParam, todayStones } from "../domain/today/index.js";
+import { ensureWeekAheadJob } from "../agentJobs.js";
 import { memoizedRead } from "./response-memo.js";
 import { publicTodayPlanDay, todaySurfaceResponses } from "./today-responses.js";
 import { recordDismissal } from "../repo/surface-dismissals.js";
@@ -37,20 +38,36 @@ export { todayAggregate, publicTodayPlanDay };
 //
 // Memoized on the response freshness key (routes/response-memo.ts): a repeat open
 // with nothing logged since answers the stored body — or a 304 — without recomputing.
+// A week-ahead refresh the fan-in kicked is remembered beside the body and re-kicked
+// on every hit (ensureWeekAheadJob dedupes), as GET /week-ahead does on every serve.
 todayRouter.get("/today",
-  memoizedRead("today", (req) => {
-    const aggregate = todayAggregate(req.query.date);
-    if (req.query.surface !== "today") return aggregate;
-    return {
-      ...aggregate,
-      responses: todaySurfaceResponses(aggregate.date, {
-        agenda: aggregate.agenda,
-        progressionDay: aggregate.progression_day,
-        coachingFocus: aggregate.coaching_focus,
-        strengthJourney: aggregate.strength_journey,
-      }),
-    };
-  })
+  memoizedRead(
+    "today",
+    (req) => {
+      const aggregate = todayAggregate(req.query.date);
+      if (req.query.surface !== "today") return { body: aggregate, weekAheadKey: null as string | null };
+      let weekAheadKey: string | null = null;
+      const body = {
+        ...aggregate,
+        responses: todaySurfaceResponses(aggregate.date, {
+          agenda: aggregate.agenda,
+          progressionDay: aggregate.progression_day,
+          coachingFocus: aggregate.coaching_focus,
+          strengthJourney: aggregate.strength_journey,
+          onWeekAheadRefresh: (key) => {
+            weekAheadKey = key;
+          },
+        }),
+      };
+      return { body, weekAheadKey };
+    },
+    {
+      body: (value) => value.body,
+      onHit: (_req, value) => {
+        if (value.weekAheadKey) ensureWeekAheadJob(undefined, value.weekAheadKey);
+      },
+    }
+  )
 );
 
 // Canonical implicit plan-day choice for Today/Session. Manual day selection is

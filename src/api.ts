@@ -32,15 +32,26 @@ import { assertNoDuplicateApiRoutes, type ApiMount } from "./route-audit.js";
 
 export const api = Router();
 
-const NO_STORE_API_PATH = /^\/(?:health|markers?|recovery|records|doctor|imaging|dicom)(?:[-/.?]|$)/;
+// `/today-side` (health synthesis, recovery baseline) and `/directives` (lab findings)
+// carry the same health data as the routes named for it, so they are no-store too.
+const NO_STORE_API_PATH =
+  /^\/(?:health|markers?|recovery|records|doctor|imaging|dicom|today-side|directives)(?:[-/.?]|$)/;
 
-/** The Cache-Control an API read carries unless its route sets its own. */
-export function apiCacheControlFor(path: string): string {
-  return NO_STORE_API_PATH.test(path) ? "private, no-store" : "private, no-cache";
+/**
+ * The Cache-Control an API read carries unless its route sets its own. `query` is the
+ * request's parsed query: Today's fan-in (`/today?surface=today`) embeds the side
+ * panels and the directives, so it is held to their no-store.
+ */
+export function apiCacheControlFor(path: string, query?: Record<string, unknown>): string {
+  if (NO_STORE_API_PATH.test(path)) return "private, no-store";
+  if (path === "/today" && query?.surface === "today") return "private, no-store";
+  return "private, no-cache";
 }
 
 function apiCacheControl(req: Request, res: Response, next: NextFunction): void {
-  if (req.method === "GET" || req.method === "HEAD") res.setHeader("Cache-Control", apiCacheControlFor(req.path));
+  if (req.method === "GET" || req.method === "HEAD") {
+    res.setHeader("Cache-Control", apiCacheControlFor(req.path, req.query as Record<string, unknown>));
+  }
   next();
 }
 
@@ -54,8 +65,9 @@ api.use(idempotencyGuard);
 // simply overwrites it. JSON reads are `private, no-cache`: a browser may keep the
 // body but must revalidate it every time — with the ETag the response carries, so
 // an unchanged read costs a 304, never a stale screen. Health data — markers,
-// recovery, records, the doctor packet, imaging — is `private, no-store`: it is
-// never written to a shared or on-disk HTTP cache at all.
+// recovery, records, the doctor packet, imaging, and every read that embeds them
+// (the Today side panels, the directives, Today's fan-in) — is `private, no-store`:
+// it is never written to a shared or on-disk HTTP cache at all.
 api.use(apiCacheControl);
 
 // The mount table, in mount order. It is a TABLE rather than twenty api.use() calls

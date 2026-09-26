@@ -54,6 +54,11 @@ export type MemoizedReadOptions<T> = {
   body?: (value: T) => unknown;
   /** Runs on EVERY serve, hit or miss, after the response is decided. */
   onServe?: (req: Request, value: T) => void;
+  /**
+   * Runs only on a memo HIT: replays the best-effort side effects the compute runs on
+   * every open (a self-heal re-warm, a background job kick), which a hit skips.
+   */
+  onHit?: (req: Request, value: T) => void;
 };
 
 // The slot a request is remembered under: its path plus its query in a stable order.
@@ -163,6 +168,11 @@ export function memoizedRead<T>(
         if (hit && hit.fresh === before) {
           remember(slot, hit);
           send(req, res, hit);
+          try {
+            options.onHit?.(req, hit.value as T);
+          } catch {
+            /* a best-effort kick never fails a served read */
+          }
           options.onServe?.(req, hit.value as T);
           return;
         }
@@ -185,9 +195,4 @@ export function memoizedRead<T>(
       next(error);
     }
   };
-}
-
-/** Test/diagnostic view: how many responses are remembered right now. */
-export function responseMemoSize(): number {
-  return memo.size;
 }

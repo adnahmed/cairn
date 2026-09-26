@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { enqueueAgentJob, ensureWeekAheadJob } from "../agentJobs.js";
 import { composeDailySession, suggestSession, weekAheadServe, whatIfDo } from "../coachOps.js";
+import { ensureDayReadRefresh } from "../dayread-refresh.js";
 import { readToday, tradeRestDay } from "../domain/brain/index.js";
 import { createAgentJob } from "../domain/person/index.js";
 import {
@@ -51,7 +52,17 @@ dayCoachRouter.get("/today-read",
       const reset = req.query.reset === "1" || req.query.reset === "true";
       return readToday({ date, override, agent: agentParam, reset, recordOutcome: true });
     },
-    { cacheable: (req) => !req.query.override && !req.query.reset }
+    {
+      cacheable: (req) => !req.query.override && !req.query.reset,
+      // A remembered floor read still arms its self-heal on every open, exactly as
+      // the cached-row path of readToday does (ensureDayReadRefresh dedupes).
+      onHit: (req, read) => {
+        const row = read as { source?: unknown; curated?: unknown; date?: unknown } | null;
+        if (row?.source !== "deterministic" || row.curated) return;
+        const date = typeof row.date === "string" ? row.date : req.query.date ? String(req.query.date) : undefined;
+        ensureDayReadRefresh(date);
+      },
+    }
   )
 );
 
@@ -326,9 +337,14 @@ dayCoachRouter.get("/session-primer", (req, res) => {
 });
 
 // GET /week-ahead's body plus its refresh kick, shared with the /today fan-in.
-export function weekAheadResponse(agentParam?: string) {
+// `onRefresh` hears the cache key a kick was armed for, so a memoized fan-in can
+// re-kick it on a later hit (a failed job must not wait for the key to move).
+export function weekAheadResponse(agentParam?: string, onRefresh?: (cacheKey: string) => void) {
   const served = weekAheadServeSafe();
-  if (served.needsRefresh) ensureWeekAheadJob(agentParam, served.cacheKey);
+  if (served.needsRefresh) {
+    ensureWeekAheadJob(agentParam, served.cacheKey);
+    onRefresh?.(served.cacheKey);
+  }
   return served.response;
 }
 
