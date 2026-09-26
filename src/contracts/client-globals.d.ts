@@ -5831,6 +5831,10 @@ declare global {
     logged_frac: number | null;
     so_far_text: string;
     race_day_text: string;
+    /** The week's running in the server's words (its quality hint, then the long run). */
+    run_text: string;
+    /** The week's lifting in the server's words (its strength hint). */
+    lift_text: string;
   };
   type ClientRaceLadderModel = { rows: ClientRaceLadderRow[]; max_km: number; taper_text: string };
   type ClientRaceEstimateModel = {
@@ -5851,6 +5855,8 @@ declare global {
     phase_word: string;
     estimate: ClientRaceEstimateModel;
     ladder: ClientRaceLadderModel;
+    /** The whole build as terrain for the km chart; null with fewer than two weeks. */
+    terrain: ClientHorizonTerrain | null;
     paces: Array<{ label: string; text: string }>;
     notes: string[];
   };
@@ -5875,6 +5881,10 @@ declare global {
       longDate(iso: unknown): string;
       isShowable(value: unknown): value is ClientRaceBuild;
       ladderModel(build: ClientRaceBuild | null | undefined): ClientRaceLadderModel;
+      terrainModel(build: ClientRaceBuild | null | undefined, ladder: ClientRaceLadderModel): ClientHorizonTerrain | null;
+      raceShortName(distanceKm: unknown): string;
+      /** The race build's one serif line ("Five weeks of build, then the half."). */
+      buildVoice(ladder: ClientRaceLadderModel, race: ClientRaceBuild["race"] | null | undefined): string;
       estimateModel(build: ClientRaceBuild | null | undefined): ClientRaceEstimateModel;
       viewModel(value: unknown, opts?: { units?: unknown }): ClientRaceViewModel | null;
     };
@@ -5922,6 +5932,8 @@ declare global {
     /** "unread" is a failed read, "none" nothing to show yet; neither is ever empty. */
     state: "set" | "none" | "unread";
     headline: string;
+    /** The race view's serif line ("Five weeks of build, then the half."), race lane only. */
+    voice?: string;
     when: string;
     lede: string;
     fit: import("./client-api.js").ClientRaceFit | null;
@@ -5934,9 +5946,30 @@ declare global {
     rows: ClientHorizonRow[];
     links: Array<{ label: string; target: ClientHorizonTarget }>;
   };
-  /** Horizon's two views: the race build, and the season line. */
-  type ClientHorizonView = "race" | "season";
-  type ClientHorizonTerrainWeek = { week_start: string; km: number; kind: string; current: boolean };
+  /** Horizon's three views: this week, the race build, and the season line. */
+  type ClientHorizonView = "week" | "race" | "season";
+  type ClientHorizonWeekPill = {
+    /** The stone whose hue the pill wears. */
+    stone: "strength" | "endurance";
+    text: string;
+    /** done (ticked), live (today's open session), open (a run still to place), planned. */
+    state: "done" | "live" | "open" | "planned";
+  };
+  type ClientHorizonWeekDay = {
+    date: string;
+    weekday: string;
+    day: string;
+    today: boolean;
+    pills: ClientHorizonWeekPill[];
+    /**
+     * Today only: the server's one today line (the Brief's, the Session's, the plan
+     * strip's), printed verbatim in place of a lift pill so one morning reads as one answer.
+     */
+    line: import("./client-api.js").ClientTodayStrengthLine | null;
+  };
+  type ClientHorizonWeek = { line: string; days: ClientHorizonWeekDay[] };
+  /** One week of the terrain; `logged` weeks are closed weeks read off the log, before the ladder. */
+  type ClientHorizonTerrainWeek = { week_start: string; km: number; kind: string; current: boolean; logged?: boolean };
   type ClientHorizonTerrain = {
     weeks: ClientHorizonTerrainWeek[];
     /** Race day (YYYY-MM-DD) and its short marker label ("Race · Nov 8"). */
@@ -5981,21 +6014,30 @@ declare global {
         today: string
       ): ClientHorizonSeason | null;
     };
+    CairnHorizonWeekModel: {
+      weekView(planWeek: unknown, today: string): ClientHorizonWeek | null;
+    };
     CairnHorizonChart: {
       BODY_MARK_KINDS: ReadonlySet<string>;
       FAN_ANCHOR_DAYS: number;
-      terrainSvg(terrain: ClientHorizonTerrain): string;
+      terrainSvg(terrain: ClientHorizonTerrain, opts?: { selected?: string | null }): string;
       seasonSvg(season: ClientHorizonSeason): string;
     };
     CairnHorizon: {
       KEYS: ReadonlyArray<ClientHorizonLane["key"]>;
       laneHtml(
         lane: ClientHorizonLane,
-        opts?: { enter?: boolean; hrefFor?: (target: ClientHorizonTarget) => string | null }
+        opts?: {
+          enter?: boolean;
+          hrefFor?: (target: ClientHorizonTarget) => string | null;
+          /** The race week open in the week rows (its Monday); "" closes all; unset opens this week. */
+          selectedWeek?: string | null;
+        }
       ): string;
       PANEL: Readonly<Record<ClientHorizonLane["key"], ClientHorizonView>>;
       laneSkeletonHtml(key: ClientHorizonLane["key"]): string;
       seasonHtml(season: ClientHorizonSeason | null): string;
+      weekHtml(week: ClientHorizonWeek | null, opts?: { enter?: boolean }): string;
       shellHtml(active?: ClientHorizonView): string;
     };
     CairnHorizonController: {
@@ -6003,6 +6045,7 @@ declare global {
     };
   }
   declare const CairnHorizonModel: Window["CairnHorizonModel"];
+  declare const CairnHorizonWeekModel: Window["CairnHorizonWeekModel"];
   declare const CairnHorizon: Window["CairnHorizon"];
   declare const CairnHorizonChart: Window["CairnHorizonChart"];
   declare const CairnHorizonController: Window["CairnHorizonController"];

@@ -7,7 +7,7 @@
    ===================================================================== */
 .race-view{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
   padding:var(--space-8) var(--space-9);display:grid;gap:var(--space-8)}
-.race-view-head{display:grid;gap:var(--space-2)}
+.race-view-head{display:grid;gap:var(--space-2);padding:0;margin:0;max-width:none}
 .race-view-event{margin:0;font-family:var(--font-display);font-variation-settings:"opsz" 48;font-weight:560;
   font-size:var(--text-lg);line-height:1.25;color:var(--ink);overflow-wrap:anywhere}
 .race-view-when{margin:0;font-size:var(--text-sm);color:var(--ink-2)}
@@ -53,11 +53,15 @@
 @keyframes race-bar-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .race-view.is-entering .race-ladder-bar,.race-view.is-entering .race-ladder-logged{
   animation:race-bar-grow var(--dur-3) var(--ease) both;animation-delay:calc(min(var(--i,0),12) * 45ms)}
-.race-view-more>summary{min-height:44px;display:flex;align-items:center;gap:var(--space-3);cursor:pointer;list-style:none;
+.race-view-more>summary,.race-view-weeks>summary{min-height:44px;display:flex;align-items:center;gap:var(--space-3);cursor:pointer;list-style:none;
   font-size:var(--text-sm);color:var(--accent-deep)}
-.race-view-more>summary::-webkit-details-marker{display:none}
-.race-view-more>summary::before{content:"▸";font-size:var(--text-xs);transition:transform var(--dur-1) var(--ease)}
-.race-view-more[open]>summary::before{transform:rotate(90deg)}
+.race-view-more>summary::-webkit-details-marker,.race-view-weeks>summary::-webkit-details-marker{display:none}
+.race-view-more>summary::before,.race-view-weeks>summary::before{content:"▸";font-size:var(--text-xs);transition:transform var(--dur-1) var(--ease)}
+.race-view-more[open]>summary::before,.race-view-weeks[open]>summary::before{transform:rotate(90deg)}
+.race-view-weeks[open]>.race-ladder{padding-top:var(--space-4)}
+/* inside the race card the chart needs no second card around it */
+.race-view .race-view-terrain{margin:0;padding:0;background:none;border:0;border-radius:0}
+.race-view-weeks+.race-view-more{margin-top:calc(-1 * var(--space-6))}
 .race-view-more-body{display:grid;gap:var(--space-4);padding-top:var(--space-2)}
 .race-view-paces{margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:var(--space-3) var(--space-6)}
 .race-view-pace{display:grid;gap:var(--space-1);padding:var(--space-3) var(--space-4);background:var(--card-2);border-radius:var(--radius-sm)}

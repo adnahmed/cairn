@@ -208,6 +208,7 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/race-view-controller.ts", output: "public/js/race-view-controller.js" },
   // v2 wave 5 slots (stream A pre-registered them; C fills Horizon, D the ripple card).
   { source: "src/client/horizon-model.ts", output: "public/js/horizon-model.js" },
+  { source: "src/client/horizon-week-model.ts", output: "public/js/horizon-week-model.js" },
   { source: "src/client/horizon-chart-client.ts", output: "public/js/horizon-chart-client.js" },
   { source: "src/client/horizon-client.ts", output: "public/js/horizon-client.js" },
   { source: "src/client/horizon-controller.ts", output: "public/js/horizon-controller.js" },
@@ -693,6 +694,7 @@ export const BUNDLES = [
       // v2 wave 5: the Horizon timeline (its race lane reuses race-view-*) and
       // the Ask thread's what-if ripple card, both eager.
       "public/js/horizon-model.js",
+      "public/js/horizon-week-model.js",
       "public/js/horizon-chart-client.js",
       "public/js/horizon-client.js",
       "public/js/horizon-controller.js",

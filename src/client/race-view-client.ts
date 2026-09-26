@@ -23,17 +23,41 @@
     </details>`;
   }
 
+  /** The build as terrain, Horizon's own instrument; "" when there is no ridge to draw. */
+  function terrainHtml(model: ClientRaceViewModel): string {
+    const chart =
+      typeof CairnHorizonChart !== "undefined" && model.terrain ? CairnHorizonChart.terrainSvg(model.terrain) : "";
+    return chart ? `<figure class="horizon-chart-card is-terrain race-view-terrain">${chart}</figure>` : "";
+  }
+
+  /**
+   * The ladder, week by week. With the terrain drawn above it the ladder is the detail,
+   * one tap deeper; without a chart it stands open, as the build's only picture.
+   */
+  function weeksHtml(model: ClientRaceViewModel, charted: boolean): string {
+    const ladder = CairnRaceLadder.ladderHtml(model.ladder);
+    if (!ladder) return "";
+    if (!charted) return ladder;
+    return `<details class="race-view-weeks">
+      <summary class="race-view-more-sum">The build, week by week</summary>
+      ${ladder}
+    </details>`;
+  }
+
   /** The whole section. `enter` gives it one settle-in entrance and grows the bars. */
   function viewHtml(model: ClientRaceViewModel, opts: { enter?: boolean } = {}): string {
     const when = [model.countdown, model.race_day].filter(Boolean).join(" · ");
+    // The ladder tucks behind a tap only when a chart actually drew above it.
+    const terrain = terrainHtml(model);
     return `<section class="race-view${opts.enter ? " settle-in is-entering" : ""}" aria-label="Race" data-race-view>
       <header class="race-view-head">
         <span class="lbl">Race${model.phase_word ? ` · ${escHtml(model.phase_word)}` : ""}</span>
         <h2 class="race-view-event">${escHtml(model.event)}</h2>
         ${when ? `<p class="race-view-when numeral">${escHtml(when)}</p>` : ""}
       </header>
+      ${terrain}
       ${CairnRaceEstimate.estimateHtml(model.estimate)}
-      ${CairnRaceLadder.ladderHtml(model.ladder)}
+      ${weeksHtml(model, !!terrain)}
       ${moreHtml(model)}
     </section>`;
   }

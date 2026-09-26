@@ -1,7 +1,8 @@
 // @ts-check
 // The Horizon home: what is ahead.
 //
-//   /app/horizon       the timeline: the race lane, the goal line and labs and scans
+//   /app/horizon       the timeline: this week, the race build, and the season (the goal
+//                      line and labs and scans)
 //                      (horizon-model / -client / -controller), each lane tapping into
 //                      its depth view.
 //   /app/horizon/goal  the goal line in depth: the journey story and the road-ahead

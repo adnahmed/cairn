@@ -116,6 +116,79 @@
     return `${kmText(logged)} run so far of ${kmText(rung)}.`;
   }
 
+  /** The week's running, in the server's words: its quality hint, then the long run. */
+  function runText(week: RaceWeek, long: number | null): string {
+    const hint = String(week.quality_hint || "").trim();
+    const longRun = long != null && long > 0 && week.kind !== "race" ? `Long run ${kmText(long)}.` : "";
+    return [hint, longRun].filter(Boolean).join(" ");
+  }
+
+  /** The race's short name on the chart: "Half", "Marathon", "10K", else "Race". */
+  function raceShortName(distanceKm: unknown): string {
+    const km = num(distanceKm);
+    if (km == null) return "Race";
+    if (km >= 20.5 && km <= 21.5) return "Half";
+    if (km >= 41.5 && km <= 42.7) return "Marathon";
+    if (km >= 9.8 && km <= 10.2) return "10K";
+    if (km >= 4.9 && km <= 5.1) return "5K";
+    return "Race";
+  }
+
+  /**
+   * The whole build as terrain: the closed weeks the log already holds (from the first
+   * one with running in it), then the ladder's weeks to race day. Null when there is no
+   * ridge to draw. The logged weeks are the log's own kilometres, never re-derived.
+   */
+  function terrainModel(build: RaceBuild | null | undefined, ladder: ClientRaceLadderModel): ClientHorizonTerrain | null {
+    const rows = Array.isArray(ladder?.rows) ? ladder.rows : [];
+    if (rows.length < 2) return null;
+    const first = rows[0].week_start;
+    const review = Array.isArray(build?.review?.weeks) ? build.review.weeks : [];
+    const past = review
+      .map((week) => ({ week_start: dayKey(week.week_start), km: Math.max(0, num(week.km) ?? 0) }))
+      .filter((week) => week.week_start && week.week_start < first)
+      .sort((a, b) => (a.week_start < b.week_start ? -1 : 1));
+    const start = past.findIndex((week) => week.km > 0);
+    const logged = start >= 0 ? past.slice(start) : [];
+    const raceDate = dayKey(build?.race?.date);
+    return {
+      weeks: [
+        ...logged.map((week) => ({ week_start: week.week_start, km: week.km, kind: "logged", current: false, logged: true })),
+        ...rows.map((row) => ({ week_start: row.week_start, km: row.km, kind: row.kind, current: row.current })),
+      ],
+      race_date: raceDate,
+      race_label: [raceShortName(build?.race?.distance_km), raceDate ? shortDate(raceDate) : ""].filter(Boolean).join(" · "),
+      as_of: dayKey(build?.as_of),
+    };
+  }
+
+  const COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+
+  /** What the voice calls the race: "the half", "the 10K", else "race day". */
+  function raceNoun(distanceKm: unknown): string {
+    const short = raceShortName(distanceKm);
+    return short === "Race" ? "race day" : `the ${short === "Half" || short === "Marathon" ? short.toLowerCase() : short}`;
+  }
+
+  /**
+   * The race view's one serif line, from the ladder's own count: "Five weeks of build,
+   * then the half." In the taper it is the taper; in race week, race week. Calm, never
+   * a countdown alarm.
+   */
+  function buildVoice(ladder: ClientRaceLadderModel, race: RaceBuild["race"] | null | undefined): string {
+    const rows = Array.isArray(ladder?.rows) ? ladder.rows : [];
+    const here = rows.find((row) => row.current) || rows[0] || null;
+    const noun = raceNoun(race?.distance_km);
+    const weekday = longDate(race?.date).split(",")[0];
+    if (!here || here.kind === "race" || num(race?.days_to_race) === 0) {
+      return num(race?.days_to_race) === 0 ? "Race day is today." : `Race week, then ${noun}${weekday ? ` on ${weekday}` : ""}.`;
+    }
+    if (here.kind === "taper") return `The taper, then ${noun}.`;
+    const n = Math.max(1, Math.round(num(here.weeks_to_race) ?? 1));
+    const count = n < COUNT_WORDS.length ? COUNT_WORDS[n] : String(n);
+    return `${count} ${n === 1 ? "week" : "weeks"} of build, then ${noun}.`;
+  }
+
   /** The ladder: the server's weeks as rows, each bar against the ladder's longest week. */
   function ladderModel(build: RaceBuild | null | undefined): ClientRaceLadderModel {
     const weeks = Array.isArray(build?.weeks) ? build.weeks : [];
@@ -147,6 +220,8 @@
         logged_frac: loggedKm != null && maxKm > 0 ? frac(loggedKm) : null,
         so_far_text: current ? soFarText(km, loggedKm) : "",
         race_day_text: week.kind === "race" && raceDay ? `Race day, ${raceDay}` : "",
+        run_text: runText(week, long),
+        lift_text: String(week.strength_hint || "").trim(),
       };
     });
     const taper = rows.find((row) => row.kind === "taper");
@@ -216,13 +291,15 @@
   function viewModel(value: unknown, opts: { units?: unknown } = {}): ClientRaceViewModel | null {
     if (!isShowable(value)) return null;
     const race = value.race as NonNullable<RaceBuild["race"]>;
+    const ladder = ladderModel(value);
     return {
       event: eventName(race),
       countdown: countdownText(race, Array.isArray(value.weeks) ? value.weeks : []),
       race_day: longDate(race.date),
       phase_word: PHASE_WORD[race.phase] || "",
       estimate: estimateModel(value),
-      ladder: ladderModel(value),
+      ladder,
+      terrain: terrainModel(value, ladder),
       paces: pacesModel(value, opts.units),
       notes: notesModel(value),
     };
@@ -236,6 +313,9 @@
     longDate,
     isShowable,
     ladderModel,
+    terrainModel,
+    raceShortName,
+    buildVoice,
     estimateModel,
     viewModel,
   };

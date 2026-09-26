@@ -25,8 +25,26 @@
     let live = true;
     const lanes = new Map<Lane["key"], Lane>();
     let seasonMarkup: string | null = null;
+    /** The race week the rows hold open: null is this week, "" none, else a Monday. */
+    let selectedWeek: string | null = null;
+    let weekAsked = false;
+
+    /** The week view reads GET /api/plan/week the first time it is shown, never before. */
+    function ensureWeek(): void {
+      if (weekAsked) return;
+      weekAsked = true;
+      void read("/plan/week").then((planWeek) => {
+        if (!live || !host.isConnected) return;
+        // A failed read says so, and the next tap on Week asks again.
+        if (planWeek == null) weekAsked = false;
+        const slot = host.querySelector<HTMLElement>("[data-horizon-weekview]");
+        if (!slot) return;
+        slot.innerHTML = CairnHorizon.weekHtml(CairnHorizonWeekModel.weekView(planWeek, deps.today), { enter: !calm() });
+      });
+    }
 
     function setView(view: ClientHorizonView): void {
+      if (view === "week") ensureWeek();
       host.setAttribute("data-horizon-view", view);
       for (const btn of Array.from(host.querySelectorAll<HTMLElement>("[data-horizon-seg]"))) {
         const on = btn.getAttribute("data-horizon-seg") === view;
@@ -57,12 +75,16 @@
         .then(() => deps.load(path))
         .catch(() => null);
 
-    function paint(lane: Lane): void {
+    function paint(lane: Lane, enter = true): void {
       if (!live || !host.isConnected) return;
       const slot = host.querySelector(`[data-horizon-lane="${lane.key}"]`);
       if (!slot) return;
       lanes.set(lane.key, lane);
-      slot.innerHTML = CairnHorizon.laneHtml(lane, { enter: !calm(), hrefFor: deps.hrefFor });
+      slot.innerHTML = CairnHorizon.laneHtml(lane, {
+        enter: enter && !calm(),
+        hrefFor: deps.hrefFor,
+        selectedWeek: lane.key === "race" ? selectedWeek : undefined,
+      });
       if (lane.key === "goal") fillSeason();
       if (lane.key === "race" && lane.state === "none" && !chosenView) setView("season");
     }
@@ -102,9 +124,19 @@
     return CairnUiActions.mount(host, "horizon", ({ delegate }) => {
       delegate("click", {
         "horizon-seg": (el) => {
-          const view = el.getAttribute("data-horizon-seg") === "season" ? "season" : "race";
+          const picked = el.getAttribute("data-horizon-seg");
+          const view: ClientHorizonView = picked === "season" || picked === "week" ? picked : "race";
           chosenView = view;
           setView(view);
+        },
+        "horizon-week": (el) => {
+          const lane = lanes.get("race");
+          const week = el.getAttribute("data-horizon-week") || "";
+          if (!lane || !week) return;
+          // A tap on the open week closes it; any other opens that one.
+          selectedWeek = el.getAttribute("aria-expanded") === "true" ? "" : week;
+          paint(lane, false);
+          host.querySelector<HTMLElement>(`[data-horizon-week="${week}"]`)?.focus();
         },
         "horizon-go": (el, event) => {
           if (modified(event)) return;
