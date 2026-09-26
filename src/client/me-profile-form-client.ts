@@ -308,7 +308,7 @@ type MeProfileFormContext = {
 
     const youSection = sectionHtml(deps, "You", `
       <div class="field" style="margin-bottom:9px"><label for="name">Name <span class="ob-opt">— optional</span></label>
-        <p class="aboutme-hint">Stamped on the doctor report you export from Stand → Share with your doctor. Leave empty to fill it in on paper instead.</p>
+        <p class="aboutme-hint">Stamped on the doctor report you export from Health → Share with your doctor. Leave empty to fill it in on paper instead.</p>
         <input id="name" type="text" placeholder="e.g. Alex Rivera" maxlength="120" value="${deps.escapeAttr(profile.name || "")}" class="form-input"></div>
       <div class="field" style="margin-bottom:9px"><label for="home_location">Home location <span class="ob-opt">— optional</span></label>
         <p class="aboutme-hint">Your usual home base gives the coach local and seasonal context. An active trip can temporarily override it for coaching without changing what you save here.</p>

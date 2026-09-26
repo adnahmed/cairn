@@ -8,6 +8,10 @@ type HealthReviewRecord = HealthScreenRecord & { created_at?: string; error?: un
 // Standing leads — Me opens to the REVIEW (where you stand + where to focus), not a
 // data-entry form. The lab DATA (Health), identity (Profile), life, family and the
 // curated Memory follow it: review first, entering/updating second.
+function isAboutYouBar(items: readonly ClientSegment[]): boolean {
+  return items.some(([key]) => key === "profile");
+}
+
 const ME_HEALTH_SCREEN = CairnMeHealthScreenComposition.create({
   root: view,
   state,
@@ -27,12 +31,17 @@ const ME_HEALTH_SCREEN = CairnMeHealthScreenComposition.create({
   invalidatePoll: () => { pollToken++; },
   mountSaveBar,
   primaryDiscipline: () => primaryDiscipline,
-  segBar,
+  // About you (Profile, Life, Family, Memory) lives under the You home: its bar is
+  // led by one quiet step back there. Any other bar passes through untouched.
+  segBar: (active, items) => (isAboutYouBar(items) ? homeBackHtml("you", "You") : "") + segBar(active, items),
   segSkeleton,
   setDiscipline,
   setEnduranceGoalSet,
   skeletonSwap: skelSwap,
-  wireSeg,
+  wireSeg: (handlers) => {
+    wireSeg(handlers);
+    wireHomeBack(view);
+  },
   fitSeg,
   syncRouteFromState: () => typeof syncRouteFromState === "function" ? syncRouteFromState : undefined,
   withViewTransition,

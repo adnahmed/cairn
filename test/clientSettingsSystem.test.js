@@ -23,7 +23,7 @@ test("System health is lazy, explicitly windowed, and isolated from Settings edi
   assert.match(screen, /system: renderSystemSlice/);
 
   const start = screen.indexOf("function renderSystemSlice");
-  const end = screen.indexOf("function renderYouSlice", start);
+  const end = screen.indexOf("const SLICES", start);
   const systemSlice = screen.slice(start, end);
   assert.match(systemSlice, /data-diag-days/);
   assert.match(systemSlice, /#sysDiagSource/);

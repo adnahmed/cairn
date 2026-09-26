@@ -122,7 +122,7 @@ function renderSettingsBundle(bundle: SettingsScreenBundle): void {
   // Same landing default as the router — read from the route definitions so the
   // URL contract and the seg bar can never disagree about where Settings opens.
   if (!state.setSeg || !SET_SEG.some(([k]) => k === state.setSeg)) {
-    state.setSeg = (window.CairnRoutes?.routeDefinitions?.defaults.settingsSection || "you") as ClientSettingsSection;
+    state.setSeg = (window.CairnRoutes?.routeDefinitions?.defaults.settingsSection || "sources") as ClientSettingsSection;
   }
 
   // ---- Stable shell. The sub-nav band + a #setSlice container persist across slice
@@ -132,6 +132,7 @@ function renderSettingsBundle(bundle: SettingsScreenBundle): void {
   // disconnecting the sentinel, which correctly dismisses the bar.
   view.innerHTML = `
     <span id="setSaveSentinel" hidden></span>
+    ${homeBackHtml("you", "You")}
     ${segBar(state.setSeg, SET_SEG)}
     <p class="set-lede">Everything here is optional — Cairn works out of the box. Connect an agent for coaching.</p>
 
@@ -372,31 +373,8 @@ function renderSettingsBundle(bundle: SettingsScreenBundle): void {
     );
   }
 
-  // "You" — the about-you & context home (Profile, Family, Life, Memory). These are
-  // low-frequency, set-once surfaces; they open their existing detail views.
-  function renderYouSlice() {
-    const slot = view.querySelector<HTMLElement>("#setSlice");
-    if (!slot) return;
-    const item = (seg: string, title: string, sub: string) =>
-      `<button class="set-you-card" data-you="${seg}" type="button">
-        <span class="set-you-t">${title}</span><span class="set-you-s">${sub}</span>
-        <span class="set-you-arw" aria-hidden="true">›</span>
-      </button>`;
-    slot.innerHTML = `<div class="set-you reveal">
-        ${item("profile", "Profile", "About you, goals, discipline & bodyweight")}
-        ${item("family", "Family", "The people your coach plans around")}
-        ${item("life", "Life", "Trips, injuries & events on your timeline")}
-        ${item("memory", "Memory", "What Cairn remembers about you")}
-      </div>`;
-    slot.querySelectorAll<HTMLElement>("[data-you]").forEach((b) =>
-      b.addEventListener("click", () => {
-        state.meSeg = (b.dataset.you || "profile") as ClientMeSection;
-        activateTab("me");
-      }));
-  }
-
-  const SLICES: Record<SettingsScreenSliceKey, () => void> = { you: renderYouSlice, agents: renderAgentsSlice, system: renderSystemSlice, sources: renderSourcesSlice, automation: renderAutomationSlice, data: renderDataSlice };
-  const paintSlice = (key: ClientSettingsSection | undefined): void => (SLICES[key || "you"] || renderYouSlice)();
+  const SLICES: Record<SettingsScreenSliceKey, () => void> = { agents: renderAgentsSlice, system: renderSystemSlice, sources: renderSourcesSlice, automation: renderAutomationSlice, data: renderDataSlice };
+  const paintSlice = (key: ClientSettingsSection | undefined): void => (SLICES[key || "sources"] || renderSourcesSlice)();
 
   // Sub-tab switch: slide the thumb, swap ONLY #setSlice from the working model (no
   // refetch, edits preserved), keep the save bar mounted on the stable sentinel.
@@ -418,6 +396,8 @@ function renderSettingsBundle(bundle: SettingsScreenBundle): void {
     withViewTransition(() => { paintSlice(key); viewEnter(); });
   }));
   view.querySelectorAll(".seg").forEach(fitSeg);
+  // Settings lives under the You home; the step back returns to its landing.
+  wireHomeBack(view);
 
   paintSlice(state.setSeg);
 }

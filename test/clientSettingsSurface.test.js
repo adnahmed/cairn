@@ -29,7 +29,6 @@ function loadSettingsSurface() {
 test("settings surface normalizes API data into the working model", () => {
   const surface = loadSettingsSurface();
   assert.deepEqual(JSON.parse(JSON.stringify(surface.SET_SEG)), [
-    ["you", "You"],
     ["sources", "Sources"],
     ["automation", "Automation"],
     ["data", "Data"],
@@ -222,10 +221,11 @@ test("settings surface exposes status helpers and art spend card", () => {
   assert.match(spend, /5 cached/);
 });
 
-test("Settings opens onto You by default, with Agents & System pushed to the end", () => {
+test("Settings opens onto Sources by default, with Agents & System pushed to the end", () => {
   const surface = loadSettingsSurface();
   const keys = JSON.parse(JSON.stringify(surface.SET_SEG)).map(([key]) => key);
-  assert.equal(keys[0], "you");
+  assert.equal(keys[0], "sources");
+  assert.equal(keys.includes("you"), false, "the old You slice is the You home's landing now");
   assert.deepEqual(keys.slice(-2), ["agents", "system"]);
 
   // The default lives in ONE place — the route definitions — and every call site
@@ -241,7 +241,7 @@ test("Settings opens onto You by default, with Agents & System pushed to the end
 
   const screen = readFileSync(join(root, "src/client/settings-screen.ts"), "utf8");
   assert.match(screen, /if \(!state\.setSeg \|\| !SET_SEG\.some\(\(\[k\]\) => k === state\.setSeg\)\)/);
-  assert.match(screen, /routeDefinitions\?\.defaults\.settingsSection \|\| "you"/);
+  assert.match(screen, /routeDefinitions\?\.defaults\.settingsSection \|\| "sources"/);
 
   const router = readFileSync(join(root, "src/client/app/router.ts"), "utf8");
   assert.match(router, /routeDefinitions\(\)\?\.defaults\.settingsSection \|\| "sources"/);

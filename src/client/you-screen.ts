@@ -1,14 +1,17 @@
 // @ts-check
-// The You home's landing (/app/you, and /app/you/stone?id=<key>): the whole cairn,
-// then Health, About you and Settings.
+// The You home (/app/you, and /app/you/stone?id=<key>): the whole cairn, then Health,
+// About you and Settings.
 //
-// PLACEHOLDER (v2 wave 5, stream A). The shell pre-registered this file so the
-// You home works the moment the tab bar ships: it lists the surfaces that moved
-// here and opens each one where it already lives. Stream B replaces it with the
-// cairn-stack (cairn-stack-*.ts) and stone detail (stone-detail-*.ts) above these
-// groups. This file is in an EAGER bundle, so You paints without the lazy
-// me-health bundle; Health and About you load it on the tap that needs it
-// (render-dispatch awaits ensureBundle for the stand and me views).
+// - The landing leads with the full six-stone cairn-stack (cairn-stack-*.ts) off the
+//   same GET /api/today/stones read as Today's pebble strip, then three quiet groups
+//   of rows into the surfaces that live under You.
+// - A stone opens its detail (stone-detail-*.ts): its read, then the places that
+//   part of the picture already lives. The decade view is reached from Heart's.
+//
+// This file is in an EAGER bundle (02), so You paints as fast as Today and never
+// waits on the lazy me-health bundle: Health and About you load it on the tap that
+// needs it (render-dispatch awaits ensureBundle for the stand and me views), and
+// nothing here touches that bundle's globals.
 
 type YouLandingView = "stand" | "me" | "settings";
 type YouLandingRow = {
@@ -20,6 +23,8 @@ type YouLandingRow = {
 type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRow[] };
 
 {
+  type RouteSection = import("../contracts/client.js").ClientRoute["section"];
+
   const YOU_LANDING_GROUPS: readonly YouLandingGroup[] = [
     {
       key: "health",
@@ -31,7 +36,7 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
           title: "Health: where you stand",
           sub: "Your markers, what they connect to, and what to do next",
         },
-        { view: "stand", section: "records", title: "Records", sub: "Labs, scans and documents" },
+        { view: "stand", section: "records", title: "Records", sub: "Add labs or scans, and everything already uploaded" },
         { view: "stand", section: "checkup", title: "Checkup", sub: "What is worth re-checking, and when" },
       ],
     },
@@ -61,8 +66,8 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
   function youLandingHtml(groups: readonly YouLandingGroup[] = YOU_LANDING_GROUPS): string {
     return groups
       .map(
-        (group) =>
-          `<section class="you-group reveal" aria-labelledby="youGroup-${escAttr(group.key)}">
+        (group, groupIndex) =>
+          `<section class="you-group reveal" style="--i:${groupIndex + 1}" aria-labelledby="youGroup-${escAttr(group.key)}">
         <h2 class="lbl you-group-h" id="youGroup-${escAttr(group.key)}">${escHtml(group.title)}</h2>
         <div class="set-you">${group.rows
           .map(
@@ -92,9 +97,75 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
     }
   }
 
-  function renderYou(): void {
-    headerTitle.textContent = "You";
-    view.innerHTML = `<div class="you-landing">${youLandingHtml()}</div>`;
+  // ---- stones -------------------------------------------------------------------
+  // The stones read is today's, whatever day Today is showing: You is the whole
+  // picture as it stands now.
+  function youHrefFor(target: ClientYouTarget): string | null {
+    const routes = typeof routeApi === "function" ? routeApi() : null;
+    return routes
+      ? routes.routeToUrl({ tab: target.tab, section: target.section as RouteSection, id: target.id || null })
+      : null;
+  }
+
+  function readDeps(): ClientYouReadDeps {
+    return {
+      date: localISO(),
+      peek: (key) => peekCached<ClientStonesRead>(key),
+      load: (path, options) => cachedApi(path as `/today/stones?date=${string}`, options),
+      reducedMotion: () => reducedMotion(),
+      hrefFor: youHrefFor,
+    };
+  }
+
+  function openStone(key: string): void {
+    state.youSeg = "stone";
+    state.youStone = key;
+    activateTab("you");
+  }
+
+  function backToLanding(): void {
+    state.youSeg = null;
+    state.youStone = null;
+    activateTab("you");
+  }
+
+  // A stone's home is a view the router already knows: route it exactly as a deep
+  // link would (so plan/food lands on Fuel, stand/domain on the domain drill-in),
+  // then open it. Leaving the detail forgets it, so the You tab reopens the landing.
+  function openStoneHome(target: ClientYouTarget): void {
+    state.youSeg = null;
+    state.youStone = null;
+    const tab = applyRouteState({
+      tab: target.tab,
+      section: target.section as RouteSection,
+      healthSection: null,
+      date: null,
+      id: target.id || null,
+      session: null,
+      jump: null,
+    });
+    activateTab(tab);
+  }
+
+  let teardown: (() => void) | null = null;
+
+  function renderStoneDetail(stone: string): void {
+    view.innerHTML = `<div class="you-stone" id="stoneDetailSlot"></div>`;
+    const host = view.querySelector("#stoneDetailSlot");
+    if (!host) return;
+    teardown = CairnStoneDetailController.mount(host, {
+      ...readDeps(),
+      stone,
+      navigate: openStoneHome,
+      back: backToLanding,
+    });
+  }
+
+  function renderLanding(): void {
+    view.innerHTML = `<div class="you-landing">
+      <div class="you-cairn" id="cairnStackSlot"></div>
+      ${youLandingHtml()}
+    </div>`;
     view
       .querySelectorAll<HTMLElement>("[data-you-view]")
       .forEach((button) =>
@@ -102,6 +173,43 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
           openYouRow(button.dataset.youView || "", button.dataset.youSection || "")
         )
       );
+    const slot = view.querySelector("#cairnStackSlot");
+    if (slot) teardown = CairnStackController.mount(slot, { ...readDeps(), openStone });
+  }
+
+  function renderYou(): void {
+    headerTitle.textContent = "You";
+    teardown?.();
+    teardown = null;
+    const stone = state.youSeg === "stone" ? state.youStone : null;
+    if (stone && CairnStoneDetailModel.isStone(stone)) {
+      renderStoneDetail(stone);
+      return;
+    }
+    // An unknown stone (a stale or hand-typed ?id=) is the landing, and the URL
+    // says so without a new history entry.
+    if (state.youSeg || state.youStone) {
+      state.youSeg = null;
+      state.youStone = null;
+      if (typeof syncRouteFromState === "function") syncRouteFromState("replace");
+    }
+    renderLanding();
+  }
+
+  // Any tab-bar tap forgets the open stone, so the You tab (or a later '‹ You') opens
+  // the landing. The capture listener runs before the shell's own tab handler.
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener(
+      "click",
+      (event) => {
+        const target = event.target as Element | null;
+        if (target && typeof target.closest === "function" && target.closest(".tab[data-tab]")) {
+          state.youSeg = null;
+          state.youStone = null;
+        }
+      },
+      true
+    );
   }
 
   Object.assign(globalThis, { renderYou, CairnYouLanding: { html: youLandingHtml, groups: YOU_LANDING_GROUPS } });

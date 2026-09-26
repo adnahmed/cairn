@@ -100,7 +100,7 @@ type ClientMeHealthScreenCompositionApi = {
   create(input: ClientMeHealthScreenCompositionInput): ClientMeHealthScreenComposition;
 };
 
-// Me is the about-you home (reached from Settings → You). Standing and Health
+// Me is the about-you home (reached from You). Standing and Health
 // retired to the Stand tab — their handlers below only redirect stale callers.
 const ME_HEALTH_SCREEN_SEGMENTS: readonly ClientSegment[] = [["profile", "Profile"], ["life", "Life"], ["family", "Family"], ["memory", "Memory"]];
 
@@ -266,7 +266,7 @@ function createMeHealthScreenComposition(input: ClientMeHealthScreenCompositionI
     renderMe: () => {
       input.invalidatePoll();
       // Standing + Health live on the Stand tab; a stale meSeg pointing there
-      // redirects. Me is the about-you home (Settings → You), Profile-first.
+      // redirects. Me is the about-you home (reached from You), Profile-first.
       if (!input.state.meSeg || input.state.meSeg === "standing" || input.state.meSeg === "health") {
         if (input.state.meSeg === "standing" || input.state.meSeg === "health") {
           goStand();
