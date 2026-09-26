@@ -1,0 +1,144 @@
+// The Fuel contract (v2 wave 2, "Food, the logging already done every day, made editable").
+//
+// Three server-owned reads the Fuel surface paints and the coach reads:
+//   - the PROTEIN ANCHOR — the day's protein target, which always comes first;
+//   - the OBSERVED INTAKE BAND — where this athlete's weight turned, read only off the
+//     days `classifyIntakeDay` calls complete plus the bodyweight response over the same
+//     weeks (src/repo/intake-band.ts). An observation, never a target and never a
+//     maintenance measurement; it bounds ENERGY only and never trims protein;
+//   - FUEL IDEAS — three deterministic ideas built from the athlete's own staples,
+//     sized to the rest of today inside that band, protein first (src/repo/fuel-ideas.ts).
+//     An idea is never a plan and is never shown as eaten: "Start from this" fills the
+//     composer, and nothing is logged until the person logs it.
+//
+// Served by `GET /api/nutrition/intake-band` (`get_intake_band`) and
+// `GET /api/fuel/ideas` (`get_fuel_ideas`). Every sentence arrives finished — a renderer
+// frames it and never works it out again. Numbers carry units; there is no score.
+//
+// Self-contained on purpose: src/client/** can read these types through
+// `import("../contracts/fuel.js")`, and this module imports nothing.
+
+/** How sure the band read is, as a word. Never a percentage. */
+export type ClientIntakeBandConfidence = "low" | "moderate" | "high";
+
+/** Why there is (or is not) a band. `ok` is the only status that carries one. */
+export type ClientIntakeBandStatus = "ok" | "too_few_days" | "no_weight_response";
+
+/** Which way the weight moved over one week, from the canonical bodyweight series. */
+export type ClientIntakeWeekResponse = "down" | "steady" | "up" | "unknown";
+
+export interface ClientProteinAnchor {
+  /** The day's protein target in grams (the accepted target first, else the formula). */
+  protein_g: number;
+  /** Where the number comes from (`effective_target` source, or "formula"). */
+  source: string;
+  /** Spoken sentence: the anchor, and that the energy range never trims it. */
+  words: string;
+}
+
+export interface ClientIntakeBandWeek {
+  week_start: string;
+  week_end: string;
+  /** Complete days in this week — the only days its average is built from. */
+  complete_days: number;
+  /** Mean kcal over the complete days only; null under the per-week minimum. */
+  kcal_avg: number | null;
+  /** Weight slope across the week (plus a short lag), lb per week; null when unreadable. */
+  weight_change_lb_per_week: number | null;
+  response: ClientIntakeWeekResponse;
+}
+
+export interface ClientIntakeBand {
+  /** Always "observation": this is what the record showed, never a target. */
+  kind: "observation";
+  status: ClientIntakeBandStatus;
+  as_of: string;
+  /** Protein comes first, and is null only when the profile cannot derive one. */
+  protein_anchor: ClientProteinAnchor | null;
+  window: {
+    since: string;
+    through: string;
+    weeks: number;
+    complete_days: number;
+    /** Partial days are counted here only to say they were left out — never averaged. */
+    partial_days: number;
+    missing_days: number;
+    weigh_in_days: number;
+  };
+  /**
+   * The observed range where the weight turned, in kcal/day. `low_kcal` is the most
+   * eaten in a week the weight still went down (or the lowest steady week when no week
+   * went down); `high_kcal` is the least eaten in a week the weight went up (or, when no
+   * week went up, the most eaten without a gain — `high_is_gain_edge:false`).
+   * Null whenever `status !== "ok"`.
+   */
+  band: {
+    low_kcal: number;
+    high_kcal: number;
+    low_is_loss_edge: boolean;
+    high_is_gain_edge: boolean;
+    /** Some weeks went down at an intake where others went up — the range is loose. */
+    mixed: boolean;
+  } | null;
+  /**
+   * The most eaten, on average, in a week the weight did NOT trend up (and below any
+   * week that did). What ideas are sized within. Null with no band, or when every
+   * readable week went up. Never licenses a surplus: it is a no-gain intake by
+   * construction, and it never stands in for measured maintenance.
+   */
+  energy_ceiling_kcal: number | null;
+  confidence: ClientIntakeBandConfidence | null;
+  confidence_words: string | null;
+  /** Spoken summary of the band (or of why there is none). */
+  words: string;
+  weeks: ClientIntakeBandWeek[];
+  /** Machine register — third-person evidence prose for the provenance trail. */
+  reason: string;
+}
+
+export interface ClientFuelIdea {
+  /** Stable key for "Another idea" (`?exclude=`): the staple key plus the portion. */
+  key: string;
+  title: string;
+  /** Portion multiplier of the athlete's usual serving (0.5, 1, 1.5, 2). */
+  portion: number;
+  portion_words: string;
+  kcal: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  /** True when it fits the rest of today inside the observed band; null with no band. */
+  fits_band: boolean | null;
+  /** Spoken reason it was offered (protein first, then the room left). */
+  why: string;
+  /** Text "Start from this" drops into the composer — never logged by itself. */
+  prefill: string;
+  /** How often it has been logged (distinct days) and when last. */
+  times_logged: number;
+  last_logged: string | null;
+  source: "staple";
+}
+
+export interface ClientFuelIdeas {
+  /** Always "ideas": never a meal plan, never shown as eaten. */
+  kind: "ideas";
+  date: string;
+  protein_anchor: ClientProteinAnchor | null;
+  today_so_far: {
+    kcal: number;
+    protein_g: number;
+    fiber_g: number;
+    /** "in progress" for today and any partial day — never "low". */
+    state: "in progress" | "complete" | "nothing logged";
+  };
+  room: {
+    /** Grams still to reach the protein anchor (0 once met); null with no anchor. */
+    protein_g: number | null;
+    /** kcal left under the observed band's ceiling; null with no band. */
+    energy_kcal: number | null;
+  };
+  band_status: ClientIntakeBandStatus;
+  ideas: ClientFuelIdea[];
+  /** Spoken line about the ideas as a set (e.g. there were no staples to build from). */
+  words: string;
+}

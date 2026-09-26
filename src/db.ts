@@ -750,7 +750,8 @@ CREATE TABLE IF NOT EXISTS food_notes (
   parsed_json TEXT,
   image_path TEXT,
   enrichment_status TEXT,             -- pending | done | skipped | failed (NULL = n/a)
-  eaten_at TEXT                       -- LOCAL wall-clock "HH:MM" (24h) the meal was eaten, when stated (NULL = unstated). Pairs with the date column; deliberately NOT a UTC instant, so the two can never disagree about which frame they are in
+  eaten_at TEXT,                      -- LOCAL wall-clock "HH:MM" (24h) the meal was eaten, when stated (NULL = unstated). Pairs with the date column; deliberately NOT a UTC instant, so the two can never disagree about which frame they are in
+  person_edited_at TEXT               -- UTC instant a person last corrected this note (v116). Set = enrichment never rewrites the estimate again
 );
 
 -- Bodyweight log over time (separate from profile's single current weight).

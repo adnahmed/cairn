@@ -31,6 +31,8 @@ import { backgroundOp } from "./background-op.js";
 import { streamEnrichRow } from "./enrich-stream.js";
 import { currentUnderfuelingRead } from "../domain/brain/underfueling-service.js";
 import { cutQualityRead } from "../repo/cut-quality.js";
+import { intakeBand } from "../repo/intake-band.js";
+import { fuelIdeas } from "../repo/fuel-ideas.js";
 
 export const nutritionRouter = Router();
 
@@ -313,6 +315,11 @@ nutritionRouter.post("/food-notes", (req, res) => {
 // `date` moves the entry to another local day and `eaten_at` corrects the stated
 // time (send it blank to unstate a time). Omitting either leaves it alone, so
 // correcting a macro never restamps the clock. Same strict validation as the POST.
+//
+// `ingredients` replaces the meal's ingredient rows (foodCapture.ts row shape, plus an
+// optional numeric `grams` per row): add a row, drop a row, change grams — the totals
+// are recomputed from the rows deterministically, in this one call, with no agent turn.
+// Any edit locks the note against a late enrichment pass (`person_edited_at`).
 nutritionRouter.put("/food-notes/:id", (req, res) => {
   try {
     const updated = updateFoodNote(Number(req.params.id), { ...(req.body ?? {}), lenient: false });
@@ -324,6 +331,42 @@ nutritionRouter.put("/food-notes/:id", (req, res) => {
 });
 
 nutritionRouter.delete("/food-notes/:id", (req, res) => res.json(deleteFoodNote(Number(req.params.id))));
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const queryDate = (value: unknown): string | undefined =>
+  typeof value === "string" && ISO_DAY.test(value) ? value : undefined;
+
+// The protein anchor and the observed intake band (src/repo/intake-band.ts): where
+// the athlete's weight turned, read ONLY off complete logged days plus the bodyweight
+// response over the same weeks. An observation — never a target, never a maintenance
+// measurement; it bounds energy only and never trims protein. Too few complete days →
+// `status:"too_few_days"`, `band:null`, and the words say so. ?date= overrides today.
+nutritionRouter.get("/nutrition/intake-band", (req, res) => {
+  res.json(intakeBand(queryDate(req.query.date)));
+});
+
+// Three deterministic ideas for the rest of the day from the athlete's own staples,
+// sized inside the observed band, protein first (src/repo/fuel-ideas.ts). Ideas, not a
+// plan: nothing is logged or drafted, and no agent turn runs. ?hour= is the device's
+// local hour (for "what you usually eat now"); ?exclude=key,key skips ideas already
+// shown ("Another idea"); ?date= overrides today.
+nutritionRouter.get("/fuel/ideas", (req, res) => {
+  const hour = req.query.hour != null ? Number(req.query.hour) : undefined;
+  const exclude =
+    typeof req.query.exclude === "string"
+      ? req.query.exclude
+          .split(",")
+          .map((k) => k.trim())
+          .filter(Boolean)
+          .slice(0, 50)
+      : [];
+  res.json(
+    fuelIdeas(queryDate(req.query.date), {
+      hour: Number.isInteger(hour) && (hour as number) >= 0 && (hour as number) <= 23 ? hour : undefined,
+      exclude,
+    })
+  );
+});
 
 // One-tap "frequents": the foods most often logged near a time of day (±2h),
 // most-frequent first (max 8), with macros carried from the latest occurrence

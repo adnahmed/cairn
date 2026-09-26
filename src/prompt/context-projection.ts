@@ -173,6 +173,10 @@ const ALL_KEYS = [
   ...RECOVERY,
   ...BRAIN,
   "garmin",
+  // The protein anchor + the observed intake band. Not in FUEL on purpose: it is the
+  // read for SIZING food (chat's "what should I eat", the meal-idea site), and the
+  // Brief — which carries FUEL under a byte ceiling — decides the day, not a plate.
+  "intake_band",
 ] as const;
 
 // ---------- per-site specs ----------
@@ -422,6 +426,9 @@ export const PROMPT_CONTEXT_SITES = {
       // of food at once, so it is the site where "time more carbs around training"
       // stops being generic advice and names the actual days.
       "fuel_demand",
+      // Protein anchor first, then the energy range the athlete's own complete days and
+      // weigh-ins showed — the observed bound meals are sized within, never a target.
+      "intake_band",
     ],
     sessions: SESSIONS_RECENT,
   },

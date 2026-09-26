@@ -283,6 +283,27 @@ export interface ClientMacroTotals {
   fiber_g: number;
 }
 
+// One ingredient row (src/foodCapture.ts `FoodIngredientRow`). The quantity is its
+// own field; macros are per row and optional.
+export interface ClientFoodIngredientRow {
+  item: string;
+  amount?: string;
+  kcal?: number;
+  protein_g?: number;
+  carbs_g?: number;
+  fat_g?: number;
+  fiber_g?: number;
+  basis?: "label" | "user_report" | "estimated_from_foods" | "photo";
+  confidence?: "low";
+}
+
+// A row as SENT in PUT /food-notes/:id `ingredients`: the stored row plus an optional
+// `grams`, which sets the amount to "<grams> g" and scales the row's macros from its
+// own estimate. Send every row that should remain, in order; a new row may omit macros.
+export interface ClientFoodIngredientEdit extends ClientFoodIngredientRow {
+  grams?: number | null;
+}
+
 export interface ClientFoodEntry {
   id: number;
   meal: string;
@@ -296,6 +317,17 @@ export interface ClientFoodEntry {
   // context the read-only food-detail sheet shows, threaded through for the
   // edit sheet's twin. Null when nothing was captured.
   items: unknown;
+  // The structured ingredient rows (foodCapture.ts row shape) the meal card edits:
+  // PUT /food-notes/:id with `ingredients` (the full row list, each row optionally
+  // carrying a numeric `grams`) recomputes the totals server-side. A row with
+  // `confidence:"low"` has no estimate (or one its new amount could not scale).
+  // Optional/additive: absent on older payloads.
+  ingredients?: ClientFoodIngredientRow[] | null;
+  // Meal-level provenance words ("low"|"medium"|"high", "label"|"user_report"|…).
+  confidence?: string | null;
+  basis?: string | null;
+  // True once a person has corrected this entry; enrichment never rewrites it.
+  person_edited?: boolean;
   // The verbatim "as logged" capture text, or null.
   raw: string | null;
   enrichment_status: string | null;
