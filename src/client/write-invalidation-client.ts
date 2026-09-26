@@ -22,6 +22,7 @@
 type WriteInvalidationRoot = typeof globalThis & {
   swrInvalidate?: (keyOrPrefix: string) => void;
   apiInvalidate?: () => void;
+  api?: (path: string) => Promise<unknown>;
   state?: { brief?: unknown; plan?: unknown[] };
 };
 
@@ -34,6 +35,11 @@ type WriteInvalidationApi = {
   invalidateChatApplied(applied: unknown): string[];
   invalidateWrite(name: string, opts?: { keep?: readonly string[] }): string[];
   register(name: string, clear: () => void): void;
+  trackTurn(turn: unknown, opts?: { owned?: boolean }): void;
+  releaseTurn(turn: unknown): void;
+  settleTurn(turn: unknown): string[];
+  resumeTurns(): void;
+  watchedTurns(): number[];
 };
 
 {
@@ -63,6 +69,7 @@ type WriteInvalidationApi = {
     "today:daily-session:",
     "brain:changes",
     "health:asks",
+    "@plan",
     "@train",
     "@endurance",
   ] as const;
@@ -120,7 +127,7 @@ type WriteInvalidationApi = {
     // Applying a drafted proposal (Coach list, a chat draft card).
     proposal_apply: t(DAY, PLAN),
     // A meal plan edit / swap / status change.
-    meal_edit: t(["meals:plans", "shop:", "fuel:ideas:", "@brief"]),
+    meal_edit: t(["meals:plans", "fuel:ideas:", "@brief"]),
   });
 
   const snapshots = new Map<string, () => void>();
@@ -129,10 +136,22 @@ type WriteInvalidationApi = {
     if (name && typeof clear === "function") snapshots.set(name.replace(/^@/, ""), clear);
   }
 
-  // The Brief's in-memory read is shared state every surface already clears this way.
+  // The Brief: its in-memory read AND the last-known copy the fast path paints from
+  // localStorage (today-brief-controller.ts BRIEF_LS_KEY) — clearing only the first
+  // let a pre-write Brief paint instantly on the next open.
+  const BRIEF_LS_KEY = "cairn.brief.v1";
   register("brief", () => {
     const root = globalThis as WriteInvalidationRoot;
     if (root.state && typeof root.state === "object") root.state.brief = null;
+    try {
+      localStorage.removeItem(BRIEF_LS_KEY);
+    } catch {}
+  });
+  // The plan Today holds in memory: an empty list is "reload it", the same reset a
+  // chat plan_update has always made.
+  register("plan", () => {
+    const root = globalThis as WriteInvalidationRoot;
+    if (root.state && typeof root.state === "object") root.state.plan = [];
   });
 
   function targetsForChatAction(type: unknown): readonly string[] {
@@ -188,6 +207,156 @@ type WriteInvalidationApi = {
     return invalidate(targetsForWrite(name), opts);
   }
 
+  // ---- following a chat turn to the writes it applies ----
+  // A turn applies its actions on the server long after the POST that queued it —
+  // 10-60 s for an agent turn. Whoever is showing the turn (Chat's monitor, the Fuel
+  // composer) OWNS it and settles it on completion. The moment nobody does — the
+  // athlete sent "had 2 eggs and toast" and walked to Today, or left Fuel mid-log —
+  // this follows it by a light poll and settles it here, so its writes still retire
+  // every cache they made stale. Remembered across reloads (localStorage), so a turn
+  // that finished while the app was closed is settled on the next open.
+  const TURN_WATCH_LS = "cairn.turnwatch.v1";
+  const TURN_WATCH_POLL_MS = 3000;
+  const TURN_WATCH_MAX_AGE_MS = 15 * 60 * 1000;
+  const TURN_WATCH_MAX = 20;
+  const TURN_TERMINAL = new Set(["done", "error", "canceled"]);
+  const watched = new Map<number, number>(); // turn id -> first seen (ms)
+  const owned = new Set<number>();
+  const settled = new Set<number>();
+  let watchTimer: ReturnType<typeof setTimeout> | 0 = 0;
+  let watchTicking = false;
+  let watchResumed = false;
+
+  function turnIdOf(turn: unknown): number | null {
+    const raw = turn && typeof turn === "object" ? (turn as { id?: unknown }).id : turn;
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
+  function persistWatched(): void {
+    try {
+      if (watched.size) localStorage.setItem(TURN_WATCH_LS, JSON.stringify([...watched]));
+      else localStorage.removeItem(TURN_WATCH_LS);
+    } catch {}
+  }
+
+  function loadWatched(): void {
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(TURN_WATCH_LS) || "[]");
+      if (!Array.isArray(stored)) return;
+      for (const entry of stored) {
+        const [id, since] = Array.isArray(entry) ? entry : [];
+        const n = turnIdOf(id);
+        if (n != null && !watched.has(n) && !settled.has(n)) watched.set(n, Number(since) || Date.now());
+      }
+    } catch {}
+  }
+
+  function scheduleWatch(delay = TURN_WATCH_POLL_MS): void {
+    if (watchTimer || watchTicking || typeof setTimeout !== "function") return;
+    if (![...watched.keys()].some((id) => !owned.has(id))) return;
+    watchTimer = setTimeout(() => {
+      watchTimer = 0;
+      void watchTick();
+    }, delay);
+  }
+
+  async function watchTick(): Promise<void> {
+    const root = globalThis as WriteInvalidationRoot;
+    if (watchTicking || typeof root.api !== "function") return;
+    watchTicking = true;
+    try {
+      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      for (const [id, since] of [...watched]) {
+        if (owned.has(id) || hidden) continue;
+        if (Date.now() - since > TURN_WATCH_MAX_AGE_MS) {
+          watched.delete(id);
+          continue;
+        }
+        let row: unknown;
+        try {
+          row = await root.api(`/chat/turns/${id}`);
+        } catch {
+          continue; // offline or a dropped poll: try again next tick
+        }
+        if (owned.has(id) || !watched.has(id)) continue; // claimed or settled meanwhile
+        if (row === null) {
+          watched.delete(id); // the server no longer knows the turn
+          continue;
+        }
+        const status = row && typeof row === "object" ? String((row as { status?: unknown }).status || "") : "";
+        if (TURN_TERMINAL.has(status)) settleTurn(row);
+      }
+      persistWatched();
+    } finally {
+      watchTicking = false;
+    }
+    scheduleWatch();
+  }
+
+  // A turn that may write. `owned` = a surface on screen is following it and will
+  // settle (or release) it itself.
+  function trackTurn(turn: unknown, opts: { owned?: boolean } = {}): void {
+    const id = turnIdOf(turn);
+    if (id == null || settled.has(id)) return;
+    if (opts.owned) owned.add(id);
+    if (!watched.has(id)) {
+      watched.set(id, Date.now());
+      while (watched.size > TURN_WATCH_MAX) watched.delete(watched.keys().next().value as number);
+      persistWatched();
+    }
+    scheduleWatch();
+  }
+
+  // The surface that owned it stopped following (left the screen, gave up waiting):
+  // the poll here takes over.
+  function releaseTurn(turn: unknown): void {
+    const id = turnIdOf(turn);
+    if (id == null) return;
+    owned.delete(id);
+    scheduleWatch();
+  }
+
+  // A finished turn (a GET /chat/turns/:id row, or its SSE twin): every action it
+  // applied retires its caches, exactly once per turn whoever sees it finish first.
+  function settleTurn(turn: unknown): string[] {
+    const id = turnIdOf(turn);
+    if (id != null) {
+      const alreadySettled = settled.has(id);
+      settled.add(id);
+      owned.delete(id);
+      if (watched.delete(id)) persistWatched();
+      if (alreadySettled) return [];
+    }
+    const meta = turn && typeof turn === "object" ? (turn as { meta?: unknown }).meta : null;
+    const applied = meta && typeof meta === "object" ? (meta as { applied?: unknown }).applied : null;
+    return invalidateChatApplied(applied);
+  }
+
+  // Boot: pick up turns a previous page left unfinished, and look again whenever
+  // the app comes back to the foreground.
+  function resumeTurns(): void {
+    loadWatched();
+    if (!watchResumed) {
+      watchResumed = true;
+      try {
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState !== "visible") return;
+          if (watchTimer) {
+            clearTimeout(watchTimer);
+            watchTimer = 0;
+          }
+          scheduleWatch(0);
+        });
+      } catch {}
+    }
+    scheduleWatch(0);
+  }
+
+  function watchedTurns(): number[] {
+    return [...watched.keys()];
+  }
+
   const CAIRN_WRITE_INVALIDATION: WriteInvalidationApi = {
     CHAT_ACTION_TARGETS,
     WRITE_TARGETS,
@@ -197,6 +366,11 @@ type WriteInvalidationApi = {
     invalidateChatApplied,
     invalidateWrite,
     register,
+    trackTurn,
+    releaseTurn,
+    settleTurn,
+    resumeTurns,
+    watchedTurns,
   };
 
   Object.assign(globalThis, { CairnWriteInvalidation: CAIRN_WRITE_INVALIDATION });

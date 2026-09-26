@@ -45,6 +45,13 @@ function loadArtController(options = {}) {
     clearTimeout: () => {},
     document: {
       addEventListener: (type, handler) => listeners.set(type, handler),
+      // The live <img> elements a test puts "on screen" (options.imgs).
+      querySelectorAll: (sel) => {
+        const imgs = options.imgs || [];
+        if (sel === 'img[data-art-wait="1"]') return imgs.filter((img) => img.dataset.artWait === "1");
+        if (sel === 'img[data-art-photo="1"]') return imgs.filter((img) => img.dataset.artPhoto === "1");
+        return [];
+      },
       body: {
         appendChild() {},
         contains() {
@@ -85,10 +92,11 @@ function loadArtController(options = {}) {
         }
       : {}),
     pollToken: 1,
-    setTimeout: (fn) => {
+    ...(options.navigator ? { navigator: options.navigator } : {}),
+    setTimeout: options.setTimeout || ((fn) => {
       fn();
       return 1;
-    },
+    }),
     window: {
       CairnArt: {
         food: (query) => `<svg data-food="${escAttr(query)}"></svg>`,
@@ -107,6 +115,7 @@ function loadArtController(options = {}) {
   context.globalThis = context;
   // art-memory-client.js (versions + misses) loads just before the controller in bundle-01.
   vm.runInNewContext(readFileSync(join(root, "public/js/art-memory-client.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/art-inflight-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/art-controller.js"), "utf8"), context);
   return { context, listeners, storage, FakeImage, apiCalls };
 }
@@ -221,13 +230,13 @@ test("a cold start reads the remembered versions synchronously, so the FIRST ren
   assert.equal(env.apiCalls.length, 0);
 });
 
-test("versions merge by max: a capped server list never rolls a remembered redraw back", async () => {
+test("the server is the truth for every version it lists (a restore can move one back); unlisted ones are kept", async () => {
   const env = loadArtController({
     storage: [["cairn-art-versions", JSON.stringify({ "exercise|Row": 5, "exercise|Old Lift": 2 })]],
     versions: { versions: { "exercise|Row": 3, "exercise|Press": 1 } },
   });
   await env.context.primeArtManifest();
-  assert.match(env.context.artImg("exercise", "Row", "a", "<svg></svg>"), /v=5/);
+  assert.match(env.context.artImg("exercise", "Row", "a", "<svg></svg>"), /v=3/);
   assert.match(env.context.artImg("exercise", "Old Lift", "a", "<svg></svg>"), /v=2/);
   assert.match(env.context.artImg("exercise", "Press", "a", "<svg></svg>"), /v=1/);
 });
@@ -264,4 +273,103 @@ test("a miss survives the reload that re-renders it (tab-scoped), and a ready ma
   await reloaded.context.primeArtManifest();
   assert.match(reloaded.context.artImg("exercise", "Back Squat", "a", "<svg></svg>"), /<img[^>]+instant/);
   assert.ok(!session.get("cairn-art-miss").includes("Back Squat"));
+});
+
+
+// A live <img> the way a render leaves it on screen.
+function liveImg(env, { token, src, complete = false, connected = true }) {
+  const img = new env.FakeImage();
+  const handlers = {};
+  img.dataset.artPhoto = "1";
+  img.dataset.artkey = token;
+  img.src = src;
+  img.complete = complete;
+  img.isConnected = connected;
+  img.getAttribute = (name) => (name === "src" ? img.src : null);
+  img.addEventListener = (type, fn) => {
+    handlers[type] = fn;
+  };
+  img.fire = (type) => handlers[type]?.();
+  return img;
+}
+
+test("a re-render never asks again for an image whose request is still in flight", () => {
+  const imgs = [];
+  const timers = [];
+  const env = loadArtController({ imgs, setTimeout: (fn) => (timers.push(fn), timers.length) });
+  const first = env.context.artImg("exercise", "Leg Curl", "a", "<svg></svg>");
+  const src = /src="([^"]+)"/.exec(first)[1].replaceAll("&amp;", "&");
+  const inFlight = liveImg(env, { token: "exercise|Leg Curl", src });
+  imgs.push(inFlight);
+
+  // The second render (network repaint) parks the URL instead of requesting it.
+  const second = env.context.artImg("exercise", "Leg Curl", "a", "<svg></svg>");
+  assert.doesNotMatch(second, / src=/);
+  assert.match(second, /data-art-wait="1"/);
+  assert.match(second, /data-art-src="[^"]*q=Leg%20Curl/);
+  assert.doesNotMatch(second, /class="artimg-photo on/, "hidden until it has a src");
+
+  // Render one replaced the first element; it loads anyway, and the waiter takes the src.
+  inFlight.isConnected = false;
+  const waiter = new env.FakeImage();
+  waiter.dataset.artPhoto = "1";
+  waiter.dataset.artkey = "exercise|Leg Curl";
+  waiter.dataset.artWait = "1";
+  waiter.dataset.artSrc = src;
+  imgs.push(waiter);
+  inFlight.fire("load");
+  assert.equal(waiter.src, src);
+  assert.equal(waiter.dataset.artWait, undefined);
+  // …and it is remembered as drawn.
+  assert.match(env.context.artImg("exercise", "Leg Curl", "a", "<svg></svg>"), /loading="eager"/);
+});
+
+test("an in-flight miss leaves the waiter on the SVG; a stalled request hands the waiter its own src", () => {
+  const imgs = [];
+  const timers = [];
+  const env = loadArtController({ imgs, setTimeout: (fn) => (timers.push(fn), timers.length) });
+  const src = /src="([^"]+)"/.exec(env.context.artImg("exercise", "Face Pull", "a", "<svg></svg>"))[1].replaceAll("&amp;", "&");
+  const inFlight = liveImg(env, { token: "exercise|Face Pull", src });
+  imgs.push(inFlight);
+  env.context.artImg("exercise", "Face Pull", "a", "<svg></svg>");
+  inFlight.isConnected = false;
+  const waiter = new env.FakeImage();
+  waiter.dataset.artPhoto = "1";
+  waiter.dataset.artkey = "exercise|Face Pull";
+  waiter.dataset.artWait = "1";
+  waiter.dataset.artSrc = src;
+  imgs.push(waiter);
+  const before = waiter.src;
+  inFlight.fire("error"); // 204: not drawn yet
+  assert.equal(waiter.src, before, "no second request for a miss");
+  assert.doesNotMatch(env.context.artImg("exercise", "Face Pull", "a", "<svg></svg>"), /<img/);
+
+  // A lazy first request that never starts: the bounded wait releases the waiter.
+  const list = [];
+  const env2 = loadArtController({ imgs: list, setTimeout: (fn) => (timers.push(fn), timers.length) });
+  const src2 = /src="([^"]+)"/.exec(env2.context.artImg("exercise", "Row", "a", "<svg></svg>"))[1].replaceAll("&amp;", "&");
+  const stalled = liveImg(env2, { token: "exercise|Row", src: src2 });
+  list.push(stalled);
+  timers.length = 0;
+  env2.context.artImg("exercise", "Row", "a", "<svg></svg>");
+  const w = new env2.FakeImage();
+  w.dataset.artPhoto = "1";
+  w.dataset.artkey = "exercise|Row";
+  w.dataset.artWait = "1";
+  w.dataset.artSrc = src2;
+  list.push(w);
+  assert.equal(timers.length, 1, "one bounded wait");
+  timers[0]();
+  assert.equal(w.src, src2);
+  assert.equal(stalled.dataset.artWaitExpired, "1", "never waited on again");
+});
+
+test("an image that fails while the device is offline is not remembered as a miss", () => {
+  const env = loadArtController({ navigator: { onLine: false } });
+  const img = new env.FakeImage();
+  img.dataset.artPhoto = "1";
+  img.dataset.artkey = "exercise|Leg Press";
+  img.isConnected = false;
+  env.listeners.get("error")({ target: img });
+  assert.match(env.context.artImg("exercise", "Leg Press", "a", "<svg></svg>"), /<img/);
 });

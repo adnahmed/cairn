@@ -94,6 +94,25 @@ async function precacheShell() {
   const stableIndex = await readHashIndex(stable);
   const shellIndex = {};
 
+  // The stable cache is SHARED with the active worker, so it is written before this
+  // install commits. Stage that safely: every stable entry about to be replaced is
+  // struck from the hash index FIRST (and the index saved), so an install that fails
+  // halfway can never leave new bytes recorded under an old hash — the next install
+  // simply fetches that entry again.
+  const stableHeld = new Set();
+  let stableStruck = false;
+  for (const url of [...CORE_ASSETS, ...OPTIONAL_ASSETS]) {
+    if (!isStableAsset(url)) continue;
+    const hash = hashes[url];
+    if (hash && stableIndex[url] === hash && (await stable.match(url))) {
+      stableHeld.add(url);
+    } else if (url in stableIndex) {
+      delete stableIndex[url];
+      stableStruck = true;
+    }
+  }
+  if (stableStruck) await writeHashIndex(stable, stableIndex);
+
   async function one(url, required) {
     const hash = hashes[url];
     const isStable = isStableAsset(url);
@@ -102,7 +121,7 @@ async function precacheShell() {
     try {
       if (hash) {
         // Already held, byte-identical: nothing to do (stable) or copy it over (shell).
-        if (isStable && stableIndex[url] === hash && (await stable.match(url))) return;
+        if (isStable && stableHeld.has(url)) return;
         for (const prior of previous) {
           if (prior.index[url] !== hash) continue;
           const hit = await prior.cache.match(url);

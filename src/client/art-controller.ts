@@ -313,6 +313,9 @@ document.addEventListener("contextmenu", (e) => {
   document.addEventListener("touchcancel", cancel);
 })();
 
+// One request per image however many renders ask: the in-flight dedupe
+// (CairnArtInflight) lives in art-inflight-client.ts, loaded just before this file.
+
 // Art tile that renders the generated studio photo over a CairnArt SVG. `svg` may
 // be passed (exercise art needs muscleGroup); defaults to art(kind, q). Falls back
 // to SVG-only when artwork generation is off.
@@ -332,9 +335,17 @@ function artImg(kind: string, q: unknown, cls = "artile-md", svg: string | null 
   // again for the same miss (the failed tile's own quiet retry still runs).
   if (!ready && CairnArtMemory.missedRecently(token)) return `<div class="artile ${cls}">${s}</div>`;
   const src = artUrl(kind, query);
-  const imgCls = ready ? "artimg-photo on instant" : "artimg-photo";
   const load = ready ? "eager" : "lazy";
-  return `<div class="artile artimg ${cls}">${s}<img class="${imgCls}" alt="${escAttr(query)}" loading="${load}" decoding="async" data-art-photo="1" data-artkey="${escAttr(token)}" data-art-kind="${escAttr(kind)}" data-art-q="${escAttr(query)}" src="${escAttr(src)}"></div>`;
+  const attrs = `alt="${escAttr(query)}" loading="${load}" decoding="async" data-art-photo="1" data-artkey="${escAttr(token)}" data-art-kind="${escAttr(kind)}" data-art-q="${escAttr(query)}"`;
+  const inFlight = CairnArtInflight.find(token, src);
+  if (inFlight) {
+    CairnArtInflight.watch(inFlight, token);
+    // Hidden until it has a src (no `on`/`instant` yet, so no alt text or broken
+    // glyph over the SVG); a ready figure still lands instantly when released.
+    return `<div class="artile artimg ${cls}">${s}<img class="artimg-photo" ${attrs} data-art-wait="1"${ready ? ' data-art-instant="1"' : ""} data-art-src="${escAttr(src)}"></div>`;
+  }
+  const imgCls = ready ? "artimg-photo on instant" : "artimg-photo";
+  return `<div class="artile artimg ${cls}">${s}<img class="${imgCls}" ${attrs} src="${escAttr(src)}"></div>`;
 }
 
 const CAIRN_ART_GLOBALS = {
@@ -343,6 +354,7 @@ const CAIRN_ART_GLOBALS = {
   artImg,
   redrawExerciseArt,
   artUrl,
+  markArtReady,
 };
 
 Object.assign(globalThis, CAIRN_ART_GLOBALS);

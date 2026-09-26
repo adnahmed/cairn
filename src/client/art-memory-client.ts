@@ -6,15 +6,19 @@
 // redraw / pose-aware replace busts the SW cache. PERSISTED (localStorage) and read
 // back synchronously at load, so the first render after a cold start already asks
 // for `…&v=N` — a map that only arrived after the first paint used to draw every
-// redrawn figure twice (v-less, then v=N). A version only ever moves up, so a
-// merge keeps the max: a token the server's capped list no longer carries keeps
-// its known version.
+// redrawn figure twice (v-less, then v=N). The server is the truth for every token
+// it lists — a version CAN go backwards (`npm run reset`, a backup restore, a
+// re-created art_index row), and keeping a remembered higher one would pin the
+// pre-restore image the SW art cache still holds under that URL. A token the
+// server's capped list no longer carries keeps its known version.
 //
 // Misses: tokens whose image the server just answered "not drawn yet" (204). A
-// re-render inside the quiet window keeps the SVG instead of asking again for the
-// same miss. Tab-scoped (sessionStorage): the second ask is usually the re-render
-// of a reloaded page — a warm peek paint, then the network repaint — whose first
-// request was cancelled with its element.
+// re-render inside the short quiet window keeps the SVG instead of asking again for
+// the same miss. Tab-scoped (sessionStorage): the second ask is usually the
+// re-render of a reloaded page — a warm peek paint, then the network repaint. The
+// window is short on purpose: a 204 enqueues the drawing, and a figure drawn since
+// must not stay hidden for long. A failure while the device is offline is not a
+// miss at all.
 
 type ArtMemoryApi = {
   version(token: string): number;
@@ -28,7 +32,7 @@ type ArtMemoryApi = {
 {
   const VERSIONS_LS = "cairn-art-versions";
   const MISS_SS = "cairn-art-miss";
-  const MISS_QUIET_MS = 5 * 60 * 1000;
+  const MISS_QUIET_MS = 30 * 1000;
   const versions = new Map<string, number>();
   const misses = new Map<string, number>();
   let versionsTimer: ReturnType<typeof setTimeout> | number = 0;
@@ -83,7 +87,7 @@ type ArtMemoryApi = {
     let changed = false;
     for (const [token, value] of Object.entries(incoming)) {
       const n = Number(value);
-      if (!token || !Number.isFinite(n) || n <= 0 || version(token) >= n) continue;
+      if (!token || !Number.isFinite(n) || n <= 0 || version(token) === n) continue;
       versions.set(token, n);
       changed = true;
     }
@@ -97,6 +101,9 @@ type ArtMemoryApi = {
 
   function recordMiss(token: string): void {
     if (!token) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return; // offline, not "not drawn"
+    } catch {}
     misses.set(token, Date.now());
     persistMisses();
   }

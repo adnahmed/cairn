@@ -17,7 +17,11 @@ type ChatTurnRoot = typeof globalThis & {
   ) => Element | null;
   rememberChatFuelContext?: (...messages: unknown[]) => unknown;
   loadChatFuel?: (token: number, messages?: unknown[]) => Promise<void>;
-  CairnWriteInvalidation?: { invalidateChatApplied(applied: unknown): string[] };
+  CairnWriteInvalidation?: {
+    settleTurn(turn: unknown): string[];
+    trackTurn(turn: unknown, opts?: { owned?: boolean }): void;
+    releaseTurn(turn: unknown): void;
+  };
 };
 
 (() => {
@@ -195,6 +199,9 @@ type ChatTurnRoot = typeof globalThis & {
     if (anchor && anchor.parentElement === log) anchor.after(el);
     else log.appendChild(el);
     chatPendingBubbles.set(id, el);
+    // Chat's monitor follows this turn while it is on screen; the moment Chat is
+    // torn down the write table's own poll takes over (write-invalidation-client.ts).
+    root.CairnWriteInvalidation?.trackTurn(id, { owned: true });
     if (stick) log.scrollTop = log.scrollHeight;
     return el;
   }
@@ -249,8 +256,9 @@ type ChatTurnRoot = typeof globalThis & {
     if (hasPersistedPlanUpdate) state.plan = [];
     // Every applied action retires every cache it made stale — Fuel after log_food,
     // Train after log_set, the Brief after a check-in — through the one table in
-    // write-invalidation-client.ts, not a per-type list here.
-    root.CairnWriteInvalidation?.invalidateChatApplied(applied);
+    // write-invalidation-client.ts, not a per-type list here. Settled once per turn,
+    // whether Chat or the table's own background follow sees it finish first.
+    root.CairnWriteInvalidation?.settleTurn({ ...row, id: id ?? row.id });
     const drafts = Array.isArray(chatTurnRecord(row.meta).drafts) ? (chatTurnRecord(row.meta).drafts as unknown[]) : [];
     if (drafts.length) {
       state.plan = [];
@@ -261,6 +269,7 @@ type ChatTurnRoot = typeof globalThis & {
 
   function finalizeCanceled(turnValue: unknown): void {
     const id = turnId(chatTurnRecord(turnValue).id);
+    root.CairnWriteInvalidation?.settleTurn(chatTurnRecord(turnValue));
     if (id != null) {
       if (chatDoneTurns.has(id)) return;
       chatDoneTurns.add(id);
@@ -290,6 +299,9 @@ type ChatTurnRoot = typeof globalThis & {
 
   function chatTeardownMonitor(): void {
     chatTurnMonitor.close();
+    // Nobody on screen follows these any more: a turn still running when the athlete
+    // leaves Chat is settled by the write table's background follow instead.
+    for (const id of chatPendingBubbles.keys()) root.CairnWriteInvalidation?.releaseTurn(id);
     chatPendingBubbles.clear();
     chatTurnStreamState.clear();
     chatDoneTurns.clear();

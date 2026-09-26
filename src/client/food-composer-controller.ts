@@ -246,6 +246,9 @@ function wireFoodComposer(parts: FoodComposerParts, deps: FoodComposerDeps, sign
       retry = null;
       persistRetry(null);
       if (attached === img) clearAttachment();
+      // Every turn may write: the write table follows it to the end unless a surface
+      // on screen claims it (Chat's monitor, the Fuel follow below).
+      (globalThis as { CairnWriteInvalidation?: { trackTurn(turn: unknown): void } }).CairnWriteInvalidation?.trackTurn(r.turn);
       deps.onEnqueued?.(r.turn);
       if (deps.onLogged) void CairnFoodComposerTurn.follow(r.turn, deps, { signal, setStatus });
     } catch {

@@ -142,7 +142,9 @@ const PERSISTED_KEYS = {
   "cairn.fuelLogRetry.v1": ["fuel-deps"],
   "cairn.sessnotes.": ["today-session-controller"],
   "cairn.swr.v1.": ["swr-cache"],
-  "cairn.brief.v1": ["today-brief-controller"],
+  "cairn.brief.v1": ["today-brief-controller", "write-invalidation-client"],
+  // Chat turns a surface stopped following, settled on the next open (v2 wave 6C).
+  "cairn.turnwatch.v1": ["write-invalidation-client"],
   "cairn.train.v1": ["progress-overview-snapshot-client"],
   "cairn.checkin.dismissed.v1": ["capture"],
   "cairn.diagnostics.v1": ["client-diagnostics"],

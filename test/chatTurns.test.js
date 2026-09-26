@@ -925,8 +925,9 @@ test("the chat client invalidates plan cache on confirmed persistence without lo
   const client = readFileSync(new URL("../src/client/chat-turn-client.ts", import.meta.url), "utf8");
   assert.match(client, /result\.verified === true \|\| result\.persisted === true \|\| result\.committed === true/);
   // Every applied action (plan_update included, which drops "plan") goes through the
-  // one invalidation table (test/clientWriteInvalidation.test.js holds it complete).
-  assert.match(client, /invalidateChatApplied\(applied\)/);
+  // one invalidation table (test/clientWriteInvalidation.test.js holds it complete),
+  // settled once per turn whether Chat or the table's background follow sees it end.
+  assert.match(client, /CairnWriteInvalidation\?\.settleTurn\(\{ \.\.\.row, id: id \?\? row\.id \}\)/);
   // The plan reconciler now lives in src/chat-reconcile.ts (chatTurns re-exports it).
   const server = readFileSync(new URL("../src/chat-reconcile.ts", import.meta.url), "utf8");
   assert.match(server, /const verified = results\.length > 0 && verifiedResults\.length === results\.length/);

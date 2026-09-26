@@ -15,6 +15,16 @@ import { CHAT_ACTION_TYPES } from "../dist/chatActions.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
+function memoryStorage(seed = []) {
+  const map = new Map(seed);
+  return {
+    map,
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    setItem: (k, v) => map.set(k, String(v)),
+    removeItem: (k) => map.delete(k),
+  };
+}
+
 function load(extra = {}) {
   const dropped = [];
   let apiCleared = 0;
@@ -23,6 +33,12 @@ function load(extra = {}) {
     Set,
     Map,
     Array,
+    JSON,
+    Number,
+    String,
+    Date,
+    Promise,
+    localStorage: memoryStorage(),
     swrInvalidate: (key) => dropped.push(key),
     apiInvalidate: () => {
       apiCleared += 1;
@@ -58,7 +74,7 @@ test("every target is a cache some surface actually reads (or a registered snaps
   for (const target of targets) {
     if (target.startsWith("@")) {
       const name = target.slice(1);
-      if (name === "brief") continue; // registered by the module itself
+      if (name === "brief" || name === "plan") continue; // registered by the module itself
       assert.match(CLIENT_SOURCE, new RegExp(`register\\(\\s*"${name}"`), `${target} is registered by a surface`);
       continue;
     }
@@ -132,10 +148,116 @@ test("Undo, proposal apply and meal edits each name their caches", () => {
 
 test("the chat turn, Undo, finish, proposal apply and meal edits all route through the table", () => {
   const read = (f) => readFileSync(join(root, "src/client", f), "utf8");
-  assert.match(read("chat-turn-client.ts"), /invalidateChatApplied\(applied\)/);
+  assert.match(read("chat-turn-client.ts"), /settleTurn\(/);
+  assert.match(read("food-composer-turn-controller.ts"), /settleTurn\(current\)/);
   assert.match(read("decision-undo-controller.ts"), /invalidateWrite\(\s*"decision_revert"/);
   assert.match(read("today-session-controller.ts"), /invalidateWrite\("session_finish"/);
   assert.match(read("coach-proposal-controller.ts"), /invalidateWrite\("proposal_apply"\)/);
   assert.match(read("chat-message-client.ts"), /invalidateWrite\("proposal_apply"\)/);
   assert.match(read("meal-swap-controller.ts"), /invalidateWrite\("meal_edit"\)/);
+});
+
+
+test("the Brief target also drops the last-known Brief the fast path paints from", () => {
+  const storage = memoryStorage([["cairn.brief.v1", '{"date":"2026-09-26"}'], ["other", "1"]]);
+  const env = load({ localStorage: storage });
+  env.api.invalidateChatApplied([{ type: "log_checkin" }]);
+  assert.equal(storage.getItem("cairn.brief.v1"), null);
+  assert.equal(storage.getItem("other"), "1");
+  // The key is the Brief controller's own.
+  assert.match(readFileSync(join(root, "src/client/today-brief-controller.ts"), "utf8"), /BRIEF_LS_KEY = "cairn\.brief\.v1"/);
+});
+
+test("a plan write resets the in-memory plan; meal edits no longer name a dead shop: target", () => {
+  const env = load();
+  env.api.invalidateChatApplied([{ type: "plan_update" }]);
+  assert.deepEqual([...env.context.state.plan], []);
+  assert.ok(!env.api.targetsForWrite("meal_edit").includes("shop:"));
+});
+
+// ---- following a chat turn nobody on screen follows any more ----
+
+function watchEnv({ storage = memoryStorage(), turns = {} } = {}) {
+  const timers = [];
+  const calls = [];
+  const env = load({
+    localStorage: storage,
+    setTimeout: (fn) => {
+      timers.push(fn);
+      return timers.length;
+    },
+    clearTimeout: () => {},
+    document: { visibilityState: "visible", addEventListener() {} },
+    api: async (path) => {
+      calls.push(path);
+      const id = Number(path.split("/").pop());
+      const turn = typeof turns[id] === "function" ? turns[id]() : turns[id];
+      if (turn instanceof Error) throw turn;
+      return turn === undefined ? null : turn;
+    },
+  });
+  // Run the timers pending NOW (one watch tick), not the ones a tick reschedules.
+  const flush = async () => {
+    const due = timers.splice(0);
+    for (const fn of due) fn();
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+  };
+  return { ...env, storage, calls, timers, flush };
+}
+
+test("a turn left running when the athlete walks away from Chat still retires its caches", async () => {
+  let status = "running";
+  const env = watchEnv({
+    turns: { 7: () => ({ id: 7, status, meta: status === "done" ? { applied: [{ type: "log_food" }] } : null }) },
+  });
+  env.api.trackTurn({ id: 7 }, { owned: true });
+  // Chat's monitor owns it: nothing polls.
+  await env.flush();
+  assert.deepEqual(env.calls, []);
+  // Leaving Chat hands it over.
+  env.api.releaseTurn(7);
+  await env.flush(); // still running: one poll, reschedules
+  assert.deepEqual(env.calls, ["/chat/turns/7"]);
+  assert.deepEqual(env.dropped, []);
+  status = "done";
+  await env.flush();
+  assert.ok(env.dropped.includes("food:day:"));
+  assert.ok(env.dropped.includes("today:aggregate:"));
+  assert.equal(env.apiCleared(), 1);
+  assert.equal(env.context.state.brief, null);
+  assert.deepEqual([...env.api.watchedTurns()], []);
+  assert.equal(env.storage.getItem("cairn.turnwatch.v1"), null);
+});
+
+test("a turn is settled once, whoever sees it finish first", async () => {
+  const env = watchEnv();
+  env.api.trackTurn(9, { owned: true });
+  const turn = { id: 9, status: "done", meta: { applied: [{ type: "log_weight" }] } };
+  assert.ok(env.api.settleTurn(turn).includes("progress:weight"));
+  const first = env.dropped.length;
+  assert.deepEqual([...env.api.settleTurn(turn)], []);
+  assert.equal(env.dropped.length, first);
+  env.api.trackTurn(9); // a late re-track of a settled turn is ignored
+  assert.deepEqual([...env.api.watchedTurns()], []);
+});
+
+test("a turn a previous page left unfinished is settled on the next open", async () => {
+  const storage = memoryStorage([["cairn.turnwatch.v1", JSON.stringify([[11, Date.now()]])]]);
+  const env = watchEnv({ storage, turns: { 11: { id: 11, status: "done", meta: { applied: [{ type: "log_set" }] } } } });
+  env.api.resumeTurns();
+  await env.flush();
+  assert.deepEqual(env.calls, ["/chat/turns/11"]);
+  assert.ok(env.dropped.includes("history:sessions"));
+  assert.equal(storage.getItem("cairn.turnwatch.v1"), null);
+});
+
+test("offline polls keep the turn; a turn the server forgot is dropped", async () => {
+  const env = watchEnv({ turns: { 3: new TypeError("offline"), 4: null } });
+  env.api.trackTurn(3);
+  env.api.trackTurn(4);
+  await env.flush();
+  // One tick ran; 3 is kept for the next try, 4 is gone.
+  assert.ok(env.api.watchedTurns().includes(3));
+  assert.ok(!env.api.watchedTurns().includes(4));
+  assert.deepEqual(env.dropped, []);
 });

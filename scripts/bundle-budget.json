@@ -4,22 +4,22 @@
   "bundles": {
     "public/js/bundle-01-core.js": {
       "measured": {
-        "raw": 236547,
-        "brotli": 45775
+        "raw": 242622,
+        "brotli": 46746
       },
       "budget": {
-        "raw": 241664,
-        "brotli": 47104
+        "raw": 247808,
+        "brotli": 48128
       }
     },
     "public/js/bundle-02-today.js": {
       "measured": {
-        "raw": 885261,
-        "brotli": 155201
+        "raw": 890595,
+        "brotli": 156055
       },
       "budget": {
-        "raw": 903168,
-        "brotli": 158720
+        "raw": 909312,
+        "brotli": 159744
       }
     },
     "public/js/bundle-03-capture-progress.js": {
@@ -45,8 +45,8 @@
     "public/js/bundle-05-me-health.js": {
       "lazy": "me-health",
       "measured": {
-        "raw": 512791,
-        "brotli": 89803
+        "raw": 512881,
+        "brotli": 89767
       },
       "budget": {
         "raw": 523264,
@@ -55,18 +55,18 @@
     },
     "public/js/bundle-06-chat-plan.js": {
       "measured": {
-        "raw": 314754,
-        "brotli": 60397
+        "raw": 315641,
+        "brotli": 60485
       },
       "budget": {
-        "raw": 321536,
+        "raw": 322560,
         "brotli": 62464
       }
     },
     "public/js/bundle-07-settings-boot.js": {
       "measured": {
-        "raw": 205681,
-        "brotli": 39105
+        "raw": 205288,
+        "brotli": 39013
       },
       "budget": {
         "raw": 209920,

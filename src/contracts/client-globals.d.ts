@@ -6155,6 +6155,15 @@ declare global {
       invalidateChatApplied(applied: unknown): string[];
       invalidateWrite(name: string, opts?: { keep?: readonly string[] }): string[];
       register(name: string, clear: () => void): void;
+      trackTurn(turn: unknown, opts?: { owned?: boolean }): void;
+      releaseTurn(turn: unknown): void;
+      settleTurn(turn: unknown): string[];
+      resumeTurns(): void;
+      watchedTurns(): number[];
+    };
+    CairnArtInflight: {
+      find(token: string, src: string): HTMLImageElement | null;
+      watch(img: HTMLImageElement, token: string): void;
     };
     CairnArtMemory: {
       version(token: string): number;
@@ -6193,6 +6202,8 @@ declare global {
       }): boolean;
       onControllerChange(reload: () => void): "reloaded" | "deferred";
       reloadIfPending(): boolean;
+      whenLoadedAndIdle(run: () => void): void;
+      controllerChangeListener(hadController: boolean, reload: () => void): () => void;
       LINE_TEXT: string;
       DRAFT_KEYS: readonly string[];
     };
@@ -6201,5 +6212,6 @@ declare global {
   declare const CairnOffline: Window["CairnOffline"];
   declare const CairnTrainSnapshot: Window["CairnTrainSnapshot"];
   declare const CairnArtMemory: Window["CairnArtMemory"];
+  declare const CairnArtInflight: Window["CairnArtInflight"];
   declare const CairnUpdateGate: Window["CairnUpdateGate"];
 }

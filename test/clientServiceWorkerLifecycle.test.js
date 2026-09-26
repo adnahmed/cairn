@@ -50,7 +50,11 @@ function loadLifecycle(options = {}) {
       return intervalCalls.length;
     };
   }
-  if (options.gate) context.CairnUpdateGate = options.gate;
+  // app-update-gate.js loads before either lifecycle copy (bundle-01) and owns the
+  // shared timing + reload rule; a test's `gate` overrides its decision.
+  context.globalThis = context;
+  vm.runInNewContext(readFileSync(new URL("../public/js/app-update-gate.js", import.meta.url), "utf8"), context);
+  if (options.gate) Object.assign(context.CairnUpdateGate, options.gate);
   if (options.requestIdleCallback) context.requestIdleCallback = options.requestIdleCallback;
   if (!options.noDocument) {
     context.document = {

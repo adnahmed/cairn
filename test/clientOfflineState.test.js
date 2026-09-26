@@ -109,3 +109,25 @@ test("Train, Horizon race, Records and the doctor packet route their failures th
   assert.match(src("me-records-health-doc-controller.ts"), /CairnOffline\.isUnreachable\(error\)/);
   assert.match(src("packet-builder-controller.ts"), /CairnOffline\.isUnreachable\(error\)/);
 });
+
+test("a read that began before a write never stores its pre-write body as last-known", async () => {
+  let stamp = 0;
+  let release;
+  let env;
+  env = load({
+    api: () =>
+      new Promise((resolve) => {
+        release = () => resolve({ goal: "pre-write" });
+      }),
+  });
+  env.context.swrStamp = () => String(stamp);
+  const pending = env.offline.read("/endurance-goal", "horizon:endurance-goal");
+  // The goal changes while the read is in flight: the write stores its own truth.
+  stamp += 1;
+  env.stored.set("horizon:endurance-goal", { goal: "post-write" });
+  release();
+  const r = await pending;
+  assert.equal(r.source, "network");
+  assert.equal(r.data.goal, "post-write", "hands back the write's truth");
+  assert.equal(env.stored.get("horizon:endurance-goal").goal, "post-write", "never overwritten");
+});

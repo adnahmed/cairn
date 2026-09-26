@@ -27,6 +27,9 @@
 
     maybeOnboard();
     primeArtManifest();
+    // A chat turn a previous page left running may have written since: settle it so
+    // its writes retire every cache they made stale (write-invalidation-client.ts).
+    (globalThis as { CairnWriteInvalidation?: { resumeTurns?: () => void } }).CairnWriteInvalidation?.resumeTurns?.();
     // First paint is async, so defer a tick; jobReconnect rebuilds each running
     // job's host through the registered reconnector for that job kind.
     setTimeout(() => { jobReconnect(); }, 0);

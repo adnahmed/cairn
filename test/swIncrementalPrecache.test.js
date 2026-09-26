@@ -86,7 +86,7 @@ function makeCacheStorage() {
 }
 
 /** One deploy: the served worker for `version` with `hashes`, over the shared caches. */
-async function deploy(caches, { version, hashes, content }) {
+async function deploy(caches, { version, hashes, content, fail = () => false }) {
   const fetched = [];
   const listeners = {};
   const body = SOURCE.split("cairn-shell-dev").join(version).split("/*cairn-asset-hashes*/ {}").join(JSON.stringify(hashes));
@@ -103,7 +103,7 @@ async function deploy(caches, { version, hashes, content }) {
     fetch: async (req) => {
       const path = keyOf(req);
       fetched.push({ path, cache: req.cache });
-      return new FakeResponse(content(path));
+      return new FakeResponse(content(path), { status: fail(path) ? 500 : 200 });
     },
     setTimeout,
     self: {
@@ -178,4 +178,22 @@ test("activate keeps the art and stable caches and prunes stable entries no long
   await deploy(caches, { version: "cairn-0000000000e1", hashes, content: (p) => `x ${p}` });
   assert.ok(caches.stores.has("cairn-art-v1"));
   assert.equal(await caches.stores.get("cairn-static-v1").match("/icons/icon-192.v2.png"), undefined);
+});
+
+test("an install that fails after replacing a stable file never pins its bytes under the old hash", async () => {
+  const caches = makeCacheStorage();
+  const v1 = Object.fromEntries(ALL.map((url, i) => [url, String(i).padStart(12, "f")]));
+  await deploy(caches, { version: "cairn-0000000000c1", hashes: v1, content: (p) => `v1 ${p}` });
+
+  // v2 changes xterm.js, but a required core file fails: the install never commits,
+  // yet the SHARED stable cache already took v2's xterm.js bytes.
+  const v2 = { ...v1, "/vendor/xterm.js": "999999999999", "/js/bundle-01-core.js": "888888888888" };
+  await assert.rejects(
+    deploy(caches, { version: "cairn-0000000000c2", hashes: v2, content: (p) => `v2 ${p}`, fail: (p) => p === "/js/bundle-01-core.js" })
+  );
+
+  // v3 reverts xterm.js to v1's bytes: it must be fetched again, not "already held".
+  const third = await deploy(caches, { version: "cairn-0000000000c3", hashes: v1, content: (p) => `v1 ${p}` });
+  assert.ok(third.some((f) => f.path === "/vendor/xterm.js"), "the struck entry is fetched again");
+  assert.equal((await caches.stores.get("cairn-static-v1").match("/vendor/xterm.js")).body, "v1 /vendor/xterm.js");
 });

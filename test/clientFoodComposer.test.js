@@ -505,3 +505,85 @@ test("desktop Enter sends and Shift+Enter keeps the newline", async () => {
   await flush();
   assert.equal(api.posts().length, 1);
 });
+
+// ---- the Fuel composer's writes retire every cache, not only Fuel's own ----
+
+function watchSpy() {
+  const events = [];
+  return {
+    events,
+    trackTurn: (turn, opts = {}) => events.push(["track", Number(turn?.id ?? turn), !!opts.owned]),
+    releaseTurn: (turn) => events.push(["release", Number(turn?.id ?? turn)]),
+    settleTurn: (turn) => {
+      events.push(["settle", Number(turn.id), [...(turn.meta?.applied || [])].map((a) => a.type)]);
+      return [];
+    },
+  };
+}
+
+test("a Fuel log settles its turn through the write table before refreshing its own widgets", async () => {
+  const watch = watchSpy();
+  const { win } = load({ globals: { CairnWriteInvalidation: watch } });
+  const answers = [{ id: 5, status: "done", meta: { applied: [{ type: "log_food", result: { id: 90, meal: "lunch" } }] } }];
+  const api = fakeApi({ turn: { id: 5, status: "queued" }, routes: { "/chat/turns/5": () => answers.shift() } });
+  const order = [];
+  const { input, send } = mountFood(win, {
+    api,
+    frequents: false,
+    wait: async () => {},
+    onLogged: () => order.push(watch.events.map((e) => e[0]).join(",")),
+  });
+  input.value = "a turkey sandwich";
+  await send.click();
+  for (let i = 0; i < 6; i++) await flush();
+  assert.deepEqual(watch.events.map((e) => JSON.stringify(e)), [
+    JSON.stringify(["track", 5, false]),
+    JSON.stringify(["track", 5, true]),
+    JSON.stringify(["settle", 5, ["log_food"]]),
+  ]);
+  assert.deepEqual(order, ["track,track,settle"], "settled before onLogged refreshes Fuel");
+});
+
+test("leaving Fuel mid-turn hands the running turn to the background follow; a finished one is still settled", async () => {
+  const watch = watchSpy();
+  const { win } = load({ globals: { CairnWriteInvalidation: watch } });
+  let leave;
+  const api = fakeApi({
+    turn: { id: 8, status: "queued" },
+    routes: {
+      "/chat/turns/8": () => {
+        leave();
+        return { id: 8, status: "running" };
+      },
+    },
+  });
+  const logged = [];
+  const mounted = mountFood(win, { api, frequents: false, wait: async () => {}, onLogged: (x) => logged.push(x) });
+  leave = () => mounted.handle();
+  mounted.input.value = "eggs and toast";
+  await mounted.send.click();
+  for (let i = 0; i < 6; i++) await flush();
+  assert.equal(logged.length, 0);
+  assert.deepEqual(watch.events.at(-1), ["release", 8]);
+  assert.ok(!watch.events.some((e) => e[0] === "settle"));
+
+  // Torn down while the POST was in flight, and the turn came back already done.
+  const watch2 = watchSpy();
+  const { win: win2 } = load({ globals: { CairnWriteInvalidation: watch2 } });
+  let resolvePost;
+  const api2 = fakeApi({
+    turn: () =>
+      new Promise((resolve) => {
+        resolvePost = () =>
+          resolve({ ok: true, turn: { id: 12, status: "done", meta: { applied: [{ type: "log_food", result: { id: 1 } }] } } });
+      }),
+  });
+  const m2 = mountFood(win2, { api: api2, frequents: false, onLogged: () => {} });
+  m2.input.value = "tuna";
+  await m2.send.click();
+  await flush();
+  m2.handle();
+  resolvePost();
+  for (let i = 0; i < 4; i++) await flush();
+  assert.deepEqual(watch2.events.at(-1), ["settle", 12, ["log_food"]]);
+});

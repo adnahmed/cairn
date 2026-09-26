@@ -39,6 +39,8 @@ type UpdateGateApi = {
   snapshot(): UpdateGateInput;
   onControllerChange(reload: () => void): "reloaded" | "deferred";
   reloadIfPending(): boolean;
+  whenLoadedAndIdle(run: () => void): void;
+  controllerChangeListener(hadController: boolean, reload: () => void): () => void;
   LINE_TEXT: string;
   DRAFT_KEYS: readonly string[];
 };
@@ -170,6 +172,58 @@ type UpdateGateApi = {
     return "deferred";
   }
 
-  const CAIRN_UPDATE_GATE: UpdateGateApi = { isSafe, snapshot, onControllerChange, reloadIfPending, LINE_TEXT, DRAFT_KEYS };
+  // ---- shared by both service-worker lifecycle copies ----
+  // (app/service-worker.ts and app/sw-recovery.ts start the same lifecycle; this
+  // module loads before either, so the timing and the reload rule live here once.)
+
+  // After the window's load event, then the next idle slot (bounded, so a busy
+  // page still registers within a few seconds). Without a DOM or the timing APIs
+  // (tests, an old engine) it runs at once.
+  function whenLoadedAndIdle(run: () => void): void {
+    const idle = (): void => {
+      const ric = (globalThis as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
+        .requestIdleCallback;
+      if (typeof ric === "function") ric(run, { timeout: 3000 });
+      else if (typeof setTimeout === "function") setTimeout(run, 1);
+      else run();
+    };
+    const doc = typeof document !== "undefined" ? document : null;
+    const win = typeof window !== "undefined" ? window : null;
+    if (!doc || !doc.readyState || doc.readyState === "complete" || !win || typeof win.addEventListener !== "function") {
+      idle();
+      return;
+    }
+    win.addEventListener("load", idle, { once: true });
+  }
+
+  // The `controllerchange` listener: the first-ever install (no prior controller)
+  // never reloads; otherwise the gate decides WHEN, and the reload fires once.
+  function controllerChangeListener(hadController: boolean, reload: () => void): () => void {
+    let reloading = false;
+    const reloadOnce = (): void => {
+      if (reloading) return;
+      reloading = true;
+      reload();
+    };
+    return () => {
+      if (!hadController || reloading) return;
+      try {
+        CAIRN_UPDATE_GATE.onControllerChange(reloadOnce);
+        return;
+      } catch {}
+      reloadOnce();
+    };
+  }
+
+  const CAIRN_UPDATE_GATE: UpdateGateApi = {
+    isSafe,
+    snapshot,
+    onControllerChange,
+    reloadIfPending,
+    whenLoadedAndIdle,
+    controllerChangeListener,
+    LINE_TEXT,
+    DRAFT_KEYS,
+  };
   Object.assign(globalThis, { CairnUpdateGate: CAIRN_UPDATE_GATE });
 }

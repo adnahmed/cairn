@@ -71,6 +71,14 @@ function _swrPrefixStamp(key: string): number {
   return stamp;
 }
 
+// The write stamp of a key (its own revision + every invalidated prefix covering it).
+// A read that began under one stamp and resolves under another started before a
+// write landed, so its body must not be stored as the key's truth (cachedApi, and
+// CairnOffline.read in offline-state-client.ts).
+function swrStamp(key: string): string {
+  return `${_swrRevision(key)}:${_swrPrefixStamp(key)}`;
+}
+
 // Health-sensitive surfaces stay in the MEMORY tier only, never written to disk.
 // Lab markers, recovery (HRV / RHR / sleep / body-battery), and the Stand health
 // tools (records / learned / directives) are the most personal data the app holds;

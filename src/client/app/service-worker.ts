@@ -1,23 +1,30 @@
 // @ts-check
 {
-  // After the window's load event, then the next idle slot (bounded, so a busy
-  // page still registers within a few seconds). Without a DOM or the timing APIs
-  // (tests, an old engine) it runs at once.
+  // The timing and the reload rule live once, in app/update-gate.ts (loaded before
+  // this file). Without it (a bare test context) registration runs at once and a
+  // controller change reloads once.
+  type LifecycleGate = {
+    whenLoadedAndIdle?: (run: () => void) => void;
+    controllerChangeListener?: (hadController: boolean, reload: () => void) => () => void;
+  };
+  function lifecycleGate(): LifecycleGate | undefined {
+    return (globalThis as { CairnUpdateGate?: LifecycleGate }).CairnUpdateGate;
+  }
   function whenLoadedAndIdle(run: () => void): void {
-    const idle = (): void => {
-      const ric = (globalThis as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
-        .requestIdleCallback;
-      if (typeof ric === "function") ric(run, { timeout: 3000 });
-      else if (typeof setTimeout === "function") setTimeout(run, 1);
-      else run();
+    const gate = lifecycleGate();
+    if (typeof gate?.whenLoadedAndIdle === "function") gate.whenLoadedAndIdle(run);
+    else run();
+  }
+  function controllerChangeListener(hadController: boolean): () => void {
+    const reload = (): void => location.reload();
+    const gate = lifecycleGate();
+    if (typeof gate?.controllerChangeListener === "function") return gate.controllerChangeListener(hadController, reload);
+    let reloading = false;
+    return () => {
+      if (!hadController || reloading) return;
+      reloading = true;
+      reload();
     };
-    const doc = typeof document !== "undefined" ? document : null;
-    const win = typeof window !== "undefined" ? window : null;
-    if (!doc || !doc.readyState || doc.readyState === "complete" || !win || typeof win.addEventListener !== "function") {
-      idle();
-      return;
-    }
-    win.addEventListener("load", idle, { once: true });
   }
 
   function registerServiceWorkerLifecycle(): void {
@@ -33,25 +40,7 @@
     // must not reload. WHEN to reload is the update gate's call (app/update-gate.ts):
     // at once when nothing is in flight, otherwise a quiet "tap to refresh" line and
     // a reload the next time the page is hidden — never mid-set or mid-sentence.
-    const hadController = !!navigator.serviceWorker.controller;
-    let swReloading = false;
-    const reloadOnce = (): void => {
-      if (swReloading) return;
-      swReloading = true;
-      location.reload();
-    };
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!hadController || swReloading) return;
-      const gate = (globalThis as { CairnUpdateGate?: { onControllerChange?: (reload: () => void) => unknown } })
-        .CairnUpdateGate;
-      if (gate && typeof gate.onControllerChange === "function") {
-        try {
-          gate.onControllerChange(reloadOnce);
-          return;
-        } catch {}
-      }
-      reloadOnce();
-    });
+    navigator.serviceWorker.addEventListener("controllerchange", controllerChangeListener(!!navigator.serviceWorker.controller));
 
     // The browser only re-checks sw.js for a new version on navigation, so an
     // installed PWA that resumes from memory (typical for iOS "Add to Home

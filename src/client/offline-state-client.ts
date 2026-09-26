@@ -27,6 +27,7 @@ type OfflineStateRoot = typeof globalThis & {
   api?: (path: string, opts?: Record<string, unknown>) => Promise<unknown>;
   peekCached?: <T = unknown>(key: string, freshFor?: number) => { data: T; fresh: boolean } | null;
   swrSet?: <T = unknown>(key: string, data: T) => void;
+  swrStamp?: (key: string) => string;
   CairnUi?: { emptyStateHtml(options: { title: unknown; body?: unknown; action?: unknown; className?: string }): string };
   escHtml?: (value: unknown) => string;
 };
@@ -64,7 +65,15 @@ type OfflineStateApi = {
     const root = globalThis as OfflineStateRoot;
     try {
       if (typeof root.api !== "function") throw new TypeError("api unavailable");
+      const stampAtStart = key ? root.swrStamp?.(key) : undefined;
       const data = (await root.api(path)) as T;
+      // A write that landed while this read was in flight (a goal change, a chat
+      // turn's log) makes this body pre-write truth: never store it as last-known,
+      // and hand back whatever the write left instead when there is one.
+      if (key && stampAtStart !== undefined && root.swrStamp?.(key) !== stampAtStart) {
+        const current = root.peekCached?.<T>(key, 0);
+        return { data: current ? current.data : data, source: "network", unreachable: false };
+      }
       try {
         if (key) root.swrSet?.(key, data);
       } catch {}
