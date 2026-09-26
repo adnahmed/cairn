@@ -4022,6 +4022,7 @@ declare global {
       ): void;
       runFallbackRail(isToday: boolean, deps: ClientTodayRailControllerDeps): void;
       promoteAttentionLead(root: ParentNode, attention: ClientTodayAttention | null | undefined): void;
+      mountChangesLine(root: ParentNode, deps: ClientTodayRailControllerDeps): () => void;
       loadFuelToday(date: string, deps: ClientTodayRailControllerDeps): Promise<void>;
       loadWeekAhead(deps: ClientTodayRailControllerDeps): Promise<void>;
       loadProgramAdjustmentsBanner(deps: ClientTodayRailControllerDeps): Promise<void>;
@@ -4037,6 +4038,17 @@ declare global {
       loadProgramAdjustmentsBanner(deps: ClientTodayRailControllerDeps): Promise<void>;
       loadRecentActivities(deps: ClientTodayRailControllerDeps): Promise<void>;
       loadGarminReconcile(deps: ClientTodayRailControllerDeps): Promise<void>;
+    };
+
+    CairnChangesLine: {
+      model(read: Partial<import("./brain-changes.js").ClientBrainChanges> | null | undefined): ClientChangesLineModel | null;
+      html(model: ClientChangesLineModel | null, opts?: { enter?: boolean }): string;
+    };
+
+    CairnChangesLineController: {
+      key: string;
+      path: "/brain/changes";
+      mount(host: Element, deps: ClientChangesLineDeps): () => void;
     };
 
     CairnTodaySideLoaders: ClientTodaySideLoaders;
@@ -5091,6 +5103,15 @@ declare global {
   declare const CairnTodayAgenda: Window["CairnTodayAgenda"];
   declare const CairnTodayRailController: Window["CairnTodayRailController"];
   declare const CairnTodayRailLoaders: Window["CairnTodayRailLoaders"];
+  declare const CairnChangesLine: Window["CairnChangesLine"];
+  declare const CairnChangesLineController: Window["CairnChangesLineController"];
+  type ClientChangesLineModel = { count: number; line: string; ids: number[] };
+  type ClientChangesLineDeps = {
+    peek(key: string): { data: import("./brain-changes.js").ClientBrainChanges; fresh: boolean } | null;
+    load(path: "/brain/changes", options: { key: string }): Promise<import("./brain-changes.js").ClientBrainChanges>;
+    open(): void;
+    reducedMotion(): boolean;
+  };
   declare const CairnTodaySideLoaders: Window["CairnTodaySideLoaders"];
   declare const CairnTodayPlanSelection: Window["CairnTodayPlanSelection"];
   declare const CairnTodayPlanSessionModel: Window["CairnTodayPlanSessionModel"];
