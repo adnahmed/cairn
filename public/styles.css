@@ -6253,6 +6253,22 @@ button.prow-name:hover{color:var(--accent)}
 .fed-macros{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:420px){.dayfuel-totals{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
+/* ─── The changes line (changes-line-client.ts): "2 changes overnight" ───
+   One quiet row under the Brief that opens the Changes feed. The server owns the
+   sentence; the slot collapses when there is nothing new. A tap target, not a card:
+   no fill, no shadow, a sage mark and a chevron. */
+.changes-line-slot:empty{display:none}
+.changes-line-slot{margin:0 0 var(--space-6)}
+.changes-line{display:flex;align-items:center;gap:var(--space-5);width:100%;min-height:44px;
+  padding:var(--space-3) var(--space-2);background:none;border:none;border-radius:var(--radius-sm);
+  font:inherit;text-align:left;cursor:pointer;color:var(--ink-2);
+  transition:color var(--dur-1) var(--ease),background-color var(--dur-1) var(--ease)}
+.changes-line:hover{color:var(--ink);background:var(--card-2)}
+.changes-line:active{transform:var(--press-lg)}
+.changes-line-mark{flex:none;width:7px;height:7px;border-radius:var(--radius-pill);background:var(--sage)}
+.changes-line-text{flex:1;min-width:0;font-size:var(--text-md);line-height:1.4}
+.changes-line-go{flex:none;color:var(--muted);font-size:var(--text-base);line-height:1}
+
 /* ─── The conductor: one sequenced whole-athlete focus (coachingFocusCardHtml) ───
    The cross-domain analog of the health-focus lever. ONE coach's note: a headline
    through-line, the sage-spined LEAD hero (mirrors .pperf-hero / .hstand-lever),

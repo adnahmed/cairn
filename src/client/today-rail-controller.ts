@@ -204,6 +204,32 @@ type TodayRailDeps = {
     if (rail && !remaining) rail.querySelector(".rail-mast")?.remove();
   }
 
+  // The changes line ("2 changes overnight") sits directly under the Brief. Its slot
+  // is made here, beside the conductor slot, so a repaint that rebuilt the column
+  // gets a fresh one; the component mounts into it and never looks outside it. A
+  // tap opens the Changes feed the way every other Plan › Changes jump does.
+  function mountChangesLine(root: ParentNode, deps: TodayRailDeps): () => void {
+    const anchor = root.querySelector("#cfocusSlot") || root.querySelector("#attentionLead");
+    const parent = anchor?.parentNode;
+    if (!anchor || !parent) return () => {};
+    let slot = root.querySelector("#changesLineSlot");
+    if (!slot) {
+      slot = anchor.ownerDocument.createElement("div");
+      slot.id = "changesLineSlot";
+      slot.className = "changes-line-slot";
+      parent.insertBefore(slot, anchor);
+    }
+    return CairnChangesLineController.mount(slot, {
+      peek: (key) => peekCached(key),
+      load: (path, options) => cachedApi(path, options),
+      reducedMotion: () => reducedMotion(),
+      open: () => {
+        deps.state.planJump = "coach";
+        deps.activateTab("plan");
+      },
+    });
+  }
+
   function wireGenericAgendaCards(pending: TodayRailCandidate[], deps: TodayRailDeps): void {
     if (!pending.length) return;
     deps.root.querySelectorAll<HTMLElement>("[data-agenda-act]").forEach((button) => {
@@ -346,6 +372,7 @@ type TodayRailDeps = {
     runFallbackRail,
     prefetchRail,
     promoteAttentionLead,
+    mountChangesLine,
     loadFuelToday: (date: string, deps: TodayRailDeps) => railLoaders().loadFuelToday(date, deps),
     loadWeekAhead: (deps: TodayRailDeps) => railLoaders().loadWeekAhead(deps),
     loadProgramAdjustmentsBanner: (deps: TodayRailDeps) => railLoaders().loadProgramAdjustmentsBanner(deps),

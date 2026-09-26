@@ -624,7 +624,7 @@ async function renderToday(opts: any = {}) {
   );
 
   wireExerciseDecisionUndo(todayView, () => renderToday({ soft: true }));
-
+  if (isToday) CairnTodayRailController.mountChangesLine(todayView, todayRailDeps()); // "2 changes overnight"
   wireGuides(view);
 
   CairnTodaySessionController.wireSessionSurface({ session, hasLoggedSets, lastSets }, todaySessionDeps());
