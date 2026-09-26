@@ -15,7 +15,7 @@ import { getBrainRollback, listBrainDecisions, listBrainExpectations } from "../
 import { latestBrainEvaluation } from "../../repo/brain-evaluations.js";
 import { getAppState, setAppState } from "../../repo/app-state.js";
 import { getProposal } from "../../repo/proposals.js";
-import { violatesReadingGrammar } from "../../repo/day-read-grammar.js";
+import { athleteLine } from "../../repo/brain/clinician-ask.js";
 import { type PlanPrescription, planPrescriptionKey, planPrescriptionSnapshot } from "../../repo/plan.js";
 import { pickDayVariant } from "../../repo/brain/day-read-rules.js";
 import {
@@ -266,9 +266,10 @@ function touched(decision: BrainDecision, draft: Draft | null, read: ReadContext
 // ---------- the athlete register ----------
 
 // Producers' own prefixes on `instruction`/`rationale` ("auto: …", "case conference: …")
-// — a record of who drafted it, not a sentence for a person. Narrowed to the known
-// producers, so an athlete-facing sentence that opens "Heads up: …" still reads.
-const MACHINE_PREFIX = /^\s*(?:auto|case conference|chat|background|nutrition):\s/i;
+// — a record of who drafted it, not a sentence for a person — are refused by
+// `athleteLine` (src/repo/brain/clinician-ask.ts), the one athlete-line gate the feed and
+// the clinician ask projection share. Narrowed to the known producers, so an
+// athlete-facing sentence that opens "Heads up: …" still reads.
 
 // The progression engine. Its changes are earned from the log, which is the one cause
 // the feed may name when it composes a why nobody wrote.
@@ -296,8 +297,8 @@ function sameText(a: unknown, b: unknown): boolean {
 }
 
 function spoken(text: unknown, max: number, draft: Draft | null = null): string | null {
-  const value = clipText(text, max, { collapseWhitespace: true, wordBoundary: true, sentenceBoundary: true });
-  if (!value || MACHINE_PREFIX.test(value) || violatesReadingGrammar(value)) return null;
+  const value = athleteLine(text, max);
+  if (!value) return null;
   // The decision's rationale falls back to the draft's `instruction` when the draft
   // wrote no rationale — the producer's label ("day 1 progression", "swap A → B",
   // "evolve program") or an agent-facing instruction. Never a why.

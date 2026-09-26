@@ -84,7 +84,19 @@ export function planUpcomingNote(windowDays = 10): PlanUpcomingNote | null {
   // good intent evaporates unseen.
   const awaiting = awaitingBrainDecisions()
     .filter((d) => planDomain(d.domain))
-    .map((d) => ({ ...row(d, d.decided_date), ...(d.for_clinician ? { for_clinician: true } : {}) }))
+    .map((d) => {
+      if (!d.for_clinician) return row(d, d.decided_date);
+      // A clinical ask's line is its athlete-facing title, blank when it has none; its
+      // sentence (or question) then carries the row alone, never a blank one.
+      const line = String(d.summary ?? "").trim();
+      return {
+        ...row(
+          { ...d, summary: line || String(d.explanation ?? ""), explanation: line ? d.explanation : null },
+          d.decided_date
+        ),
+        for_clinician: true,
+      };
+    })
     .filter((item) => item.summary);
 
   if (!items.length && !landed.length && !awaiting.length) return null;

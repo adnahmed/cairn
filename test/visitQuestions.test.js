@@ -1,6 +1,7 @@
 // Visit questions and "evidence the team would like" (v2 wave 3).
 //   - each doctor-loop follow-up proposes ONE question (the loop is already collapsed
-//     per panel), plus any clinical ask the team holds for a doctor, printed as written
+//     per panel), plus any clinical ask the team holds for a doctor, asked as one short
+//     question in the athlete's own voice — never the agent's note printed as written
 //   - the evidence read is at most ONE calm line, or null — pull, never push
 // Every fixture is synthetic: invented names, dates and values.
 import { beforeEach, test } from "node:test";
@@ -13,6 +14,8 @@ import {
 } from "../dist/domain/health/visit-questions.js";
 import { evidenceWantedRead } from "../dist/domain/health/evidence-wanted.js";
 import { registerConnectedBrainTools } from "../dist/surfaces/mcp/connected-brain.js";
+import { recordConferenceClinicianNotes } from "../dist/domain/brain/conference-clinician-notes.js";
+import { CLINICIAN_ASK_BASIS, CLINICIAN_ASK_FALLBACK } from "../dist/repo/brain/clinician-ask.js";
 
 beforeEach(() => {
   resetTables(
@@ -34,12 +37,12 @@ function seedLipidFollowUp() {
   repo.refreshDoctorLoopAttention();
 }
 
-function seedClinicalAsk(text) {
+function seedClinicalAsk(text, summary = "Synthetic clinical hold") {
   return repo.recordDecision({
     effective_date: localDaysAgo(1),
     kind: "lifestyle_adjustment",
     domain: "health",
-    summary: "Synthetic clinical hold",
+    summary,
     rationale: "Synthetic rationale.",
     source: "test",
     source_ref_type: null,
@@ -119,15 +122,84 @@ test("a follow-up a year out is not a question for this visit", () => {
   assert.ok(!early.questions.some((q) => q.id === "loop:panel:lipids"));
 });
 
-test("a clinical ask the team holds for a doctor leads, printed as written", () => {
+// A synthetic note in the register a conference writes for the TEAM: about the athlete
+// in the third person, with jargon and a named clinician, and long enough to be clipped.
+const TEAM_REGISTER_NOTE =
+  "Arrange for the athlete to review statin therapy authorization, a coronary calcium scan and a carotid ultrasound with Dr. Placeholder at the outpatient clinic; keep the synthetic vitamin D routine and book a lipid specialist consult once the next synthetic panel is back, then revisit the whole plan.";
+
+test("a clinical ask leads as one short question in the athlete's voice, never the agent's note", () => {
   seedLipidFollowUp();
-  const text = "Synthetic note: ask whether the new routine changes when the next draw should be.";
-  const decision = seedClinicalAsk(text);
+  recordConferenceClinicianNotes([TEAM_REGISTER_NOTE], { rationale: "Synthetic rationale." });
   const read = visitQuestionsRead({ asOf: "2026-05-01" });
-  assert.equal(read.questions[0].source, "clinical_ask");
-  assert.equal(read.questions[0].id, `ask:${decision.id}`);
-  assert.equal(read.questions[0].text, text);
+  const ask = read.questions[0];
+  assert.equal(ask.source, "clinical_ask");
+  assert.equal(
+    ask.text,
+    "Should we talk about a statin, a coronary calcium (CAC) scan, a carotid ultrasound, a lipid specialist, and vitamin D?"
+  );
+  assert.equal(ask.basis, CLINICIAN_ASK_BASIS, "a plain basis, never null");
+  assert.match(ask.text, /^[^.!?]+\?$/, "one sentence, a question");
+  assert.doesNotMatch(ask.text, /…|\bathlete\b|\bDr\.?\s|Placeholder|authori|outpatient/i);
   assert.equal(read.questions.filter((q) => q.source === "clinical_ask").length, 1);
+
+  // The ask card reads the same projection: no clinician register, no clinician's name.
+  const [card] = repo.awaitingBrainDecisions().filter((row) => row.for_clinician);
+  assert.equal(card.explanation, ask.text);
+  assert.equal(card.summary, "", "the agent's note is not a title");
+  assert.equal(card.clinician_question, ask.text);
+  // The ledger keeps what the agent wrote.
+  assert.match(repo.getBrainDecision(card.id).action.user_explanation, /Placeholder/);
+});
+
+test("a clinical ask with no named topic asks by its athlete-facing title", () => {
+  const decision = seedClinicalAsk(
+    "Arrange the athlete's follow-up per physician recommendation.",
+    "Timing of the next checkup"
+  );
+  const ask = visitQuestionsRead({ asOf: "2026-05-01" }).questions.find((q) => q.source === "clinical_ask");
+  assert.equal(ask.id, `ask:${decision.id}`);
+  assert.equal(ask.text, "Can we talk about timing of the next checkup?");
+  assert.equal(ask.basis, CLINICIAN_ASK_BASIS);
+});
+
+test("a clinical ask with nothing athlete-facing stays off the visit list but keeps its ask card", () => {
+  const text = "Arrange for the athlete to go over the synthetic follow-up plan.";
+  const decision = seedClinicalAsk(text, text);
+  const read = visitQuestionsRead({ asOf: "2026-05-01" });
+  assert.equal(read.questions.filter((q) => q.source === "clinical_ask").length, 0);
+  const card = repo.awaitingBrainDecisions().find((row) => row.id === decision.id);
+  assert.ok(card, "it still waits on the ask card");
+  assert.equal(card.for_clinician, true);
+  assert.equal(card.explanation, CLINICIAN_ASK_FALLBACK);
+  assert.equal(card.summary, "");
+  assert.equal(card.clinician_question, null);
+});
+
+test("a clinical sentence written to the athlete stays theirs on the ask card", () => {
+  const text = "Your synthetic ApoB stayed high across two draws; worth asking your doctor about a statin.";
+  const decision = seedClinicalAsk(text, "Statin question for your doctor");
+  const card = repo.awaitingBrainDecisions().find((row) => row.id === decision.id);
+  assert.equal(card.explanation, text, "the athlete's own register is kept whole");
+  assert.equal(card.summary, "Statin question for your doctor");
+  assert.equal(card.clinician_question, "Should we talk about a statin?");
+});
+
+test("every doctor-loop policy sentence speaks plainly", () => {
+  const sentences = repo.doctorLoopPolicySentences();
+  assert.ok(sentences.length >= 10);
+  for (const sentence of sentences)
+    assert.doesNotMatch(
+      sentence,
+      /off optimal|actively moving|\bbatch|response window|\blever\b/i,
+      `engineering words in: ${sentence}`
+    );
+  // A DEXA row filed under the old wording is spoken in the new one until the next refresh.
+  assert.equal(
+    repo.loopPolicySentence(
+      "Body composition is actively moving or off optimal; batch the next DEXA/body-comp check after a real response window."
+    ),
+    "Body composition changes slowly, so a repeat scan says the most a few months after the last one."
+  );
 });
 
 test("the athlete's final list replaces the proposals and matches proposals by text", () => {

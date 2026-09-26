@@ -15,6 +15,7 @@ import {
 } from "../brain/expectation-contract.js";
 import { withSqliteSavepoint } from "./sqlite-savepoint.js";
 import { clinicianFloorHolds } from "../brain/autonomy.js";
+import { clinicianAskVoice } from "./brain/clinician-ask.js";
 import { retireSupersededExpectations } from "./brain/expectation-arbitration.js";
 
 function json(value: unknown): string | null {
@@ -266,6 +267,10 @@ export interface AwaitingBrainDecision extends UpcomingBrainDecision {
   // out of a bundle so the rest could land. Surfaces render these under their own
   // "For you and your doctor" mast, never as "Waiting on you".
   for_clinician: boolean;
+  // On a `for_clinician` row only: the one short question the athlete would ask their
+  // doctor (clinicianAskVoice, src/repo/brain/clinician-ask.ts), or null when nothing
+  // athlete-facing exists — the visit questions then leave it to the ask card.
+  clinician_question?: string | null;
 }
 
 // A conference's clinical note is information to take to a visit, not an open question,
@@ -288,7 +293,7 @@ function awaitingEntry(
   decidedDate: string,
   forClinician: boolean
 ): AwaitingBrainDecision {
-  return {
+  const entry: AwaitingBrainDecision = {
     id,
     kind: String(d.kind),
     domain: String(d.domain),
@@ -300,6 +305,13 @@ function awaitingEntry(
     explanation,
     for_clinician: forClinician,
   };
+  if (!forClinician) return entry;
+  // A clinical ask is agent text, and a conference writes its parallel actions for the
+  // team — a clinician's note about the athlete in the third person reached the ask card
+  // and the visit questions verbatim. Every surface reads the athlete-register projection;
+  // the ledger row keeps what the agent wrote.
+  const voice = clinicianAskVoice(d);
+  return { ...entry, summary: voice.line, explanation: voice.explanation, clinician_question: voice.question };
 }
 
 export function awaitingBrainDecisions(limit = 20): AwaitingBrainDecision[] {
