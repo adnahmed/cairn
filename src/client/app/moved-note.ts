@@ -29,7 +29,7 @@ type MovedNoteApi = {
   const DISMISS_PREFIX = "cairn.nav.moved.v1.";
   // One line per home, shown on the home's landing view only.
   const NOTES: Readonly<Record<string, { view: string; text: string }>> = {
-    today: { view: "today", text: "Food logging now opens from Today, through the Fuel card." },
+    today: { view: "today", text: "Food logging now opens from Today: tap Fuel." },
     train: { view: "progress", text: "Your plan now lives in Train, under Program." },
     horizon: { view: "horizon", text: "Your race build now lives in Horizon." },
     ask: { view: "chat", text: "Coach is now Ask. The team's change record lives here too." },

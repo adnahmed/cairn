@@ -359,3 +359,42 @@ test("Progress top-group buttons route to the group's default leaf", async () =>
   );
   assert.ok(calls.some((call) => call[0] === "syncRouteFromState"));
 });
+
+// v2 wave 5: Fuel logging moved to Today (/app/today/fuel). Train's Fuel group keeps
+// the trends and carries one "Log food" line there; no other group does.
+test("Train's Fuel group carries a Log food line to Today's Fuel, and only the Fuel group", () => {
+  const context = loadSegments();
+  Object.assign(context, { URL, URLSearchParams });
+  vm.runInNewContext(readFileSync(join(root, "public/js/route-state.js"), "utf8"), context);
+  context.routeApi = () => context.window.CairnRoutes;
+  const { controller } = createController(context);
+  const PROGRESS_SEG = context.CairnUiSegments.PROGRESS_SEG;
+  for (const leaf of ["intake", "energy"]) {
+    const html = controller.segBar(leaf, PROGRESS_SEG);
+    assert.match(html, /<a class="tov-jpoint" href="\/app\/today\/fuel" data-fuel-log-point>/, leaf);
+    assert.match(html, />Log food</);
+  }
+  for (const leaf of ["overview", "sessions", "program", "weight"]) {
+    assert.doesNotMatch(controller.segBar(leaf, PROGRESS_SEG), /data-fuel-log-point/, leaf);
+  }
+
+  const link = {
+    listeners: {},
+    addEventListener(type, fn) {
+      this.listeners[type] = fn;
+    },
+  };
+  const view = {
+    querySelectorAll: (selector) => (selector === "[data-fuel-log-point]" ? [link] : []),
+  };
+  const wired = createController(context, { view });
+  wired.controller.wireSeg(wired.controller.progressHandlers);
+  // A modified click keeps the link's own behaviour (a new tab).
+  link.listeners.click({ button: 0, metaKey: true, preventDefault: () => assert.fail("not intercepted") });
+  assert.deepEqual(plain(wired.calls), []);
+  let prevented = false;
+  link.listeners.click({ button: 0, preventDefault: () => (prevented = true) });
+  assert.equal(prevented, true);
+  assert.equal(wired.state.planJump, "food");
+  assert.deepEqual(plain(wired.calls), [["activateTab", "plan"]]);
+});

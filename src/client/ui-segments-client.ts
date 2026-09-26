@@ -147,9 +147,22 @@ function uiProgressSubBar(group: string, activeLeaf: string): string {
     wrapClass: "prog-subwrap",
   });
 }
+// The Fuel group reads the trends (Intake, Energy); logging is a same-day act that
+// lives on Today's Fuel. One quiet pointer line under the group's bar leads there,
+// so the trends never strand someone who came to log.
+function uiFuelLogPointerHtml(): string {
+  const routes = typeof routeApi === "function" ? routeApi() : null;
+  const href = routes?.routeToUrl({ tab: "plan", section: "food" }) || "/app/today/fuel";
+  return `<a class="tov-jpoint" href="${escAttr(href)}" data-fuel-log-point>
+    <span class="lbl tov-jpoint-kick">Fuel</span>
+    <span class="tov-jpoint-line">Log food</span>
+    <span class="tov-jpoint-arw" aria-hidden="true">›</span>
+  </a>`;
+}
 function uiProgressNav(activeLeaf: string): string {
   const group = uiProgressGroupOf(activeLeaf);
-  return uiProgressGroupBar(group) + uiProgressSubBar(group, activeLeaf);
+  const pointer = group === "fuel" ? uiFuelLogPointerHtml() : "";
+  return uiProgressGroupBar(group) + uiProgressSubBar(group, activeLeaf) + pointer;
 }
 
 let uiPrimaryDiscipline = "strength";
@@ -263,6 +276,15 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
         if (button.classList.contains("active")) return;
         const handler = handlers[uiProgressGroupDefaultLeaf(String(button.dataset.proggroup || ""))];
         if (handler) drive(button, handler);
+      })
+    );
+    // The Fuel group's "Log food" line leaves Train for Today's Fuel; a modified
+    // click keeps the link's own behaviour.
+    deps.root.querySelectorAll<HTMLElement>("[data-fuel-log-point]").forEach((link) =>
+      link.addEventListener("click", (event: MouseEvent) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        openPlan("food");
       })
     );
     deps.root.querySelectorAll(".seg").forEach(fitSeg);

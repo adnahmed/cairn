@@ -6668,7 +6668,8 @@ body[data-tab="session"] .tabbar{display:none}
 /* ─── Train · the journey line ───────────────────────────────────────────────
    One calm line on the Train overview (the phase read, or the next checkpoint),
    pointing to Horizon's goal line, where the journey story and the road-ahead
-   timeline live in full. */
+   timeline live in full. The Fuel group's "Log food" line (Intake, Energy) wears
+   the same shape, pointing to Today's Fuel. */
 .tov-jpoint{margin:16px 0;display:flex;align-items:center;gap:12px;min-height:44px;
   padding:13px 16px;background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
   color:inherit;text-decoration:none;transition:transform var(--dur-1) var(--ease)}
