@@ -361,8 +361,6 @@ export const BUNDLES = [
       "public/js/markdown-client.js",
       "public/js/ui-components.js",
       "public/js/ui-reads.js",
-      "public/js/ui-stone-model.js",
-      "public/js/ui-stone.js",
       "public/js/ui-feedback-client.js",
       "public/js/ui-actions-client.js",
       "public/js/ui-sheet.js",
@@ -423,6 +421,9 @@ export const BUNDLES = [
       "public/js/today-rail-loaders-client.js",
       "public/js/changes-line-client.js",
       "public/js/changes-line-controller.js",
+      // The stone renderer: its only callers (pebble strip, cairn stack, stone detail) live here.
+      "public/js/ui-stone-model.js",
+      "public/js/ui-stone.js",
       "public/js/pebble-strip-model.js",
       "public/js/pebble-strip-client.js",
       "public/js/pebble-strip-controller.js",
