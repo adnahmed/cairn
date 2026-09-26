@@ -25,6 +25,20 @@ function wireHorizonBack(root: ParentNode): void {
   });
 }
 
+// The tab-bar Horizon button is the home, so it always opens the timeline, whatever
+// section Horizon last showed (a goal-line visit from Train would otherwise stick).
+// Capture phase: it runs before the tab bar's own handler reads state.horizonSeg.
+if (typeof document !== "undefined") {
+  document.addEventListener(
+    "click",
+    (event: Event) => {
+      const target = event.target as Element | null;
+      if (target?.closest?.('.tab[data-tab="horizon"]')) state.horizonSeg = null;
+    },
+    true
+  );
+}
+
 {
   type HorizonRoute = NonNullable<Parameters<typeof applyRouteState>[0]>;
 

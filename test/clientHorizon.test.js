@@ -117,6 +117,10 @@ function journey() {
         robust_trend_lb_wk: -0.84,
         progress_fraction: 0.4,
       },
+      scale: {
+        state: "trend_clear",
+        line: "The completed-day trend is about -0.84 lb per week across the robust energy window.",
+      },
     },
     goal_consistency: null,
   };
@@ -263,7 +267,10 @@ test("goal line: the phase read, the bodyweight toward the goal, and the non-lab
   const lane = win.CairnHorizonModel.goalLane(journey(), timeline(), TODAY);
   assert.equal(lane.state, "set");
   assert.match(lane.headline, /Mid-cut/);
-  assert.equal(lane.lede, "195.4 lb now, 180 lb the goal. Trending down about 0.8 lb a week.");
+  assert.equal(
+    lane.lede,
+    "195.4 lb now, 180 lb the goal. The completed-day trend is about -0.84 lb per week across the robust energy window."
+  );
   const labels = lane.rows.map((row) => row.label);
   // Lab rows belong to the labs lane; a past re-test and an undated standard stay off.
   assert.deepEqual(plain(labels), ["Block ends", "Goal weight"]);
@@ -271,11 +278,15 @@ test("goal line: the phase read, the bodyweight toward the goal, and the non-lab
   assert.deepEqual(plain(lane.links[0].target), { tab: "horizon", section: "goal" });
 });
 
-test("goal line: a steady trend reads steady; no journey and no road is 'No goal line yet'", () => {
+test("goal line: the scale speaks in the server's words; no journey and no road is 'No goal line yet'", () => {
   const win = load();
   const read = journey();
-  read.recomposition.progress.robust_trend_lb_wk = 0.02;
-  assert.match(win.CairnHorizonModel.weightLine(read), /holding steady/);
+  // A trend number the renderer could turn into a pace word stays unspoken; the server's line is the voice.
+  read.recomposition.progress.robust_trend_lb_wk = 0.4;
+  read.recomposition.scale = { state: "settling", line: "The trend is still settling." };
+  assert.equal(win.CairnHorizonModel.weightLine(read), "195.4 lb now, 180 lb the goal. The trend is still settling.");
+  delete read.recomposition.scale;
+  assert.equal(win.CairnHorizonModel.weightLine(read), "195.4 lb now, 180 lb the goal.");
   const none = win.CairnHorizonModel.goalLane(null, [], TODAY);
   assert.equal(none.state, "none");
   assert.equal(none.headline, "No goal line yet");
@@ -524,4 +535,15 @@ test("Horizon's landing is the timeline; its goal section is the journey story w
   assert.equal(state.routed.section, "records");
   assert.equal(state.routed.id, "11");
   assert.deepEqual(tabs, ["horizon", "stand"]);
+
+  // A goal-line visit never sticks: the tab-bar Horizon button is the home, the timeline.
+  const bar = document.createElement("nav");
+  bar.innerHTML = `<button class="tab" data-tab="horizon"><span class="tab-lbl">Horizon</span></button>
+    <button class="tab" data-tab="today"><span class="tab-lbl">Today</span></button>`;
+  document.body.appendChild(bar);
+  state.horizonSeg = "goal";
+  bar.querySelector('[data-tab="today"] .tab-lbl').click();
+  assert.equal(state.horizonSeg, "goal", "another tab leaves Horizon's section alone");
+  bar.querySelector('[data-tab="horizon"] .tab-lbl').click();
+  assert.equal(state.horizonSeg, null);
 });

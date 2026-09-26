@@ -170,18 +170,15 @@
     return null;
   }
 
+  /** Bodyweight now and at the goal, then the server's own scale sentence: never a pace word derived here. */
   function weightLine(read: JourneyRead | null): string {
     const progress = read?.recomposition?.progress;
     const now = num(progress?.current_weight_lb);
     const goal = num(progress?.goal_weight_lb ?? read?.profile?.goal_weight_lb);
     if (now == null || goal == null) return "";
     const lb = (n: number) => `${Math.round(n * 10) / 10} lb`;
-    const head = `${lb(now)} now, ${lb(goal)} the goal.`;
-    const trend = num(progress?.robust_trend_lb_wk);
-    if (trend == null) return head;
-    if (Math.abs(trend) < 0.1) return `${head} The trend is holding steady.`;
-    const pace = (Math.round(Math.abs(trend) * 10) / 10).toFixed(1);
-    return `${head} Trending ${trend < 0 ? "down" : "up"} about ${pace} lb a week.`;
+    const scale = text(read?.recomposition?.scale?.line);
+    return `${lb(now)} now, ${lb(goal)} the goal.${scale ? ` ${scale}` : ""}`;
   }
 
   function phaseLine(read: JourneyRead | null): string {
