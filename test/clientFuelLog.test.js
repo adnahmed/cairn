@@ -72,10 +72,10 @@ test("the Log button is a real 44px-class button that opens the composer in food
 test("Start from this fills the composer for editing and never sends", () => {
   const win = load();
   const { host, handle, composer } = mount(win);
-  handle.open("Greek yogurt (a double portion)");
+  handle.open("Greek yogurt (a half portion)");
   assert.equal(host.querySelector("[data-fuel-log-toggle]").getAttribute("aria-expanded"), "true");
-  assert.deepEqual(composer.mounts[0].fills, ["Greek yogurt (a double portion)"]);
-  assert.equal(host.querySelector("textarea").value, "Greek yogurt (a double portion)");
+  assert.deepEqual(composer.mounts[0].fills, ["Greek yogurt (a half portion)"]);
+  assert.equal(host.querySelector("textarea").value, "Greek yogurt (a half portion)");
 });
 
 test("a logged meal is handed back and the panel closes; the composer lives until teardown", () => {
@@ -185,11 +185,11 @@ test("Start from this keeps what the athlete already typed: the idea goes on a l
   handle.open();
   const input = host.querySelector("textarea");
   input.value = "eggs 3\ntoast 2 slices\n";
-  handle.open("Greek yogurt (a double portion)");
-  assert.equal(input.value, "eggs 3\ntoast 2 slices\nGreek yogurt (a double portion)");
+  handle.open("Greek yogurt (a half portion)");
+  assert.equal(input.value, "eggs 3\ntoast 2 slices\nGreek yogurt (a half portion)");
   assert.deepEqual(toasts, ["Added below what you'd typed"]);
-  handle.open("Greek yogurt (a double portion)");
-  assert.equal(input.value, "eggs 3\ntoast 2 slices\nGreek yogurt (a double portion)", "never twice");
+  handle.open("Greek yogurt (a half portion)");
+  assert.equal(input.value, "eggs 3\ntoast 2 slices\nGreek yogurt (a half portion)", "never twice");
   assert.equal(composer.mounts.length, 1);
 });
 

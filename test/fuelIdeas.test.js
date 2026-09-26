@@ -1,17 +1,40 @@
 // v2 wave 2, stream A — ideas on demand replace scheduled meal plans.
 //
-// GET /api/fuel/ideas is deterministic: three ideas from the athlete's own staples,
-// sized to the rest of today inside the observed intake band, protein first. An idea
-// never trades protein away to fit the band, is never logged, and never drafts a plan.
+// GET /api/fuel/ideas is deterministic: up to three ideas from what the athlete eats
+// again and again, each sized as ONE MEAL of the rest of today (never sized up),
+// inside the observed intake band, protein first. An idea never trades protein away
+// to fit the band, never names alcohol, is never logged, and never drafts a plan.
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { db, repo, resetTables, localDaysAgo, seedIntake, seedWeight } from "./_seed.js";
-import { fuelEnergyBound, fuelIdeas, sizeFuelIdea, todaySoFar } from "../dist/repo/fuel-ideas.js";
+import {
+  capIdeaTitle,
+  FUEL_IDEA_TITLE_MAX,
+  FUEL_STAPLE_MIN_DAYS,
+  fuelEnergyBound,
+  fuelHealthAlignment,
+  fuelHealthLeans,
+  fuelIdeas,
+  fuelStaples,
+  isAlcoholFood,
+  sizeFuelIdea,
+  stripAlcohol,
+  todaySoFar,
+} from "../dist/repo/fuel-ideas.js";
+import { mealWindowsAhead } from "../dist/repo/shared.js";
 import { nutritionRouter } from "../dist/routes/nutrition.js";
 import { registerNutritionTools } from "../dist/surfaces/mcp/nutrition.js";
 
 beforeEach(() => {
-  resetTables("food_notes", "bodyweight_log", "garmin_daily_metrics", "profile", "meal_plans");
+  resetTables(
+    "food_notes",
+    "bodyweight_log",
+    "garmin_daily_metrics",
+    "profile",
+    "meal_plans",
+    "health_directives",
+    "nutrition_targets"
+  );
   repo.setProfile({
     age: 35,
     height_cm: 180,
@@ -30,39 +53,63 @@ const STAPLES = {
   "Toast with jam": { kcal: 300, protein_g: 6, carbs_g: 55, fat_g: 5 },
 };
 
-function seedStaples() {
-  for (const [summary, macros] of Object.entries(STAPLES)) {
+function seedStaples(staples = STAPLES) {
+  for (const [summary, macros] of Object.entries(staples)) {
     for (const daysAgo of [50, 51, 52]) {
       repo.addFoodNote("snack", "", { summary, ...macros }, undefined, { date: localDaysAgo(daysAgo) });
     }
   }
 }
 
-// Four weeks ending yesterday at ~1,800 kcal/day with the weight drifting down — a band
-// whose ceiling is 1,800 kcal.
-function seedBand() {
+// Four weeks ending yesterday at ~`perDay` kcal/day with the weight drifting down — a
+// band whose loss edge is `perDay` (the profile is a cut, so that edge holds the room).
+function seedBand(perDay = 1800) {
   let weight = 180;
   for (let daysAgo = 28; daysAgo >= 0; daysAgo--) {
     weight -= 1 / 7;
     seedWeight(localDaysAgo(daysAgo), Math.round(weight * 10) / 10);
     if (daysAgo >= 1 && (daysAgo - 1) % 7 < 5) {
-      seedIntake(daysAgo, 700, {}, { eatenAt: "08:00" });
-      seedIntake(daysAgo, 1100, {}, { eatenAt: "19:00" });
+      seedIntake(daysAgo, Math.round(perDay * 0.4), {}, { eatenAt: "08:00" });
+      seedIntake(daysAgo, perDay - Math.round(perDay * 0.4), {}, { eatenAt: "19:00" });
     }
   }
 }
 
 const countRows = (table) => Number(db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n);
 
+const staple = (over = {}) => ({
+  key: "k",
+  title: "T",
+  kcal: 600,
+  protein_g: 40,
+  carbs_g: null,
+  fat_g: null,
+  times_logged: 3,
+  last_logged: null,
+  usual_now: false,
+  ...over,
+});
+
+// Every number an athlete reads in a why line carries its unit.
+function assertUnits(text) {
+  for (const m of text.matchAll(/\d[\d,.]*/g)) {
+    const after = text.slice(m.index + m[0].length);
+    assert.match(after, /^ (g|kcal)\b/, `"${m[0]}" without a unit in: ${text}`);
+  }
+  assert.doesNotMatch(text, /%|score/i);
+}
+
 test("ideas never trade protein away to fit the band", () => {
   seedStaples();
   seedBand();
-  // Today so far: 1,500 kcal and almost no protein — 300 kcal of room, lots of protein owed.
+  // Lunch so far: 1,500 kcal and almost no protein — dinner is the one meal left, 300
+  // kcal of room, lots of protein owed.
   seedIntake(0, 1500, { protein_g: 10 }, { eatenAt: "12:00" });
-  const out = fuelIdeas();
+  const out = fuelIdeas(undefined, { hour: 13 });
   assert.equal(out.kind, "ideas");
   assert.equal(out.band_status, "ok");
   assert.equal(out.room.energy_kcal, 300);
+  assert.equal(out.room.meals_ahead, 1);
   assert.ok(out.room.protein_g > 50, "protein is owed");
   assert.equal(out.ideas.length, 3);
 
@@ -75,31 +122,251 @@ test("ideas never trade protein away to fit the band", () => {
   assert.equal(out.ideas[1].title, "Greek yogurt bowl");
   assert.equal(out.ideas[1].fits_band, true);
 
-  // The invariant, for every idea: a portion below the usual one only when the usual
-  // portion's protein was more than the day still owed.
+  // The invariant, for every idea: a portion below the usual one only when the smaller
+  // portion still covers this meal's protein share.
   for (const idea of out.ideas) {
-    if (idea.portion < 1) assert.ok(out.room.protein_g <= idea.protein_g, `${idea.title} shrank protein`);
+    if (idea.portion < 1) assert.ok(out.room.meal_share.protein_g <= idea.protein_g, `${idea.title} shrank protein`);
   }
 });
 
-test("sizing: a portion shrinks to fit only when no owed protein is lost", () => {
-  const staple = {
-    key: "k",
-    title: "T",
-    kcal: 600,
-    protein_g: 40,
-    carbs_g: null,
-    fat_g: null,
-    times_logged: 3,
-    last_logged: null,
-    usual_now: false,
-  };
-  assert.equal(sizeFuelIdea(staple, 30, 350).portion, 1, "half would give 20 g of the 30 g owed");
-  assert.equal(sizeFuelIdea(staple, 15, 350).portion, 0.5, "half still covers the 15 g owed");
-  assert.equal(sizeFuelIdea(staple, 0, 350).portion, 0.5, "protein met: size to the band");
-  assert.equal(sizeFuelIdea(staple, 100, 2000).portion, 2, "room and protein owed: more of it");
-  assert.equal(sizeFuelIdea(staple, 100, null).portion, 1, "no band: the usual portion, no energy claim");
-  assert.equal(sizeFuelIdea(staple, 100, null).fits, null);
+test("sizing: one meal, never above the usual portion, shrinking only when the meal's protein share is kept", () => {
+  const s = staple();
+  // Nothing that fits keeps the 30 g owed: the smallest portion that still carries it.
+  assert.equal(sizeFuelIdea(s, { protein_g: 30, energy_kcal: 350 }).portion, 0.75, "half would give 20 g of 30 g");
+  assert.equal(sizeFuelIdea(s, { protein_g: 30, energy_kcal: 350 }).fits, false);
+  assert.equal(sizeFuelIdea(s, { protein_g: 40, energy_kcal: 350 }).portion, 1, "only the usual carries 40 g");
+  assert.equal(sizeFuelIdea(s, { protein_g: 30, energy_kcal: 460 }).portion, 0.75, "a smaller portion keeps 30 g");
+  assert.equal(sizeFuelIdea(s, { protein_g: 15, energy_kcal: 350 }).portion, 0.5, "half still covers the 15 g owed");
+  assert.equal(sizeFuelIdea(s, { protein_g: 0, energy_kcal: 350 }).portion, 0.5, "protein met: size to the share");
+  // Plenty of room and protein owed: still the usual portion — never a double.
+  assert.equal(sizeFuelIdea(s, { protein_g: 100, energy_kcal: 2000 }).portion, 1);
+  assert.equal(sizeFuelIdea(s, { protein_g: 100, energy_kcal: null }).portion, 1, "no band: the usual portion");
+  assert.equal(sizeFuelIdea(s, { protein_g: 100, energy_kcal: null }).fits, null);
+  // No single idea carries more than half the day's protein anchor.
+  const big = staple({ kcal: 1320, protein_g: 144 });
+  const capped = sizeFuelIdea(big, { protein_g: 58, energy_kcal: 660, protein_cap_g: 87.5 });
+  assert.equal(capped.portion, 0.5);
+  assert.equal(capped.protein, 72);
+  assert.equal(capped.fits, true);
+  assert.equal(sizeFuelIdea(staple({ protein_g: 200 }), { protein_g: 50, energy_kcal: null, protein_cap_g: 80 }), null);
+});
+
+test("an idea is one meal: a morning shares the room across the meals ahead, an evening has one", () => {
+  seedBand();
+  seedStaples({
+    // A big dinner that used to come back as "a double portion" of the whole day.
+    "Salmon rice bowl": { kcal: 1300, protein_g: 80, carbs_g: 150, fat_g: 30 },
+    "Chicken salad": { kcal: 450, protein_g: 50, carbs_g: 20, fat_g: 18 },
+    "Greek yogurt bowl": { kcal: 250, protein_g: 30, carbs_g: 25, fat_g: 4 },
+  });
+  const morning = fuelIdeas(undefined, { hour: 7 });
+  const anchor = morning.protein_anchor.protein_g;
+  assert.equal(morning.room.meals_ahead, 3, "breakfast, lunch and dinner are all still ahead");
+  assert.equal(morning.room.meal_share.energy_kcal, Math.round(morning.room.energy_kcal / 3));
+  assert.equal(morning.room.meal_share.protein_g, Math.round(anchor / 3));
+  assert.equal(morning.ideas.length, 3);
+  for (const idea of morning.ideas) {
+    assert.ok(idea.portion <= 1, `${idea.title} was sized up`);
+    assert.doesNotMatch(idea.portion_words, /double|one and a half/);
+    assert.ok(idea.protein_g <= anchor / 2, `${idea.title} claims most of the day's protein`);
+    if (idea.fits_band) assert.ok(idea.kcal <= morning.room.meal_share.energy_kcal);
+    assertUnits(idea.why);
+    assert.ok(!idea.why.includes(String(morning.room.energy_kcal)), "the whole day's room is never quoted");
+  }
+  const bowl = morning.ideas.find((i) => i.title === "Salmon rice bowl");
+  assert.ok(bowl.portion < 1, "the big dinner is offered as a smaller portion in the morning");
+  const fitting = morning.ideas.find((i) => i.fits_band === true);
+  assert.match(fitting.why, /toward the \d+ g still to go/);
+  assert.match(fitting.why, /one of the three meals still ahead, and leaves room for the rest of the day/);
+
+  // Evening, lunch logged: dinner is the one meal left, so it may use what is left.
+  seedIntake(0, 700, { protein_g: 110 }, { eatenAt: "12:30" });
+  const evening = fuelIdeas(undefined, { hour: 19 });
+  assert.equal(evening.room.meals_ahead, 1);
+  assert.equal(evening.room.meal_share.energy_kcal, evening.room.energy_kcal);
+  for (const idea of evening.ideas) {
+    assert.ok(idea.portion <= 1);
+    assertUnits(idea.why);
+  }
+  const covering = evening.ideas.find((i) => i.protein_g >= evening.room.protein_g);
+  assert.match(
+    covering.why,
+    new RegExp(`^About ${covering.protein_g} g protein, enough for the ${evening.room.protein_g} g still to go`)
+  );
+  const eveningFit = evening.ideas.find((i) => i.fits_band === true);
+  assert.match(eveningFit.why, /fits what is left under the intake your weight still came down at/);
+});
+
+test("the meal windows ahead come from the shared windows and what is already logged", () => {
+  assert.deepEqual(mealWindowsAhead(7), ["breakfast", "lunch", "dinner"]);
+  assert.deepEqual(mealWindowsAhead(9, [{ meal: "breakfast" }]), ["lunch", "dinner"]);
+  assert.deepEqual(mealWindowsAhead(13, [{ meal: "meal", eaten_at: "12:30" }]), ["dinner"]);
+  assert.deepEqual(mealWindowsAhead(16), ["dinner"]);
+  assert.deepEqual(mealWindowsAhead(19, [{ meal: "snack", eaten_at: "15:30" }]), ["dinner"], "a snack covers no meal");
+  assert.deepEqual(mealWindowsAhead(19, [{ meal: "supper" }]), []);
+  assert.deepEqual(mealWindowsAhead(23), []);
+});
+
+test("a staple repeats: a meal logged on one day is never a staple, even when it is usually eaten now", () => {
+  // Three one-off dinners, each at this hour — the old "usual now" path let them in.
+  for (const [i, summary] of ["Seafood dinner with apple crumble", "Steak night", "Fish tacos"].entries()) {
+    repo.addFoodNote("dinner", "", { summary, kcal: 900, protein_g: 70 }, undefined, {
+      date: localDaysAgo(3 + i),
+      eaten_at: "19:00",
+    });
+  }
+  assert.equal(FUEL_STAPLE_MIN_DAYS, 2);
+  assert.deepEqual(fuelStaples(undefined, 19), [], "one logged day is an event, not a staple");
+  const none = fuelIdeas(undefined, { hour: 19 });
+  assert.deepEqual(none.ideas, []);
+  assert.match(none.words, /No staples/);
+
+  // One real staple: one idea, and the set says why there are not three.
+  seedStaples({ "Greek yogurt bowl": STAPLES["Greek yogurt bowl"] });
+  const one = fuelIdeas(undefined, { hour: 19 });
+  assert.deepEqual(
+    one.ideas.map((i) => i.title),
+    ["Greek yogurt bowl"]
+  );
+  assert.equal(one.ideas[0].times_logged, 3);
+  assert.match(one.words, /^Only one idea so far: an idea needs a food you have logged on more than one day/);
+  for (const idea of one.ideas) assert.ok(idea.times_logged >= FUEL_STAPLE_MIN_DAYS);
+});
+
+test("recurring components build an idea in the athlete's own food words", () => {
+  // Three different meal summaries (none repeats as a whole), the same components.
+  const chicken = { item: "Chicken breast", amount: "200 g", kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7 };
+  const asparagus = { item: "Asparagus", amount: "150 g", kcal: 30, protein_g: 3, carbs_g: 6, fat_g: 0, fiber_g: 3 };
+  const peppers = { item: "Peppers", amount: "100 g", kcal: 30, protein_g: 1, carbs_g: 6, fat_g: 0, fiber_g: 2 };
+  const wine = { item: "Red wine", amount: "1 glass", kcal: 125, protein_g: 0, carbs_g: 4, fat_g: 0 };
+  const meals = [
+    ["Chicken breast with asparagus and peppers", [chicken, asparagus, peppers]],
+    ["Grilled chicken, asparagus, peppers and a glass of red wine", [chicken, asparagus, peppers, wine]],
+    ["Chicken plate with asparagus, peppers & red wine", [chicken, asparagus, peppers, wine]],
+  ];
+  meals.forEach(([summary, ingredients], i) => {
+    const kcal = ingredients.reduce((a, r) => a + r.kcal, 0);
+    const protein_g = ingredients.reduce((a, r) => a + r.protein_g, 0);
+    repo.addFoodNote("dinner", "", { summary, kcal, protein_g, ingredients }, undefined, {
+      date: localDaysAgo(10 + i),
+    });
+  });
+  const out = fuelIdeas(undefined, { hour: 19 });
+  assert.equal(out.ideas.length, 1, "one idea per lead food");
+  const [idea] = out.ideas;
+  assert.equal(idea.source, "components");
+  assert.equal(idea.title, "Chicken breast with asparagus and peppers");
+  assert.equal(idea.protein_g, 66);
+  assert.equal(idea.kcal, 390, "the wine is never counted in");
+  assert.equal(idea.times_logged, 3);
+  assert.doesNotMatch(`${idea.title} ${idea.prefill}`, /wine/i);
+  assert.match(idea.prefill, /^Chicken breast \(200 g\), asparagus \(150 g\), and peppers \(100 g\)$/);
+  assert.ok(!idea.key.includes(","), "an idea key survives ?exclude=key,key");
+});
+
+test("never alcohol: stripped from a staple's words and numbers, a mostly-alcohol staple is skipped", () => {
+  const rows = [
+    { item: "Chicken breast", kcal: 330, protein_g: 62 },
+    { item: "Pinto beans", kcal: 200, protein_g: 12, fiber_g: 10 },
+    { item: "Toast", kcal: 160, protein_g: 6 },
+    { item: "Trail mix", kcal: 300, protein_g: 8 },
+    { item: "Rakija", kcal: 100, protein_g: 0 },
+  ];
+  const summary = "Chicken breast with pinto beans, veggies, toast, trail mix & rakija sip";
+  for (const d of [20, 21]) {
+    repo.addFoodNote("dinner", "", { summary, kcal: 1090, protein_g: 84, ingredients: rows }, undefined, {
+      date: localDaysAgo(d),
+    });
+  }
+  // A "staple" that is nothing but a drink.
+  for (const d of [20, 21, 22]) {
+    repo.addFoodNote(
+      "snack",
+      "",
+      {
+        summary: "Beer and pretzels",
+        kcal: 330,
+        protein_g: 5,
+        ingredients: [
+          { item: "Beer", kcal: 220, protein_g: 2 },
+          { item: "Pretzels", kcal: 110, protein_g: 3 },
+        ],
+      },
+      undefined,
+      { date: localDaysAgo(d) }
+    );
+  }
+  const staples = fuelStaples(undefined, 19);
+  assert.ok(!staples.some((s) => /beer|pretzel/i.test(s.title)), "mostly alcohol: skipped");
+  const out = fuelIdeas(undefined, { hour: 19 });
+  const meal = out.ideas.find((i) => i.source === "staple");
+  assert.ok(meal, "the dinner is still offered");
+  assert.doesNotMatch(`${meal.title} ${meal.prefill}`, /rakija|sip/i);
+  assert.equal(meal.kcal, 990, "the rakija's kcal is taken out");
+  assert.ok(meal.title.length <= FUEL_IDEA_TITLE_MAX);
+  assert.equal(meal.title, "Chicken breast with pinto beans, veggies, toast, and more");
+  assert.equal(meal.prefill, "Chicken breast with pinto beans, veggies, toast, and trail mix");
+});
+
+test("alcohol words: drinks are caught, cooking uses and soft drinks are not", () => {
+  for (const drink of ["Red wine", "a beer", "Rakija sip", "gin and tonic", "IPA", "whiskey", "Aperol spritz"]) {
+    assert.ok(isAlcoholFood(drink), drink);
+  }
+  for (const food of [
+    "red wine vinegar",
+    "beer-battered cod",
+    "ginger beer",
+    "alcohol-free lager",
+    "kale",
+    "ginger",
+    "rump steak",
+    "apple cider vinegar",
+  ]) {
+    assert.ok(!isAlcoholFood(food), food);
+  }
+  assert.equal(stripAlcohol("Steak with red wine"), "Steak");
+  assert.equal(stripAlcohol("Mac and cheese with a beer"), "Mac and cheese");
+  assert.equal(stripAlcohol("Salad with red wine vinegar"), "Salad with red wine vinegar");
+  assert.equal(stripAlcohol("Red wine"), "");
+});
+
+test("titles are card-sized: cut at a list boundary or a word, never mid-word", () => {
+  assert.equal(capIdeaTitle("Greek yogurt bowl"), "Greek yogurt bowl");
+  const list = capIdeaTitle("Chicken breast with asparagus, skyr, peppers, radishes, and a side of roasted potatoes");
+  assert.ok(list.length <= FUEL_IDEA_TITLE_MAX, list);
+  assert.match(list, /, and more$/);
+  const phrase = "Seafood dinner with homemade low-sugar apple crumble and vanilla custard on the side";
+  const cut = capIdeaTitle(phrase);
+  assert.ok(cut.length <= FUEL_IDEA_TITLE_MAX, cut);
+  assert.match(cut, /…$/);
+  const words = cut.slice(0, -1).split(" ");
+  assert.deepEqual(words, phrase.split(" ").slice(0, words.length), "cut on a word boundary");
+});
+
+test("active nutrition findings nudge the order toward low saturated fat and fiber, never the set", () => {
+  seedStaples({
+    // Same protein and energy; the first is denser in protein, the second lines up with a lipid finding.
+    "Pork chop plate": { kcal: 500, protein_g: 45, nutrition_pattern: { saturated_fat: "high" } },
+    "Lentil and turkey bowl": { kcal: 520, protein_g: 45, fiber_g: 12, nutrition_pattern: { saturated_fat: "low" } },
+  });
+  const before = fuelIdeas(undefined, { hour: 19 });
+  assert.equal(before.ideas[0].title, "Pork chop plate");
+  db.prepare(
+    `INSERT INTO health_directives (source, domain, marker, directive, rationale, status)
+     VALUES ('markers', 'nutrition', 'LDL-C', 'Favour less saturated fat and more soluble fiber.', 'LDL above range.', 'active')`
+  ).run();
+  const after = fuelIdeas(undefined, { hour: 19 });
+  assert.deepEqual(
+    after.ideas.map((i) => i.title),
+    ["Lentil and turkey bowl", "Pork chop plate"],
+    "reordered, nothing excluded"
+  );
+  for (const idea of after.ideas) assert.doesNotMatch(idea.why, /saturated|fiber|LDL|cholesterol/i, "never a lecture");
+
+  const leans = fuelHealthLeans([{ directive: "Keep sodium modest for blood pressure." }]);
+  assert.deepEqual(leans, { lower_saturated_fat: false, more_fiber: false, lower_sodium: true });
+  assert.equal(fuelHealthAlignment(staple({ sodium: "low" }), leans), 1);
+  assert.equal(fuelHealthAlignment(staple({ sodium: "high" }), leans), 0);
 });
 
 test("with no band the ideas make no energy claim; they are never logged and never a plan", () => {
@@ -155,7 +422,7 @@ test("a meal still being estimated is not a zero: no protein still to go and no 
   for (const idea of out.ideas) {
     assert.doesNotMatch(idea.why, /still to go|kcal/, "no claim measured off a sum that is only a floor");
     assert.equal(idea.fits_band, null);
-    assert.equal(idea.portion, 1, "never sized up into room the unknown meal may have used");
+    assert.equal(idea.portion, 1, "the usual portion, with no energy claim");
   }
 });
 
@@ -166,7 +433,7 @@ test("no staples yet: no ideas, said in words", () => {
 });
 
 test("REST and MCP mirror, and exclude asks for different ideas", async () => {
-  seedStaples();
+  seedStaples({ ...STAPLES, "Eggs, toast, and berries": { kcal: 420, protein_g: 28 } });
   let handler;
   for (const layer of nutritionRouter.stack) {
     if (layer.route?.path === "/fuel/ideas" && layer.route.methods.get) handler = layer.route.stack.at(-1).handle;
@@ -186,6 +453,12 @@ test("REST and MCP mirror, and exclude asks for different ideas", async () => {
   const first = rest.ideas[0].key;
   const next = await new Promise((resolve) => handler({ query: { exclude: first } }, { json: resolve }));
   assert.ok(!next.ideas.some((i) => i.key.split("@")[0] === first.split("@")[0]));
+  // A staple whose words carry commas still excludes through ?exclude=key,key.
+  const commas = rest.ideas.concat(next.ideas).find((i) => i.title.startsWith("Eggs"));
+  assert.ok(commas && !commas.key.includes(","));
+  const all = [...new Set([...rest.ideas, ...next.ideas].map((i) => i.key))].join(",");
+  const rest2 = await new Promise((resolve) => handler({ query: { hour: "12", exclude: all } }, { json: resolve }));
+  assert.ok(!rest2.ideas.some((i) => i.title.startsWith("Eggs")));
 });
 
 const okBand = (over = {}) => ({
@@ -198,17 +471,16 @@ const okBand = (over = {}) => ({
 
 test("a loose band sizes nothing: mixed weeks or low confidence make no energy claim", () => {
   const mixed = okBand({ band: { ...okBand().band, mixed: true } });
-  assert.deepEqual(fuelEnergyBound(mixed, null), { kcal: null, kind: null, allow_up: false });
+  assert.deepEqual(fuelEnergyBound(mixed, null), { kcal: null, kind: null });
   assert.equal(fuelEnergyBound(okBand({ confidence: "low" }), null).kcal, null);
   assert.equal(
     fuelEnergyBound({ status: "too_few_days", band: null, energy_ceiling_kcal: null, confidence: null }, null).kcal,
     null
   );
-  // Maintain/gain: the no-gain ceiling, sized up and down.
+  // Maintain/gain: the no-gain ceiling.
   assert.deepEqual(fuelEnergyBound(okBand(), { kcal: 2400, mode: "maintain", source: "formula" }), {
     kcal: 2300,
     kind: "observed_ceiling",
-    allow_up: true,
   });
 });
 
@@ -217,38 +489,47 @@ test("during a cut the room is the athlete's own cut bound, never observed maint
   assert.deepEqual(fuelEnergyBound(okBand(), { kcal: 2100, mode: "lose", source: "formula" }), {
     kcal: 1900,
     kind: "loss_edge",
-    allow_up: true,
   });
   // A target the athlete accepted, when it is lower, holds it instead; a formula guess never does.
   assert.equal(fuelEnergyBound(okBand(), { kcal: 1800, mode: "lose", source: "accepted" }).kind, "accepted_target");
   assert.equal(fuelEnergyBound(okBand(), { kcal: 1800, mode: "lose", source: "formula" }).kind, "loss_edge");
-  // No loss edge and no accepted target: the ceiling bounds fit, but nothing is sized up to fill it.
+  // No loss edge and no accepted target: the ceiling bounds the room.
   const noLossEdge = okBand({ band: { ...okBand().band, low_is_loss_edge: false } });
   assert.deepEqual(fuelEnergyBound(noLossEdge, { kcal: 2100, mode: "lose", source: "formula" }), {
     kcal: 2300,
     kind: "observed_ceiling",
-    allow_up: false,
   });
-  const staple = {
-    key: "k",
-    title: "T",
-    kcal: 400,
-    protein_g: 40,
-    carbs_g: null,
-    fat_g: null,
-    times_logged: 3,
-    last_logged: null,
-    usual_now: false,
-  };
-  assert.equal(sizeFuelIdea(staple, 100, 2000, false).portion, 1, "no portion grows toward maintenance");
-  assert.equal(sizeFuelIdea(staple, 100, 2000, true).portion, 2);
+});
+
+test("a stated target during a cut: the room is the lower of it and the loss edge", () => {
+  // min(stated target, loss edge), whichever side is lower.
+  assert.deepEqual(fuelEnergyBound(okBand(), { kcal: 1800, mode: "lose", source: "user" }), {
+    kcal: 1800,
+    kind: "accepted_target",
+  });
+  assert.deepEqual(fuelEnergyBound(okBand(), { kcal: 2100, mode: "lose", source: "user" }), {
+    kcal: 1900,
+    kind: "loss_edge",
+  });
+
+  // End to end: a target the athlete set (source "user") under a loss edge holds the room.
+  seedStaples();
+  seedBand(2400);
+  const edge = fuelIdeas(undefined, { hour: 19 });
+  assert.equal(edge.room.energy_bound, "loss_edge");
+  const set = repo.setNutritionTarget({ target_kcal: 2000, protein_g: 170, source: "user" });
+  assert.ok(set.target_kcal < edge.room.energy_kcal, "the stated target sits under the loss edge");
+  const stated = fuelIdeas(undefined, { hour: 19 });
+  assert.equal(stated.room.energy_bound, "accepted_target");
+  assert.equal(stated.room.energy_kcal, set.target_kcal);
+  assert.match(stated.ideas.find((i) => i.fits_band === true).why, /under the target you set/);
 });
 
 test("the ideas say what the room is measured under", () => {
   seedStaples();
   seedBand(); // every week trended down at ~1,800 kcal, and the profile is a cut
   seedIntake(0, 1500, { protein_g: 10 }, { eatenAt: "12:00" });
-  const out = fuelIdeas();
+  const out = fuelIdeas(undefined, { hour: 13 });
   assert.equal(out.room.energy_bound, "loss_edge");
   const fitting = out.ideas.find((i) => i.fits_band === true);
   assert.match(fitting.why, /came down at/);

@@ -8,7 +8,7 @@
 // being followed keeps going — and the composer is torn down with this mount.
 //
 //   const log = CairnFuelLogController.mount(slot, deps);
-//   log.open("Greek yogurt (a double portion)"); // "Start from this": fills (below any unsent text), never sends
+//   log.open("Greek yogurt (a half portion)"); // "Start from this": fills (below any unsent text), never sends
 //   log();                                         // teardown
 {
   type Deps = ClientFuelLogDeps;

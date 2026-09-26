@@ -97,8 +97,8 @@ test("a meal logged from the composer refreshes every slot that reads the day", 
 test("Start from this opens the composer filled — the surface never logs it", () => {
   const { win, mounts, events } = load();
   win.renderFoodJournal();
-  mounts.ideas.deps.onStart("Greek yogurt (a double portion)", { key: "yogurt@2" });
-  assert.ok(events.includes("log:open:Greek yogurt (a double portion)"));
+  mounts.ideas.deps.onStart("Greek yogurt (a half portion)", { key: "yogurt@0.5" });
+  assert.ok(events.includes("log:open:Greek yogurt (a half portion)"));
 });
 
 test("a correction in a meal card refreshes today's numbers and the ideas", () => {
