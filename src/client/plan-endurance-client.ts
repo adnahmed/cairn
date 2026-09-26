@@ -1,7 +1,8 @@
 // @ts-check
-// Plan -> Endurance renderers plus the running-plan screen orchestration. This is
-// the one home for runs: every run it shows comes from the run endpoints
-// (/run-plan, /training-agenda, /race-build, /run-compliance), never the lift plan.
+// Horizon -> Race (the Plan view's endurance section) renderers plus the running-plan
+// screen orchestration. This is the one home for runs: every run it shows comes from
+// the run endpoints (/run-plan, /training-agenda, /race-build, /run-compliance), never
+// the lift plan.
 
 type EnduranceGoalRow = import("../contracts/client-api.js").ClientEnduranceGoal;
 type EnduranceComplianceRow = import("../contracts/client-api.js").ClientRunCompliance;
@@ -36,10 +37,12 @@ type EnduranceBusyElement = Element & { _busyRestore?: () => void };
 const enduranceModel = () => CairnPlanEnduranceModel;
 
 async function renderPlanEndurance(): Promise<void> {
-  headerTitle.textContent = "Plan";
+  // The race view in depth lives under Horizon (/app/horizon/race): it wears "Race"
+  // and steps back to the timeline, whose race lane summarises it.
+  headerTitle.textContent = "Race";
   state.planSeg = "endurance";
-  view.innerHTML = segBar("endurance", planSeg()) + `<div id="endPlanBody">${loadingState("Reading your running…")}</div>`;
-  wireSeg(PLAN_HANDLERS);
+  view.innerHTML = horizonBackHtml() + `<div id="endPlanBody">${loadingState("Reading your running…")}</div>`;
+  wireHorizonBack(view);
   const token = ++pollToken;
   const today = localISO();
   const nextMonday = enduranceModel().nextMonday(today);
@@ -127,7 +130,7 @@ function paintPlanEndurance(
       : `<div class="end-goal card-stack-item reveal" style="${stagger(0)}">
          <div class="end-goal-head"><span class="lbl">Running goal</span></div>
          <div class="end-goal-name">No goal set yet</div>
-         <div class="end-goal-sub">Set a race or a standing readiness target in <b>Settings → You → Profile</b> and the coach will periodize your running toward it.</div>
+         <div class="end-goal-sub">Set a race or a standing readiness target in <b>You → Profile</b> and the coach will periodize your running toward it.</div>
        </div>`;
   // The race view's own ladder supersedes the generic "typical arc" ramp
   // placeholder — show one or the other, never both.
@@ -284,8 +287,12 @@ function renderEnduranceDraftResult(proposal: unknown): void {
   const p = enduranceModel().record(proposal) as EnduranceProposal;
   const cardio = p.parsed && Array.isArray(p.parsed.cardio) ? p.parsed.cardio : [];
   if (!cardio.length) {
-    status.innerHTML = `The coach proposed plan changes but no runs this time. <button class="linkbtn end-link" id="endToCoach">Review in Coach →</button>`;
-    status.querySelector("#endToCoach")?.addEventListener("click", () => renderCoach());
+    status.innerHTML = `The coach proposed plan changes but no runs this time. <button class="linkbtn end-link" id="endToCoach">Review in Changes →</button>`;
+    status.querySelector("#endToCoach")?.addEventListener("click", () => {
+      state.planSeg = "coach";
+      state.planJump = "coach";
+      activateTab("plan");
+    });
     return;
   }
   status.textContent = "";

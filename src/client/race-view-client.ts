@@ -52,7 +52,7 @@
   function emptyHtml(reason?: unknown): string {
     const body =
       String(reason || "").trim() ||
-      "Set a dated half marathon in Settings → You → Profile and the build reads from it.";
+      "Set a dated half marathon in You → Profile and the build reads from it.";
     return `<section class="race-view race-view-empty" aria-label="Race">
       ${CairnUi.emptyStateHtml({ title: "No race build yet", body, className: "empty-state race-view-empty-state" })}
     </section>`;

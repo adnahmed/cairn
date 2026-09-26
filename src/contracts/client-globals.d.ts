@@ -5906,6 +5906,71 @@ declare global {
   declare const CairnRaceEstimate: Window["CairnRaceEstimate"];
   declare const CairnRaceView: Window["CairnRaceView"];
   declare const CairnRaceViewController: Window["CairnRaceViewController"];
+  // ---- Wave 5 stream C: the Horizon timeline (horizon-*) ----
+  /** Where a Horizon row or link goes: a view-keyed route the app's router applies. */
+  type ClientHorizonTarget = { tab: ClientTabName; section: string | null; id?: string | null };
+  type ClientHorizonRow = {
+    /** Behind today (a past draw) or ahead of it (a recheck, a goal date). */
+    side: "behind" | "ahead";
+    /** The server's own when words, or a date label ("Sep 14"). */
+    when: string;
+    label: string;
+    detail: string;
+    /** The source kind ("bloodwork", "recheck", "goal", ...), a class hook only. */
+    kind: string;
+    target: ClientHorizonTarget | null;
+  };
+  type ClientHorizonLane = {
+    key: "race" | "goal" | "labs";
+    /** "Race", "Goal line", "Labs and scans". */
+    title: string;
+    /** "unread" is a failed read, "none" nothing to show yet; neither is ever empty. */
+    state: "set" | "none" | "unread";
+    headline: string;
+    when: string;
+    lede: string;
+    fit: import("./client-api.js").ClientRaceFit | null;
+    fit_word: string;
+    fit_line: string;
+    /** The race ladder from this week forward (race lane only). */
+    ladder: ClientRaceLadderModel | null;
+    rows: ClientHorizonRow[];
+    links: Array<{ label: string; target: ClientHorizonTarget }>;
+  };
+  type ClientHorizonDeps = {
+    /** Today's date, the line between behind and ahead. */
+    today: string;
+    load(path: string): Promise<unknown>;
+    navigate(target: ClientHorizonTarget): void;
+    hrefFor?(target: ClientHorizonTarget): string | null;
+    reducedMotion?(): boolean;
+  };
+  interface Window {
+    CairnHorizonModel: {
+      LAB_KINDS: Readonly<Record<string, string>>;
+      TARGETS: Readonly<Record<string, ClientHorizonTarget>>;
+      raceLane(build: unknown): ClientHorizonLane;
+      goalLane(journey: unknown, timeline: unknown, today: string): ClientHorizonLane;
+      labsLane(docs: unknown, checkup: unknown, timeline: unknown, today: string): ClientHorizonLane;
+      ladderAhead(ladder: ClientRaceLadderModel): ClientRaceLadderModel | null;
+      weightLine(read: import("./client-api.js").ClientJourneyRead | null): string;
+    };
+    CairnHorizon: {
+      KEYS: ReadonlyArray<ClientHorizonLane["key"]>;
+      laneHtml(
+        lane: ClientHorizonLane,
+        opts?: { enter?: boolean; hrefFor?: (target: ClientHorizonTarget) => string | null }
+      ): string;
+      laneSkeletonHtml(key: ClientHorizonLane["key"]): string;
+      shellHtml(): string;
+    };
+    CairnHorizonController: {
+      mount(host: Element, deps: ClientHorizonDeps): () => void;
+    };
+  }
+  declare const CairnHorizonModel: Window["CairnHorizonModel"];
+  declare const CairnHorizon: Window["CairnHorizon"];
+  declare const CairnHorizonController: Window["CairnHorizonController"];
   type ClientPebble = {
     key: string;
     /** The stone's name, the server's ("Strength"). */
