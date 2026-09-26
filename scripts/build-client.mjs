@@ -342,9 +342,9 @@ export const CLIENT_OUTPUTS = [
 // of ~216 individual <script>s (a big cold-start win: far fewer request round
 // trips). Each bundle is the in-order concatenation of the already-built,
 // IIFE-wrapped individual outputs above, so global scope and load order are
-// unchanged. The CONCATENATION OF EVERY BUNDLE'S `inputs`, IN THIS ARRAY ORDER,
-// REPRODUCES THE CANONICAL <script> SEQUENCE EXACTLY — this manifest is now the
-// authoritative encoding of that order. Every CLIENT_OUTPUTS output (plus the
+// unchanged. The CONCATENATION OF EVERY EAGER BUNDLE'S `inputs`, IN THIS ARRAY
+// ORDER, REPRODUCES THE CANONICAL <script> SEQUENCE EXACTLY — this manifest is the
+// authoritative encoding of that order; the lazy bundles run after boot. Every CLIENT_OUTPUTS output (plus the
 // hand-written classic shim public/js/10-boot.js) appears in exactly one bundle.
 //
 // A bundle carrying `lazy: "<name>"` is NOT loaded by index.html: it is injected
@@ -352,12 +352,21 @@ export const CLIENT_OUTPUTS = [
 // globals must never be referenced EAGERLY from an earlier bundle — only from
 // inside a function that runs after the destination has navigated.
 //
-// Splitting the larger bundles further was evaluated and DECLINED: `defer` on
-// the <script> tags already unblocked first paint, the IIFE shared-global model
-// makes any reshape a load-order hazard, and a bundle reshape re-enters the
-// breakage class that bit the last shell reshape (smoke assertions, the
-// Dockerfile COPY list, the deploy health check) for a marginal win. Revisit
-// only alongside a move to real ES modules.
+// Lazy bundles may DEPEND on each other (LAZY_BUNDLE_DEPS in lazy-bundles.ts):
+// ensureBundle("horizon") also loads train. A lazy bundle never references another
+// lazy bundle at load time either, so their execution order does not matter.
+//
+// Splitting was once DECLINED here (defer already unblocked first paint, and a
+// reshape risked the load-order hazard). The athlete's per-screen load-time ask
+// reopened it: the eager shell was ~360 KB brotli, and every open parsed Train,
+// Horizon, Ask and Settings before the Brief could settle. Only Today, You, Fuel,
+// capture and the shell stay eager now; the rest is injected on first navigation
+// and warmed on idle after first paint (prefetchLazyBundles), so a tab switch
+// still never waits on the network. Every lazy bundle stays in the service
+// worker's CORE_ASSETS, so a cold offline deep link resolves from the precache.
+// Before moving a module between eager and lazy, run a cross-bundle reference
+// check: an eager module may reach a lazy global only inside a function that
+// runs after ensureBundle/withBundle for its bundle.
 export const BUNDLES = [
   {
     output: "public/js/bundle-01-core.js",
@@ -365,7 +374,6 @@ export const BUNDLES = [
     inputs: [
       "public/js/date-utils.js",
       "public/js/html-utils.js",
-      "public/js/markdown-client.js",
       "public/js/ui-components.js",
       "public/js/ui-reads.js",
       "public/js/ui-feedback-client.js",
@@ -400,10 +408,9 @@ export const BUNDLES = [
       "public/js/app-identity-client.js",
       "public/js/app-identity-controller.js",
     ],
-  },
-  {
+  },  {
     output: "public/js/bundle-02-today.js",
-    label: "Today screen + Progress infrastructure",
+    label: "Today screen + You landing",
     inputs: [
       "public/js/detail-overlay-client.js",
       "public/js/ui-motion-client.js",
@@ -413,11 +420,6 @@ export const BUNDLES = [
       "public/js/exercise-detail-render-client.js",
       "public/js/exercise-detail-actions-client.js",
       "public/js/exercise-detail-controller.js",
-      "public/js/agent-login-model-client.js",
-      "public/js/agent-login-assets-client.js",
-      "public/js/agent-login-modal-client.js",
-      "public/js/agent-login-session-client.js",
-      "public/js/agent-login-client.js",
       "public/js/agent-job-records-client.js",
       "public/js/agent-job-client.js",
       "public/js/rest-timer.js",
@@ -447,7 +449,6 @@ export const BUNDLES = [
       "public/js/today-brief-override-client.js",
       "public/js/today-brief-actions-client.js",
       "public/js/today-brief-controller.js",
-      "public/js/cardio-plan-client.js",
       "public/js/cardio-sync-client.js",
       "public/js/today-lately-client.js",
       "public/js/proposal-client.js",
@@ -480,36 +481,12 @@ export const BUNDLES = [
       "public/js/today-compatibility-bridges.js",
       "public/js/today-screen-runtime-deps.js",
       "public/js/today-screen-runtime.js",
-      "public/js/progress-data-client.js",
-      "public/js/progress-endurance-client.js",
+      // Train's energy read (and the hero it paints with) stays EAGER: Fuel paints
+      // it (#energyCard) and it owns the nutrition_checkin job reconnector, which
+      // must register at boot.
       "public/js/progress-components-client.js",
-      "public/js/progress-line-chart-model.js",
-      "public/js/progress-chart-scrub-client.js",
-      "public/js/progress-chart-drawing-client.js",
-      "public/js/progress-chart-client.js",
-      "public/js/progress-trend-weight-client.js",
-      "public/js/progress-history-model-client.js",
-      "public/js/progress-history-render-client.js",
-      "public/js/progress-history-client.js",
-      "public/js/progress-run-plan-client.js",
-      "public/js/progress-route-deps-client.js",
-      "public/js/progress-endurance-controller.js",
-      "public/js/progress-volume-client.js",
       "public/js/progress-energy-client.js",
       "public/js/progress-energy-surface-client.js",
-      "public/js/progress-intake-client.js",
-      "public/js/progress-calendar-client.js",
-      "public/js/progress-muscle-trajectory-client.js",
-      "public/js/progress-dexa-targeting-client.js",
-      "public/js/progress-performance-client.js",
-      "public/js/progress-program-adjustments-client.js",
-      "public/js/progress-test-week-client.js",
-      "public/js/progress-program-summary-client.js",
-      "public/js/progress-program-block-client.js",
-      "public/js/progress-program-controller.js",
-      "public/js/journey-progress-client.js",
-      "public/js/journey-timeline-client.js",
-      "public/js/progress-overview-client.js",
       "public/js/03-today.js",
       // v2 wave 5: the You landing, the cairn-stack and the stone detail. EAGER on
       // purpose: You paints as fast as Today and never waits on me-health.
@@ -521,10 +498,9 @@ export const BUNDLES = [
       "public/js/stone-detail-controller.js",
       "public/js/you-screen.js",
     ],
-  },
-  {
-    output: "public/js/bundle-03-capture-progress.js",
-    label: "capture + Progress screen",
+  },  {
+    output: "public/js/bundle-03-capture.js",
+    label: "capture",
     inputs: [
       "public/js/capture-provenance-client.js",
       "public/js/capture-read-date-client.js",
@@ -533,11 +509,8 @@ export const BUNDLES = [
       "public/js/capture-reads-client.js",
       "public/js/capture-voice-client.js",
       "public/js/04-capture.js",
-      "public/js/body-metrics-client.js",
-      "public/js/05-progress.js",
     ],
-  },
-  {
+  },  {
     output: "public/js/bundle-04-coach-meals.js",
     label: "coach proposals + meal planner",
     inputs: [
@@ -567,12 +540,6 @@ export const BUNDLES = [
       "public/js/meal-card-client.js",
       "public/js/meal-card-controller.js",
       "public/js/food-detail-controller.js",
-      // Plan → Changes components (v2 wave 1). renderCoach reaches them only from
-      // inside a function, so they may follow the screen that mounts them.
-      "public/js/changes-feed-client.js",
-      "public/js/changes-feed-controller.js",
-      "public/js/ask-card-client.js",
-      "public/js/ask-card-controller.js",
       // Plan → Food, the Fuel surface (v2 wave 2). renderFoodJournal mounts these
       // only from inside a function, so they may follow the screen too.
       "public/js/fuel-today-model.js",
@@ -585,9 +552,22 @@ export const BUNDLES = [
       "public/js/idea-card-client.js",
       "public/js/idea-card-controller.js",
       "public/js/fuel-deps.js",
+      // The food composer (Today → Fuel logging) and the three chat primitives it
+      // mounts USED to open the chat bundle. Fuel is eager and Ask is lazy, so they
+      // ride here, at the tail of the bundle that ran immediately before them —
+      // the canonical order of everything that stays eager is unchanged. The
+      // photo-compression constants they read (chat-client) ride the ask bundle:
+      // compressImage awaits it on the first photo.
+      "public/js/chat-attachment-client.js",
+      "public/js/chat-composer-focus-client.js",
+      "public/js/food-composer-model.js",
+      "public/js/food-composer-client.js",
+      "public/js/food-composer-chips-controller.js",
+      "public/js/food-composer-turn-controller.js",
+      "public/js/food-composer-controller.js",
+      "public/js/chat-layout-client.js",
     ],
-  },
-  {
+  },  {
     output: "public/js/bundle-05-me-health.js",
     label: "Me / Health / Records",
     // LAZY: index.html does not load this one. ~470 KB of classic script that
@@ -662,71 +642,10 @@ export const BUNDLES = [
       "public/js/family-controller.js",
       "public/js/08-me-records.js",
     ],
-  },
-  {
-    output: "public/js/bundle-06-chat-plan.js",
-    label: "Chat + Plan editor",
+  },  {
+    output: "public/js/bundle-07-boot.js",
+    label: "app router + boot",
     inputs: [
-      "public/js/chat-client.js",
-      "public/js/chat-attachment-client.js",
-      "public/js/chat-composer-focus-client.js",
-      "public/js/food-composer-model.js",
-      "public/js/food-composer-client.js",
-      "public/js/food-composer-chips-controller.js",
-      "public/js/food-composer-turn-controller.js",
-      "public/js/food-composer-controller.js",
-      "public/js/chat-composer-controller.js",
-      "public/js/chat-speaker-client.js",
-      "public/js/chat-message-client.js",
-      "public/js/chat-turn-records-client.js",
-      "public/js/chat-turn-stream-state-client.js",
-      "public/js/chat-layout-client.js",
-      "public/js/chat-turn-monitor-client.js",
-      "public/js/chat-turn-client.js",
-      "public/js/chat-history-client.js",
-      "public/js/chat-header-controller.js",
-      "public/js/chat-starter-chips-client.js",
-      "public/js/chat-fuel-context-client.js",
-      "public/js/chat-earlier-history-client.js",
-      "public/js/plan-endurance-model.js",
-      "public/js/plan-week-client.js",
-      "public/js/plan-endurance-client.js",
-      "public/js/plan-endurance-briefing-client.js",
-      "public/js/race-view-model.js",
-      "public/js/race-estimate-client.js",
-      "public/js/race-ladder-client.js",
-      "public/js/race-view-client.js",
-      "public/js/race-view-controller.js",
-      // v2 wave 5: the Horizon timeline (its race lane reuses race-view-*) and
-      // the Ask thread's what-if ripple card, both eager.
-      "public/js/horizon-model.js",
-      "public/js/horizon-week-model.js",
-      "public/js/horizon-chart-client.js",
-      "public/js/horizon-client.js",
-      "public/js/horizon-controller.js",
-      "public/js/horizon-screen.js",
-      "public/js/ripple-card-model.js",
-      "public/js/ripple-card-client.js",
-      "public/js/ripple-card-controller.js",
-      "public/js/plan-editor-client.js",
-      "public/js/plan-editor-form-client.js",
-      "public/js/plan-editor-controller.js",
-      "public/js/09-plan-chat.js",
-    ],
-  },
-  {
-    output: "public/js/bundle-07-settings-boot.js",
-    label: "Settings + app router + boot",
-    inputs: [
-      "public/js/settings-routes.js",
-      "public/js/settings-client.js",
-      "public/js/settings-surface-client.js",
-      "public/js/settings-data-client.js",
-      "public/js/settings-data-controller.js",
-      "public/js/settings-agents-client.js",
-      "public/js/settings-agents-controller.js",
-      "public/js/settings-sources-automation-controller.js",
-      "public/js/settings-screen.js",
       "public/js/route-state.js",
       "public/js/app-lazy-bundles.js",
       "public/js/app-moved-note.js",
@@ -743,6 +662,132 @@ export const BUNDLES = [
       "public/js/app-onboarding.js",
       "public/js/app-startup.js",
       "public/js/10-boot.js",
+    ],
+  },  {
+    output: "public/js/bundle-08-train.js",
+    label: "Train (Progress views, plan editor, body metrics)",
+    // LAZY: every Train view (overview, 1RM, volume, program, sessions, energy,
+    // intake, endurance, weight, measurements, calendar), the plan editor and its
+    // week strip, the journey reads Horizon also paints, and the body-metrics
+    // figure Health reuses. Horizon and me-health list it as a dependency.
+    lazy: "train",
+    inputs: [
+      // Run/strength plan-item helpers: only the plan editor and the run plan read them.
+      "public/js/cardio-plan-client.js",
+      "public/js/progress-data-client.js",
+      "public/js/progress-endurance-client.js",
+      "public/js/progress-line-chart-model.js",
+      "public/js/progress-chart-scrub-client.js",
+      "public/js/progress-chart-drawing-client.js",
+      "public/js/progress-chart-client.js",
+      "public/js/progress-trend-weight-client.js",
+      "public/js/progress-history-model-client.js",
+      "public/js/progress-history-render-client.js",
+      "public/js/progress-history-client.js",
+      "public/js/progress-run-plan-client.js",
+      "public/js/progress-route-deps-client.js",
+      "public/js/progress-endurance-controller.js",
+      "public/js/progress-volume-client.js",
+      "public/js/progress-intake-client.js",
+      "public/js/progress-calendar-client.js",
+      "public/js/progress-muscle-trajectory-client.js",
+      "public/js/progress-dexa-targeting-client.js",
+      "public/js/progress-performance-client.js",
+      "public/js/progress-program-adjustments-client.js",
+      "public/js/progress-test-week-client.js",
+      "public/js/progress-program-summary-client.js",
+      "public/js/progress-program-block-client.js",
+      "public/js/progress-program-controller.js",
+      "public/js/journey-progress-client.js",
+      "public/js/journey-timeline-client.js",
+      "public/js/progress-overview-client.js",
+      "public/js/plan-week-client.js",
+      "public/js/body-metrics-client.js",
+      "public/js/05-progress.js",
+      "public/js/plan-editor-client.js",
+      "public/js/plan-editor-form-client.js",
+      "public/js/plan-editor-controller.js",
+    ],
+  },
+  {
+    output: "public/js/bundle-09-horizon.js",
+    label: "Horizon (timeline, race view, endurance plan)",
+    // LAZY: the Horizon landing and the race / endurance plan view. Depends on
+    // train (the journey reads, the run-plan cards, the plan week strip).
+    lazy: "horizon",
+    inputs: [
+      "public/js/plan-endurance-model.js",
+      "public/js/plan-endurance-client.js",
+      "public/js/plan-endurance-briefing-client.js",
+      "public/js/race-view-model.js",
+      "public/js/race-estimate-client.js",
+      "public/js/race-ladder-client.js",
+      "public/js/race-view-client.js",
+      "public/js/race-view-controller.js",
+      "public/js/horizon-model.js",
+      "public/js/horizon-week-model.js",
+      "public/js/horizon-chart-client.js",
+      "public/js/horizon-client.js",
+      "public/js/horizon-controller.js",
+      "public/js/horizon-screen.js",
+    ],
+  },
+  {
+    output: "public/js/bundle-10-ask.js",
+    label: "Ask (chat thread + what-if ripple card)",
+    // LAZY: the Ask thread. The food composer and the chat primitives it shares
+    // with Fuel stay eager in bundle-04.
+    lazy: "ask",
+    inputs: [
+      // The reply renderer: only the thread reads markdown.
+      "public/js/markdown-client.js",
+      "public/js/chat-client.js",
+      // Ask → Changes (the calm asks + the history-first feed with Undo). renderCoach
+      // stays in the eager bundle-04 and is dispatched through withBundle("ask").
+      "public/js/changes-feed-client.js",
+      "public/js/changes-feed-controller.js",
+      "public/js/ask-card-client.js",
+      "public/js/ask-card-controller.js",
+      "public/js/chat-composer-controller.js",
+      "public/js/chat-speaker-client.js",
+      "public/js/chat-message-client.js",
+      "public/js/chat-turn-records-client.js",
+      "public/js/chat-turn-stream-state-client.js",
+      "public/js/chat-turn-monitor-client.js",
+      "public/js/chat-turn-client.js",
+      "public/js/chat-history-client.js",
+      "public/js/chat-header-controller.js",
+      "public/js/chat-starter-chips-client.js",
+      "public/js/chat-fuel-context-client.js",
+      "public/js/chat-earlier-history-client.js",
+      "public/js/ripple-card-model.js",
+      "public/js/ripple-card-client.js",
+      "public/js/ripple-card-controller.js",
+      "public/js/09-plan-chat.js",
+    ],
+  },
+  {
+    output: "public/js/bundle-11-settings.js",
+    label: "Settings",
+    // LAZY: the Settings surfaces. Route matching reads the section keys from
+    // CairnRoutes (always eager), never from SET_SEG, so a cold deep link resolves.
+    lazy: "settings",
+    inputs: [
+      // The in-app CLI login terminal: opened only from Settings → Agents.
+      "public/js/agent-login-model-client.js",
+      "public/js/agent-login-assets-client.js",
+      "public/js/agent-login-modal-client.js",
+      "public/js/agent-login-session-client.js",
+      "public/js/agent-login-client.js",
+      "public/js/settings-routes.js",
+      "public/js/settings-client.js",
+      "public/js/settings-surface-client.js",
+      "public/js/settings-data-client.js",
+      "public/js/settings-data-controller.js",
+      "public/js/settings-agents-client.js",
+      "public/js/settings-agents-controller.js",
+      "public/js/settings-sources-automation-controller.js",
+      "public/js/settings-screen.js",
     ],
   },
 ];
@@ -774,13 +819,55 @@ function bundleHeader(label) {
   );
 }
 
+/**
+ * Drop the leading indentation of every line that does not start inside a template
+ * or string literal. The transpiler emits 4-space nesting that is ~7% of a bundle's
+ * brotli bytes and buys the browser nothing. Only whitespace BETWEEN tokens is
+ * removed and every newline stays, so tokenization and automatic semicolon
+ * insertion are unchanged; a line that begins inside a multi-line template literal
+ * (the HTML templates) is left byte-for-byte, so no rendered string changes.
+ * Applied to the served bundles only — the per-module outputs the tests read keep
+ * their formatting.
+ */
+export function stripIndentation(source, fileName = "bundle.js") {
+  const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.ES2022, false, ts.ScriptKind.JS);
+  const literalKinds = new Set([
+    ts.SyntaxKind.NoSubstitutionTemplateLiteral,
+    ts.SyntaxKind.TemplateHead,
+    ts.SyntaxKind.TemplateMiddle,
+    ts.SyntaxKind.TemplateTail,
+    ts.SyntaxKind.StringLiteral,
+  ]);
+  const ranges = [];
+  const visit = (node) => {
+    if (literalKinds.has(node.kind)) ranges.push([node.getStart(sf), node.end]);
+    else if (ts.isTemplateSpan(node)) ranges.push([node.literal.getStart(sf), node.literal.end]);
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  ranges.sort((a, b) => a[0] - b[0]);
+  let out = "";
+  let at = 0;
+  let r = 0;
+  const lines = source.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    while (r < ranges.length && ranges[r][1] <= at) r++;
+    // Protected when this line starts strictly inside a literal (after its opening quote/backtick).
+    const inside = r < ranges.length && ranges[r][0] < at && at < ranges[r][1];
+    out += (inside ? line : line.replace(/^[ \t]+/, "")) + (i < lines.length - 1 ? "\n" : "");
+    at += line.length + 1;
+  }
+  return out;
+}
+
 // Concatenate the already-built individual outputs, in manifest order, into the
 // handful of bundle files index.html actually loads. Reads what buildClient()
 // just wrote, so this must run AFTER the per-file emit.
 export function buildBundles() {
   for (const bundle of BUNDLES) {
     const chunks = bundle.inputs.map((input) => {
-      const body = readFileSync(path.join(root, input), "utf8").trimEnd();
+      const body = stripIndentation(readFileSync(path.join(root, input), "utf8"), input).trimEnd();
       return `// ==== ${input} ====\n${body}`;
     });
     const content = `${bundleHeader(bundle.label)}\n${chunks.join("\n;\n")}\n`;

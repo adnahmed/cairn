@@ -1964,7 +1964,7 @@ declare global {
   declare function collapseEl(el: Element, done?: () => void): void;
   declare function expandEl(el: Element): void;
   declare function registerJobReconnector(kind: string, factory: (job?: unknown) => unknown): void;
-  declare function registerAppJobReconnectors(): void;
+  declare function registerAppJobReconnectors(): number;
   declare function installMobileViewportGuards(): void;
   declare function installDayRolloverWatcher(): void;
   declare function installWakeLockWatcher(): void;
@@ -1995,10 +1995,14 @@ declare global {
   declare function primeArtManifest(): Promise<void>;
   declare function jobReconnect(): Promise<void>;
   /** Names of the bundles index.html does NOT load eagerly (see build-client's BUNDLES). */
-  declare type ClientLazyBundleName = "me-health";
-  /** Inject a lazily-loaded app-shell bundle once; resolves after it has executed. */
+  declare type ClientLazyBundleName = "me-health" | "train" | "horizon" | "ask" | "settings";
+  /** Inject a lazily-loaded app-shell bundle (and its dependencies) once; resolves after they have executed. */
   declare function ensureBundle(name: ClientLazyBundleName): Promise<void>;
   declare function bundleLoaded(name: ClientLazyBundleName): boolean;
+  /** Run `fn` synchronously when the bundle is ready, else after ensureBundle resolves. */
+  declare function withBundle<T>(name: ClientLazyBundleName, fn: () => T): T | Promise<Awaited<T>>;
+  /** Warm every lazy bundle on idle after the first paint (once per page). */
+  declare function prefetchLazyBundles(options?: { delayMs?: number }): void;
   declare function startAppShell(): void;
 
   type ChatComposerControllerMessage = Partial<ClientChatMessage> &
@@ -2126,9 +2130,11 @@ declare global {
     renderTab(tab: string): unknown;
     downloadFile(href: string): void;
     CairnRoutes?: ClientRoutesApi;
-    registerAppJobReconnectors(): void;
+    registerAppJobReconnectors(): number;
     ensureBundle(name: ClientLazyBundleName): Promise<void>;
     bundleLoaded(name: ClientLazyBundleName): boolean;
+    withBundle<T>(name: ClientLazyBundleName, fn: () => T): T | Promise<Awaited<T>>;
+    prefetchLazyBundles(options?: { delayMs?: number }): void;
     installMobileViewportGuards(): void;
     installDayRolloverWatcher(): void;
     installWakeLockWatcher(): void;

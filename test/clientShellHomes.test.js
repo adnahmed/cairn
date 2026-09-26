@@ -59,34 +59,36 @@ test("manifest shortcuts open v2 homes directly, never through a redirect", () =
 test("streams B, C and D find their file slots already registered", () => {
   const outputs = new Set(CLIENT_OUTPUTS.map((o) => o.source));
   const bundleOf = (file) => BUNDLES.find((b) => b.inputs.includes(file));
+  // You paints as fast as Today (eager); Horizon and the Ask thread's ripple card
+  // ride their homes' lazy bundles, injected on first navigation and warmed on idle.
   const slots = {
-    "public/js/bundle-02-today.js": [
-      "cairn-stack-model",
-      "cairn-stack-client",
-      "cairn-stack-controller",
-      "stone-detail-model",
-      "stone-detail-client",
-      "stone-detail-controller",
-      "you-screen",
-    ],
-    "public/js/bundle-06-chat-plan.js": [
-      "horizon-model",
-      "horizon-week-model",
-      "horizon-chart-client",
-      "horizon-client",
-      "horizon-controller",
-      "horizon-screen",
-      "ripple-card-model",
-      "ripple-card-client",
-      "ripple-card-controller",
-    ],
+    "public/js/bundle-02-today.js": {
+      lazy: undefined,
+      stems: [
+        "cairn-stack-model",
+        "cairn-stack-client",
+        "cairn-stack-controller",
+        "stone-detail-model",
+        "stone-detail-client",
+        "stone-detail-controller",
+        "you-screen",
+      ],
+    },
+    "public/js/bundle-09-horizon.js": {
+      lazy: "horizon",
+      stems: ["horizon-model", "horizon-week-model", "horizon-chart-client", "horizon-client", "horizon-controller", "horizon-screen"],
+    },
+    "public/js/bundle-10-ask.js": {
+      lazy: "ask",
+      stems: ["ripple-card-model", "ripple-card-client", "ripple-card-controller"],
+    },
   };
-  for (const [bundle, stems] of Object.entries(slots)) {
+  for (const [bundle, { lazy, stems }] of Object.entries(slots)) {
     for (const stem of stems) {
       assert.ok(outputs.has(`src/client/${stem}.ts`), `${stem} is a client output`);
       const owner = bundleOf(`public/js/${stem}.js`);
       assert.equal(owner?.output, bundle, `${stem} rides ${bundle}`);
-      assert.equal(owner.lazy, undefined, `${stem} is eager`);
+      assert.equal(owner.lazy, lazy, `${stem} is ${lazy ? `lazy (${lazy})` : "eager"}`);
     }
   }
 });

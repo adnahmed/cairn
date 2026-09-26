@@ -1,86 +1,128 @@
 {
   "note": "Byte budget for scripts/check-bundle-budget.mjs (run in npm run verify). A bundle may not grow past its budget; raise one deliberately with `node scripts/check-bundle-budget.mjs --update` after npm run build.",
-  "margin": 0.02,
+  "margin": 0.03,
+  "eager": {
+    "js": {
+      "brotli": 204800
+    },
+    "styles": {
+      "brotli": 71680
+    }
+  },
   "bundles": {
     "public/js/bundle-01-core.js": {
       "measured": {
-        "raw": 221057,
-        "brotli": 42846
+        "raw": 175275,
+        "brotli": 40198
       },
       "budget": {
-        "raw": 226304,
-        "brotli": 44032
+        "raw": 181248,
+        "brotli": 41984
       }
     },
     "public/js/bundle-02-today.js": {
       "measured": {
-        "raw": 877989,
-        "brotli": 153790
+        "raw": 510342,
+        "brotli": 103205
       },
       "budget": {
-        "raw": 878592,
-        "brotli": 154624
+        "raw": 526336,
+        "brotli": 106496
       }
     },
-    "public/js/bundle-03-capture-progress.js": {
+    "public/js/bundle-03-capture.js": {
       "measured": {
-        "raw": 145587,
-        "brotli": 29092
+        "raw": 39708,
+        "brotli": 8970
       },
       "budget": {
-        "raw": 149504,
-        "brotli": 29696
+        "raw": 40960,
+        "brotli": 10240
       }
     },
     "public/js/bundle-04-coach-meals.js": {
       "measured": {
-        "raw": 206021,
-        "brotli": 37241
+        "raw": 174336,
+        "brotli": 37616
       },
       "budget": {
-        "raw": 210944,
+        "raw": 180224,
         "brotli": 38912
       }
     },
     "public/js/bundle-05-me-health.js": {
       "lazy": "me-health",
       "measured": {
-        "raw": 511391,
-        "brotli": 89240
+        "raw": 420559,
+        "brotli": 84820
       },
       "budget": {
-        "raw": 522240,
-        "brotli": 91136
+        "raw": 434176,
+        "brotli": 88064
       }
     },
-    "public/js/bundle-06-chat-plan.js": {
+    "public/js/bundle-07-boot.js": {
       "measured": {
-        "raw": 313186,
-        "brotli": 59967
+        "raw": 53907,
+        "brotli": 12771
       },
       "budget": {
-        "raw": 319488,
-        "brotli": 61440
+        "raw": 56320,
+        "brotli": 13312
       }
     },
-    "public/js/bundle-07-settings-boot.js": {
+    "public/js/bundle-08-train.js": {
+      "lazy": "train",
       "measured": {
-        "raw": 205429,
-        "brotli": 39043
+        "raw": 312315,
+        "brotli": 68191
       },
       "budget": {
-        "raw": 209920,
-        "brotli": 39936
+        "raw": 322560,
+        "brotli": 70656
+      }
+    },
+    "public/js/bundle-09-horizon.js": {
+      "lazy": "horizon",
+      "measured": {
+        "raw": 94439,
+        "brotli": 22732
+      },
+      "budget": {
+        "raw": 97280,
+        "brotli": 23552
+      }
+    },
+    "public/js/bundle-10-ask.js": {
+      "lazy": "ask",
+      "measured": {
+        "raw": 112778,
+        "brotli": 26104
+      },
+      "budget": {
+        "raw": 116736,
+        "brotli": 27648
+      }
+    },
+    "public/js/bundle-11-settings.js": {
+      "lazy": "settings",
+      "measured": {
+        "raw": 139381,
+        "brotli": 30824
+      },
+      "budget": {
+        "raw": 144384,
+        "brotli": 32768
       }
     },
     "public/styles.css": {
       "measured": {
-        "raw": 566169,
-        "brotli": 101759
+        "raw": 438119,
+        "brotli": 58623
       },
       "budget": {
-        "raw": 566272,
-        "brotli": 102400
+        "raw": 451584,
+        "brotli": 60416
       }
     }
   }

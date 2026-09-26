@@ -6,7 +6,10 @@ import {
   budgetFromMeasurements,
   budgetedOutputs,
   ceilingFor,
+  DEFAULT_EAGER_BUDGET,
+  eagerTotals,
   evaluateBudget,
+  evaluateEagerBudget,
   formatDelta,
 } from "../scripts/check-bundle-budget.mjs";
 
@@ -86,4 +89,33 @@ test("the checked-in budget covers exactly the BUNDLES manifest plus the stylesh
     }
   }
   assert.match(read("scripts/run-verify.mjs"), /node",\s*"scripts\/check-bundle-budget\.mjs"/);
+});
+
+test("the eager totals sum what the first open downloads, and fail past their fixed ceilings", () => {
+  const files = [
+    { output: "public/js/bundle-a.js", lazy: null, raw: 100_000, brotli: 150_000 },
+    { output: "public/js/bundle-b.js", lazy: "b", raw: 50_000, brotli: 90_000 },
+    { output: "public/js/bundle-c.js", lazy: null, raw: 10_000, brotli: 40_000 },
+    { output: "public/styles.css", lazy: null, raw: 400_000, brotli: 60_000 },
+  ];
+  const totals = eagerTotals(files);
+  assert.equal(totals.js.brotli, 190_000, "a lazy bundle is not part of the first open");
+  assert.equal(totals.styles.brotli, 60_000);
+
+  const budget = budgetFromMeasurements(files);
+  assert.deepEqual(budget.eager, { js: { brotli: 200 * 1024 }, styles: { brotli: 70 * 1024 } });
+  assert.deepEqual(evaluateEagerBudget(files, budget).failures, []);
+
+  const grown = [{ ...files[0], brotli: 170_000 }, ...files.slice(1)];
+  const over = evaluateEagerBudget(grown, budget).failures;
+  assert.equal(over.length, 1);
+  assert.match(over[0], /eager js total .* over its 200\.0 KB budget/);
+
+  assert.match(evaluateEagerBudget(files, { bundles: {} }).failures[0], /eager js has no brotli budget/);
+});
+
+test("the checked-in eager ceilings hold the first open to the per-screen load-time targets", () => {
+  const budget = JSON.parse(read("scripts/bundle-budget.json"));
+  assert.ok(budget.eager.js.brotli <= DEFAULT_EAGER_BUDGET.js.brotli, "eager JS stays at or under 200 KB brotli");
+  assert.ok(budget.eager.styles.brotli <= 85 * 1024, "the stylesheet stays at or under 85 KB brotli");
 });

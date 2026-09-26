@@ -31,14 +31,25 @@ const APP_JOB_RECONNECTORS: AppJobReconnectEntry[] = [
   { kind: "health_review", factoryName: "reconnectHealthReview" },
 ];
 
-function registerAppJobReconnectors(): void {
+// Factories registered so far. A lazy bundle re-runs this pass when it lands; the
+// count of NEW registrations tells the loader whether a reconnect sweep can find
+// anything it could not before.
+const registeredFactories = new Map<AppJobReconnectKind, unknown>();
+
+/** Register every reconnector whose factory now exists; returns how many are new. */
+function registerAppJobReconnectors(): number {
   const root = globalThis as Record<string, unknown>;
   const register = root.registerJobReconnector;
-  if (typeof register !== "function") return;
+  if (typeof register !== "function") return 0;
+  let added = 0;
   for (const { kind, factoryName } of APP_JOB_RECONNECTORS) {
     const factory = root[factoryName];
-    if (typeof factory === "function") register(kind, factory as AppJobReconnectFactory);
+    if (typeof factory !== "function") continue;
+    register(kind, factory as AppJobReconnectFactory);
+    if (registeredFactories.get(kind) !== factory) added += 1;
+    registeredFactories.set(kind, factory);
   }
+  return added;
 }
 
 Object.assign(globalThis, { registerAppJobReconnectors });

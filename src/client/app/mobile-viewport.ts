@@ -15,7 +15,8 @@
     // Re-measure the chat column whenever the viewport shifts (zoom, keyboard,
     // orientation, window resize). Cheap and idempotent — bails immediately when
     // Chat isn't on screen.
-    const syncChatViewport = () => { if (state.tab === "chat") measureChatTop(); };
+    // measureChatTop rides the lazy ask bundle: nothing to measure until it has landed.
+    const syncChatViewport = () => { if (state.tab === "chat" && typeof measureChatTop === "function") measureChatTop(); };
     window.addEventListener("resize", syncChatViewport);
     window.addEventListener("orientationchange", syncChatViewport);
 

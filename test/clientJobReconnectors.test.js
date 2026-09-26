@@ -54,3 +54,16 @@ test("app job reconnector module registers every factory in boot order", () => {
     { kind: "health_review", factoryName: "reconnectHealthReview" },
   ]);
 });
+
+test("the registration pass reports only NEW factories, so a lazy bundle's re-run knows whether to sweep", () => {
+  const context = loadJobReconnectors();
+  const healthReview = context.reconnectHealthReview;
+  delete context.reconnectHealthReview; // lives in the lazy me-health bundle
+
+  assert.equal(context.registerAppJobReconnectors(), 8, "boot registers every eager factory");
+  assert.equal(context.registerAppJobReconnectors(), 0, "a re-run with nothing new adds nothing");
+
+  context.reconnectHealthReview = healthReview; // the lazy bundle lands
+  assert.equal(context.registerAppJobReconnectors(), 1, "the lazy bundle's factory is new");
+  assert.equal(context.registerAppJobReconnectors(), 0);
+});

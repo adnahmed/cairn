@@ -109,18 +109,18 @@
        figure lib still finish before the feature bundles, and bundle-07's trailing
        startAppShell() call still runs dead last, same as the old synchronous order.
 
-       bundle-05-me-health is deliberately ABSENT: it is ~470 KB the Health (Stand)
-       and About-you (Me) destinations under You alone need, injected on first navigation there by
-       ensureBundle("me-health") (src/client/app/lazy-bundles.ts). It stays in the
-       service worker's CORE_ASSETS, so an installed PWA still precaches it and
-       the first offline visit to Stand works. -->
+       Only the Today / You / Fuel shell loads here. Train (bundle-08), Horizon
+       (bundle-09), Ask (bundle-10), Settings (bundle-11) and Health / About you
+       (bundle-05) are deliberately ABSENT: they are injected on first navigation
+       by ensureBundle (src/client/app/lazy-bundles.ts) and warmed on idle after the
+       first paint. They stay in the service worker's CORE_ASSETS, so an installed
+       PWA still precaches them and a first offline visit works. -->
   <script src="/art.js" defer></script>
   <script src="/cairn-body-figure.js" defer></script>
   <script src="/js/bundle-01-core.js" defer></script>
   <script src="/js/bundle-02-today.js" defer></script>
-  <script src="/js/bundle-03-capture-progress.js" defer></script>
+  <script src="/js/bundle-03-capture.js" defer></script>
   <script src="/js/bundle-04-coach-meals.js" defer></script>
-  <script src="/js/bundle-06-chat-plan.js" defer></script>
-  <script src="/js/bundle-07-settings-boot.js" defer></script>
+  <script src="/js/bundle-07-boot.js" defer></script>
 </body>
 </html>

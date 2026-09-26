@@ -1,7 +1,15 @@
 // @ts-check
 {
+  // Every renderTab call is a newer paint of #view. A lazy destination whose
+  // bundle is still loading must not paint over a destination the athlete has
+  // since moved to, so a deferred render runs only while it is still the latest.
+  let renderSeq = 0;
+
   function renderAppTab(tabName: unknown): unknown {
     const tab = String(tabName || "");
+    const seq = ++renderSeq;
+    const lazy = <T>(bundle: ClientLazyBundleName, render: () => T) =>
+      withBundle(bundle, () => (seq === renderSeq ? render() : undefined));
     headerTitle.classList.remove("hdr-tappable");
     document.getElementById("hdrChatActions")?.remove();
     document.body.classList.remove("chat-mode");
@@ -31,27 +39,31 @@
       if (host && !host.firstElementChild && typeof todaySkeleton === "function") host.innerHTML = todaySkeleton();
       return renderSession();
     }
-    // Stand and Me live in the lazily-injected me-health bundle. Await it before
-    // calling into it: switchTab already awaits this promise and routes a
+    // Every destination below Today and You lives in a lazily-injected bundle
+    // (build-client's BUNDLES). lazy() calls straight through when the bundle
+    // has already executed — the common case once the idle warm-up has run — and
+    // otherwise awaits it: switchTab already awaits this promise and routes a
     // rejection (a failed script fetch) to the tab's error state.
-    if (tab === "stand") return ensureBundle("me-health").then(() => CairnStand.renderStand());
+    if (tab === "stand") return lazy("me-health", () => CairnStand.renderStand());
     if (tab === "plan") {
       const jump = state.planJump || state.planSeg || "edit";
       state.planJump = null;
+      // Fuel and Meals are eager; Changes mounts the ask bundle's feed, the editor is
+      // Train's, the race view Horizon's.
       return jump === "food" ? renderFoodJournal()
         : jump === "meals" ? renderMeals()
-        : jump === "coach" ? renderCoach()
-        : jump === "endurance" ? renderPlanEndurance()
-        : renderPlanEditor();
+        : jump === "coach" ? lazy("ask", () => renderCoach())
+        : jump === "endurance" ? lazy("horizon", () => renderPlanEndurance())
+        : lazy("train", () => renderPlanEditor());
     }
-    if (tab === "progress") return (PROGRESS_HANDLERS[defaultProgressSeg()] || renderHistory)();
-    if (tab === "chat") return renderChat();
-    // The You and Horizon landings live in EAGER bundles (02 and 06), so neither
-    // waits on me-health; only a tap into Health or About you loads it.
-    if (tab === "horizon") return renderHorizon();
+    if (tab === "progress") return lazy("train", () => (PROGRESS_HANDLERS[defaultProgressSeg()] || renderHistory)());
+    if (tab === "chat") return lazy("ask", () => renderChat());
+    // The You landing lives in the EAGER bundle-02, so it never waits; only a tap
+    // into Health or About you loads me-health.
+    if (tab === "horizon") return lazy("horizon", () => renderHorizon());
     if (tab === "you") return renderYou();
-    if (tab === "me") return ensureBundle("me-health").then(() => renderMe());
-    return renderSettings();
+    if (tab === "me") return lazy("me-health", () => renderMe());
+    return lazy("settings", () => renderSettings());
   }
 
   Object.assign(globalThis, { renderTab: renderAppTab });

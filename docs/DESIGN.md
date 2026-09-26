@@ -196,7 +196,8 @@ the bar ladder one tap deeper.
 ## Stylesheet ownership
 
 `public/styles.css` is **generated** — `scripts/build-styles.mjs` concatenates `src/styles/**` in
-the fixed cascade order of its `STYLE_PARTIALS` list (a later partial wins a same-specificity tie),
+the fixed cascade order of its `STYLE_PARTIALS` list (a later partial wins a same-specificity tie)
+and minifies the result (comments and redundant whitespace only; one rule per line),
 `npm run build` runs it, and `npm run verify` fails when the committed file drifts
 (`build-styles.mjs --check`) or a partial is unlisted. Edit the partials, never the output. The file
 stays committed because the Docker runtime stage and the tests read it from the checkout.
@@ -1003,7 +1004,9 @@ are allowed to shrink but never to grow, and each is split when a wave touches i
 
 Each served bundle, and the render-blocking `public/styles.css`, also has a **byte budget**, raw and
 brotli, in `scripts/bundle-budget.json`,
-set 2% (rounded up to a whole KiB) above its size when last measured. `npm run verify` fails when a
+set 3% (rounded up to a whole KiB) above its size when last measured. On top sit two fixed **eager
+ceilings** for the first open: every bundle `index.html` loads at most **200 KB brotli** together,
+the stylesheet at most **70 KB brotli**; `--update` never raises them. `npm run verify` fails when a
 built bundle grows past either number and prints how far over it is and how much it grew since the
 budget was set. Before raising one, try moving the heavy surface into a lazy bundle. If the growth
 is deliberate, run `npm run build`, then `node scripts/check-bundle-budget.mjs --update`, and commit

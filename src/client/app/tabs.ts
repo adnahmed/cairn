@@ -220,7 +220,9 @@ type TabSwitchOptions = {
     const next = normalizeTabName(tab);
     const moveFocus = opts.focusView === true && state.tab !== next;
     disarmHydrate();
-    if (state.tab === "chat" && next !== "chat") chatTeardownMonitor();
+    // The chat monitor lives in the lazy ask bundle; a chat tab whose bundle never
+    // finished loading has no monitor to tear down.
+    if (state.tab === "chat" && next !== "chat" && typeof chatTeardownMonitor === "function") chatTeardownMonitor();
     teardownJobs();
     closeDetail(true);
     closeMealSheet(true);

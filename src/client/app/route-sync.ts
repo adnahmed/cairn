@@ -31,7 +31,7 @@ type RouteSyncMode = "push" | "replace";
   // section keys from CLIENT_ROUTE_DEFINITIONS and is always in the shell, so it
   // is both the eager answer and the more complete one (route matching needs the
   // keys, never the segment labels).
-  function lazySections(name: "ME_SEG" | "HEALTH_SEG"): ReadonlyArray<RouteSyncItem> {
+  function lazySections(name: "ME_SEG" | "HEALTH_SEG" | "SET_SEG"): ReadonlyArray<RouteSyncItem> {
     const value = (globalThis as Record<string, unknown>)[name];
     return Array.isArray(value) ? (value as ReadonlyArray<RouteSyncItem>) : [];
   }
@@ -46,6 +46,13 @@ type RouteSyncMode = "push" | "replace";
 
   // Route matching reads the complete section keys (route-state DEFS), never a
   // visible bar: a section a bar happens not to show must keep its own URL.
+  // SET_SEG is defined by the LAZY settings bundle; CairnRoutes carries the same
+  // keys and is always in the shell (a cold /app/you/settings/data deep link is
+  // resolved at boot, before that bundle loads).
+  function routeSyncSettingsSections(): ReadonlyArray<RouteSyncItem> {
+    return routeSyncApi()?.settingsSections || lazySections("SET_SEG");
+  }
+
   function routeSyncPlanSections(): ReadonlyArray<RouteSyncItem> {
     return routeSyncApi()?.planSections || [];
   }
@@ -59,7 +66,7 @@ type RouteSyncMode = "push" | "replace";
       standSections: routeSyncStandSections(),
       meSections: routeSyncMeSections(),
       healthSections: routeSyncHealthSections(),
-      settingsSections: SET_SEG,
+      settingsSections: routeSyncSettingsSections(),
     });
   }
 
@@ -71,7 +78,7 @@ type RouteSyncMode = "push" | "replace";
       standSections: routeSyncStandSections(),
       meSections: routeSyncMeSections(),
       healthSections: routeSyncHealthSections(),
-      settingsSections: SET_SEG,
+      settingsSections: routeSyncSettingsSections(),
       defaultProgressSection: defaultProgressSeg(),
     });
   }
