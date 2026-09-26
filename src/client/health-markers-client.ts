@@ -93,14 +93,15 @@ function markerOutOfRange(marker: HealthMarkersRow | null | undefined): boolean 
 }
 
 // The LAB FLAG as one word ("high", "low", "abnormal", "critical"): the lab's own
-// flag, else a value outside the lab's printed range (the same rule markerStatus
-// reads warn on). "" when the lab has no complaint. Never the optimal band.
+// flag, else a value outside the lab's PRINTED range (`reference_source` "source_lab").
+// A curated reference interval is not the lab's, so it never earns the lab mark. ""
+// when the lab has no complaint. Never the optimal band.
 function labFlagWord(marker: HealthMarkersRow | null | undefined): string {
   const flag = String(marker?.latest?.flag || "").toLowerCase();
   if (flaggedByLab(flag)) return flag;
   const v = Number(marker?.latest?.value);
   const ref = marker?.reference;
-  if (!ref || marker?.latest?.value == null || marker.latest.value === "" || !Number.isFinite(v)) return "";
+  if (!ref || marker?.reference_source !== "source_lab" || marker?.latest?.value == null || marker.latest.value === "" || !Number.isFinite(v)) return "";
   if (ref.high != null && Number.isFinite(Number(ref.high)) && v > Number(ref.high)) return "high";
   if (ref.low != null && Number.isFinite(Number(ref.low)) && v < Number(ref.low)) return "low";
   return "";

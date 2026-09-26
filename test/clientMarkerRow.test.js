@@ -118,10 +118,24 @@ test("a value outside the lab's printed range reads as the lab mark even without
     unit: "mg/dL",
     latest: { value: 4, date: "2031-03-02", flag: null },
     reference: { low: 5, high: 9 },
+    reference_source: "source_lab",
     points: [{ value: 4, date: "2031-03-02" }],
   });
   assert.equal(host.querySelector(".hmk-flag").dataset.flag, "low");
   assert.equal(host.querySelector(".hmk-opt"), null, "no optimal band, no optimal phrase");
+});
+
+test("a value outside a curated (not the lab's) reference range carries no lab mark", () => {
+  const win = load();
+  const host = row(win, {
+    name: "Synthetic Marker B2",
+    unit: "mg/dL",
+    latest: { value: 4, date: "2031-03-02", flag: null },
+    reference: { low: 5, high: 9 },
+    reference_source: "Synthetic curated source",
+    points: [{ value: 4, date: "2031-03-02" }],
+  });
+  assert.equal(host.querySelector(".hmk-flag"), null);
 });
 
 test("a calm reading carries no marks, and the dot's colour is never the only signal", () => {

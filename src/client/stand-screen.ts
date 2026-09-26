@@ -826,10 +826,8 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
 
   // ---- domain detail + All markers — the records-search component ----------------
   // A drill-in and All markers mount records-search into #standRecords; All markers adds the
-  // evidence-wanted line, and searches documents, notes and body readings once
-  // RECORDS_SEARCH_LIVE is on (GET /api/records/search, stream A: flipped at integration, as
-  // api() reports every non-2xx). viewerStorage: `localStorage` can throw; null skips it.
-  const RECORDS_SEARCH_LIVE = false;
+  // evidence-wanted line and also searches documents, notes and body readings through
+  // GET /api/records/search. viewerStorage: `localStorage` can throw; null skips it.
   function viewerStorage(): Storage | null {
     try {
       return localStorage;
@@ -846,8 +844,8 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       seed: DATA ? { markers: DATA.markers, groups: DATA.groups } : null,
       scope,
       searchable: all || (DATA?.markers || []).filter((m) => !scope || scope.includes(String(m.group))).length > 5,
-      searchRecords: all && RECORDS_SEARCH_LIVE,
-      placeholder: all && RECORDS_SEARCH_LIVE ? "Search markers, documents, notes…" : "Search markers…",
+      searchRecords: all,
+      placeholder: all ? "Search markers, documents, notes…" : "Search markers…",
       askCoach: (question) => CairnHealthClient.askCoach(question),
       onDirective: () => showConnections(),
       onOpenRecord: (item) => (item.kind === "body" ? showBody() : showRecords()),

@@ -7,16 +7,18 @@
 //   - "panel":    clinical panels in the server's MARKER_GROUPS order;
 //   - "newest":   one section per draw date, newest first, panel order inside a date.
 // Search narrows markers by name or panel. The server search (GET /api/records/search,
-// Wave 3 stream A) reaches the records the catalog doesn't hold — documents, visit
-// notes and body readings — through `searchPath`/`otherItems`, a small adapter that
-// accepts either a flat `results[]` (each with a `kind`) or per-kind arrays, and
-// returns null for anything else (a body that isn't a search result shows nothing).
+// ClientRecordsSearchRead in src/contracts/health-records.ts) reaches the records the
+// catalog doesn't hold — documents, visit notes and body readings — through
+// `searchPath`/`otherItems`, which read the non-marker hits out of its `sections` and
+// return null for anything else (a body that isn't a search result shows nothing).
 {
   type Mode = ClientRecordsMode;
   type Marker = ClientRecordsMarker;
   type Group = { key: string; label: string };
   type Section = ClientRecordsSection;
   type Other = ClientRecordsOtherItem;
+  type SearchRead = import("../contracts/health-records.js").ClientRecordsSearchRead;
+  type SearchHit = import("../contracts/health-records.js").ClientRecordsHit;
 
   // Labels stay short: the sliding bar's thumb assumes three equal pills, and an
   // uppercase tracked label wider than a third of a 360px screen would stretch its
@@ -146,52 +148,56 @@
     return `/records/search?q=${encodeURIComponent(q.trim())}&group=${encodeURIComponent(SERVER_GROUP[mode])}`;
   }
 
-  const KIND: Record<string, Other["kind"]> = {
-    document: "document",
-    documents: "document",
-    doc: "document",
-    note: "note",
-    notes: "note",
-    visit_note: "note",
-    body: "body",
-    body_reading: "body",
-    reading: "body",
-  };
-
-  function otherItem(row: unknown, kindHint: string): Other | null {
-    if (!row || typeof row !== "object") return null;
-    const r = row as Record<string, unknown>;
-    const kind = KIND[String(r.kind || kindHint || "")];
-    if (!kind) return null; // markers (and anything unknown) stay with the local catalog
-    const title = String(r.title || r.label || r.name || "").trim();
-    if (!title) return null;
-    const value = r.value != null && r.value !== "" ? `${String(r.value)}${r.unit ? ` ${String(r.unit)}` : ""}` : "";
-    const detail = String(r.snippet || r.detail || r.summary || value || "").trim();
-    const date = String(r.date || r.doc_date || "").slice(0, 10);
-    const id = r.id ?? r.doc_id ?? r.record_id ?? "";
-    return { kind, id: String(id), title, date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "", detail };
+  // The server search's non-marker hits (ClientRecordsSearchRead, src/contracts/health-records.ts):
+  // every section's `hits`, keeping documents, visit notes and body readings. Markers stay
+  // with the local catalog, which already narrows them on every keystroke.
+  function otherItem(hit: SearchHit): Other | null {
+    if (!hit || typeof hit !== "object") return null;
+    if (hit.type === "document" || hit.type === "visit_note") {
+      const title = String(hit.title || hit.kind_label || "").trim();
+      if (!title) return null;
+      const detail = String(hit.snippet || hit.summary || "").trim();
+      const date = String(hit.date || "").slice(0, 10);
+      return {
+        kind: hit.type === "visit_note" ? "note" : "document",
+        id: String(hit.doc_id ?? hit.id ?? ""),
+        title,
+        date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
+        detail,
+      };
+    }
+    if (hit.type === "body") {
+      const title = String(hit.label || "").trim();
+      if (!title) return null;
+      const detail = hit.value != null ? `${String(hit.value)}${hit.unit ? ` ${String(hit.unit)}` : ""}` : "";
+      const date = String(hit.date || "").slice(0, 10);
+      return {
+        kind: "body",
+        id: String(hit.id ?? ""),
+        title,
+        date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
+        detail,
+      };
+    }
+    return null;
   }
 
   /** The non-marker hits, newest first; null when the response isn't a search result. */
   function otherItems(response: unknown): Other[] | null {
     if (!response || typeof response !== "object" || Array.isArray(response)) return null;
-    const r = response as Record<string, unknown>;
-    const rows: Array<Other | null> = [];
-    let recognized = false;
-    if (Array.isArray(r.results)) {
-      recognized = true;
-      for (const row of r.results) rows.push(otherItem(row, ""));
+    const sections = (response as Partial<SearchRead>).sections;
+    if (!Array.isArray(sections)) return null;
+    const rows: Other[] = [];
+    const seen = new Set<string>();
+    for (const s of sections) {
+      for (const hit of Array.isArray(s?.hits) ? s.hits : []) {
+        const item = otherItem(hit);
+        if (!item || seen.has(`${item.kind}:${item.id}`)) continue;
+        seen.add(`${item.kind}:${item.id}`);
+        rows.push(item);
+      }
     }
-    for (const key of ["documents", "notes", "body"]) {
-      if (!Array.isArray(r[key])) continue;
-      recognized = true;
-      for (const row of r[key] as unknown[]) rows.push(otherItem(row, key));
-    }
-    if (!recognized) return null;
-    return rows
-      .filter((row): row is Other => !!row)
-      .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1))
-      .slice(0, 30);
+    return rows.sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1)).slice(0, 30);
   }
 
   const CAIRN_RECORDS_SEARCH_MODEL = {

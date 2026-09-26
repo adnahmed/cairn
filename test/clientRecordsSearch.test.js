@@ -53,6 +53,7 @@ function mk(
     in_optimal: inOptimal,
     optimal,
     reference,
+    reference_source: reference ? "source_lab" : null,
     points: [{ value, date, flag }],
   };
 }
@@ -72,6 +73,37 @@ function catalog() {
 
 // Values built inside the sandbox are another realm's arrays; compare them as plain data.
 const plain = (v) => JSON.parse(JSON.stringify(v));
+
+// The real GET /api/records/search shape (ClientRecordsSearchRead), synthetic content.
+const searchRead = (sections) => ({
+  q: "x",
+  group: "out_of_range",
+  as_of: "2031-03-02",
+  sections,
+  counts: {},
+  frame: "",
+});
+const docHit = (id, title, date, type = "document") => ({
+  type,
+  id: `doc:${id}`,
+  doc_id: id,
+  kind: type === "visit_note" ? "visit_note" : "lab_report",
+  kind_label: type === "visit_note" ? "Visit note" : "Lab report",
+  title,
+  date,
+  summary: null,
+  snippet: null,
+  marker_count: 0,
+});
+const bodyHit = (site, label, value, unit, date) => ({
+  type: "body",
+  id: `body:${site}`,
+  label,
+  unit,
+  value,
+  date,
+  count: 1,
+});
 const sectionKeys = (model) => plain(model.sections.map((s) => s.key));
 const names = (section) => plain(section.markers.map((m) => m.name));
 
@@ -132,23 +164,44 @@ test("search narrows by name or panel, and a domain scope keeps only its panels"
   assert.deepEqual(sectionKeys(scoped), ["iron", "vitamins"]);
 });
 
-test("the server-search adapter takes flat or per-kind results and leaves markers local", () => {
+test("the server-search adapter reads the real search sections and leaves markers local", () => {
   const win = load();
   const M = win.CairnRecordsSearchModel;
   assert.equal(M.searchPath(" lipid ", "outrange"), "/records/search?q=lipid&group=out_of_range");
-  const flat = M.otherItems({
-    results: [
-      { kind: "marker", name: "Synthetic Glucose" },
-      { kind: "document", id: 7, title: "Synthetic panel PDF", date: "2031-01-10" },
-      { kind: "note", id: "n1", title: "Synthetic visit note", date: "2031-02-01", snippet: "follow-up" },
-    ],
-  });
-  assert.deepEqual(plain(flat.map((i) => [i.kind, i.id, i.title])), [
-    ["note", "n1", "Synthetic visit note"],
+  const items = M.otherItems(
+    searchRead([
+      {
+        key: "lab_flagged",
+        label: "Flagged by the lab",
+        hits: [{ type: "marker", id: "marker:glu", name: "Synthetic Glucose" }],
+      },
+      { key: "documents", label: "Documents", hits: [docHit(7, "Synthetic panel PDF", "2031-01-10")] },
+      {
+        key: "visit_notes",
+        label: "Visit notes",
+        hits: [{ ...docHit(8, "Synthetic visit note", "2031-02-01", "visit_note"), snippet: "…follow-up…" }],
+      },
+      { key: "body", label: "Body readings", hits: [bodyHit("waist", "Waist", 80, "cm", "2031-02-02")] },
+    ])
+  );
+  assert.deepEqual(plain(items.map((i) => [i.kind, i.id, i.title])), [
+    ["body", "body:waist", "Waist"],
+    ["note", "8", "Synthetic visit note"],
     ["document", "7", "Synthetic panel PDF"],
   ]);
-  const keyed = M.otherItems({ body: [{ id: 3, label: "Waist", value: 80, unit: "cm", date: "2031-02-02" }] });
-  assert.deepEqual(plain(keyed[0]), { kind: "body", id: "3", title: "Waist", date: "2031-02-02", detail: "80 cm" });
+  assert.deepEqual(plain(items[0]), {
+    kind: "body",
+    id: "body:waist",
+    title: "Waist",
+    date: "2031-02-02",
+    detail: "80 cm",
+  });
+  assert.equal(items[1].detail, "…follow-up…", "a visit note's snippet is its detail");
+  // "Newest" interleaves every kind in one section; a hit is still listed once.
+  const newest = M.otherItems(
+    searchRead([{ key: "newest", label: "Newest", hits: [docHit(7, "A", "2031-01-10"), docHit(7, "A", "2031-01-10")] }])
+  );
+  assert.equal(newest.length, 1);
   // A body that isn't a search result shows nothing (a 404 never gets here: api() throws).
   assert.equal(M.otherItems({ error: "not found" }), null);
   assert.equal(M.otherItems(null), null);
@@ -223,7 +276,7 @@ test("empty states: nothing yet says what fills it; no match offers to clear", (
 function harness({
   seed = catalog(),
   fetchCatalog = () => catalog(),
-  search = () => ({ results: [] }),
+  search = () => searchRead([]),
   storage,
   peek = null,
 } = {}) {
@@ -287,9 +340,10 @@ test("switching the grouping repaints in place, presses the button, and remember
 
 test("typing narrows markers at once and asks the server search once, after a pause", async () => {
   const h = harness({
-    search: () => ({
-      results: [{ kind: "document", id: 9, title: "Synthetic thyroid panel PDF", date: "2031-01-10" }],
-    }),
+    search: () =>
+      searchRead([
+        { key: "documents", label: "Documents", hits: [docHit(9, "Synthetic thyroid panel PDF", "2031-01-10")] },
+      ]),
   });
   await flush();
   const input = h.host.querySelector("[data-records-q]");
@@ -332,7 +386,7 @@ test("a superseded server answer is dropped, and a failed one is one calm line",
   h.timers.tick(250);
   await flush();
   assert.match(h.host.querySelector("[data-records-other]").textContent, /couldn't be searched just now/);
-  release({ results: [{ kind: "document", id: 1, title: "Stale answer" }] });
+  release(searchRead([{ key: "documents", label: "Documents", hits: [docHit(1, "Stale answer", "2031-01-10")] }]));
   await flush();
   assert.doesNotMatch(h.host.textContent, /Stale answer/, "the older answer never paints");
 });
