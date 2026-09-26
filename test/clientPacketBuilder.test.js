@@ -154,11 +154,15 @@ test("the preview marks a row as the packet does: the lab flag alone, else outsi
     FINDING,
     { ...FINDING, name: "<b>Synthetic</b>", flag: null, inOptimal: true },
     { ...FINDING, name: "Synthetic Marker C", flag: null, abnormal: false, inOptimal: false },
+    // The named JSON fields win over the older ones: `abnormal` is never read.
+    { ...FINDING, name: "Synthetic Marker D", abnormal: true, lab_flagged: false, outside_optimal: true },
   ];
   const model = win.CairnPacketBuilderModel.previewModel(report);
   const host = renderHtml(win.CairnPacketBuilder.previewHtml(model, { enter: true }), { document: win.document });
   const rows = host.querySelectorAll('[data-packet-pv="findings"] .packet-row');
-  assert.equal(rows.length, 3);
+  assert.equal(rows.length, 4);
+  assert.equal(rows[3].querySelector(".packet-flag"), null, "lab_flagged: false is never a lab mark");
+  assert.equal(rows[3].querySelector(".packet-opt").textContent, "Outside optimal");
   assert.equal(rows[0].querySelector(".packet-flag").textContent, "Lab: high");
   assert.equal(
     rows[0].querySelector(".packet-opt"),

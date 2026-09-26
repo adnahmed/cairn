@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createFakeTimers, createHost, createStorage, flush, loadClientModule, renderHtml } from "./_dom.mjs";
 import { markerGroup, markerGroupRank, presentGroups } from "../dist/repo/propagation-data.js";
+import { labRangeFields } from "../dist/repo/lab-range.js";
 
 const MODULES = [
   "date-utils",
@@ -43,19 +44,22 @@ function mk(
   { value = 50, date = "2031-03-02", flag = "normal", inOptimal = true, optimal = null, reference = null } = {}
 ) {
   const g = markerGroup(name);
-  return {
+  const row = {
     key: name.toLowerCase().replace(/\W+/g, "-"),
     name,
     unit: "u",
     group: g.key,
     group_label: g.label,
-    latest: { value, date, flag },
+    latest: { value, date, flag, doc_id: 1 },
     in_optimal: inOptimal,
     optimal,
     reference,
     reference_source: reference ? "source_lab" : null,
     points: [{ value, date, flag }],
   };
+  // The server's own lab-range read, as GET /api/markers/priority carries it — the page
+  // never derives it.
+  return { ...row, ...labRangeFields(row) };
 }
 
 // Deliberately NOT in clinical order: the server's `groups` array is what orders panels.
@@ -123,15 +127,16 @@ test("By panel follows MARKER_GROUPS order, whatever order the markers arrive in
   assert.equal(model.shown, 6);
 });
 
-test("Out of range first keys on the lab flag; outside optimal is its own section", () => {
+test("Out of range first keys on the lab's range; outside optimal is its own section", () => {
   const win = load();
   const model = win.CairnRecordsSearchModel.sectionsModel({ ...catalog(), mode: "outrange" });
   const [first, second, ...rest] = model.sections;
-  assert.equal(first.key, "lab-flagged");
-  assert.equal(first.label, "Flagged by the lab");
+  assert.equal(first.key, "lab_out_of_range", "the server search's own section key");
+  assert.equal(first.label, "Outside the lab's range");
   // Glucose carries the lab's HIGH; Sodium sits below the lab's printed range.
   assert.deepEqual(names(first).sort(), ["Synthetic Glucose", "Synthetic Sodium"]);
-  assert.equal(second.key, "off-optimal");
+  assert.equal(second.key, "outside_optimal");
+  assert.equal(second.label, "Outside optimal");
   assert.deepEqual(names(second), ["Synthetic Ferritin"], "lab-normal but off optimal: never in the flag section");
   // Glucose is off optimal too, but it is listed once, under the lab flag.
   assert.equal(model.sections.flatMap((s) => s.markers).filter((m) => m.name === "Synthetic Glucose").length, 1);
@@ -142,6 +147,23 @@ test("Out of range first keys on the lab flag; outside optimal is its own sectio
     [...panelKeys].sort((a, b) => markerGroupRank(a) - markerGroupRank(b))
   );
   assert.ok(rest.every((s) => s.kind === "panel"));
+});
+
+test("the page reads the lab's range off the row; it never re-derives it from the printed range", () => {
+  const win = load();
+  const sodium = mk("Synthetic Sodium", { value: 130, flag: null, reference: { low: 135, high: 145 } });
+  assert.equal(sodium.lab_out_of_range, true, "fixture: the server calls it out of range");
+  // A row without the server's read (an older cached body) carries no lab claim at all,
+  // even though its printed range would say "low" — the rule lives on the server only.
+  const { lab_out_of_range: _o, lab_out_of_range_side: _s, lab_range: _r, ...bare } = sodium;
+  const model = win.CairnRecordsSearchModel.sectionsModel({
+    markers: [sodium, { ...bare, key: "bare", name: "Synthetic Sodium Bare" }],
+    groups: presentGroups([sodium]),
+    mode: "outrange",
+  });
+  assert.deepEqual(names(model.sections[0]), ["Synthetic Sodium"]);
+  assert.equal(win.CairnHealthMarkers.labFlagWord(sodium), "low");
+  assert.equal(win.CairnHealthMarkers.labFlagWord(bare), "");
 });
 
 test("Newest groups by draw date, newest first", () => {
@@ -251,7 +273,7 @@ test("results render sections in model order, rows as marker-row, hostile text a
     sections.map((s) => s.dataset.recordsSection),
     sectionKeys(model)
   );
-  assert.match(sections[0].querySelector(".hmk-grouphead").textContent, /Flagged by the lab/);
+  assert.match(sections[0].querySelector(".hmk-grouphead").textContent, /Outside the lab's range/);
   assert.equal(sections[0].querySelectorAll(".hmk").length, 2);
   assert.equal(host.querySelector("b"), null);
 });
@@ -312,7 +334,7 @@ const sectionOrder = (host) => host.querySelectorAll("[data-records-section]").m
 
 test("it paints from the screen's warm catalog at once, then revalidates through SWR", async () => {
   const h = harness();
-  assert.equal(sectionOrder(h.host)[0], "lab-flagged", "Out of range first is the default");
+  assert.equal(sectionOrder(h.host)[0], "lab_out_of_range", "Out of range first is the default");
   await flush();
   assert.deepEqual(h.reads, ["/markers/priority"]);
 });

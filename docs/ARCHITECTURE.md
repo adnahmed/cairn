@@ -4524,6 +4524,25 @@ review's stay filed and one a newer reading already answered is retired; a Dismi
 directive cancels the follow-up an earlier Done filed (`cancelDirectiveRecheck`, and healed on
 refresh), while an acknowledged Done whose reading still stands keeps it.
 
+**The stored reason is the machine register; a person reads the spoken one.** A cadence row's
+`reason` opens on one status clause that merges the lab's range with the optimal band ("… is outside
+its optimal/lab range; …"). The coach context and MCP keep it as is; every athlete-facing surface —
+the next-checkup `why`, a visit question's `basis`, Train's re-check detail — speaks through
+`spokenLoopReason` / `loopPolicySentence` (`src/repo/doctor-loop.ts`) instead: which fact holds (the
+lab's range, the optimal band, or both as two sentences, rotated by `pickDayVariant`), then the plain
+policy sentence. Marker names mid-sentence and the shared question wordings live in
+`src/repo/loop-speech.ts`.
+
+**"Out of range" per the LAB has one rule.** `labRangeRead` (`src/repo/lab-range.ts`): out when the lab
+flagged the reading or its value sits outside the range the lab PRINTED (`reference_source ===
+"source_lab"`); within when the lab marked it normal or it sits inside that range; unranged for
+anything with no document behind it (weigh-ins, the home cuff — whose high/low is Cairn's threshold —
+and wearables) or no printed range. A curated interval and the optimal band never count. The
+`/api/markers/priority` rows carry it finished (`lab_range`, `lab_out_of_range`,
+`lab_out_of_range_side`, via `publicMarkerRow` in `src/domain/health/marker-public.ts`, which also keeps
+the optimal `distance` in-process and clears an untrusted optimal band), and the Records page and
+`/api/records/search` both key their "Outside the lab's range" section on it; no renderer re-derives it.
+
 ### A MyChart export is read deterministically FIRST, and the card says which read it got
 
 A MyChart/CCDA "IHE_XDM" bundle is structured data, not prose: `src/repo/ccda.ts` reads the clinical

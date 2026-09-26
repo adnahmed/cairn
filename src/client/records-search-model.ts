@@ -2,8 +2,14 @@
 // records-search, the model (docs/V2-PLAN.md wave 3). Pure shaping from the marker
 // catalog (GET /api/markers/priority: markers + the canonical `groups`, which the
 // server lists in MARKER_GROUPS order) into the sections one grouping mode shows:
-//   - "outrange": what the LAB flagged leads, then what sits outside its optimal band
-//     (its own section, never folded into the flag), then every other marker by panel;
+//   - "outrange": what is outside the LAB's range leads, then what sits outside its
+//     optimal band (its own section, never folded into the lab's), then every other
+//     marker by panel. "Outside the lab's range" is the server's own read on each row
+//     (`lab_out_of_range`, src/repo/lab-range.ts — the lab flagged it, or its value sits
+//     outside the range the lab printed), the same rule and the same section keys and
+//     labels the server search (`group=out_of_range`) leads with. It is never re-derived
+//     here. The panels after them make no range claim: a reading no lab ranged is never
+//     filed as "within the lab's range";
 //   - "panel":    clinical panels in the server's MARKER_GROUPS order;
 //   - "newest":   one section per draw date, newest first, panel order inside a date.
 // Search narrows markers by name or panel. The server search (GET /api/records/search,
@@ -75,7 +81,12 @@
     return out;
   }
 
-  const flagged = (m: Marker): boolean => !!CairnHealthMarkers.labFlagWord(m);
+  // The two lead sections: keys and labels shared with the server search's
+  // `out_of_range` grouping (RANGE_SECTIONS, src/domain/health/records-search.ts).
+  const LAB_OUT = { key: "lab_out_of_range", label: "Outside the lab's range" } as const;
+  const OFF_OPTIMAL = { key: "outside_optimal", label: "Outside optimal" } as const;
+
+  const flagged = (m: Marker): boolean => m.lab_out_of_range === true;
   const offOptimal = (m: Marker): boolean => !!CairnHealthMarkers.offOptimalWord(m);
   const count = (list: readonly Marker[]): number => list.filter(flagged).length;
 
@@ -114,8 +125,8 @@
       const opt = inOrder.filter((m) => !flagged(m) && offOptimal(m));
       const lead = new Set([...lab, ...opt]);
       sections = [
-        ...(lab.length ? [section("lab-flagged", "Flagged by the lab", "flagged", null, lab)] : []),
-        ...(opt.length ? [section("off-optimal", "Outside optimal", "optimal", null, opt)] : []),
+        ...(lab.length ? [section(LAB_OUT.key, LAB_OUT.label, "flagged", null, lab)] : []),
+        ...(opt.length ? [section(OFF_OPTIMAL.key, OFF_OPTIMAL.label, "optimal", null, opt)] : []),
         ...panels
           .map((s) =>
             section(

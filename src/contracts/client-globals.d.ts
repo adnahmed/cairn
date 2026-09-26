@@ -5578,6 +5578,10 @@ declare global {
     group_label?: unknown;
     latest?: { value?: unknown; date?: unknown; flag?: unknown } | null;
     in_optimal?: unknown;
+    /** "Out of range" per the LAB, finished by the server (src/repo/lab-range.ts). */
+    lab_range?: unknown;
+    lab_out_of_range?: unknown;
+    lab_out_of_range_side?: unknown;
   };
   type ClientRecordsSection = {
     key: string;
@@ -5587,7 +5591,7 @@ declare global {
     /** The MARKER_GROUPS key for a panel section, else null. */
     group: string | null;
     markers: ClientRecordsMarker[];
-    /** How many of `markers` the lab flagged. */
+    /** How many of `markers` sit outside the lab's range (the server's `lab_out_of_range`). */
     flagged: number;
   };
   type ClientRecordsModel = { sections: ClientRecordsSection[]; total: number; shown: number };
@@ -5614,10 +5618,17 @@ declare global {
     onOpenRecord?(item: { kind: string; id: string }): void;
     onAdd?(): void;
   };
-  type ClientEvidenceWanted = { key: string; label: string; when: string; kind: "lab" | "dexa" };
+  /** The server's one evidence-wanted line (GET /api/health/evidence-wanted), as painted. */
+  type ClientEvidenceWantedLine = {
+    /** The ask's identity: the server's key + the date of the reading it would refresh. */
+    key: string;
+    /** The server's finished sentence — printed as is, never composed here. */
+    line: string;
+    kind: "recheck" | "rescan";
+  };
   type ClientEvidenceWantedDeps = {
-    /** The GET /api/health/next-checkup read the screen already holds. */
-    checkup: unknown;
+    cachedApi(path: string, options?: CachedApiOptions<unknown>): Promise<unknown>;
+    peekCached<T = unknown>(key: string, freshFor?: number): SwrPeek<T> | null;
     storage?: Pick<Storage, "getItem" | "setItem"> | null;
     onOpen?(): void;
   };
@@ -5668,12 +5679,13 @@ declare global {
       mount(host: Element, deps: ClientRecordsSearchDeps): () => void;
     };
     CairnEvidenceWanted: {
-      model(checkup: unknown): ClientEvidenceWanted | null;
-      text(model: ClientEvidenceWanted): string;
-      lineHtml(model: ClientEvidenceWanted | null, opts?: { canOpen?: boolean }): string;
+      model(read: unknown): ClientEvidenceWantedLine | null;
+      lineHtml(model: ClientEvidenceWantedLine | null, opts?: { canOpen?: boolean }): string;
     };
     CairnEvidenceWantedController: {
       DISMISS_KEY: string;
+      KEY: string;
+      PATH: string;
       mount(host: Element, deps: ClientEvidenceWantedDeps): () => void;
     };
     CairnRecordsSlot: {

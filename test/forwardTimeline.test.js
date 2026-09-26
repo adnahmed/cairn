@@ -119,6 +119,11 @@ test("dates are drawn from real data, never fabricated", () => {
   const recheck = timeline.find((e) => e.kind === "recheck");
   assert.match(recheck.label, /ApoB/, "a lab re-check names the real marker");
   assert.match(String(recheck.when.date), /^\d{4}-\d{2}-\d{2}$/, "a re-check carries a real due date");
+  // The stored reason merges the lab's range and the optimal band into one clause; the
+  // person reads only the plain policy sentence behind it.
+  assert.ok(recheck.detail, "the re-check says why");
+  assert.doesNotMatch(recheck.detail, /optimal\/lab|follow-up lever/i);
+  assert.match(recheck.detail, /^Lipids take about three months/);
 
   // A review-followup row must read as the human action from its reason —
   // never a prettified machine slug ("Review Followup:hs Crp:…").

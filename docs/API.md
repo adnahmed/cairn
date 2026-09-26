@@ -506,7 +506,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/markers/aliases` | Marker-name canonicalization (analyte de-duplication). GET lists the learned variant->canonical aliases; POST runs the agentic reconciler over the distinct marker names and persists genuine same-analyte merges (the deterministic normalizer + KB are always on; this learns the long tail). Synchronous like the meal swap: one agent call; ok:false at 200 is the designed failure signal. |
-| GET | `/api/markers/priority` | Markers re-ranked by impact (distance from OPTIMAL, most-actionable first). Informational, not medical advice; the impact_score is an internal ordering signal only and is never rendered as a user-facing grade. HRV / Resting HR are re-judged on the same week the directive engine reads (wearableWeeklyMarkerRead, health-focus.ts) so this catalog can never disagree with a directive over the same night's number — a single night still shows as the latest reading, but never as the status. |
+| GET | `/api/markers/priority` | Markers re-ranked by impact (distance from OPTIMAL, most-actionable first). Informational, not medical advice; the impact_score and the optimal `distance` it is built from are internal ordering signals only — neither crosses this boundary (publicMarkerRow), and neither is ever rendered as a user-facing grade. Each row carries "out of range" per the LAB finished (`lab_range`, `lab_out_of_range`, src/repo/lab-range.ts), so the Records page never re-derives it. HRV / Resting HR are re-judged on the same week the directive engine reads (wearableWeeklyMarkerRead, health-focus.ts) so this catalog can never disagree with a directive over the same night's number — a single night still shows as the latest reading, but never as the status. |
 | POST | `/api/markers/reconcile` |  |
 
 ## `/meal-plans`
@@ -686,7 +686,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/records/search` | Records search: one search across markers, health documents, visit notes and body readings. ?q= (every word must match) and ?group=out_of_range\|panel\|newest (default out_of_range). "Out of range" keys on the lab's own flag; outside-optimal is its own mark, never merged into it; panel order is MARKER_GROUPS order; each marker carries its reading's age for its own kind of marker. Read-only. Informational, not medical advice. |
+| GET | `/api/records/search` | Records search: one search across markers, health documents, visit notes and body readings. ?q= (every word must match) and ?group=out_of_range\|panel\|newest (default out_of_range). "Out of range" keys on the LAB's range (its flag, or the range it printed — src/repo/lab-range.ts, the rule the Records page reads too); outside-optimal is its own mark, never merged into it; panel order is MARKER_GROUPS order; each marker carries its reading's age for its own kind of marker. Read-only. Informational, not medical advice. |
 
 ## `/recovery`
 

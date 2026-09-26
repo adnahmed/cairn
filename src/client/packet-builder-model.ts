@@ -11,7 +11,7 @@
 // The lab's own HIGH/LOW flag and "outside optimal" stay two separate fields here and
 // two separate marks on the page. No scores: the packet JSON carries none.
 {
-  type Marker = import("../contracts/health-records.js").ClientReportMarker;
+  type Marker = import("../contracts/health-records.js").ClientReportMarkerJson;
   type Option = ClientPacketSectionOption;
   type Row = ClientPacketPreviewRow;
   type Section = ClientPacketPreviewSection;
@@ -88,15 +88,18 @@
     return v && unit ? `${v} ${unit}` : v;
   }
 
+  // The two facts come from the packet's own named fields (`lab_flagged`,
+  // `outside_optimal`), never read off `abnormal`, which merges them.
   function findingRow(raw: unknown): Row {
     const m = obj(raw) as unknown as Marker;
-    const flag = m.flag === "high" || m.flag === "low" ? m.flag : null;
+    const side = m.flag === "high" || m.flag === "low" ? m.flag : null;
+    const labFlagged = typeof m.lab_flagged === "boolean" ? m.lab_flagged : side != null;
     return {
       title: str(m.name),
       detail: value(m),
       date: str(m.latestDate) || null,
-      flag,
-      outsideOptimal: m.inOptimal === false,
+      flag: labFlagged ? side : null,
+      outsideOptimal: typeof m.outside_optimal === "boolean" ? m.outside_optimal : m.inOptimal === false,
     };
   }
 

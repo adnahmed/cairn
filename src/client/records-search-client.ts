@@ -41,11 +41,11 @@
     return s.label ? absDate(s.label) : "Undated";
   }
 
-  // A panel says how many of its rows the lab flagged; the two lead sections say how
-  // many they hold. A count, never a grade.
+  // A panel says how many of its rows sit outside the lab's range; the two lead sections
+  // say how many they hold. A count, never a grade.
   function badgeHtml(s: Section): string {
     if (s.kind === "flagged" || s.kind === "optimal") return `<span class="hmk-headcount">${s.markers.length}</span>`;
-    return s.flagged ? `<span class="hmk-headcount">${s.flagged} lab-flagged</span>` : "";
+    return s.flagged ? `<span class="hmk-headcount">${s.flagged} outside lab range</span>` : "";
   }
 
   function rowsHtml(s: Section, rowIndex: { value: number }): string {

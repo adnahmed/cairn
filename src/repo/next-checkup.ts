@@ -19,8 +19,10 @@ import {
   markerSignalKey,
   recommendedPanel,
   refreshDoctorLoopAttention,
+  spokenLoopReason,
   type DoctorLoopItem,
 } from "./doctor-loop.js";
+import { followThroughQuestion, recheckQuestion, spokenMarkerName, workupQuestion } from "./loop-speech.js";
 import { getLatestHealthReview, getMarkerHistory } from "./health.js";
 import { listDirectives } from "./directives.js";
 import { listSupplements } from "./supplements.js";
@@ -212,8 +214,15 @@ function dueWhenText(nextDue: string | null, asOf: string): string | null {
 }
 
 // One collapsed doctor-loop follow-up → a checkup line. The item already carries its
-// readable label, kind and earliest open due date (doctor-loop-items.ts).
-function toCheckupItem(item: DoctorLoopItem, asOf: string, dexaWhenText: string | null): CheckupItem {
+// readable label, kind and earliest open due date (doctor-loop-items.ts). The `why` is
+// the loop spoken to a person (spokenLoopReason): the lab's range and the optimal band
+// as separate facts, never the stored reason's merged "optimal/lab range" clause.
+function toCheckupItem(
+  item: DoctorLoopItem,
+  asOf: string,
+  dexaWhenText: string | null,
+  markers: MarkerLike[] = []
+): CheckupItem {
   // The DEXA re-scan reads as a soft window ("worth considering around …"), matching
   // Train's forward timeline — never a bare due date, though attention's next_due stays
   // the scheduling key. Falls back to the calm horizon phrasing if no window is known.
@@ -225,7 +234,7 @@ function toCheckupItem(item: DoctorLoopItem, asOf: string, dexaWhenText: string 
     kind: item.kind,
     next_due: item.next_due,
     when_text,
-    why: item.reason,
+    why: spokenLoopReason(item, { markers: markers as any[], asOf }),
   };
 }
 
@@ -472,15 +481,31 @@ function composePrep(
       questions.push(q);
     }
   };
-  for (const item of dueNow) if (item.kind === "lab" || item.kind === "review") pushQ(`Is it time to recheck ${item.label}?`);
-  for (const item of addOns.slice(0, 2)) pushQ(`Worth adding ${item.label} to the next draw?`);
+  // The same wording the packet's visit questions use (src/repo/loop-speech.ts).
+  for (const item of dueNow) if (item.kind === "lab" || item.kind === "review") pushQ(recheckQuestion(item));
+  for (const item of addOns.slice(0, 2)) pushQ(workupQuestion(item.label));
   // Interventions in motion whose target marker has no recheck on the calendar yet.
-  for (const ft of followThrough) if (ft.recheck === "none") pushQ(`How's my ${ft.marker} tracking — worth a recheck?`);
+  for (const ft of followThrough) if (ft.recheck === "none") pushQ(followThroughQuestion(ft.marker));
 
   return { ordered_labs: orderedLabs, bring, questions };
 }
 
 // ---- lede ---------------------------------------------------------------------
+// One follow-up's window as a sentence: the marker list in plain speech, the DEXA scan
+// by its own name, a review follow-up in its own words. `extra` rides before the stop.
+function ledeLine(item: CheckupItem, extra = ""): string {
+  const subject =
+    item.kind === "dexa"
+      ? "a repeat body-composition (DEXA) scan"
+      : item.kind === "review"
+        ? `"${item.label}"`
+        : `a ${spokenMarkerName(item.label)} recheck`;
+  const when = String(item.when_text ?? "window is open");
+  if (when.startsWith("window is open")) return `The window for ${subject} is open${when.slice(14)}${extra}.`;
+  if (when.startsWith("opens in")) return `The window for ${subject} ${when}${extra}.`;
+  return `${subject.charAt(0).toUpperCase()}${subject.slice(1)} is ${when}${extra}.`;
+}
+
 function composeLede(
   dueNow: CheckupItem[],
   upcomingDated: CheckupItem[],
@@ -489,12 +514,9 @@ function composeLede(
   warrantedAddOns: CheckupItem[] = [],
   asOf: string = todayISO()
 ): string {
-  if (dueNow.length) {
-    const extra = dueNow.length > 1 ? `, plus ${dueNow.length - 1} more` : "";
-    return `Your ${dueNow[0].label} recheck window is open${extra}.`;
-  }
+  if (dueNow.length) return ledeLine(dueNow[0], dueNow.length > 1 ? `, plus ${dueNow.length - 1} more` : "");
   const soonest = upcomingDated[0];
-  if (soonest && soonest.when_text) return `Your ${soonest.label} recheck ${soonest.when_text}.`;
+  if (soonest && soonest.when_text) return ledeLine(soonest);
   if (orderedLabs.length) return "Your last visit left labs to bring in — nothing's due to recheck on Cairn's side yet.";
   if (warrantedAddOns.length) return pickDayVariant(ADDON_LEDE_LINES, asOf, "next-checkup:lede:addons");
   if (followThrough.length) return "No rechecks are due — a few things you're doing are still working; here's where they stand.";
@@ -544,7 +566,9 @@ export function nextCheckupRead(opts: { refresh?: boolean; asOf?: string } = {})
   // The doctor loop, one item per real follow-up: a panel's cadence, directive and
   // review rows are already folded into one item carrying the earliest open due date.
   const loop = doctorLoopItems({ asOf, markers: markers as any[] });
-  const dueNow: CheckupItem[] = loop.filter((item) => item.due).map((item) => toCheckupItem(item, asOf, dexaWhenText));
+  const dueNow: CheckupItem[] = loop
+    .filter((item) => item.due)
+    .map((item) => toCheckupItem(item, asOf, dexaWhenText, markers as MarkerLike[]));
 
   // Upcoming = dated items not yet due, within the horizon.
   const upcomingDated: CheckupItem[] = loop
@@ -553,7 +577,7 @@ export function nextCheckupRead(opts: { refresh?: boolean; asOf?: string } = {})
       const days = daysBetweenISO(item.next_due, asOf);
       return days != null && days > 0 && days <= UPCOMING_HORIZON_DAYS;
     })
-    .map((item) => toCheckupItem(item, asOf, dexaWhenText));
+    .map((item) => toCheckupItem(item, asOf, dexaWhenText, markers as MarkerLike[]));
 
   // Missing high-value workups → calm "worth adding" suggestions (no date). A workup a
   // currently-flagged marker actually warrants is listed FIRST and says why — and it is
