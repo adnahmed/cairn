@@ -58,8 +58,9 @@ target for free; a raw `rgba()` literal does not, so a scrim or tint is written 
 `color-mix(in srgb,var(--ground) 88%,transparent)`, never as a light-only rgba. `index.html` carries
 one `theme-color` meta per scheme, each that palette's `--ground` (pinned by
 `test/pwaInstallIdentity.test.js`). A manifest holds one colour, so its `theme_color` and
-`background_color` are the light ground; moving the light value goes through
-`node scripts/bump-icons.mjs --theme-color`, which also bumps the icon version.
+`background_color` are the light ground, and the manifest `theme_color` must equal the light meta.
+A colour-only move edits the two together by hand; `node scripts/bump-icons.mjs --theme-color` is
+for a move that ships with new icon bytes, since its version bump asks iOS installs to re-add.
 
 ## Type
 

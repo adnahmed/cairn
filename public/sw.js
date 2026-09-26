@@ -31,11 +31,11 @@ const OPTIONAL_ASSETS = [
   // Versioned icon set (…vN). Never hand-edit the suffix: `node scripts/bump-icons.mjs`
   // moves every icon url (here, manifest.json, index.html) to the next .vN at once,
   // so the new urls bust every cache layer and test/pwaInstallIdentity.test.js agrees.
-  "/icons/icon.v4.svg", "/icons/apple-touch-icon.v4.png", "/icons/mask-icon.v4.svg",
-  "/icons/favicon-16.v4.png", "/icons/favicon-32.v4.png",
-  "/icons/icon-192.v4.png", "/icons/icon-512.v4.png",
-  "/icons/icon-192-maskable.v4.png", "/icons/icon-512-maskable.v4.png",
-  "/icons/og.v4.png",
+  "/icons/icon.v3.svg", "/icons/apple-touch-icon.v3.png", "/icons/mask-icon.v3.svg",
+  "/icons/favicon-16.v3.png", "/icons/favicon-32.v3.png",
+  "/icons/icon-192.v3.png", "/icons/icon-512.v3.png",
+  "/icons/icon-192-maskable.v3.png", "/icons/icon-512-maskable.v3.png",
+  "/icons/og.v3.png",
 ];
 
 self.addEventListener("install", (e) => {
