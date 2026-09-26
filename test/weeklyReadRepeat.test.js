@@ -40,7 +40,7 @@ function backdate(id, days) {
 function storeReadDaysAgo(parsed, days) {
   const verdict = weeklyReadVerdict({ parsed, today: localDaysAgo(days) });
   assert.equal(verdict.accept, true, "the seeded read is accepted");
-  const row = storeWeeklyRead(verdict.plan);
+  const row = storeWeeklyRead(verdict.plan, localDaysAgo(days));
   backdate(row.id, days);
   return { row, plan: verdict.plan };
 }
@@ -55,24 +55,40 @@ test("first week (no read before) → the full read", () => {
   assert.equal(verdict.plan.rationale, LAST_WEEK.rationale);
 });
 
-test("the same picture as last week → ONE calm line, no rationale, no second suggestion", () => {
+test("the same picture as last week → ONE calm line, no rationale, the one change in its own slot", () => {
   storeReadDaysAgo(LAST_WEEK, 7);
   const verdict = weeklyReadVerdict({ parsed: SAME_AGAIN });
   assert.equal(verdict.accept, true);
   assert.equal(verdict.plan.mode, "repeat");
   const line = verdict.plan.text;
-  assert.match(line, /^Same picture as last week — /);
-  assert.ok(!/\n/.test(line), "one line");
-  assert.match(line, /Keep Thursday's run truly easy\.$/, "the one change still standing is named, once");
+  assert.equal(line, "Same picture as last week.", "one calm line that asserts no action itself");
   assert.equal(verdict.plan.rationale, null);
-  assert.equal(verdict.plan.next_step, null);
+  assert.equal(verdict.plan.next_step, SAME_AGAIN.next_step, "the one change rides the card's One-change slot");
 
-  // Stored like any weekly read: it waits in-app as the served weekly read (pull, never push).
+  // Stored like any weekly read: it waits in-app as the served weekly read (pull,
+  // never push) — already `seen`, since "nothing new" is not news to the Brief.
   const row = storeWeeklyRead(verdict.plan);
   const served = repo.listVisibleInsights().find((i) => i.kind === "weekly_read");
   assert.equal(served.id, row.id);
   assert.equal(served.text, line);
-  assert.equal(served.status, "new");
+  assert.equal(served.next_step, SAME_AGAIN.next_step);
+  assert.equal(served.status, "seen");
+  assert.equal(served.stale, undefined, "fresh when nothing has moved");
+});
+
+test("a repeat read that goes stale no longer states the change anywhere on the served row", () => {
+  storeReadDaysAgo(LAST_WEEK, 7);
+  const verdict = weeklyReadVerdict({ parsed: SAME_AGAIN });
+  assert.equal(verdict.plan.mode, "repeat");
+  const row = storeWeeklyRead(verdict.plan);
+  // A session logged after the read moves the picture (the freshness signature).
+  repo.getOrCreateSession(localDaysAgo(0));
+  const served = repo.listVisibleInsights().find((i) => i.kind === "weekly_read");
+  assert.equal(served.id, row.id);
+  assert.equal(served.stale, true);
+  assert.equal(served.next_step, null, "the stale guard takes the change back");
+  assert.ok(!/thursday/i.test(served.text), "the line itself never carried the change");
+  assert.ok(!/thursday/i.test(served.rationale ?? ""));
 });
 
 test("a changed week → the full read, even when the headline echoes last week's", () => {
@@ -106,6 +122,36 @@ test("the picture moving (a new trip logged) is never 'the same picture', whatev
   const verdict = weeklyReadVerdict({ parsed: SAME_AGAIN });
   assert.equal(verdict.plan.mode, "full");
   assert.equal(verdict.plan.reason, "changed");
+});
+
+test("a one-tap day chip or the rest trade's claimed day keeps the same picture; a trip still breaks it", () => {
+  storeReadDaysAgo(LAST_WEEK, 7);
+  repo.toggleContextTag("alcohol", localDaysAgo(2));
+  db.prepare(
+    `INSERT INTO context_events (kind, title, start_date, end_date, meta_json, archived) VALUES ('life_event', 'Rest day — traded', ?, ?, ?, 0)`
+  ).run(localDaysAgo(1), localDaysAgo(1), JSON.stringify({ claims_day: true, rest_trade: true }));
+  const verdict = weeklyReadVerdict({ parsed: SAME_AGAIN });
+  assert.equal(verdict.plan.mode, "repeat", "routine chips are not a new picture");
+
+  db.prepare(`INSERT INTO context_events (kind, title, start_date, archived) VALUES ('trip', 'Work trip', ?, 0)`).run(
+    localDaysAgo(1)
+  );
+  const moved = weeklyReadVerdict({ parsed: SAME_AGAIN });
+  assert.equal(moved.plan.mode, "full");
+  assert.equal(moved.plan.reason, "changed");
+});
+
+test("many re-reads of one week never lose last week's basis", () => {
+  storeReadDaysAgo(LAST_WEEK, 7);
+  // Far more same-week re-reads than any row or ledger bound (planned directly: the
+  // word guard would silence near-identical re-reads, and it is not under test here).
+  for (let i = 0; i < 25; i++) {
+    storeWeeklyRead(planWeeklyRead({ text: `A different week, take ${i}: a trip and two rest days.` }));
+  }
+  const prev = previousWeeklyRead();
+  assert.ok(prev, "last week's read is still found");
+  assert.ok(prev.picture, "with its recorded picture, not a column fallback");
+  assert.equal(weeklyReadVerdict({ parsed: SAME_AGAIN }).plan.mode, "repeat");
 });
 
 test("a read older than last week (a gap) → the full read", () => {
@@ -146,7 +192,7 @@ test("a read the athlete waved off last week is never carried forward as the sam
   assert.deepEqual(verdict, { accept: false, agent_ran: true }, "the downvote-aware text guard answers instead");
 });
 
-test("the milestone step is carried in the one line when there is no next_step", () => {
+test("the milestone step is carried in the One-change slot when there is no next_step", () => {
   const withMilestone = {
     found: true,
     text: "A steady week: runs on their days and lifts held.",
@@ -158,10 +204,8 @@ test("the milestone step is carried in the one line when there is no next_step",
     parsed: { ...withMilestone, text: "Another steady week — runs on their days, lifts held." },
   });
   assert.equal(verdict.plan.mode, "repeat");
-  assert.equal(
-    verdict.plan.text,
-    "Same picture as last week — still one step toward the half-marathon build: one longer easy run."
-  );
+  assert.equal(verdict.plan.text, "Same picture as last week.");
+  assert.equal(verdict.plan.next_step, "Toward the half-marathon build: one longer easy run");
 });
 
 test("nothing to change either week → 'nothing new worth changing'", () => {
@@ -171,6 +215,7 @@ test("nothing to change either week → 'nothing new worth changing'", () => {
     parsed: { ...quiet, text: "Another calm, steady week; nothing needs changing." },
   });
   assert.equal(verdict.plan.text, "Same picture as last week — nothing new worth changing.");
+  assert.equal(verdict.plan.next_step, null);
 });
 
 test("silence stays silence: found:false and an unusable payload are not reads", () => {

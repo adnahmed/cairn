@@ -76,7 +76,7 @@ export function insightVerdict(opts: {
 // without a CLI like insightVerdict above:
 //   1. no read at all (found:false / no text / unusable) -> the same calm silence
 //   2. it says what last week said -> accept ONE calm line ("Same picture as last
-//      week — …"). The word guard is skipped: repeating is exactly what the line
+//      week."), the one change still standing in its usual slot. The word guard is skipped: repeating is exactly what the line
 //      owns up to, and two same weeks in a row would otherwise silence the second.
 //   3. otherwise (first week, changed, or last week's read was waved off) -> a full
 //      read, through the text guard over weeklyReadGuardTexts(): earlier weeks'

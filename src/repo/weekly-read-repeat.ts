@@ -1,5 +1,5 @@
 // Weekly-read repeat detection: a weekly read that would say the same as last
-// week says so in ONE calm line ("Same picture as last week — …") instead of
+// week says so in ONE calm line ("Same picture as last week.") instead of
 // repeating itself. Pull, never push: the line waits in-app exactly like a full
 // read, and no number from the comparison is ever shown.
 //
@@ -9,10 +9,12 @@
 //   - move:     the word set of the ONE change the card shows (`next_step`, else the
 //               milestone step folded the way the card prints it)
 //   - milestone: the word set of the named milestone, when the read named one
-// plus the week's discrete PICTURE, taken from the freshness signature
-// (computeWeeklyReadSignature): the active directive set, the newest lab date and
-// the newest context event. New labs, a new or closed finding, or a new trip is
-// never "the same picture", whatever the prose says.
+// plus the week's discrete PICTURE: the active directive set and the newest lab date
+// (from the freshness signature, computeWeeklyReadSignature), and the newest
+// athlete-meaningful context event — a trip, injury, illness or life event, never a
+// one-tap day chip (kind 'tag') or the rest trade's own claimed-day row, which an
+// athlete who uses the chips writes most days. New labs, a new or closed finding,
+// or a new trip is never "the same picture", whatever the prose says.
 //
 // A read is a REPEAT of last week's only when every slot holds:
 //   - headline word-overlap (Jaccard) >= WEEKLY_READ_REPEAT_THRESHOLD
@@ -29,9 +31,18 @@
 // all (the first week) gets a full read. A read last week that the athlete
 // thumbed DOWN is never carried forward as "the same picture" — the full path and
 // its downvote-aware text guard answer instead.
+//
+// A repeat row is stored like a full read's shape: `text` is the one calm line
+// ("Same picture as last week."), and the one change still standing rides the same
+// `next_step` slot a full read uses. So the stale guard (annotateWeeklyReadFreshness,
+// which defangs by nulling next_step) and the acknowledged card's One-change chip
+// both work on it unchanged — the line itself never asserts an action. It is stored
+// already `seen`: a line whose whole message is "nothing new" is not news to the
+// Brief's attention or its surprise budget.
 import { db } from "../db.js";
-import { daysBetweenISO, mondayOf } from "../lib/dates.js";
+import { addDaysISO, daysBetweenISO, mondayOf } from "../lib/dates.js";
 import { getAppState, setAppState } from "./app-state.js";
+import { contextEventIsRestTrade } from "./context-effect.js";
 import { addInsight, computeWeeklyReadSignature, DOWNVOTED_DEDUP_LIMIT, stampWeeklyReadFreshness } from "./insights.js";
 import { jaccard, memNorm } from "./memory.js";
 import { localDateISO, localDayOfStamp } from "./shared.js";
@@ -80,7 +91,8 @@ export type WeeklyReadPlan =
       repeat_of: number;
       text: string;
       rationale: null;
-      next_step: null;
+      // The one change still standing (last week's, re-said), in the card's own slot.
+      next_step: string | null;
       // The FULL read this one matched (carried forward so a run of same weeks is
       // always compared with the words last actually said, never a drifting chain).
       content: WeeklyReadContent;
@@ -166,20 +178,31 @@ export function compareWeeklyReads(
   return { repeat: changed.length === 0, changed };
 }
 
-function sentence(s: string): string {
-  const t = s.trim();
-  return /[.!?]$/.test(t) ? t : `${t}.`;
+// The ONE calm line. It never names the change itself — that rides the card's
+// One-change slot (next_step), where the stale guard can take it back — so the line
+// stays true however the week moves after it is written. No rationale, no second line.
+export function weeklyReadRepeatLine(c: WeeklyReadCandidate): string {
+  return weeklyReadMove(c) ? `${REPEAT_LINE_LEAD}.` : `${REPEAT_LINE_LEAD} — nothing new worth changing.`;
 }
 
-// The ONE calm line. It names the one change still standing (so nothing the full
-// read offered is lost) and nothing else — no rationale, no second line.
-export function weeklyReadRepeatLine(c: WeeklyReadCandidate): string {
-  const next = str(c.next_step);
-  if (next) return `${REPEAT_LINE_LEAD} — the one change still worth considering: ${sentence(next)}`;
-  const ms = milestoneParts(c.milestone_step);
-  if (ms?.milestone) return `${REPEAT_LINE_LEAD} — still one step toward ${ms.milestone}: ${sentence(ms.step)}`;
-  if (ms) return `${REPEAT_LINE_LEAD} — the one step still stands: ${sentence(ms.step)}`;
-  return `${REPEAT_LINE_LEAD} — nothing new worth changing.`;
+// Newest non-archived context event an athlete would call part of the week's
+// picture. Day chips (kind 'tag', from the chip row and chat mentions) and the rest
+// trade's claimed-day row are left out: both are routine, and counting them would
+// make the repeat line all but never fire for an athlete who uses the chips.
+function latestPictureContextEventId(): number | null {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT id, meta_json FROM context_events
+          WHERE archived = 0 AND COALESCE(kind, '') <> 'tag'
+          ORDER BY id DESC LIMIT 50`
+      )
+      .all() as any[];
+    const row = rows.find((r) => !contextEventIsRestTrade(r));
+    return row ? Number(row.id) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function currentWeeklyReadPicture(): WeeklyReadPicture {
@@ -187,20 +210,25 @@ export function currentWeeklyReadPicture(): WeeklyReadPicture {
   return {
     directive_keys: sig.directive_keys,
     latest_doc_date: sig.latest_doc_date,
-    latest_context_event_id: sig.latest_context_event_id,
+    latest_context_event_id: latestPictureContextEventId(),
   };
 }
 
 // ---- what each stored weekly read said, in structured form ----
-// A small bounded ledger in app_state keyed by insight id. A repeat row stores the
-// content of the full read it matched (its basis), plus the picture at ITS OWN
-// writing. Rows written before this ledger existed derive their content from their
-// columns (text + the stored one change) and carry no picture.
+// A small bounded ledger in app_state, ONE entry per local week (the newest read
+// written that week, which is exactly the row next week's previousWeeklyRead looks
+// up), so any number of same-week re-reads never evicts last week's entry. A repeat
+// row stores the content of the full read it matched (its basis), plus the picture
+// at ITS OWN writing. Rows written before this ledger existed derive their content
+// from their columns (text + the stored one change) and carry no picture.
 const CONTENT_KEY = "weekly_read_content";
-const CONTENT_LEDGER_LIMIT = 8;
+const CONTENT_LEDGER_WEEKS = 4;
 
 interface ContentEntry {
   insight_id: number;
+  // The local Monday of the week the read was written ("" on an entry written
+  // before the ledger was keyed by week; each such entry stands alone).
+  week: string;
   repeat: boolean;
   content: WeeklyReadContent;
   picture: WeeklyReadPicture | null;
@@ -217,8 +245,10 @@ function readLedger(): ContentEntry[] {
 
 function recordLedger(entry: ContentEntry): void {
   try {
-    const rest = readLedger().filter((e) => Number(e.insight_id) !== entry.insight_id);
-    setAppState(CONTENT_KEY, JSON.stringify([entry, ...rest].slice(0, CONTENT_LEDGER_LIMIT)));
+    const rest = readLedger().filter(
+      (e) => Number(e.insight_id) !== entry.insight_id && !(entry.week && String(e.week ?? "") === entry.week)
+    );
+    setAppState(CONTENT_KEY, JSON.stringify([entry, ...rest].slice(0, CONTENT_LEDGER_WEEKS)));
   } catch {
     /* the ledger never blocks a read being stored */
   }
@@ -233,15 +263,19 @@ export interface PreviousWeeklyRead {
 }
 
 // Last week's read: the newest weekly_read row (any status — a dismissed read was
-// still said) written before this local week's Monday, within the age cap.
+// still said) written before this local week's Monday, within the age cap. The scan
+// is bounded by that age cap (plus a day of zone slack), never by a row count, so
+// however many times this week was re-read, last week's row is still found.
 export function previousWeeklyRead(today: string = localDateISO()): PreviousWeeklyRead | null {
   const weekStart = mondayOf(today);
+  const floor = addDaysISO(today, -(LAST_WEEK_MAX_AGE_DAYS + 1));
   const rows = db
     .prepare(
       `SELECT id, created_at, text, next_step, feedback FROM insights
-        WHERE kind = 'weekly_read' ORDER BY id DESC LIMIT 20`
+        WHERE kind = 'weekly_read' AND substr(created_at, 1, 10) >= ?
+        ORDER BY id DESC`
     )
-    .all() as any[];
+    .all(floor) as any[];
   const row = rows.find((r) => {
     const day = localDayOfStamp(r.created_at);
     return day != null && day < weekStart;
@@ -251,12 +285,25 @@ export function previousWeeklyRead(today: string = localDateISO()): PreviousWeek
   if (age == null || age > LAST_WEEK_MAX_AGE_DAYS) return null;
   const id = Number(row.id);
   const entry = readLedger().find((e) => Number(e.insight_id) === id);
+  if (entry)
+    return {
+      id,
+      feedback: row.feedback ?? null,
+      repeat: !!entry.repeat,
+      content: entry.content,
+      picture: entry.picture ?? null,
+    };
+  // No ledger entry: read the row's own columns. A repeat line's text is not what
+  // the week was (its basis lived in the ledger), so it offers no headline to match
+  // and the week gets the full read — the safe answer when the basis is lost.
+  const content = weeklyReadContent({ text: row.text, next_step: row.next_step });
+  const repeat = str(row.text).startsWith(REPEAT_LINE_LEAD);
   return {
     id,
     feedback: row.feedback ?? null,
-    repeat: !!entry?.repeat,
-    content: entry?.content ?? weeklyReadContent({ text: row.text, next_step: row.next_step }),
-    picture: entry?.picture ?? null,
+    repeat,
+    content: repeat ? { ...content, headline: [] } : content,
+    picture: null,
   };
 }
 
@@ -286,25 +333,32 @@ export function planWeeklyRead(c: WeeklyReadCandidate, today: string = localDate
     repeat_of: prev.id,
     text: weeklyReadRepeatLine(c),
     rationale: null,
-    next_step: null,
+    next_step: weeklyReadMove(c),
     content: prev.content,
     picture,
   };
 }
 
 // Store the planned read, record what it said, and stamp its freshness signature.
-export function storeWeeklyRead(plan: WeeklyReadPlan) {
+// A full read waits as `new`; a repeat line is stored already `seen` (see the header).
+export function storeWeeklyRead(plan: WeeklyReadPlan, today: string = localDateISO()) {
   const insight = addInsight({
     kind: "weekly_read",
     text: plan.text,
     rationale: plan.rationale,
     next_step: plan.next_step,
-    status: "new",
+    status: plan.mode === "repeat" ? "seen" : "new",
     intent_key: null,
   }) as any;
   const id = Number(insight?.id);
   if (Number.isFinite(id)) {
-    recordLedger({ insight_id: id, repeat: plan.mode === "repeat", content: plan.content, picture: plan.picture });
+    recordLedger({
+      insight_id: id,
+      week: mondayOf(today),
+      repeat: plan.mode === "repeat",
+      content: plan.content,
+      picture: plan.picture,
+    });
     stampWeeklyReadFreshness(id);
   }
   return insight;
