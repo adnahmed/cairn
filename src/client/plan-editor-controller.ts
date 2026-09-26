@@ -553,6 +553,9 @@ function wireComposeWeek(root: ParentNode): void {
 // screen paints once they have all answered, so every slot fills in the same frame.
 // The wait is bounded: a read slower than this paints when it lands, as before.
 const PLAN_HEAD_WAIT_MS = 2000;
+// A warm re-entry (the plan itself painted from its peek) holds for far less: its
+// reads answer quickly, and the gallery should not sit behind a slow one.
+const PLAN_HEAD_WARM_WAIT_MS = 350;
 
 // A read started ahead of its consumer must not surface as an unhandled rejection;
 // the consumer still sees the original outcome.
@@ -603,7 +606,7 @@ async function renderPlanEditor(): Promise<void> {
     : null;
   await settledWithin(
     [heads.week, heads.recovery, heads.upcoming, ...(redrawRead ? [redrawRead] : [])],
-    PLAN_HEAD_WAIT_MS
+    peek ? PLAN_HEAD_WARM_WAIT_MS : PLAN_HEAD_WAIT_MS
   );
   if (token !== pollToken || state.tab !== "plan") return;
   if (peek && !peek.fresh) markRefreshing(true);

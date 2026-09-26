@@ -177,59 +177,6 @@ function todayLoadSurfaceSnapshot(date: string): string | null {
   }
 }
 
-// ---- warm instant-paint for the Session destination (the same idea as Today's) ----
-// Session's first content waits on the plan-session preparation and the strength
-// line — round trips even when every cached read is warm — so a re-entry showed the
-// previous screen for over half a second. The last real session paint is kept per
-// DATE, together with a stamp of the cached reads it was drawn from (the session, the
-// day's composed session, the plan). It repaints at once only while those reads are
-// untouched: any write drops or replaces one of them (a logged set, a skip, a swap,
-// an outbox replay, a plan save), the stamp stops matching, and the screen waits for
-// the truth instead. The real render always follows and settles on the live content.
-const SESSION_SURFACE_SNAP_KEY = "cairn.session.surface.v1";
-
-function sessionSnapshotStamp(date: string): string | null {
-  const session = peekCached<unknown>(`today:session:${date}`);
-  if (!session) return null;
-  let text = "";
-  try {
-    text = JSON.stringify([
-      session.data ?? null,
-      peekCached<unknown>(`today:daily-session:${date}`)?.data ?? null,
-      peekCached<unknown>("plan")?.data ?? null,
-    ]);
-  } catch {
-    return null;
-  }
-  let hash = 5381;
-  for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
-  return `${text.length}:${hash >>> 0}`;
-}
-
-function sessionSaveSurfaceSnapshot(date: string, html: string): void {
-  const stamp = sessionSnapshotStamp(date);
-  try {
-    if (!stamp) sessionStorage.removeItem(SESSION_SURFACE_SNAP_KEY);
-    else sessionStorage.setItem(SESSION_SURFACE_SNAP_KEY, JSON.stringify({ date, stamp, html }));
-  } catch {
-    /* quota — skip */
-  }
-}
-
-/** The last session paint for `date`, only while the reads it was drawn from are unchanged. */
-function sessionLoadSurfaceSnapshot(date: string): string | null {
-  try {
-    const raw = sessionStorage.getItem(SESSION_SURFACE_SNAP_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { date?: unknown; stamp?: unknown; html?: unknown } | null;
-    if (!parsed || parsed.date !== date || typeof parsed.html !== "string" || typeof parsed.stamp !== "string") return null;
-    const stamp = sessionSnapshotStamp(date);
-    return stamp && stamp === parsed.stamp ? parsed.html : null;
-  } catch {
-    return null;
-  }
-}
-
 function wireExerciseDecisionUndo(root: Element, repaint: () => Promise<unknown> | unknown): void {
   // Autonomous changes explain themselves at the affected exercise and can be
   // put back immediately. The server owns the exact rollback snapshot; the UI
@@ -1498,7 +1445,8 @@ async function renderSession(opts: any = {}): Promise<void> {
   // A bare entry repaints this date's last session at once (see the snapshot above);
   // a soft repaint, or a surface already on screen, never does.
   if (!opts?.soft && !hadSurface && todayState.tab === "session" && enteredDate) {
-    const snap = sessionLoadSurfaceSnapshot(enteredDate);
+    // See session-snapshot-client.ts: only while the reads it was drawn from stand.
+    const snap = CairnSessionSnapshot.load(CairnSessionSnapshot.storage(), enteredDate, peekCached);
     if (snap) {
       todayView.classList.remove("today-soft");
       todayView.innerHTML = snap;
@@ -1695,7 +1643,7 @@ async function renderSession(opts: any = {}): Promise<void> {
   void Promise.resolve(primerHydrated)
     .catch(() => {})
     .then(() => {
-      if (primerGuard() && todayView.querySelector(".sess-dest")) sessionSaveSurfaceSnapshot(enteredDate, todayView.innerHTML);
+      if (primerGuard() && todayView.querySelector(".sess-dest")) CairnSessionSnapshot.save(CairnSessionSnapshot.storage(), enteredDate, todayView.innerHTML, peekCached);
     });
 
   if (fresh) {

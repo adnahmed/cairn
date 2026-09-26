@@ -894,3 +894,28 @@ test("the plan editor paints Train's nav with its own leaf lit, never the old Pl
   assert.match(render, /wireSeg\(PROGRESS_LINK_HANDLERS\)/);
   assert.doesNotMatch(render, /planSeg\(\)|PLAN_HANDLERS/);
 });
+
+test("the reads above the gallery are asked with the plan and the screen paints once they answer", async () => {
+  const harness = loadPlanEditorController(A_WEEK);
+  let answerUpcoming;
+  const asked = [];
+  harness.context.api = (path) => {
+    asked.push(path);
+    if (path === "/plan/upcoming") return new Promise((resolve) => (answerUpcoming = resolve));
+    return Promise.resolve(null);
+  };
+  const painted = harness.context.renderPlanEditor();
+  await flush();
+  for (const path of ["/plan/week", "/plan/recovery-status", "/plan/upcoming", "/plan/redraw"]) {
+    assert.ok(asked.includes(path), `${path} is asked up front`);
+  }
+  // A head slot still out holds the paint: nothing lands and then gets pushed down.
+  assert.equal(harness.view.querySelector("#planedit"), null);
+  answerUpcoming(null);
+  await painted;
+  await flush();
+  assert.ok(harness.view.querySelector("#planedit"));
+  // Each head read is asked once: the slots take the answers already in hand.
+  assert.equal(asked.filter((path) => path === "/plan/upcoming").length, 1);
+  assert.equal(asked.filter((path) => path === "/plan/redraw").length, 1);
+});

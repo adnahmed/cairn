@@ -1568,6 +1568,22 @@ declare global {
   declare function swrInvalidate(keyOrPrefix: string): void;
   declare function swrSweep(): void;
   declare function settledWithin(reads: Promise<unknown>[], ms: number): Promise<void>;
+  declare const CairnSessionSnapshot: {
+    KEY: string;
+    stamp(date: string, peek: (key: string) => { data: unknown } | null): string | null;
+    save(
+      store: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null,
+      date: string,
+      html: string,
+      peek: (key: string) => { data: unknown } | null
+    ): void;
+    load(
+      store: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null,
+      date: string,
+      peek: (key: string) => { data: unknown } | null
+    ): string | null;
+    storage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> | null;
+  };
   declare function routeApi(): ClientRoutesApi | null;
   declare function routeKey(
     key: unknown,

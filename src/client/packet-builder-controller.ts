@@ -90,6 +90,8 @@
       else questionsSlot.setAttribute("hidden", "");
       if (on && !questionsTeardown && deps.mountQuestions)
         questionsTeardown = deps.mountQuestions(questionsSlot, onQuestions);
+      // No questions component to mount: the held box has nothing coming to fill it.
+      else if (!questionsTeardown && questionsSlot.querySelector(".vq-skel")) questionsSlot.innerHTML = "";
     }
 
     function apply(report: unknown, qs: string): void {
