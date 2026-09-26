@@ -199,6 +199,9 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/coach-proposal-controller.ts", output: "public/js/coach-proposal-controller.js" },
   { source: "src/client/coach-meals-screen.ts", output: "public/js/06-coach-meals.js" },
   { source: "src/client/food-note-client.ts", output: "public/js/food-note-client.js" },
+  { source: "src/client/meal-card-model.ts", output: "public/js/meal-card-model.js" },
+  { source: "src/client/meal-card-client.ts", output: "public/js/meal-card-client.js" },
+  { source: "src/client/meal-card-controller.ts", output: "public/js/meal-card-controller.js" },
   { source: "src/client/food-detail-controller.ts", output: "public/js/food-detail-controller.js" },
   { source: "src/client/me-profile-form-client.ts", output: "public/js/me-profile-form-client.js" },
   { source: "src/client/me-profile-controller.ts", output: "public/js/me-profile-controller.js" },
@@ -474,6 +477,11 @@ export const BUNDLES = [
       // here keeps the canonical <script> order byte-for-byte — bundle-04 runs
       // immediately before bundle-05, and these were its first two entries.
       "public/js/food-note-client.js",
+      // The meal card (v2 wave 2): the food detail sheet mounts it from inside a
+      // function, and Fuel/chat reach it the same way.
+      "public/js/meal-card-model.js",
+      "public/js/meal-card-client.js",
+      "public/js/meal-card-controller.js",
       "public/js/food-detail-controller.js",
       // Plan → Changes components (v2 wave 1). renderCoach reaches them only from
       // inside a function, so they may follow the screen that mounts them.
