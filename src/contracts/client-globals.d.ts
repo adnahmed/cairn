@@ -5522,6 +5522,7 @@ declare global {
       headMainHtml(meal: ClientFuelMeal): string;
       numsHtml(meal: ClientFuelMeal): string;
       fixFormHtml(meal: ClientFuelMeal): string;
+      fixFormValues(meal: ClientFuelMeal): Record<string, string>;
       FIX_FIELDS: ReadonlyArray<readonly ["protein_g" | "kcal" | "carbs_g" | "fat_g" | "fiber_g", string]>;
       emptyHtml(isToday: boolean): string;
       errorHtml(): string;

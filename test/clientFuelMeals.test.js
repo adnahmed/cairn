@@ -388,14 +388,12 @@ test("an ingredient-less meal is corrected with one PUT and today's numbers re-r
   const puts = h.calls.filter((c) => c.method === "PUT");
   assert.equal(puts.length, 1);
   assert.equal(puts[0].path, "/food-notes/60");
+  // Exactly the fields that changed: the slot stayed "lunch" and fat/fiber stayed blank.
   assert.deepEqual(puts[0].body, {
     summary: "Chicken leftovers",
-    meal: "lunch",
     protein_g: 42,
     kcal: 610,
     carbs_g: 55,
-    fat_g: null,
-    fiber_g: null,
   });
   assert.deepEqual(h.toasts, ["Saved"]);
   assert.equal(h.changed.length, 1, "today's numbers re-read");
@@ -482,4 +480,56 @@ test("the Fuel watcher ends once: on the settling update, or when the watch give
   runs[1].resolve({ enrichment_status: "done" });
   await flush();
   assert.equal(settled, 2, "settled once, not again when the watcher resolves");
+});
+
+// ---------- the fix sends exactly what changed ----------
+
+// A settled whole-meal entry with numbers: summary, slot and macros all stored.
+function wholeMeal(over = {}) {
+  return bowl({
+    id: 80,
+    summary: "Leftovers",
+    ingredients: [],
+    kcal: 610,
+    protein_g: 42,
+    carbs_g: 55,
+    fat_g: null,
+    fiber_g: null,
+    ...over,
+  });
+}
+
+async function fixWith(h, id, edits) {
+  const row = h.host.querySelector(`[data-fuel-meal="${id}"]`);
+  await row.querySelector("[data-fuel-meals-toggle]").click();
+  for (const [key, value] of Object.entries(edits))
+    row.querySelector(`[data-fuel-meal-fix-field="${key}"]`).value = value;
+  await row.querySelector("[data-fuel-meals-fix]").click();
+  await flush();
+  return h.calls.filter((c) => c.method === "PUT");
+}
+
+test("a slot-only fix sends only the slot — never the summary or numbers that would lock a still-owed estimate", async () => {
+  const h = harness({ entries: [wholeMeal()], respond: () => ({ id: 80, parsed: {} }) });
+  await flush();
+  const puts = await fixWith(h, 80, { meal: "dinner" });
+  assert.equal(puts.length, 1);
+  assert.deepEqual(puts[0].body, { meal: "dinner" });
+});
+
+test("a number retyped as the same value is not a change, and a cleared number is sent as unknown", async () => {
+  const h = harness({ entries: [wholeMeal()], respond: () => ({ id: 80, parsed: {} }) });
+  await flush();
+  const puts = await fixWith(h, 80, { kcal: "610.0", protein_g: "", summary: "  Leftovers " });
+  assert.equal(puts.length, 1);
+  assert.deepEqual(puts[0].body, { protein_g: null }, "only the cleared protein goes, as unknown, never a zero");
+});
+
+test("a fix with nothing changed sends nothing", async () => {
+  const h = harness({ entries: [wholeMeal()] });
+  await flush();
+  const puts = await fixWith(h, 80, {});
+  assert.equal(puts.length, 0);
+  assert.deepEqual(h.toasts, ["Nothing changed"]);
+  assert.equal(h.changed.length, 0);
 });

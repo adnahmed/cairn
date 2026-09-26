@@ -38,17 +38,34 @@
     return Number.isFinite(n) ? String(Math.round(n * 10) / 10) : "";
   }
 
+  /** The slot the correction starts on: one of the five, or the athlete's own label. */
+  function fixSlot(meal: Meal): string {
+    const lower = meal.slot.toLowerCase();
+    return FIX_SLOTS.some((slot) => slot === lower) ? lower : meal.slot || "meal";
+  }
+
+  /**
+   * The values the totals correction starts from, keyed by its field names. The ONE
+   * source for both the rendered form and the controller's "what changed" diff, so a
+   * Save sends only the fields the person actually touched.
+   */
+  function fixFormValues(meal: Meal): Record<string, string> {
+    const parsed = meal.note.parsed;
+    const values: Record<string, string> = { summary: meal.title, meal: fixSlot(meal) };
+    for (const [key] of FIX_FIELDS) values[key] = fixValue(parsed[key]);
+    return values;
+  }
+
   /**
    * The totals correction for a settled meal with no items to adjust. The fields
    * start from what is stored; a blank number stays unknown (never a zero).
    */
   function fixFormHtml(meal: Meal): string {
     const id = `fuelMeal${meal.id}Fix`;
-    const parsed = meal.note.parsed;
+    const start = fixFormValues(meal);
     // The athlete's own label (not one of the five) stays an option, chosen.
-    const lower = meal.slot.toLowerCase();
-    const known = FIX_SLOTS.some((slot) => slot === lower);
-    const current = known ? lower : meal.slot || "meal";
+    const current = start.meal;
+    const known = FIX_SLOTS.some((slot) => slot === meal.slot.toLowerCase());
     const slots = [...FIX_SLOTS, ...(known || !meal.slot ? [] : [meal.slot])]
       .map((slot) => {
         const label = CairnFuelTodayModel.mealLabel(slot) || slot;
@@ -58,11 +75,11 @@
       .join("");
     const nums = FIX_FIELDS.map(
       ([key, label]) => `<div class="field"><label for="${id}-${key}">${label}</label>
-          <input id="${id}-${key}" type="number" inputmode="decimal" min="0" step="any" data-fuel-meal-fix-field="${key}" value="${escAttr(fixValue(parsed[key]))}"></div>`
+          <input id="${id}-${key}" type="number" inputmode="decimal" min="0" step="any" data-fuel-meal-fix-field="${key}" value="${escAttr(start[key])}"></div>`
     ).join("");
     return `<div class="fuel-meal-fix" data-fuel-meal-fix>
         <div class="field"><label for="${id}-summary">What it was</label>
-          <input id="${id}-summary" type="text" maxlength="200" data-fuel-meal-fix-field="summary" value="${escAttr(meal.title)}"></div>
+          <input id="${id}-summary" type="text" maxlength="200" data-fuel-meal-fix-field="summary" value="${escAttr(start.summary)}"></div>
         <div class="field"><label for="${id}-meal">Meal</label>
           <select id="${id}-meal" data-fuel-meal-fix-field="meal">${slots}</select></div>
         <div class="fuel-meal-fix-nums">${nums}</div>
@@ -137,6 +154,7 @@
     headMainHtml,
     numsHtml,
     fixFormHtml,
+    fixFormValues,
     FIX_FIELDS,
     emptyHtml,
     errorHtml,
