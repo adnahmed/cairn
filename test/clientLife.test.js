@@ -35,8 +35,12 @@ test("life helper formats kinds, dates, activity state, and fields", () => {
   assert.equal(life.lifeKindLabel("injury"), "Injury");
   assert.equal(life.lifeKindLabel("school"), "school");
   assert.match(life.lifeKindOptionsHtml(), /value="trip"/);
-  assert.equal(life.fmtDateRange("2026-07-01", "2026-07-03"), "2026-07-01 → 2026-07-03");
-  assert.equal(life.fmtDateRange("", "2026-07-03"), "until 2026-07-03");
+  // Dates read the way people say them, never raw ISO; the year shows only off this year.
+  assert.equal(life.fmtDateRange("2026-07-01", "2026-07-03"), "Jul 1 → Jul 3");
+  assert.equal(life.fmtDateRange("", "2026-07-03"), "until Jul 3");
+  assert.equal(life.fmtDateRange("2025-08-02", ""), "Aug 2, 2025");
+  assert.equal(life.fmtDateRange("2025-07-01", "2025-07-03"), "Jul 1 → Jul 3, 2025");
+  assert.equal(life.fmtDateRange("2026-12-28", "2027-01-03"), "Dec 28 → Jan 3, 2027");
   assert.equal(life.daysUntil("2026-07-02", "2026-06-30"), 2);
   assert.equal(life.daysUntil("bad", "2026-06-30"), null);
   assert.equal(life.eventActive({ end_date: "2026-06-29" }, "2026-06-30"), false);
@@ -85,6 +89,24 @@ test("life event renderer escapes timeline content and injury impact swaps", () 
   assert.match(html, /title="less bend &lt;knee&gt;"/);
   assert.match(html, /--i:4/);
   assert.doesNotMatch(html, /<tweak>|<today>|<right>|<bar>|onclick="bad/);
+});
+
+test("life injury card prints one 'try instead' line per shared set of stand-ins", () => {
+  const life = loadLifeClient();
+  const same = [{ name: "Glute Bridge", why: "" }, { name: "Hip Thrust", why: "" }];
+  const html = life.lifeEventHtml({ id: 3, kind: "injury", title: "Knee", start_date: "2025-08-02" }, 0, {
+    3: {
+      affected: [
+        { exercise: "Back Squat", days: [], swaps: same },
+        { exercise: "Leg Curl", days: [], swaps: [{ name: "Romanian Deadlift", why: "" }] },
+        { exercise: "Split Squat", days: [], swaps: same },
+      ],
+    },
+  });
+  assert.equal((html.match(/class="linj-grp"/g) || []).length, 2);
+  assert.equal((html.match(/try instead/g) || []).length, 2);
+  assert.equal((html.match(/Glute Bridge/g) || []).length, 1);
+  assert.match(html, /Since Aug 2, 2025/);
 });
 
 test("life parser handles JSON strings and malformed metadata", () => {

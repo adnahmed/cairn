@@ -57,7 +57,7 @@
     const peers = model.peers || [];
     return `<article class="stone-detail stone-detail-${escAttr(model.key)} ${CairnStone.hueClass(model.key)} cairn-stack-${escAttr(tone)}${opts.enter ? " is-entering" : ""}" aria-labelledby="stoneDetailH">
       ${back}
-      ${all.length ? `<nav class="stone-detail-chips" aria-label="The six stones">${all.map((peer) => chipHtml(peer, model.key)).join("")}</nav>` : ""}
+      ${all.length ? `<nav class="stone-detail-chips rail rail-bleed" aria-label="The six stones">${all.map((peer) => chipHtml(peer, model.key)).join("")}</nav>` : ""}
       <header class="stone-detail-hero">
         <div class="stone-detail-read">
           <h2 class="stone-detail-h" id="stoneDetailH">${escHtml(model.name)}</h2>

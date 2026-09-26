@@ -689,6 +689,8 @@ main{max-width:680px;margin:0 auto;padding:0 var(--gutter);position:relative}
                   .ghostbtn outline pill, .draftbtn full-width call to action
                   .iconbtn .delbtn .ordbtn   small square-ish utility buttons
      Inputs       .input                one quiet field (surface2 → dawn focus)
+     Rails        .rail / .rail-bleed   a one-row horizontal scroller whose edges
+                                        fade only where there is more to scroll
    ------------------------------------------------------------------- */
 
 /* ---- voice ---- */
@@ -798,6 +800,35 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 .input:focus{outline:none;border-color:var(--dawn)}
 .input-pill{border-radius:var(--radius-pill);padding:8px 13px}
 
+
+/* ---- rails: one horizontal row of chips that scrolls, with an edge fade ----
+   A chip cut hard at the phone's edge reads as clipped; a soft fade reads as "more
+   this way". The fade sits only on a side that has more to scroll: a scroll-driven
+   timeline moves two registered lengths (--rail-l / --rail-r) from 0 to --rail-fade,
+   so a rail at its start fades only on the right, at its end only on the left, and
+   a rail that fits never fades (an inactive timeline leaves both at 0). Where
+   scroll timelines are unsupported the right edge fades, statically.
+   .rail-bleed runs the row out to the screen edges, the gutter kept as padding so
+   the first chip still lines up with the page; at rest the fade falls in the gutter. */
+@property --rail-l{syntax:"<length>";inherits:false;initial-value:0px}
+@property --rail-r{syntax:"<length>";inherits:false;initial-value:0px}
+@keyframes rail-edges{
+  0%{--rail-l:0px;--rail-r:var(--rail-fade)}
+  6%{--rail-l:var(--rail-fade)}
+  94%{--rail-r:var(--rail-fade)}
+  100%{--rail-l:var(--rail-fade);--rail-r:0px}
+}
+.rail{--rail-fade:calc(var(--gutter) * 2);display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;
+  overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  -webkit-mask-image:linear-gradient(to right,transparent,#000 var(--rail-l),#000 calc(100% - var(--rail-r)),transparent);
+  mask-image:linear-gradient(to right,transparent,#000 var(--rail-l),#000 calc(100% - var(--rail-r)),transparent);
+  animation:rail-edges linear both;animation-timeline:scroll(self inline)}
+.rail::-webkit-scrollbar{display:none}
+.rail > *{flex:0 0 auto}
+.rail-bleed{margin-inline:calc(-1 * var(--gutter));padding-inline:var(--gutter);scroll-padding-inline:var(--gutter)}
+@supports not (animation-timeline:scroll()){
+  .rail{--rail-r:var(--rail-fade)}
+}
 /* -------------------------------------------------------------------
    06 · Stat strip (Today)
    ------------------------------------------------------------------- */
@@ -2494,13 +2525,14 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .linj{margin:11px 0 4px;padding:11px 13px;background:var(--card-2);
   border:1px solid var(--line);border-radius:var(--radius-sm)}
 .linj-lead{font-size:.78rem;color:var(--muted);margin-bottom:9px}
-.linj-ex{padding:8px 0;border-top:1px solid var(--line)}
-.linj-ex:first-of-type{border-top:none;padding-top:2px}
+.linj-grp{padding:9px 0;border-top:1px solid var(--line)}
+.linj-grp:first-of-type{border-top:none;padding-top:2px}
+.linj-ex + .linj-ex{margin-top:5px}
 .linj-exhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .linj-exname{font-weight:560;color:var(--ink);font-size:.9rem}
 .linj-exwhere{font-size:.72rem;color:var(--muted);white-space:nowrap}
 .linj-note{font-size:.76rem;color:var(--ink-2);margin-top:3px;font-style:italic}
-.linj-swaps{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:7px}
+.linj-swaps{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px}
 .linj-swaps-lbl{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:1px}
 .linj-swap{font-size:.76rem;color:var(--ink-2);background:var(--card);
   border:1px solid var(--line-2);border-radius:var(--radius-pill);padding:3px 10px}
@@ -4474,6 +4506,9 @@ body.swr-busy::after{
 
   /* loading vocabulary stays alive — slowed and gentle, never frantic — so a
      long agent call still reads as "working", not frozen (per docs/DESIGN.md) */
+  /* a rail's edge fade follows the scroll position — state, not motion — so it
+     survives the blanket kill (the longhand must follow the shorthand) */
+  .rail{animation:rail-edges linear both!important;animation-timeline:scroll(self inline)!important}
   .aspin{animation:sugspin 1.6s linear infinite!important}
   .is-thinking::after{animation:atelier-filament 2.4s linear infinite!important}
   .typing i{animation:typingdot 1.8s var(--ease) infinite!important}
@@ -4539,11 +4574,9 @@ body[data-tab="me"] .segwrap:not(.hsegwrap):not(.prog-subwrap){display:none}
    with the same cream blur so content scrolls cleanly under it. It scrolls horizontally
    on a narrow phone so it stays ONE row tall instead of wrapping and eating the view. */
 .hread-nav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 56px);z-index:var(--z-sticky);
-  display:flex;gap:7px;align-items:center;margin:0 -4px 4px;padding:8px 4px;
-  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  gap:7px;align-items:center;margin:0 -4px 4px;padding:8px 4px;--rail-fade:14px;
   background:color-mix(in srgb,var(--ground) 94%,transparent);backdrop-filter:blur(8px) saturate(1.05);
   -webkit-backdrop-filter:blur(8px) saturate(1.05)}
-.hread-nav::-webkit-scrollbar{display:none}
 .hread-chip{flex:0 0 auto;white-space:nowrap;border:1px solid var(--line-2);
   background:var(--card);color:var(--ink-2);border-radius:var(--radius-pill);padding:7px 13px;
   font-family:var(--font-ui);font-size:.76rem;font-weight:650;letter-spacing:.01em;
@@ -5230,7 +5263,6 @@ button.hmk-row:active{background:var(--card-2)}
 .stand-back,.home-back{margin:2px 0 4px;font-size:.84rem}
 .stand-subhead{font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   color:var(--muted);margin:16px 2px 2px}
-.stand-detail-h{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1.15;letter-spacing:-.01em;margin:4px 0 12px;text-wrap:balance}
 .stand-empty{color:var(--muted);font-size:.88rem;padding:10px 2px}
 .stand-figrow{display:flex;gap:15px;align-items:center;background:var(--card);border-radius:var(--radius);
   box-shadow:var(--shadow-sm);padding:14px 16px;margin:2px 0 14px}
@@ -5323,7 +5355,7 @@ button.hmk-row:active{background:var(--card-2)}
 .stand-focus-after .cfocus-headline{font-size:var(--text-lg);line-height:1.25}
 .stand-focus-after .cfocus-lead-title{font-size:var(--text-base)}
 .stand-read .stand-read-k{margin-bottom:4px}
-.stand-tool-lede{margin:-4px 0 14px;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}
+.stand-tool-lede{margin:4px 0 14px;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}
 /* =====================================================================
    About-me editor (Me -> Profile) — calm invitational free-text field
    ===================================================================== */
@@ -8064,11 +8096,11 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
 
 /* ---- the stone detail: switcher, a head washed in the stone's hue, then its places ---- */
 .stone-detail{padding-bottom:var(--space-10)}
-.stone-detail-chips{position:relative;display:flex;gap:var(--space-3);overflow-x:auto;scrollbar-width:none;
-  /* 8px of vertical padding (taken back by the margins) holds each chip's 44px hit
-     overlay (a11y.css) inside the scroller, so it never scrolls vertically */
-  margin:calc(var(--space-2) - 6px) calc(-1 * var(--gutter)) -6px;padding:8px var(--gutter)}
-.stone-detail-chips::-webkit-scrollbar{display:none}
+/* the switcher is a .rail.rail-bleed (components.css): one row to the screen edges,
+   fading where more stones wait. 8px of vertical padding (taken back by the margins)
+   holds each chip's 44px hit overlay (a11y.css) inside the scroller. */
+.stone-detail-chips{position:relative;gap:var(--space-3);
+  margin-top:calc(var(--space-2) - 6px);margin-bottom:-6px;padding-block:8px}
 .stone-detail-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:var(--text-sm);
   padding:5px 12px;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--surface);color:var(--ink2);
   transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
@@ -8078,8 +8110,9 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
   margin:var(--space-7) 0 0;padding:16px 16px 18px;border-radius:var(--radius-lg);
   background:color-mix(in srgb,var(--c,var(--well)) 26%,var(--surface))}
 .stone-detail-read{min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
-.stone-detail-h{margin:0;font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);text-transform:uppercase;
-  letter-spacing:var(--tracking-mono);color:var(--ink2)}
+/* The stone's name is the page header's one serif title; the hero's own name stays
+   for assistive tech (it labels the article) but is not printed twice. */
+.stone-detail-h{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 .stone-detail-word{margin:0;font-family:var(--font-display);font-weight:400;font-size:2rem;line-height:1.05;
   letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
 .stone-detail-line{margin:var(--space-3) 0 0;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}

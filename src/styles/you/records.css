@@ -165,13 +165,14 @@
 .linj{margin:11px 0 4px;padding:11px 13px;background:var(--card-2);
   border:1px solid var(--line);border-radius:var(--radius-sm)}
 .linj-lead{font-size:.78rem;color:var(--muted);margin-bottom:9px}
-.linj-ex{padding:8px 0;border-top:1px solid var(--line)}
-.linj-ex:first-of-type{border-top:none;padding-top:2px}
+.linj-grp{padding:9px 0;border-top:1px solid var(--line)}
+.linj-grp:first-of-type{border-top:none;padding-top:2px}
+.linj-ex + .linj-ex{margin-top:5px}
 .linj-exhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .linj-exname{font-weight:560;color:var(--ink);font-size:.9rem}
 .linj-exwhere{font-size:.72rem;color:var(--muted);white-space:nowrap}
 .linj-note{font-size:.76rem;color:var(--ink-2);margin-top:3px;font-style:italic}
-.linj-swaps{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:7px}
+.linj-swaps{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px}
 .linj-swaps-lbl{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:1px}
 .linj-swap{font-size:.76rem;color:var(--ink-2);background:var(--card);
   border:1px solid var(--line-2);border-radius:var(--radius-pill);padding:3px 10px}

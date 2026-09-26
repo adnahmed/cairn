@@ -20,6 +20,8 @@
                   .ghostbtn outline pill, .draftbtn full-width call to action
                   .iconbtn .delbtn .ordbtn   small square-ish utility buttons
      Inputs       .input                one quiet field (surface2 → dawn focus)
+     Rails        .rail / .rail-bleed   a one-row horizontal scroller whose edges
+                                        fade only where there is more to scroll
    ------------------------------------------------------------------- */
 
 /* ---- voice ---- */
@@ -129,3 +131,32 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 .input:focus{outline:none;border-color:var(--dawn)}
 .input-pill{border-radius:var(--radius-pill);padding:8px 13px}
 
+
+/* ---- rails: one horizontal row of chips that scrolls, with an edge fade ----
+   A chip cut hard at the phone's edge reads as clipped; a soft fade reads as "more
+   this way". The fade sits only on a side that has more to scroll: a scroll-driven
+   timeline moves two registered lengths (--rail-l / --rail-r) from 0 to --rail-fade,
+   so a rail at its start fades only on the right, at its end only on the left, and
+   a rail that fits never fades (an inactive timeline leaves both at 0). Where
+   scroll timelines are unsupported the right edge fades, statically.
+   .rail-bleed runs the row out to the screen edges, the gutter kept as padding so
+   the first chip still lines up with the page; at rest the fade falls in the gutter. */
+@property --rail-l{syntax:"<length>";inherits:false;initial-value:0px}
+@property --rail-r{syntax:"<length>";inherits:false;initial-value:0px}
+@keyframes rail-edges{
+  0%{--rail-l:0px;--rail-r:var(--rail-fade)}
+  6%{--rail-l:var(--rail-fade)}
+  94%{--rail-r:var(--rail-fade)}
+  100%{--rail-l:var(--rail-fade);--rail-r:0px}
+}
+.rail{--rail-fade:calc(var(--gutter) * 2);display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;
+  overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  -webkit-mask-image:linear-gradient(to right,transparent,#000 var(--rail-l),#000 calc(100% - var(--rail-r)),transparent);
+  mask-image:linear-gradient(to right,transparent,#000 var(--rail-l),#000 calc(100% - var(--rail-r)),transparent);
+  animation:rail-edges linear both;animation-timeline:scroll(self inline)}
+.rail::-webkit-scrollbar{display:none}
+.rail > *{flex:0 0 auto}
+.rail-bleed{margin-inline:calc(-1 * var(--gutter));padding-inline:var(--gutter);scroll-padding-inline:var(--gutter)}
+@supports not (animation-timeline:scroll()){
+  .rail{--rail-r:var(--rail-fade)}
+}

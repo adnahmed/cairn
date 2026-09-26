@@ -41,11 +41,9 @@ body[data-tab="me"] .segwrap:not(.hsegwrap):not(.prog-subwrap){display:none}
    with the same cream blur so content scrolls cleanly under it. It scrolls horizontally
    on a narrow phone so it stays ONE row tall instead of wrapping and eating the view. */
 .hread-nav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 56px);z-index:var(--z-sticky);
-  display:flex;gap:7px;align-items:center;margin:0 -4px 4px;padding:8px 4px;
-  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  gap:7px;align-items:center;margin:0 -4px 4px;padding:8px 4px;--rail-fade:14px;
   background:color-mix(in srgb,var(--ground) 94%,transparent);backdrop-filter:blur(8px) saturate(1.05);
   -webkit-backdrop-filter:blur(8px) saturate(1.05)}
-.hread-nav::-webkit-scrollbar{display:none}
 .hread-chip{flex:0 0 auto;white-space:nowrap;border:1px solid var(--line-2);
   background:var(--card);color:var(--ink-2);border-radius:var(--radius-pill);padding:7px 13px;
   font-family:var(--font-ui);font-size:.76rem;font-weight:650;letter-spacing:.01em;

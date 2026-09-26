@@ -163,6 +163,43 @@ test("getInjuryImpacts: swaps never include a constraint-noted or knee-loading e
   }
 });
 
+test("getInjuryImpacts: a stand-in trains the same half of the body as the lift it replaces", () => {
+  // Upper-body work is clear of a sore knee, and alphabetically first — it must still
+  // never be offered in place of a squat, a split squat or a leg curl.
+  seedPlanWithGroups([
+    { name: "Back Squat", muscle_group: "quads" },
+    { name: "Bulgarian Split Squat", muscle_group: "quads" },
+    { name: "Leg Curl", muscle_group: "hamstrings" },
+    { name: "Seated DB Overhead Press", muscle_group: "shoulders" },
+  ]);
+  for (const ex of [
+    { name: "Assisted Pull-Up", muscle_group: "back" },
+    { name: "Barbell Bent-Over Row", muscle_group: "back" },
+    { name: "Banded Side-Lying Clamshell", muscle_group: "glutes" },
+    { name: "Hip Thrust", muscle_group: "glutes" },
+    { name: "Romanian Deadlift", muscle_group: "hamstrings" },
+    { name: "Face Pull", muscle_group: "rear delts" },
+  ]) repo.upsertExercise({ ...ex, mode: "reps" });
+  repo.addContextEvent({ kind: "injury", title: "Right knee", start_date: "2025-08-02", meta: { area: "knee" } });
+
+  const lower = new Set(["quads", "hamstrings", "glutes", "calves"]);
+  const affected = repo.getInjuryImpacts().injuries[0].affected;
+  assert.deepEqual(affected.map((a) => a.exercise).sort(), ["Back Squat", "Bulgarian Split Squat", "Leg Curl"]);
+  for (const a of affected) {
+    assert.ok(a.swaps.length >= 1, `${a.exercise} still gets a lower-body stand-in`);
+    for (const sw of a.swaps) {
+      assert.ok(lower.has(String(sw.muscle_group)), `${sw.name} (${sw.muscle_group}) is not a stand-in for ${a.exercise}`);
+    }
+  }
+
+  // And the other way round: a sore shoulder's press is never offered leg work.
+  resetTables("context_events");
+  repo.addContextEvent({ kind: "injury", title: "Left shoulder", start_date: "2025-08-02", meta: { area: "shoulder" } });
+  const press = repo.getInjuryImpacts().injuries[0].affected.find((a) => a.exercise === "Seated DB Overhead Press");
+  assert.ok(press, "the overhead press is affected by a sore shoulder");
+  for (const sw of press.swaps) assert.ok(!lower.has(String(sw.muscle_group)), `${sw.name} is leg work`);
+});
+
 test("getInjuryImpacts is a pure read — calling it does not change the plan", () => {
   seedPlanWithGroups(STD_ITEMS);
   repo.addContextEvent({ kind: "injury", title: "Knee", start_date: "2025-01-01", meta: { area: "knee" } });
