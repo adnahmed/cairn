@@ -1,5 +1,6 @@
 // @ts-check
-// Chat header controls: history/search and fresh-start archive/distill flow.
+// Ask header controls: Changes (the team's record), history/search and the
+// fresh-start archive/distill flow.
 
 (() => {
   function headerControllerRecord(value: unknown): Record<string, unknown> {
@@ -82,6 +83,8 @@
     const b = headerControllerHtml(wrap?.querySelector("#hdrFresh"));
     if (!wrap || !hist || !b) return { freshBtn: null, historyBtn: null };
     hist.addEventListener("click", () => deps.openChatHistory());
+    // Ask's second room: the team's record of changes (ask/changes), with Undo.
+    headerControllerHtml(wrap.querySelector("#hdrChanges"))?.addEventListener("click", () => deps.openChanges?.());
 
     // fresh start (sparkle, two-tap confirm) -- unchanged behavior.
     let disarm = 0;

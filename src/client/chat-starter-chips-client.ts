@@ -10,8 +10,17 @@ function drawChatStarterChips(log: Element): void {
   template.innerHTML = CairnChatClient.starterChipsHtml().trim();
   const wrap = template.content.firstElementChild;
   if (!wrap) return;
+  // "What if…" opens the ripple card instead of sending: the team answers a
+  // hypothetical with its ripple across the stones, and nothing changes unless the
+  // athlete says "Do it".
+  const count = wrap.querySelectorAll(".chat-chip").length;
+  wrap.insertAdjacentHTML(
+    "beforeend",
+    `<button class="chat-chip chat-chip-whatif" type="button" data-chat-whatif style="--i:${count}">What if…</button>`,
+  );
   log.appendChild(wrap);
-  wrap.querySelectorAll(".chat-chip").forEach((b) => b.addEventListener("click", () => {
+  wrap.querySelector("[data-chat-whatif]")?.addEventListener("click", () => openChatWhatIf());
+  wrap.querySelectorAll(".chat-chip:not([data-chat-whatif])").forEach((b) => b.addEventListener("click", () => {
     const input = $<HTMLTextAreaElement>("#chatInput");
     if (!input) return;
     input.value = b.textContent || "";

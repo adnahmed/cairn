@@ -113,6 +113,7 @@ class FakeTemplate {
       return;
     }
     const wrap = new FakeElement("div", { id: "hdrChatActions" });
+    if (html.includes("hdrChanges")) wrap.appendChild(new FakeElement("button", { id: "hdrChanges" }));
     wrap.appendChild(new FakeElement("button", { id: "hdrHistory" }));
     wrap.appendChild(new FakeElement("button", { id: "hdrFresh", hidden: html.includes("hidden") }));
     this.content.firstElementChild = wrap;
@@ -145,6 +146,7 @@ function loadHarness(overrides = {}) {
   const requests = [];
   const streams = [];
   let historyOpened = 0;
+  let changesOpened = 0;
   let clearFuel = 0;
   let drawEmpty = 0;
   let token = overrides.token ?? 11;
@@ -166,7 +168,7 @@ function loadHarness(overrides = {}) {
       querySelector: (selector) => selector === "header" ? header : body.querySelector(selector),
     },
     CairnChatClient: {
-      headerActionsHtml: () => `<div id="hdrChatActions"><button id="hdrHistory"></button><button id="hdrFresh" hidden></button></div>`,
+      headerActionsHtml: () => overrides.headerHtml ?? `<div id="hdrChatActions"><button id="hdrHistory"></button><button id="hdrFresh" hidden></button></div>`,
       freshPillHtml: (distilled) => distilled ? `${distilled} remembered` : "Fresh start",
     },
     requestAnimationFrame: (fn) => {
@@ -199,6 +201,7 @@ function loadHarness(overrides = {}) {
       streams.push({ jobId, handlers });
     },
     openChatHistory: () => { historyOpened += 1; },
+    openChanges: () => { changesOpened += 1; },
   };
 
   return {
@@ -214,6 +217,7 @@ function loadHarness(overrides = {}) {
     timers,
     setToken: (next) => { token = next; },
     get historyOpened() { return historyOpened; },
+    get changesOpened() { return changesOpened; },
     get clearFuel() { return clearFuel; },
     get drawEmpty() { return drawEmpty; },
   };
@@ -270,4 +274,14 @@ test("chat header controller settles background distill jobs with stale guards",
   harness.setToken(11);
   harness.streams[0].handlers.onDone({ ok: true, distilled: 3 });
   assert.equal(harness.header.querySelector(".fresh-pill").innerHTML, "3 remembered");
+});
+
+test("Ask's header Changes action opens the team's record of changes", () => {
+  const harness = loadHarness({
+    headerHtml: `<div id="hdrChatActions"><button id="hdrChanges">Changes</button><button id="hdrHistory"></button><button id="hdrFresh" hidden></button></div>`,
+  });
+  harness.context.CairnChatHeaderController.ensureChatHeaderBtns(harness.deps);
+  harness.header.querySelector("#hdrChanges").click();
+  assert.equal(harness.changesOpened, 1);
+  assert.equal(harness.historyOpened, 0);
 });
