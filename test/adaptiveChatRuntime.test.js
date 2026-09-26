@@ -1,4 +1,4 @@
-import { beforeEach, test } from "node:test";
+import { beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { db, repo, resetTables } from "./_seed.js";
 import {
@@ -88,6 +88,46 @@ test("instant bypass is conservative for questions, corrections, risk, and legac
   assert.equal(isInstantFoodCaptureDecision(mixed, "Log lunch and suggest a high-protein dinner"), false);
   assert.equal(inferCaptureMeal("ate oatmeal", 8), "breakfast");
   assert.equal(inferCaptureMeal("late bite", 16), "snack");
+});
+
+test("the observed hour names an unlabeled capture through the shared meal windows: a midnight log is a snack", () => {
+  // breakfast 05–11, lunch 11–15, dinner 17–22, snack anywhere else (repo/shared.ts).
+  const byHour = Object.fromEntries([0, 3, 4, 5, 10, 11, 14, 15, 16, 17, 21, 22, 23].map((h) => [h, inferCaptureMeal("oats", h)]));
+  assert.deepEqual(byHour, {
+    0: "snack",
+    3: "snack",
+    4: "snack",
+    5: "breakfast",
+    10: "breakfast",
+    11: "lunch",
+    14: "lunch",
+    15: "snack",
+    16: "snack",
+    17: "dinner",
+    21: "dinner",
+    22: "snack",
+    23: "snack",
+  });
+  assert.equal(inferCaptureMeal("breakfast burrito", 0), "breakfast", "a label the athlete wrote always wins");
+});
+
+test("a capture logged at 00:28 is filed as a snack with no time synthesized", () => {
+  const at = new Date(2026, 8, 26, 0, 28); // local wall clock, just after midnight
+  mock.timers.enable({ apis: ["Date"], now: at.getTime() });
+  let finished;
+  try {
+    const raw = "Log turkey and rice";
+    const routing = classifyChatRoute({ message: raw, has_image: false });
+    const user = repo.addChatMessage("user", raw);
+    const turn = repo.createChatTurn({ message: raw, routing, user_message_id: user.id });
+    finished = completeInstantFoodCapture(turn.id, raw);
+  } finally {
+    mock.timers.reset();
+  }
+  const note = repo.getFoodNote(finished.note.id);
+  assert.equal(note.meal, "snack", "never 'breakfast' at half past midnight");
+  assert.equal(note.eaten_at, null, "the observed hour names the meal; it is never stored as a time");
+  assert.match(finished.message.content, /^Logged your snack/);
 });
 
 test("capture prompt retains food ids and hard constraints but excludes full training and clinical history", () => {
