@@ -447,7 +447,7 @@ function autoregBrake(
   autoreg: AutoregSignals | null,
   acute: Map<MuscleGroup, AcuteGateReading> | null,
   name: string,
-  date: string
+  voiceDate: string // keys the phrasing rotation only
 ): BrakeResult {
   if (!autoreg && !acute) return null;
   const heavyAcute = group && acute ? acute.get(group)?.saturated === true : false;
@@ -474,10 +474,10 @@ function autoregBrake(
   // A named sore joint is the strongest brake — one step toward safety.
   if (jointHit) {
     if (action === "overload") {
-      return { action: "hold", why: voice.liftVoice(voice.JOINT_BRAKE_HOLD, date, "joint_brake_hold", name) };
+      return { action: "hold", why: voice.liftVoice(voice.JOINT_BRAKE_HOLD, voiceDate, "joint_brake_hold", name) };
     }
     if (action === "hold" && hasHistory) {
-      return { action: "deload", why: voice.liftVoice(voice.JOINT_BRAKE_DELOAD, date, "joint_brake_deload", name) };
+      return { action: "deload", why: voice.liftVoice(voice.JOINT_BRAKE_DELOAD, voiceDate, "joint_brake_deload", name) };
     }
     return null;
   }
@@ -490,7 +490,7 @@ function autoregBrake(
         : "recent sessions felt flat";
     return {
       action: "hold",
-      why: voice.liftVoice(voice.STRAIN_BRAKE_HOLD, date, "strain_brake_hold", name)(reason),
+      why: voice.liftVoice(voice.STRAIN_BRAKE_HOLD, voiceDate, "strain_brake_hold", name)(reason),
     };
   }
   return null;
@@ -518,16 +518,16 @@ function painBandBrake(
   action: ProgressionAction,
   band: PainBandRead | null,
   name: string,
-  date: string
+  voiceDate: string // keys the phrasing rotation only
 ): PainBrakeResult {
   if (!band || band.band === "green") return null;
   if (band.band === "red") {
-    return { action: "deload", why: voice.liftVoice(voice.PAIN_RED_REDUCE, date, "pain_red_reduce", name) };
+    return { action: "deload", why: voice.liftVoice(voice.PAIN_RED_REDUCE, voiceDate, "pain_red_reduce", name) };
   }
   // Amber never manufactures a cut. It stops an ADDITION; a deload the ladder
   // already chose stands on its own reasons.
   if (action === "overload") {
-    return { action: "hold", why: voice.liftVoice(voice.PAIN_AMBER_HOLD, date, "pain_amber_hold", name) };
+    return { action: "hold", why: voice.liftVoice(voice.PAIN_AMBER_HOLD, voiceDate, "pain_amber_hold", name) };
   }
   return null;
 }
@@ -1569,7 +1569,10 @@ export interface PrescriptionOpts {
   excludeNames?: string[] | null; // movements already in the week — don't re-suggest their exercise/slot
   personalModifier?: CoachPersonalModifier | null; // learned step size; never overrides constraints/recovery
   preferences?: ParsedPreference[] | null; // learned like/dislike memories; gently re-ranks variety, never constraints
-  date?: string | null; // the day whose phrasing rotation applies (defaults to today)
+  date?: string | null; // the day this prescription is read as of (defaults to today)
+  // The READ date the words are keyed to: a snapshot computed for day D words the same
+  // whenever it runs. Defaults to `date`. Never moves a number — wording only.
+  voiceDate?: string | null;
   block?: ActiveBlockContext | null; // the active periodization block; null = nothing periodizes this pass
   cut?: CutPressure | (() => CutPressure) | null; // the shared fuel/cut read for the pass (lazy when a thunk, recomputed when absent)
   estimate?: EstimateReader | null; // the shared, lazy per-lift calibration read for the pass
@@ -1641,6 +1644,7 @@ export function nextPrescription(
   if (!last && !plan) return null;
 
   const date = String(opts?.date || localDateISO()).slice(0, 10);
+  const voiceDate = String(opts?.voiceDate || date).slice(0, 10);
   // A CARRY or isometric HOLD kept in reps mode, with a "rep" count no set of reps
   // reaches: that is seconds typed into the reps column (and, as often, junk in the
   // RIR field beside it). Reading it as reps is how "12 on every set — add the small
@@ -1662,7 +1666,7 @@ export function nextPrescription(
       suggested,
       current: cur,
       delta_text: "hold",
-      why: voice.liftVoice(voice.CARRY_LOGGED_AS_REPS_HOLD, date, "carry_logged_as_reps_hold", exerciseName),
+      why: voice.liftVoice(voice.CARRY_LOGGED_AS_REPS_HOLD, voiceDate, "carry_logged_as_reps_hold", exerciseName),
     };
   }
   const brakeCtx: PrescCtx = {
@@ -1675,6 +1679,7 @@ export function nextPrescription(
     personalModifier,
     preferences,
     date,
+    voiceDate,
     block: opts && "block" in opts ? (opts.block ?? null) : activeBlockContext(date),
     cut: cutPressureThunk(date, opts?.cut ?? null),
     estimate: estimateReader(date, opts?.estimate ?? null),
@@ -1711,7 +1716,8 @@ interface PrescCtx {
   excludeNames: string[];
   personalModifier: CoachPersonalModifier | null;
   preferences: ParsedPreference[];
-  date: string; // keys the per-day phrasing rotation (with the exercise as the offset)
+  date: string; // the day the prescription is read as of
+  voiceDate: string; // keys the per-day phrasing rotation (with the exercise as the offset)
   block: ActiveBlockContext | null; // the active periodization block, when one is running
   cut: () => CutPressure; // the fuel/cut pressure, computed at most once and only if consulted
   estimate: EstimateReader; // the calibration read, computed at most once per lift and only if consulted
@@ -1768,7 +1774,8 @@ function repsPrescription(
   // Every verdict below picks its sentence from a SET of phrasings keyed on the day
   // and this lift, so two lifts in the same state never print the same line.
   const date = brakeCtx?.date ?? localDateISO();
-  const say = <T>(set: readonly T[], code: string): T => voice.liftVoice(set, date, code, name);
+  const voiceDate = brakeCtx?.voiceDate ?? date;
+  const say = <T>(set: readonly T[], code: string): T => voice.liftVoice(set, voiceDate, code, name);
   // Ground in REALITY. The load to progress FROM is the HARDER of the plan target and
   // the athlete's actual recent working weight — so a stale plan target (e.g. 27 lb)
   // can't strand a lift the athlete is genuinely driving (45–50 lb every week). Falls
@@ -2593,7 +2600,7 @@ function repsPrescription(
         brakeCtx.autoreg,
         brakeCtx.acute,
         name,
-        date
+        voiceDate
       )
     : null;
   if (brake) {
@@ -2621,7 +2628,7 @@ function repsPrescription(
   // means teaching the ladder to ease assisted and bodyweight work, which is a change
   // to both brakes and out of scope here.
   const painBrake = brakeCtx
-    ? painBandBrake(rangeMoveEarned && escalated === "rep_range" ? "overload" : action, brakeCtx.pain, name, date)
+    ? painBandBrake(rangeMoveEarned && escalated === "rep_range" ? "overload" : action, brakeCtx.pain, name, voiceDate)
     : null;
   if (painBrake) {
     const loadCanEase = baseWeight != null && baseWeight > 0;
@@ -2633,7 +2640,7 @@ function repsPrescription(
     why =
       painAction === painBrake.action
         ? painBrake.why
-        : voice.liftVoice(voice.PAIN_RED_HOLD, date, "pain_red_hold", name);
+        : voice.liftVoice(voice.PAIN_RED_HOLD, voiceDate, "pain_red_hold", name);
     repStep = false;
     topSet = undefined;
     if (painAction === "hold") nextWeight = baseWeight;
@@ -2826,7 +2833,8 @@ function timedPrescription(
   brakeCtx?: PrescCtx
 ): Prescription {
   const date = brakeCtx?.date ?? localDateISO();
-  const say = <T>(set: readonly T[], code: string): T => voice.liftVoice(set, date, code, name);
+  const voiceDate = brakeCtx?.voiceDate ?? date;
+  const say = <T>(set: readonly T[], code: string): T => voice.liftVoice(set, voiceDate, code, name);
   const baseSeconds: number | null =
     plan?.seconds != null ? plan.seconds : last?.duration_sec != null ? Math.round(Number(last.duration_sec)) : null;
   const sets = plan?.sets || 1;
@@ -2948,7 +2956,7 @@ function timedPrescription(
   // the earned extension.
   let autoregulated = false;
   const brake = brakeCtx
-    ? autoregBrake(action, brakeCtx.canonGroup, !!last, brakeCtx.autoreg, brakeCtx.acute, name, date)
+    ? autoregBrake(action, brakeCtx.canonGroup, !!last, brakeCtx.autoreg, brakeCtx.acute, name, voiceDate)
     : null;
   if (brake) {
     autoregulated = true;
@@ -2965,7 +2973,7 @@ function timedPrescription(
   // duration on record there is nothing to shorten, so red degrades to the hold's
   // sentence rather than claiming a cut that did not happen (the reps path does the
   // same for bodyweight and assisted work).
-  const painBrake = brakeCtx ? painBandBrake(action, brakeCtx.pain, name, date) : null;
+  const painBrake = brakeCtx ? painBandBrake(action, brakeCtx.pain, name, voiceDate) : null;
   let painProtected = false;
   if (painBrake) {
     const canEase = baseSeconds != null && baseSeconds > 10;
@@ -2977,7 +2985,7 @@ function timedPrescription(
     why =
       painAction === painBrake.action
         ? painBrake.why
-        : voice.liftVoice(voice.PAIN_RED_HOLD, date, "pain_red_hold", name);
+        : voice.liftVoice(voice.PAIN_RED_HOLD, voiceDate, "pain_red_hold", name);
     if (painAction === "hold") nextSeconds = baseSeconds;
     else {
       painProtected = true;
@@ -3034,7 +3042,10 @@ export function planDayProgression(
   // `fuelRead` overrides ONLY the fuel/protection read for this pass — the seam that
   // lets a fixture state "a `reduce` reached this day" without staging the whole
   // channel agreement behind it. Omit it and the read is the live one, exactly as before.
-  opts: { forNextSession?: boolean; fuelRead?: UnderfuelingRead } = {}
+  // `readDate` is the day this read is FOR (a snapshot's date). It keys the per-lift
+  // phrasing rotation, so a read computed for day D words the same whenever it runs;
+  // omit it and the words key on today. It never moves a number.
+  opts: { forNextSession?: boolean; fuelRead?: UnderfuelingRead; readDate?: string } = {}
 ): Prescription[] {
   const day = db.prepare(`SELECT id FROM plan_days WHERE day_number = ?`).get(dayNumber) as any;
   if (!day) return [];
@@ -3065,6 +3076,7 @@ export function planDayProgression(
   const personalResponse = whatWorksForYou();
   const preferences = learnedPreferences();
   const today = localDateISO();
+  const voiceDate = /^\d{4}-\d{2}-\d{2}$/.test(String(opts.readDate ?? "")) ? String(opts.readDate) : today;
   const fuelProtection = opts.fuelRead ?? currentUnderfuelingRead(today);
   // The periodization phase and the fuel/cut read are properties of the DAY, not of
   // a lift — read once and threaded in, so a day's pass never walks the program state
@@ -3117,6 +3129,7 @@ export function planDayProgression(
       personalModifier,
       preferences,
       date: today,
+      voiceDate,
       block,
       cut,
       estimate,
@@ -3124,9 +3137,9 @@ export function planDayProgression(
       slotStamps,
     });
     if (p) {
-      const protectedPrescription = applyFuelProtection(p, fuelProtection, today, drive, atNearGoal);
+      const protectedPrescription = applyFuelProtection(p, fuelProtection, voiceDate, drive, atNearGoal);
       const stepped = setCatchUp(protectedPrescription, p, {
-        date: today,
+        voiceDate,
         dayNumber,
         block,
         cut,
@@ -3238,7 +3251,7 @@ function setCatchUp(
   p: Prescription,
   pre: Prescription,
   ctx: {
-    date: string;
+    voiceDate: string; // keys the phrasing rotation only
     dayNumber: number;
     block: ActiveBlockContext | null;
     cut: () => CutPressure;
@@ -3295,7 +3308,7 @@ function setCatchUp(
   if (ctx.lightWeek()) return p;
   const to = Math.min(planned + 1, SET_STEP_CAP, ...counts);
   if (to <= planned) return p;
-  const say = voice.liftVoice(voice.SET_CATCH_UP, ctx.date, "set_catch_up", p.exercise)(to, Math.min(...counts));
+  const say = voice.liftVoice(voice.SET_CATCH_UP, ctx.voiceDate, "set_catch_up", p.exercise)(to, Math.min(...counts));
   return {
     ...p,
     suggested: { ...p.suggested, sets: to },
@@ -3322,11 +3335,11 @@ function storedGroupOf(name: string): string | null {
 function applyFuelProtection(
   prescription: Prescription,
   read: UnderfuelingRead,
-  date: string,
+  voiceDate: string, // keys the phrasing rotation only
   drive: TrainingDrive = "steady",
   atNearGoal = false
 ): Prescription {
-  const say = <T>(set: readonly T[], code: string): T => voice.liftVoice(set, date, code, prescription.exercise);
+  const say = <T>(set: readonly T[], code: string): T => voice.liftVoice(set, voiceDate, code, prescription.exercise);
   if (read.action.training === "proceed") return prescription;
   // Prep is not loaded work. A fuel read must not invent a load story for it.
   if (isPrepMovement(prescription.exercise)) return prescription;
