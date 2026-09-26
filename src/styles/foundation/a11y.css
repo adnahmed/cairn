@@ -61,7 +61,7 @@
   :root[data-theme="dark"]{
     --line:#46515a;
     --line-strong:#5a666f;
-    --muted:#9aa19a;
+    --muted:#a3aaa3;
   }
   /* small status / completion / level dots get a defining ring so they read
      even where the fill is close to its surround */
@@ -86,6 +86,6 @@
   :root:not([data-theme="light"]){
     --line:#46515a;
     --line-strong:#5a666f;
-    --muted:#9aa19a;
+    --muted:#a3aaa3;
   }
 }

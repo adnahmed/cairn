@@ -3731,13 +3731,15 @@ body.sheet-open{overflow:hidden}
   background:color-mix(in srgb,var(--ink) 86%,var(--ground));border-color:transparent;color:var(--on-ink);
   box-shadow:none;transform:none}
 
-/* always-on bodyweight quick action — quiet, there until you want it */
-.capture-row{margin:0 0 12px}
+/* always-on bodyweight quick action — quiet, there until you want it. The chip and the
+   context tags share one quiet wrapping row. */
+.capture-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 var(--space-7)}
+.capture-row .tags-slot,.capture-row .tags-chips{display:contents}
 /* bodyweight quick-add chip living above the week fold (display + toggle) */
 .wt-mini{
-  flex:0 0 auto;background:var(--card-2);border:1px solid var(--line);color:var(--ink-2);
-  border-radius:var(--radius-pill);padding:0 13px;height:42px;display:inline-flex;align-items:center;gap:3px;
-  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:1rem;font-weight:560;
+  flex:0 0 auto;background:var(--surface);border:1px solid var(--line);color:var(--ink-2);
+  border-radius:var(--radius-pill);padding:0 12px;height:32px;display:inline-flex;align-items:center;gap:3px;
+  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:var(--text-md);font-weight:560;
   font-variant-numeric:lining-nums;cursor:pointer;
   transition:border-color var(--dur-1),color var(--dur-1),transform var(--dur-1);
 }
@@ -3974,13 +3976,13 @@ body.swr-busy::after{
 .tag-chip{
   display:inline-flex;align-items:center;background:transparent;
   border:1px solid var(--line);border-radius:var(--radius-pill);
-  padding:5px 12px;cursor:pointer;color:var(--muted);font-size:.8rem;
+  padding:5px 11px;min-height:32px;cursor:pointer;color:var(--ink2);font-size:var(--text-xs);
   transition:border-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease),
     background var(--dur-1) var(--ease),transform var(--dur-1) var(--ease);
 }
 .tag-chip:hover{border-color:var(--line-2);color:var(--ink-2)}
 .tag-chip:active{transform:var(--press-xs)}
-.tag-chip-on{background:var(--sage);border-color:var(--sage);color:var(--on-accent)}
+.tag-chip-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
 
 /* fueling follow-through — after a target change, one calm 1-tap read (no numbers) */
 .fueling-slot{margin:0}
@@ -5964,7 +5966,7 @@ button.hmk-row:active{background:var(--card-2)}
   :root[data-theme="dark"]{
     --line:#46515a;
     --line-strong:#5a666f;
-    --muted:#9aa19a;
+    --muted:#a3aaa3;
   }
   /* small status / completion / level dots get a defining ring so they read
      even where the fill is close to its surround */
@@ -5989,7 +5991,7 @@ button.hmk-row:active{background:var(--card-2)}
   :root:not([data-theme="light"]){
     --line:#46515a;
     --line-strong:#5a666f;
-    --muted:#9aa19a;
+    --muted:#a3aaa3;
   }
 }
 /* -------------------------------------------------------------------
@@ -7954,13 +7956,8 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 .today-run-line .wrun-note .linkbtn{color:var(--ink2);font-size:var(--text-xs);text-decoration:underline;
   text-underline-offset:3px;text-decoration-color:var(--line-strong)}
 
-/* capture: the bodyweight chip and the context tags share one quiet wrapping row */
-.today-wrap .capture-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 var(--space-7)}
-.today-wrap .capture-row .tags-slot,.today-wrap .capture-row .tags-chips{display:contents}
+/* capture: the row, chip and tags are styled at their base (today/brief.css, ask/capture.css) */
 .today-wrap .wt-inline:not([hidden]){display:flex;gap:6px;flex:1 1 100%}
-.today-wrap .wt-mini{height:32px;padding:0 12px;background:var(--surface);font-size:var(--text-md)}
-.today-wrap .tag-chip{padding:5px 11px;font-size:var(--text-xs);color:var(--ink2);min-height:32px}
-.today-wrap .tag-chip-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
 
 /* the rail's ranked reads: hairline cards (no spine), small pill actions */
 .today-wrap .well-accent,.today-wrap .agenda-card{border:1px solid var(--line);border-left:1px solid var(--line);

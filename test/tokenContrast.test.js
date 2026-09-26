@@ -110,3 +110,33 @@ test("text on an accent fill clears AA in both themes", () => {
     }
   }
 });
+
+// prefers-contrast: more firms --line (and so --well, which mixes it) in a11y.css;
+// the text it lifts must still clear AA on the firmer neutrals, and the two dark
+// high-contrast blocks must agree.
+test("high-contrast overrides keep text tokens at AA on every neutral", () => {
+  const a11y = readFileSync(new URL("../src/styles/foundation/a11y.css", import.meta.url), "utf8");
+  const hcStart = a11y.indexOf("@media (prefers-contrast: more){");
+  assert.ok(hcStart >= 0, "a11y.css has the prefers-contrast block");
+  const hc = a11y.slice(hcStart);
+  const grab = (open) => {
+    const at = hc.indexOf(open);
+    assert.ok(at >= 0, `a11y.css has ${open}`);
+    return declarations(hc.slice(hc.indexOf("{", at) + 1, hc.indexOf("}", at)));
+  };
+  const hcLight = grab(":root{");
+  const hcDarkForced = grab(':root[data-theme="dark"]{');
+  const hcDarkSystem = grab(':root:not([data-theme="light"]){');
+  assert.deepEqual(hcDarkSystem, hcDarkForced);
+  const themes = { light: { ...light, ...hcLight }, dark: { ...dark, ...hcDarkForced } };
+  const misses = [];
+  for (const [theme, tokens] of Object.entries(themes)) {
+    for (const fg of ["--ink", "--ink2", "--muted"]) {
+      for (const bg of NEUTRALS) {
+        const r = ratio(tokens, fg, bg);
+        if (r < 4.5) misses.push(`high-contrast ${theme} ${fg} on ${bg}: ${r.toFixed(2)}`);
+      }
+    }
+  }
+  assert.deepEqual(misses, []);
+});
