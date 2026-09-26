@@ -110,6 +110,38 @@ function matchSupplementKB(low: string) {
   return best;
 }
 
+// ---- a supplement named in a FOOD log ----
+// The KB above parses what the athlete says they TAKE; this reads a logged
+// ingredient row ("psyllium husk", "creatine 5 g", "fish oil capsules") and says
+// whether it is a supplement rather than a food. Word-bounded (the KB's substring
+// match would read "epa" inside "prepared"), and only on keys that mean the
+// supplement on a plate: a spice ("turmeric"), a brand word ("element"), a yogurt
+// ("probiotic") and a food ("cod liver") are left out. Whey / casein / a protein
+// shake answer "protein": a supplement, but also a real protein food, so a caller
+// may still let it carry a meal while never offering it as a side.
+const FOOD_AMBIGUOUS_KEYS = new Set(["turmeric", "element", "cod liver", "probiotic", "nr ", "d supp"]);
+const DOSE_FORM_RE = /\b(?:capsules?|softgels?|tablets?|tabs|pills?|supplements?)\b/i;
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const SUPPLEMENT_FOOD_RES = SUPPLEMENT_KB.flatMap((e) => {
+  const keys = e.keys.filter((k) => !FOOD_AMBIGUOUS_KEYS.has(k)).map((k) => escapeRe(k.trim()));
+  // An entry whose every key is food-ambiguous is not matched at all (an empty
+  // alternation would match everything).
+  return keys.length ? [{ category: e.category, re: new RegExp(`\\b(?:${keys.join("|")})\\b`, "i") }] : [];
+});
+
+export function supplementFoodKind(text: unknown): "protein" | "supplement" | null {
+  const s = String(text ?? "");
+  if (!s.trim()) return null;
+  let protein = false;
+  for (const { category, re } of SUPPLEMENT_FOOD_RES) {
+    if (!re.test(s)) continue;
+    if (category !== "protein" || /\bcollagen\b/i.test(s)) return "supplement";
+    protein = true;
+  }
+  if (protein) return "protein";
+  return DOSE_FORM_RE.test(s) ? "supplement" : null;
+}
+
 function extractSupplementFrequency(low: string): string | null {
   if (/twice|2x|two times/.test(low)) return "twice daily";
   if (/most days|weekday/.test(low)) return "most days";

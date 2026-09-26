@@ -35,6 +35,12 @@
 //     target the athlete set or accepted (never the formula's guess).
 //   - NEVER ALCOHOL. An alcohol item is stripped from an idea (title and, where the
 //     estimate itemises it, its numbers); a staple that is mostly alcohol is skipped.
+//   - NEVER A SUPPLEMENT. A logged supplement (psyllium husk, creatine, fish oil —
+//     `supplementFoodKind`, supplements.ts) is never a component or a side, and is
+//     stripped from a whole meal's words and numbers the same way alcohol is. Whey /
+//     a protein shake is a protein food as well: it may carry an idea, never a side.
+//   - Titles are the athlete's words without their parenthetical qualifiers
+//     ("Rice (cooked)" → "Rice"); the prefill keeps the amounts.
 //   - Active nutrition findings (a lipid or blood-pressure pattern) nudge the ORDER
 //     only — an idea whose own estimate is low in saturated fat or sodium, or carries
 //     fiber, ranks a little higher. Nothing is excluded and nothing is said about it.
@@ -47,6 +53,7 @@ import { intakeBand } from "./intake-band.js";
 import { dayIntakeCoverage, dayIntakeTarget, frequentFoodKey, frequentFoods, getDayIntake } from "./nutrition.js";
 import { nutritionRelevantDirectives } from "./nutrition-progress.js";
 import { computeGoalCheck } from "./profile.js";
+import { supplementFoodKind } from "./supplements.js";
 import { addDaysISO, clipText, joinList, localDateISO, localHourFraction, mealWindowsAhead } from "./shared.js";
 
 export const FUEL_IDEAS_COUNT = 3;
@@ -126,13 +133,13 @@ const listParts = (text: string): string[] =>
     .map((part) => part.replace(/^(?:and|plus)\s+/i, "").trim())
     .filter(Boolean);
 
-// One list part with any alcohol clause removed: "steak with red wine" → "steak";
-// "mac and cheese with beer" → "mac and cheese". "" when the whole part is alcohol.
-function dropAlcoholClause(part: string): string {
+// One list part with any clause the predicate names removed: "steak with red wine" →
+// "steak"; "mac and cheese with beer" → "mac and cheese". "" when the whole part goes.
+function dropClause(part: string, drop: (text: string) => boolean): string {
   const pieces = part.split(/(\s+(?:with|and|plus)\s+)/i);
   const kept: string[] = [];
   for (let i = 0; i < pieces.length; i += 2) {
-    if (isAlcoholFood(pieces[i])) continue;
+    if (drop(pieces[i])) continue;
     if (kept.length) kept.push(pieces[i - 1] ?? " and ");
     kept.push(pieces[i]);
   }
@@ -147,18 +154,42 @@ export function stripAlcohol(text: string): string {
   const s = String(text ?? "").trim();
   if (!isAlcoholFood(s)) return s;
   const parts = listParts(s)
-    .map(dropAlcoholClause)
+    .map((part) => dropClause(part, isAlcoholFood))
     .filter((part) => part && !isAlcoholFood(part));
   return joinList(parts);
 }
 
+export const isSupplementOnly = (text: unknown): boolean => supplementFoodKind(text) === "supplement";
+
 /**
- * A card-sized title from the athlete's own words. PURE. Short text is kept as
- * written; a long list is cut at a list boundary and says so ("…, and more"); a
+ * The athlete's own meal words with every supplement item taken out (whey and other
+ * protein foods stay). PURE. Unchanged when it names none; "" when nothing else is left.
+ */
+export function stripSupplements(text: string): string {
+  const s = String(text ?? "").trim();
+  if (!listParts(s).some(isSupplementOnly) && !isSupplementOnly(s)) return s;
+  const parts = listParts(s)
+    .map((part) => dropClause(part, isSupplementOnly))
+    .filter((part) => part && !isSupplementOnly(part));
+  return joinList(parts);
+}
+
+/** "Rice (cooked)" → "Rice". PURE. Bracketed qualifiers read as clutter on a card. */
+export function stripQualifiers(text: string): string {
+  return String(text ?? "")
+    .replace(/\s*[([][^()[\]]*[)\]]/g, "")
+    .replace(/\s+([,;.])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * A card-sized title from the athlete's own words. PURE. Parenthetical qualifiers
+ * ("(cooked)") are dropped; short text is otherwise kept as written; a long list is cut at a list boundary and says so ("…, and more"); a
  * single long phrase is cut at a word, never mid-word.
  */
 export function capIdeaTitle(text: string, max = FUEL_IDEA_TITLE_MAX): string {
-  const s = String(text ?? "")
+  const s = stripQualifiers(String(text ?? ""))
     .replace(/\s+/g, " ")
     .trim();
   if (s.length <= max) return s;
@@ -172,6 +203,8 @@ export function capIdeaTitle(text: string, max = FUEL_IDEA_TITLE_MAX): string {
 
 interface ComponentAcc {
   title: string;
+  /** A protein supplement (whey, a shake): it may lead an idea, never be a side. */
+  protein_supplement: boolean;
   days: Set<string>;
   last: string | null;
   macros: {
@@ -247,11 +280,14 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
     for (const ing of Array.isArray(parsed?.ingredients) ? parsed.ingredients : []) {
       const item = String(ing?.item ?? "").trim();
       if (!item || isAlcoholFood(item)) continue;
+      const supplement = supplementFoodKind(item);
+      if (supplement === "supplement") continue;
       const ck = foodKey(item);
       if (!ck) continue;
       inMeal.add(ck);
       const cur = touch(comps, ck, () => ({
         title: item,
+        protein_supplement: supplement === "protein",
         days: new Set<string>(),
         last: null,
         macros: null,
@@ -298,18 +334,22 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
     const rowsOf: any[] = Array.isArray(est.ingredients) ? est.ingredients : [];
     const alcohol = rowsOf.filter((ing) => isAlcoholFood(ing?.item));
     const drinkSum = (k: string) => alcohol.reduce((acc, ing) => acc + (num(ing?.[k]) ?? 0), 0);
+    // Supplements leave the idea too: out of the words and out of the numbers.
+    const pills = rowsOf.filter((ing) => !isAlcoholFood(ing?.item) && isSupplementOnly(ing?.item));
+    const takenOut = (k: string) => drinkSum(k) + pills.reduce((acc, ing) => acc + (num(ing?.[k]) ?? 0), 0);
     let kcal = Number(est.kcal);
     // Mostly alcohol: nothing worth offering once it is taken out.
     if (drinkSum("kcal") * 2 >= kcal) continue;
-    const cleaned = stripAlcohol(v.title);
+    const cleaned = stripSupplements(stripAlcohol(v.title));
     if (!cleaned) continue;
-    kcal -= drinkSum("kcal");
+    kcal -= takenOut("kcal");
+    if (!(kcal > 0)) continue;
     const less = (k: string) => {
       const n = num(est[k]);
-      return n == null ? null : Math.max(0, n - drinkSum(k));
+      return n == null ? null : Math.max(0, n - takenOut(k));
     };
     const lead = rowsOf
-      .filter((ing) => ing?.item && !isAlcoholFood(ing.item) && num(ing?.protein_g) != null)
+      .filter((ing) => ing?.item && !isAlcoholFood(ing.item) && !isSupplementOnly(ing.item) && num(ing?.protein_g) != null)
       .sort((a, b) => Number(b.protein_g) - Number(a.protein_g))[0];
     out.push({
       key,
@@ -319,7 +359,7 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
       protein_g: less("protein_g") ?? 0,
       carbs_g: less("carbs_g"),
       fat_g: less("fat_g"),
-      fiber_g: num(est.fiber_g),
+      fiber_g: less("fiber_g"),
       saturated_fat: est.nutrition_pattern?.saturated_fat ?? null,
       sodium: est.nutrition_pattern?.sodium ?? null,
       times_logged: v.days.size,
@@ -340,7 +380,7 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
   for (const [leadKey, lead] of leads) {
     const together = pairs.get(leadKey) ?? new Map<string, Set<string>>();
     const sides = [...recurring]
-      .filter(([k]) => k !== leadKey && (together.get(k)?.size ?? 0) >= FUEL_STAPLE_MIN_DAYS)
+      .filter(([k, c]) => k !== leadKey && !c.protein_supplement && (together.get(k)?.size ?? 0) >= FUEL_STAPLE_MIN_DAYS)
       .sort(
         ([ak, a], [bk, b]) =>
           (together.get(bk)?.size ?? 0) - (together.get(ak)?.size ?? 0) ||
@@ -360,7 +400,7 @@ export function fuelStaples(asOf: string = localDateISO(), hour?: number): FuelS
       title: capIdeaTitle(title),
       prefill: joinList(
         parts.map((c, i) => {
-          const name = i ? sideWord(c.title) : c.title;
+          const name = stripQualifiers(i ? sideWord(c.title) : c.title) || c.title;
           return c.amount ? `${name} (${c.amount})` : name;
         })
       ),
