@@ -196,21 +196,5 @@ test("the You landing lists Health, About you and Settings and opens each where 
   assert.deepEqual(tabs, ["stand", "me", "settings"]);
 });
 
-test("the Horizon placeholder shows the race view under Horizon's own title", () => {
-  const calls = [];
-  const headerTitle = { textContent: "" };
-  const win = loadClientModule(["horizon-screen"], {
-    globals: {
-      headerTitle,
-      renderPlanEndurance: () => {
-        headerTitle.textContent = "Plan";
-        calls.push("renderPlanEndurance");
-        return Promise.resolve("painted");
-      },
-    },
-  });
-  const painted = win.renderHorizon();
-  assert.deepEqual(calls, ["renderPlanEndurance"]);
-  assert.equal(headerTitle.textContent, "Horizon");
-  assert.ok(painted && typeof painted.then === "function");
-});
+// The Horizon landing itself (the timeline, its lanes and the goal section) is
+// covered by test/clientHorizon.test.js.
