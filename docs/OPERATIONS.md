@@ -161,6 +161,44 @@ Watch the logs to confirm migrations ran (or were skipped because the DB is alre
 docker compose logs -f cairn
 ```
 
+### Did the installed app pick it up?
+
+An installed PWA runs the shell its service worker precached, so a deploy is live on a phone
+only once that worker has updated (it does so on the next open or resume, then reloads once).
+To check a device, open **Settings → Data → Cairn version**: *Server build* is the running
+server's `version@build_id`, and *This app's shell* is the cache name the device's worker holds.
+Compare them with the server's own view:
+
+```bash
+curl -s http://<host>:8787/api/health   # build.build_id and shell
+```
+
+The build ids always agree (both come from the server); the shells agree once the installed app
+has the new shell. Until then Settings says a newer shell lands the next time Cairn opens.
+
+### Changing the app icon, name or theme color
+
+An installed app keys its icon cache on the icon URL, so a new icon ships under new URLs. Every
+icon URL carries one shared `.vN` suffix, and five places move together: the files in
+`public/icons/`, `public/manifest.json` (icons and shortcuts), `public/index.html`
+(apple-touch-icon and friends), the precache lists in `public/sw.js`, and `APP_IDENTITY_VERSION`
+in `src/client/app-identity-model.ts`. Never edit the suffix by hand:
+
+1. Replace the icon bytes in `public/icons/`, keeping the current `.vN` file names.
+2. Run `node scripts/bump-icons.mjs` (add `--theme-color "#rrggbb"` and/or `--short-name "Name"`
+   when those change; `--dry-run` shows what would move, `--check` only verifies the places
+   agree). The long `name`/`description` in the manifest and `index.html` are edited by hand in the
+   same commit.
+3. `npm run build`, then commit the renamed icons together with the four rewritten files.
+
+The manifest's `id`, `scope` and `start_url` never change, and neither do the `localStorage`
+keys; `test/pwaInstallIdentity.test.js` pins all of it. Chrome and Android refresh the icon on
+their own (the worker serves `/manifest.json` network-first). An iOS home-screen app keeps the
+icon and name it was added with, so bumping `APP_IDENTITY_VERSION` turns on a one-time, optional
+note in standalone iOS installs (only when nothing waits to sync) explaining that re-adding the app
+refreshes them and listing what must be re-entered; **Settings → Data → Copy token** makes that
+re-entry quick.
+
 ### Rollback
 
 Redeploy the previous image tag:
@@ -402,6 +440,7 @@ Every script under `scripts/`, one line each (from its own header comment):
 | Script | What it does |
 |---|---|
 | `benchmark-chat-routing.mjs` | Deterministic, offline policy benchmark for the pure adaptive-chat classifier. No CLI, network, database, or provider calls. |
+| `bump-icons.mjs` | Moves the installed app's identity (icon set, optionally short name and theme color) to the next `.vN` in one step: renames `public/icons/*.vN.*` and rewrites `manifest.json`, `index.html`, `sw.js` and `APP_IDENTITY_VERSION` together; `--check` verifies they agree. |
 | `build-client.mjs` | Compiles the dependency-free browser client slices from `src/client` into stable `public/js` filenames (no bundler, no runtime deps). |
 | `backup-example.sh` | Template backup script for a running Cairn instance: pulls a JSON export and a `VACUUM INTO` SQLite snapshot, rotates old copies. Copy and adjust for cron. |
 | `check-action-pins.mjs` | Verifies GitHub Actions workflow steps are pinned to commit SHAs, not moving tags. |

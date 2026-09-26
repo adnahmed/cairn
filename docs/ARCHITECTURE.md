@@ -4905,6 +4905,12 @@ edit that both precaches it and folds it into the version. Navigations are answe
 navigation blocks on `fetch("/")` for as long as the OS takes to give up. Freshness comes from the
 layer above — the browser re-fetches `sw.js` (served `no-cache`), the new worker precaches the new
 shell, and the `controllerchange` reload is itself a navigation answered from the NEW cache.
+`/manifest.json` is the one shell file answered **network-first** (with a bounded wait, the
+precached copy as the fallback), so an installed app's launch-time manifest check sees a new icon,
+name or `theme_color`. The worker also answers a `{type:"cairn-shell"}` message with its cache name;
+Settings → Data shows it beside `/api/health`'s `shell` so a deploy can be checked on the device.
+Icon URLs share one `.vN` moved only by `scripts/bump-icons.mjs` (docs/OPERATIONS.md), and
+`APP_IDENTITY_VERSION` (`src/client/app-identity-model.ts`) keys the one-time iOS re-add note.
 
 What the build emits, and what a deploy ships:
 

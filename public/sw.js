@@ -24,8 +24,9 @@ const OPTIONAL_ASSETS = [
   // Settings → Agents "Connect" modal; precached so it also works offline-installed).
   "/vendor/xterm.js", "/vendor/xterm.css", "/vendor/xterm-addon-fit.js",
   "/favicon.ico",
-  // Versioned icon set (…v2): bump the suffix in manifest.json + index.html + here
-  // together whenever an icon's bytes change, so the new url busts every cache layer.
+  // Versioned icon set (…vN). Never hand-edit the suffix: `node scripts/bump-icons.mjs`
+  // moves every icon url (here, manifest.json, index.html) to the next .vN at once,
+  // so the new urls bust every cache layer and test/pwaInstallIdentity.test.js agrees.
   "/icons/icon.v2.svg", "/icons/apple-touch-icon.v2.png", "/icons/mask-icon.v2.svg",
   "/icons/favicon-16.v2.png", "/icons/favicon-32.v2.png",
   "/icons/icon-192.v2.png", "/icons/icon-512.v2.png",
@@ -134,10 +135,42 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(caches.match("/index.html").then((r) => r || fetch(e.request)));
     return;
   }
+  // The manifest is NETWORK-first (cache fallback). An installed app's launch-time
+  // manifest check is how Chrome notices a new icon, name or theme_color, and a
+  // cache-first answer would hand it the precached copy forever. The precached copy
+  // stays the offline fallback, and a bounded wait keeps a sleeping tailnet from
+  // holding the check open.
+  if (url.pathname === "/manifest.json") {
+    e.respondWith(manifestNetworkFirst(e.request));
+    return;
+  }
   e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request)));
 });
+
+const MANIFEST_NETWORK_WAIT_MS = 4000;
+async function manifestNetworkFirst(request) {
+  const cache = await caches.open(CACHE);
+  try {
+    const res = await Promise.race([
+      fetch(request, { cache: "no-cache" }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("manifest timeout")), MANIFEST_NETWORK_WAIT_MS)),
+    ]);
+    if (res && res.ok) {
+      cache.put("/manifest.json", res.clone()).catch(() => {});
+      return res;
+    }
+    const cached = await cache.match("/manifest.json");
+    return cached || res;
+  } catch {
+    const cached = await cache.match("/manifest.json");
+    return cached || Response.error();
+  }
+}
 // Legacy compatibility: the app now calls skipWaiting at install and reloads once
 // on controllerchange, but older open pages may still send this message.
 self.addEventListener("message", (e) => {
   if (e.data === "skipWaiting" || (e.data && e.data.type === "skipWaiting")) self.skipWaiting();
+  // Settings asks which shell this worker serves, so a deploy can be checked
+  // against /api/health's `shell` (both are the derived cache name).
+  if (e.data && e.data.type === "cairn-shell" && e.ports && e.ports[0]) e.ports[0].postMessage({ shell: CACHE });
 });

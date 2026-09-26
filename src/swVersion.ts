@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Request, Response, NextFunction } from "express";
 
 // The service worker's cache name, DERIVED from what it precaches.
@@ -122,21 +123,45 @@ export function buildServiceWorkerScript(publicDir: string): ServiceWorkerScript
  * `tsx watch` session picks up an edited styles.css without a restart while a
  * production process hashes the shell exactly once.
  */
+/** One memo per public directory, shared by the /sw.js handler and /api/health. */
+const memoByRoot = new Map<string, { script: ServiceWorkerScript; signature: string }>();
+
+/**
+ * The worker this build serves, recomputed only when a size+mtime signature of the
+ * shell moves. Throws when there is no sw.js on disk.
+ */
+export function currentServiceWorkerScript(publicDir: string): ServiceWorkerScript {
+  const root = path.resolve(publicDir);
+  const swPath = path.join(root, "sw.js");
+  const source = fs.readFileSync(swPath, "utf8");
+  const signature = assetSignature([swPath, ...shellAssetPaths(root, source)]);
+  const memo = memoByRoot.get(root);
+  if (memo && memo.signature === signature) return memo.script;
+  const script = buildServiceWorkerScript(root);
+  memoByRoot.set(root, { script, signature });
+  return script;
+}
+
+/** The repo's own public/ (dist/ and src/ both sit one level below the root). */
+const DEFAULT_PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
+
+/**
+ * The shell (derived cache name) the server hands an installed app right now, or
+ * null with no worker on disk. /api/health reports it and Settings shows the one the
+ * running worker holds, so a deploy can be checked on the device itself: the two
+ * agree once the installed app has picked the new shell up.
+ */
+export function currentShellVersion(publicDir: string = DEFAULT_PUBLIC_DIR): string | null {
+  try {
+    return currentServiceWorkerScript(publicDir).version;
+  } catch {
+    return null;
+  }
+}
+
 export function serviceWorkerScript(publicDir: string) {
   const root = path.resolve(publicDir);
-  let cached: ServiceWorkerScript | null = null;
-  let cachedSignature = "";
-
-  function current(): ServiceWorkerScript {
-    const swPath = path.join(root, "sw.js");
-    const source = fs.readFileSync(swPath, "utf8");
-    const signature = assetSignature([swPath, ...shellAssetPaths(root, source)]);
-    if (!cached || signature !== cachedSignature) {
-      cached = buildServiceWorkerScript(root);
-      cachedSignature = signature;
-    }
-    return cached;
-  }
+  const current = (): ServiceWorkerScript => currentServiceWorkerScript(root);
 
   return function serveServiceWorker(req: Request, res: Response, next: NextFunction): void {
     if (req.method !== "GET" && req.method !== "HEAD") {

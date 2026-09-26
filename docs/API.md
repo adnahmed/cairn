@@ -373,7 +373,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/health` | Liveness only: process identity plus exact build provenance. It deliberately does not probe optional coaching CLIs or other external providers. |
+| GET | `/api/health` | Liveness only: process identity, exact build provenance and the app shell it serves. It deliberately does not probe optional coaching CLIs or other external providers. |
 | GET | `/api/health/doctor-loop` | Doctor-loop read: missing-workup recommendations plus lab/DEXA retest attention rows derived through the adaptive attention engine. Informational, not medical advice. READ-ONLY by default (like /health/next-checkup): the nightly scheduler op owns the attention-schedule refresh, so a passive PWA/tool open never triggers the write pass. Pass ?refresh=1 to force a fresh deterministic pass. |
 | GET | `/api/health/doctor-packet` | Export-ready doctor packet: current prioritized health focus, active directives, doctor-loop retest/missing-workup plan, PREVENT cardiovascular-risk read, and latest intervention-outcome annotations. Informational, not medical advice. |
 | GET | `/api/health/evidence-wanted` | Evidence wanted: at most ONE calm line naming the overdue recheck or rescan the team would find useful (an overdue doctor-loop follow-up, an aged body-composition scan, or an off reading past its own marker's validity window), else item:null. Pull, never push — it waits on the page and nothing notifies. Read-only. |
