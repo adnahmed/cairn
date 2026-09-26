@@ -20,12 +20,15 @@ async function renderHealth(deps: ClientMeHealthTabsControllerDeps): Promise<voi
     deps.state.healthSeg = "records";
   }
   deps.invalidatePoll();
-  const idx = Math.max(0, HEALTH_SEG.findIndex(([k]) => k === deps.state.healthSeg));
   deps.root.innerHTML = deps.segBar("health", deps.segments)
-    + `<div class="segwrap hsegwrap"><div class="seg seg-sliding hseg" style="--segn:${HEALTH_SEG.length};--segi:${idx}">`
-    +   `<span class="seg-thumb"></span>`
-    +   HEALTH_SEG.map(([k, l]) => `<button class="segbtn${k === deps.state.healthSeg ? " active" : ""}" data-hseg="${k}">${l}</button>`).join("")
-    + `</div></div>`
+    + CairnUi.segmentedHtml({
+      items: HEALTH_SEG,
+      active: deps.state.healthSeg,
+      label: "Health sections",
+      attr: "hseg",
+      className: "hseg",
+      wrapClass: "hsegwrap",
+    })
     + `<div id="hContent"></div>`;
   deps.wireSeg(deps.handlers);
   const hseg = deps.root.querySelector<HTMLElement>(".hseg");
@@ -49,7 +52,10 @@ function setHealthSegActive(seg: ClientHealthSection, deps: ClientMeHealthTabsCo
   const target = btns.find((b) => b.dataset.hseg === seg);
   if (!target) return;
   hseg.style.setProperty("--segi", String(btns.indexOf(target)));
-  btns.forEach((x) => x.classList.toggle("active", x === target));
+  btns.forEach((x) => {
+    x.classList.toggle("active", x === target);
+    x.setAttribute("aria-pressed", x === target ? "true" : "false");
+  });
   deps.fitSeg(hseg);
 }
 

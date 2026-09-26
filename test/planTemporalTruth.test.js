@@ -729,8 +729,9 @@ test("athlete-facing decision rationale and Undo identifiers remain escaped", ()
   const surface = readFileSync(new URL("../src/client/today-plan-surface-renderer.ts", import.meta.url), "utf8");
   assert.match(surface, /item\.brain_change_summary/);
   assert.match(surface, /\besc\(line\.summary\)/);
-  assert.match(surface, /data-decision-undo/);
-  assert.match(surface, /escAttr\(String\(line\.decision_id\)\)/);
+  // The Undo button is the shared decision-undo component, which escapes the id
+  // (test/decisionUndo.test.js renders a hostile id).
+  assert.match(surface, /CairnDecisionUndo\.buttonHtml\(\{ id: line\.decision_id \}\)/);
 });
 
 // ---- accountable provenance: what the athlete can actually SEE about a change ----

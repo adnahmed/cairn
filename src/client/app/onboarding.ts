@@ -28,10 +28,17 @@ type OnboardingSex = "female" | "male";
   }
 
   function openOnboarding(): void {
-    const modal = document.createElement("div");
-    modal.className = "modal";
-    modal.innerHTML = `<div class="modal-card">
-      <h2 class="modal-title">Welcome to Cairn</h2>
+    // First run is deliberately not dismissible (no Escape, no backdrop): "Skip"
+    // is the way out, and it still records the basics.
+    const sheet = CairnUiSheet.open({
+      overlayClass: "modal",
+      sheetClass: "modal-card",
+      labelledBy: "obTitle",
+      dismissible: false,
+      initialFocus: "#obAge",
+      focusDelayMs: 60,
+      html: `
+      <h2 class="modal-title" id="obTitle">Welcome to Cairn</h2>
       <p class="ob-lead">A few basics, then you're in — I'll learn the rest as we go.</p>
       <div class="ob-grid">
         <div class="field"><label for="obSex">Sex <span class="ob-opt">— for health ranges</span></label>
@@ -71,9 +78,9 @@ type OnboardingSex = "female" | "male";
           placeholder="injuries or conditions (e.g. a back curve), how you eat, height &amp; weight, supplements you take… a sentence is plenty."></textarea></div>
       <button id="obStart" class="logbtn" style="width:100%;height:46px;margin-top:6px;letter-spacing:.05em">START</button>
       <button id="obSkip" class="ghostbtn" style="width:100%;text-align:center;padding:11px;margin-top:8px">Skip — just get me in</button>
-      <div id="obStatus" style="margin-top:8px;color:var(--muted);font-size:.82rem"></div>
-    </div>`;
-    document.body.appendChild(modal);
+      <div id="obStatus" style="margin-top:8px;color:var(--muted);font-size:.82rem"></div>`,
+    });
+    const modal = sheet.overlay;
 
     let daysPerWeek = 4;
     modal.querySelectorAll<HTMLElement>("#obDays [data-dpw]").forEach((button) => {
@@ -93,11 +100,6 @@ type OnboardingSex = "female" | "male";
     });
 
     const intro = requiredElement<HTMLTextAreaElement>(modal, "#obIntro");
-    setTimeout(() => {
-      try {
-        requiredElement<HTMLInputElement>(modal, "#obAge").focus();
-      } catch {}
-    }, 60);
 
     function enterApp(): void {
       state.plan = [];
@@ -106,7 +108,7 @@ type OnboardingSex = "female" | "male";
       state.dayPickedOn = null;
       ["plan", "profile", "stats", "progress:weight", "progress:energy", "supplements", "memory"].forEach(swrInvalidate);
       swrInvalidate("today:session:");
-      modal.remove();
+      sheet.close();
       hideSaveBar();
       document.querySelectorAll<HTMLElement>(".tab").forEach((el) => el.classList.remove("active"));
       document.querySelector<HTMLElement>('.tab[data-tab="today"]')?.classList.add("active");

@@ -60,12 +60,9 @@ function formatMarkerNumber(value: unknown): string {
   return String(rounded);
 }
 
+// A reading's date as the chart module labels it ("Jun 20, 26").
 function sparkDateLabel(value: unknown): string {
-  if (!value) return "";
-  const source = String(value);
-  const parsed = new Date(source.length === 10 ? `${source}T00:00:00` : source);
-  if (Number.isNaN(parsed.getTime())) return source;
-  return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" });
+  return CairnUiChart.dateLabel(value, { year: true });
 }
 
 function markerSpanWord(days: unknown): string {

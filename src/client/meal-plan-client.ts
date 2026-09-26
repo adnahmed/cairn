@@ -162,7 +162,7 @@ type MealPlannerPaint = {
           <summary>Preview changes</summary>
           <p class="sess-line" style="color:var(--muted);margin:8px 0 0">${escHtml(detail)}</p>
         </details>
-        ${autonomy.id == null ? "" : `<button type="button" class="linkbtn-quiet" data-meal-decision-hold="${escAttr(autonomy.id)}">Hold</button>`}
+        ${CairnDecisionUndo.buttonHtml({ id: autonomy.id, label: "Hold", attr: "meal-decision-hold" })}
       </div>
     </div>`;
   }
@@ -196,7 +196,7 @@ type MealPlannerPaint = {
     return `<div class="sess-line" style="color:var(--muted);margin-top:12px">
       <span class="lbl">RECENTLY UPDATED</span> · ${escHtml(summary)}
       ${rationale ? `<details class="hist-fold" style="display:inline-block;margin:0 6px"><summary>Why</summary><span>${escHtml(rationale)}</span></details>` : ""}
-      ${autonomy.reversible === false ? "" : `<button type="button" class="linkbtn-quiet" data-meal-decision-undo="${escAttr(autonomy.id)}">Undo</button>`}
+      ${autonomy.reversible === false ? "" : CairnDecisionUndo.buttonHtml({ id: autonomy.id, attr: "meal-decision-undo" })}
     </div>`;
   }
 
@@ -263,7 +263,7 @@ type MealPlannerPaint = {
   function mealPlanListHtml(plans: unknown): string {
     const rows = Array.isArray(plans) ? plans : [];
     if (!rows.length)
-      return `<div class="empty">No meal plans yet. Ask the team above and a week built around your training will land here.</div>`;
+      return CairnUi.emptyStateHtml({ title: "No meal plans yet", body: "Ask the team above and a week built around your training will land here." });
     const drafts = rows.filter((plan) => mealRecord(plan).status === "draft");
     const settled = rows.filter((plan) => mealRecord(plan).status !== "draft");
     const shown = [...drafts, ...settled.slice(0, 1)];

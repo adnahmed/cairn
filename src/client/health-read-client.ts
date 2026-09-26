@@ -284,7 +284,7 @@ function priorityMarkerHtml(marker: HealthReadMarker | null | undefined, index: 
     ? `<span class="hb-mkval">${escHtml(value)}${marker?.unit ? `<span class="hmk-unit">${escHtml(marker.unit)}</span>` : ""}</span>`
     : "";
   const points = (Array.isArray(marker?.points) ? marker.points : []).filter((point) => point && Number.isFinite(Number(point.value)));
-  const trend = points.length >= 2 ? `<div class="hb-mktrend">${sparklineSvg(points.map((point) => Number(point.value)))}</div>` : "";
+  const trend = points.length >= 2 ? `<div class="hb-mktrend">${CairnUiChart.sparkSvg(points.map((point) => Number(point.value)))}</div>` : "";
   const bandNote = marker?.optimal
     ? `<span class="hb-mkband">optimal ${escHtml(CairnHealthClient.formatMarkerNumber(marker.optimal.low))}–${escHtml(CairnHealthClient.formatMarkerNumber(marker.optimal.high))}${marker.unit ? " " + escHtml(marker.unit) : ""}</span>`
     : "";
@@ -306,7 +306,7 @@ function priorityMarkersSectionHtml(markersInput: unknown): string {
   if (!markers.length) {
     return `<div class="hb-section">
         <div class="hb-sechead"><span class="lbl">What matters now</span></div>
-        <div class="empty">No markers yet. Add a lab report on the Records tab and Cairn pulls out what matters most.</div>
+        ${CairnUi.emptyStateHtml({ title: "No markers yet", body: "Add a lab report on the Records tab and Cairn pulls out what matters most." })}
       </div>`;
   }
   const matters = markers.filter((marker) => optimalPhrase(marker).tone !== "ok");

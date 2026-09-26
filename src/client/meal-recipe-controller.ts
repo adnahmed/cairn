@@ -80,16 +80,17 @@ function mealRecipeControllerLoadingHtml(): string {
   return CairnMealRecipe.loadingHtml();
 }
 
+// The open meal sheet (CairnUiSheet owns its dialog contract; the markup and the
+// `.sheet` / `.sheet-card` classes are the meal sheet's own).
+let mealSheet: ClientUiSheetHandle | null = null;
+
 function closeMealSheet(instant = false): void {
-  const sheet = document.querySelector<HTMLElement>(".sheet");
-  if (!sheet) return;
-  document.body.classList.remove("sheet-open");
-  if (instant || reducedMotion()) {
-    sheet.remove();
-    return;
-  }
-  sheet.classList.remove("sheet-in");
-  setTimeout(() => sheet.remove(), 360);
+  const open = mealSheet;
+  mealSheet = null;
+  open?.close({ instant });
+  // An instant close also clears a sheet still sliding out, so a reopen never
+  // finds the old node first.
+  if (instant) document.querySelectorAll(".sheet").forEach((node) => node.remove());
 }
 
 function openMealSheet(current: MealRecipeControllerPlan, dayIndex: number, mealIndex: number): void {
@@ -113,11 +114,16 @@ function openMealSheet(current: MealRecipeControllerPlan, dayIndex: number, meal
     ? CairnUi.sheetChipHtml({ className: "sheet-chip sheet-chip-kcal", value: meal.kcal, label: "cal" })
     : "";
 
-  const sheet = document.createElement("div");
-  sheet.className = "sheet";
-  sheet.dataset.key = `${current.id}:${dayIndex}:${mealIndex}`;
-  sheet.innerHTML = `
-    <div class="sheet-card" role="dialog" aria-modal="true" aria-label="${escAttr(meal.name || meal.meal || "Meal")}">
+  const opened = CairnUiSheet.open({
+    overlayClass: "sheet",
+    sheetClass: "sheet-card",
+    label: meal.name || meal.meal || "Meal",
+    attrs: { "data-key": `${current.id}:${dayIndex}:${mealIndex}` },
+    closeSelector: ".sheet-x",
+    openClass: "sheet-in",
+    exitMs: 360,
+    bodyClass: "sheet-open",
+    html: `
       <div class="sheet-grab" aria-hidden="true"></div>
       <button class="xbtn sheet-x" aria-label="Close">✕</button>
       <div class="sheet-scroll">
@@ -128,15 +134,13 @@ function openMealSheet(current: MealRecipeControllerPlan, dayIndex: number, meal
         ${kcal || macros ? `<div class="sheet-macros">${kcal}${macros}</div>` : ""}
         <div class="sheet-fuel lbl" data-fuel-line hidden></div>
         <div class="sheet-recipe" data-recipe>${meal.recipe ? mealRecipeControllerRecipeHtml(meal.recipe) : mealRecipeControllerRecipeCtaHtml()}</div>
-      </div>
-    </div>`;
-  document.body.appendChild(sheet);
-  document.body.classList.add("sheet-open");
-  requestAnimationFrame(() => sheet.classList.add("sheet-in"));
-  sheet.addEventListener("click", (event) => {
-    if (event.target === sheet) closeMealSheet();
+      </div>`,
+    onClose: () => {
+      if (mealSheet === opened) mealSheet = null;
+    },
   });
-  sheet.querySelector(".sheet-x")?.addEventListener("click", () => closeMealSheet());
+  mealSheet = opened;
+  const sheet = opened.overlay;
   wireRecipeCta(sheet, current, dayLabel, dayIndex, mealIndex);
   CairnMealFuelContext.loadMealFuelLine(sheet, meal.kcal);
 }

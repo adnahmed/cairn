@@ -683,7 +683,7 @@ function paintTrainOverview(data: TovData): void {
       const group = el.getAttribute("data-group") || "";
       const row = group ? view.querySelector<HTMLElement>(`.tov-row[data-group="${group}"]`) : null;
       if (!row) return;
-      const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const reduce = reducedMotion();
       row.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
       row.style.transition = "background-color .5s ease";
       row.style.borderRadius = "10px";

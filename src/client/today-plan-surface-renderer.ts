@@ -221,7 +221,7 @@ type TodayPlanSurfaceRendererApi = {
     if (!lines.length) return "";
     const undo = (line: { decision_id: unknown; reversible: boolean }): string =>
       line.reversible && line.decision_id != null
-        ? ` <button class="linkbtn-quiet" type="button" data-decision-undo="${escAttr(String(line.decision_id))}">Undo</button>`
+        ? ` ${CairnDecisionUndo.buttonHtml({ id: line.decision_id })}`
         : "";
     const key = lines.map((line) => String(line.decision_id ?? "")).join(",");
     const foldAttrs = `data-brain-fold="${escAttr(key)}"${openBrainFolds.has(key) ? " open" : ""}`;

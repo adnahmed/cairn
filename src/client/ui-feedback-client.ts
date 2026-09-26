@@ -9,8 +9,14 @@ function stagger(i?: number | null): string {
   return `--i:${Math.min(i ?? 0, 12)}`;
 }
 
+// The one reduced-motion predicate (docs/DESIGN.md "Motion system"): every JS
+// motion decision asks this, never its own matchMedia.
 function reducedMotion(): boolean {
-  return "matchMedia" in window && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
 // Put a button into a calm "working" state for the length of an agentic call.

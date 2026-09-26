@@ -19,13 +19,14 @@ function loadHealthRead() {
     String,
     JSON,
     fmtK: (value) => `${Math.round(Number(value) / 1000)}k`,
-    sparklineSvg: (values) => `<svg class="spark">${values.join(",")}</svg>`,
     stagger: (i) => `--i:${Math.min(i ?? 0, 12)}`,
   };
   context.window = context;
   for (const file of [
     "public/js/date-utils.js",
     "public/js/html-utils.js",
+    "public/js/ui-components.js",
+    "public/js/ui-chart.js",
     "public/js/health-evidence-client.js",
     "public/js/health-marker-order-client.js",
     "public/js/health-client.js",
@@ -153,7 +154,8 @@ test("health read marker phrasing never renders scores and escapes marker data",
   assert.match(html, /above optimal/);
   assert.match(html, /mg\/dL &lt;unit&gt;/);
   assert.match(html, /optimal 40–80/);
-  assert.match(html, /<svg class="spark">80,111<\/svg>/);
+  // The two readings draw the shared chart module's sparkline: one polyline, two points.
+  assert.match(html, /<svg class="spark"[^>]*>\s*<polyline points="[\d.]+,[\d.]+ [\d.]+,[\d.]+"/);
   assert.match(html, /Everything else \(1\)/);
   assert.match(html, /in your optimal range/);
   assert.match(html, /See every trend/);

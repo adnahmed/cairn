@@ -73,6 +73,7 @@ function loadCoachingFocus(options = {}) {
     querySelector: () => null,
   };
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/ui-feedback-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/coaching-focus-client.js"), "utf8"), context);
   return { focus: context.CairnCoachingFocus, handlers, state, activated };
 }

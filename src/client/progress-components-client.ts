@@ -5,10 +5,9 @@ type ProgressHeroStat =
   | readonly [unknown, unknown]
   | readonly [unknown, unknown, { text?: boolean; k?: boolean }];
 
+// A day as the chart module labels it ("Jun 20").
 function progressShortDate(iso: unknown): string {
-  const [y, m, d] = String(iso || "").split("-").map(Number);
-  if (!y || !m || !d) return String(iso || "");
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return CairnUiChart.dateLabel(iso);
 }
 
 function progressHeroHtml(title: unknown, stats: Array<ProgressHeroStat | null | undefined | false>): string {
@@ -27,11 +26,9 @@ function progressHeroHtml(title: unknown, stats: Array<ProgressHeroStat | null |
     </div>`;
 }
 
+// Progress's art-led empty state, on the shared primitive.
 function progressEmptyStateHtml(svg: string | null | undefined, line: unknown): string {
-  return `<div class="empty-state reveal" style="${stagger(1)}">
-      <div class="artile artile-lg">${svg || art("exercise", "")}</div>
-      <div class="empty-state-line">${escHtml(line)}</div>
-    </div>`;
+  return CairnUi.emptyStateHtml({ artHtml: svg || art("exercise", ""), title: line, style: stagger(1) });
 }
 
 const CAIRN_PROGRESS_COMPONENTS = {

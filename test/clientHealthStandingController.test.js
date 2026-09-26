@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import vm from "node:vm";
+import { createFakeTimers, createHost, fire, flush, loadClientModule } from "./_dom.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -56,28 +57,11 @@ class FakeElement {
   }
 }
 
-class FakeForm extends FakeElement {
-  constructor() {
-    super("bpSheetForm", "form");
-  }
-
-  submit() {
-    return this.listeners.get("submit")?.({ preventDefault() {}, currentTarget: this });
-  }
-}
-
 class FakeDocument {
   constructor() {
     this.elements = new Map();
     this.listeners = new Map();
-    this.body = {
-      appended: [],
-      appendChild: (el) => {
-        this.body.appended.push(el);
-        this.elements.set("#bpSheetOv", el);
-        this.installBpOverlay(el);
-      },
-    };
+    this.body = { appendChild: () => {} };
   }
 
   createElement(tag) {
@@ -98,34 +82,6 @@ class FakeDocument {
 
   removeEventListener(type, fn) {
     if (this.listeners.get(type) === fn) this.listeners.delete(type);
-  }
-
-  installBpOverlay(overlay) {
-    const form = new FakeForm();
-    const close = new FakeElement("", "button");
-    const cancel = new FakeElement("", "button");
-    const submit = new FakeElement("", "button");
-    const fields = {
-      "#bpSys": "118",
-      "#bpDia": "76",
-      "#bpPulse": "58",
-      "#bpAt": "2026-07-01T07:30",
-      "#bpPosition": "Seated",
-      "#bpNote": "After coffee",
-    };
-    for (const [selector, value] of Object.entries(fields)) {
-      const input = new FakeElement(selector.slice(1), "input");
-      input.value = value;
-      this.elements.set(selector, input);
-    }
-    form.selectors.set("button[type='submit']", submit);
-    overlay.selectors.set("#bpSheetForm", form);
-    overlay.selectors.set(".bpsheet-x", close);
-    overlay.selectors.set("[data-close]", cancel);
-    this.elements.set("#bpSheetForm", form);
-    this.elements.set(".bpsheet-x", close);
-    this.elements.set("[data-close]", cancel);
-    this.elements.set("button[type='submit']", submit);
   }
 }
 
@@ -154,7 +110,6 @@ function loadController(overrides = {}) {
   };
   context.globalThis = context;
   context.window = context;
-  context.HTMLFormElement = FakeForm;
   vm.runInNewContext(readFileSync(join(root, "public/js/health-standing-controller.js"), "utf8"), context);
   return { controller: context.CairnHealthStandingController, renderCalls };
 }
@@ -228,7 +183,15 @@ test("health standing controller wires reference age, marker lever, BP open, and
   rootEl.selectors.set("#hStanding", standing);
   rootEl.selectors.set("#bpLogOpen", bp);
   rootEl.selectors.set("#cfocusStandingSlot .cfocus", conductor);
-  const { controller } = loadController();
+  const opened = [];
+  const { controller } = loadController({
+    CairnUiSheet: {
+      open: (options) => {
+        opened.push(options);
+        return { overlay: {}, sheet: { querySelector: () => null }, close() {}, isOpen: () => true };
+      },
+    },
+  });
   const { deps, apiCalls, activated, dexaSlots } = depsFor(rootEl);
 
   controller.render({ hero: { headline: "Standing" } }, deps);
@@ -243,25 +206,44 @@ test("health standing controller wires reference age, marker lever, BP open, and
   assert.equal(deps.state.standSeg, "markers");
   assert.deepEqual(activated, ["stand"]);
   bp.click();
-  assert.ok(deps.document.getElementById("bpSheetOv"));
+  assert.equal(opened[0]?.id, "bpSheetOv", "the BP button opens the BP sheet");
 });
 
 test("health standing controller posts BP readings and refreshes standing/marker state", async () => {
-  const doc = new FakeDocument();
-  const rootEl = new FakeElement("root");
-  const standing = new FakeElement("hStanding");
-  rootEl.selectors.set("#hStanding", standing);
+  // The BP sheet runs on the shared overlay primitive, so this drives the built
+  // modules against the DOM harness: open, fill, submit, and the sheet closes.
+  const timers = createFakeTimers();
+  const win = loadClientModule(["html-utils", "ui-sheet", "health-standing-controller"], {
+    globals: {
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
+      CairnHealthStanding: { localDateTimeInputValue: () => "2026-07-01T07:00", renderHealthStandingHtml: () => "" },
+    },
+  });
+  const doc = win.document;
+  const rootEl = createHost(doc, { html: `<div id="hStanding"></div>` });
   const apiCalls = [];
   const api = (path, options) => {
     apiCalls.push([path, options || null]);
     return Promise.resolve({ ok: true });
   };
-  const { controller } = loadController();
   const { deps, toasts, invalidated } = depsFor(rootEl, { document: doc, api, state: { healthStandingRef: 50 } });
 
-  controller.openBpSheet(deps);
-  const form = doc.querySelector("#bpSheetForm");
-  await form.submit();
+  win.CairnHealthStandingController.openBpSheet(deps);
+  const overlay = doc.getElementById("bpSheetOv");
+  assert.ok(overlay, "the sheet is open");
+  assert.equal(overlay.querySelector(".bpsheet").getAttribute("role"), "dialog");
+  const fields = {
+    "#bpSys": "118",
+    "#bpDia": "76",
+    "#bpPulse": "58",
+    "#bpAt": "2026-07-01T07:30",
+    "#bpPosition": "Seated",
+    "#bpNote": "After coffee",
+  };
+  for (const [selector, value] of Object.entries(fields)) overlay.querySelector(selector).value = value;
+  await fire(overlay.querySelector("#bpSheetForm"), "submit");
+  await flush();
 
   assert.equal(apiCalls[0][0], "/blood-pressure");
   assert.deepEqual(JSON.parse(apiCalls[0][1].body), {
@@ -276,5 +258,5 @@ test("health standing controller posts BP readings and refreshes standing/marker
   assert.equal(apiCalls[1][0], "/health/standing?reference_age=50");
   assert.deepEqual(toasts, ["BP logged"]);
   assert.deepEqual(invalidated, ["markers:"]);
-  assert.equal(doc.getElementById("bpSheetOv").removed, true);
+  assert.equal(doc.getElementById("bpSheetOv"), null, "a saved reading closes the sheet");
 });

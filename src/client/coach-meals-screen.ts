@@ -151,59 +151,35 @@ function runMealPlan(): void {
   CairnMealPlannerController.runCoachMealPlan(agent, instructionValue());
 }
 
-type MealDecisionAction = "hold" | "undo";
-
-async function revertMealDecision(button: HTMLElement, action: MealDecisionAction): Promise<void> {
-  const rawId = action === "hold" ? button.dataset.mealDecisionHold : button.dataset.mealDecisionUndo;
-  const decisionId = Number(rawId);
-  if (!Number.isFinite(decisionId) || decisionId <= 0 || button.dataset.busy === "1") return;
-  button.dataset.busy = "1";
-  button.setAttribute("aria-busy", "true");
-  const holding = action === "hold";
-  try {
-    const result = await api(`/brain/decisions/${decisionId}/revert`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: holding ? "hold on — keep my current meal plan" : "undo from the meal plan" }),
-    });
-    if (!isCoachMealRecord(result) || result.ok !== true) {
-      throw new Error(
-        typeof result?.error === "string"
-          ? result.error
-          : holding
-            ? "That meal change can no longer be held."
-            : "That meal change can no longer be undone."
-      );
-    }
-    // A later accepted plan intentionally wins over an older rollback. The
-    // response confirms that the decision was reverted, but not that its prior
-    // plan became current, so keep this confirmation truthful under that race.
-    toast(holding ? "Held — your current meals stay" : "Undo recorded — showing your current meals");
+// Hold (a change still waiting) and Undo (one that landed) both go through the
+// durable decision rollback. A later accepted plan intentionally wins over an
+// older rollback: the response confirms the decision was reverted, not that its
+// prior plan became current, so the Undo confirmation stays truthful under that race.
+function wireMealDecisionActions(): void {
+  const after = async (): Promise<void> => {
     swrInvalidate(MEALS_KEY);
     await renderMeals();
-  } catch (error) {
-    toast(
-      error instanceof Error
-        ? error.message
-        : holding
-          ? "Could not hold that meal change"
-          : "Could not undo that meal change"
-    );
-    button.dataset.busy = "";
-    button.removeAttribute("aria-busy");
-  }
-}
-
-function wireMealDecisionActions(): void {
-  view.querySelectorAll<HTMLElement>("[data-meal-decision-hold]").forEach((button) =>
-    button.addEventListener("click", () => {
-      void revertMealDecision(button, "hold");
-    })
-  );
-  view.querySelectorAll<HTMLElement>("[data-meal-decision-undo]").forEach((button) =>
-    button.addEventListener("click", () => {
-      void revertMealDecision(button, "undo");
-    })
+  };
+  CairnDecisionUndoController.mount(
+    view,
+    { api, toast },
+    {
+      "meal-decision-hold": {
+        reason: "hold on — keep my current meal plan",
+        success: "Held — your current meals stay",
+        stale: "That meal change can no longer be held.",
+        failed: "Could not hold that meal change",
+        after,
+      },
+      "meal-decision-undo": {
+        reason: "undo from the meal plan",
+        success: "Undo recorded — showing your current meals",
+        stale: "That meal change can no longer be undone.",
+        failed: "Could not undo that meal change",
+        after,
+      },
+    },
+    "meal-decision"
   );
 }
 

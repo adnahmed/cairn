@@ -25,6 +25,29 @@ type SegmentedNavOptions = {
   active: unknown;
   items: ReadonlyArray<SegmentedNavItem>;
 };
+type SegmentedOptions = {
+  items: ReadonlyArray<SegmentedNavItem>;
+  active: unknown;
+  /** The group's accessible name (`role="group"` + `aria-label`). */
+  label: unknown;
+  /**
+   * `sliding` — the navigation bar with its animated thumb (`--segn`/`--segi`);
+   * `plain` — an inline choice group inside a form, no thumb, no wrapper;
+   * `leaf` — a sliding sub-bar, omitted entirely when there is nothing to choose.
+   */
+  variant?: "sliding" | "plain" | "leaf";
+  /** Data attribute carrying each key, without `data-` (default `seg`). */
+  attr?: string;
+  /** Extra classes on the `.seg` group. */
+  className?: string;
+  /** Extra classes on the `.segwrap` wrapper (sliding / leaf). */
+  wrapClass?: string;
+  id?: string;
+  /** Extra attributes on the group element. */
+  attrs?: CairnUiAttrs;
+  /** Emit `aria-pressed` on every button (default: on for sliding/leaf, off for plain). */
+  pressed?: boolean;
+};
 type JobCaptionOptions = {
   text?: unknown;
   className?: string;
@@ -92,20 +115,38 @@ function loadingStateHtml(options: LoadingStateOptions): string {
   </div>`;
 }
 
-function segmentedNavHtml(options: SegmentedNavOptions): string {
+// The one segmented control. Every button is a real `<button type="button">`
+// carrying its key in `data-<attr>`; `.active` marks the chosen one, and the
+// sliding variants also set `aria-pressed`. Wiring stays with the caller
+// (`wireSeg` for the section bars, delegation for form groups).
+function segmentedHtml(options: SegmentedOptions): string {
   const items = Array.isArray(options.items) ? options.items : [];
+  const variant = options.variant === "plain" || options.variant === "leaf" ? options.variant : "sliding";
+  if (variant === "leaf" && items.length < 2) return "";
+  const attr = /^[a-z][a-z0-9-]*$/.test(String(options.attr || "")) ? String(options.attr) : "seg";
+  const pressed = options.pressed ?? variant !== "plain";
+  const buttons = items
+    .map(([key, label]) => {
+      const on = key === options.active;
+      const aria = pressed ? ` aria-pressed="${on ? "true" : "false"}"` : "";
+      return `<button class="segbtn${on ? " active" : ""}" type="button" data-${attr}="${escAttr(key)}"${aria}>${escHtml(label)}</button>`;
+    })
+    .join("");
+  const cls = options.className ? ` ${escAttr(options.className)}` : "";
+  const id = options.id ? ` id="${escAttr(options.id)}"` : "";
+  const group = `${id} role="group" aria-label="${escAttr(options.label)}"${uiAttrsHtml(options.attrs)}`;
+  if (variant === "plain") return `<div class="seg${cls}"${group}>${buttons}</div>`;
   const idx = Math.max(
     0,
     items.findIndex(([key]) => key === options.active)
   );
-  const buttons = items
-    .map(([key, label]) => {
-      const activeClass = key === options.active ? " active" : "";
-      const pressed = key === options.active ? "true" : "false";
-      return `<button class="segbtn${activeClass}" type="button" data-seg="${escAttr(key)}" aria-pressed="${pressed}">${escHtml(label)}</button>`;
-    })
-    .join("");
-  return `<div class="segwrap"><div class="seg seg-sliding" role="group" aria-label="Section navigation" style="--segn:${items.length};--segi:${idx}"><span class="seg-thumb" aria-hidden="true"></span>${buttons}</div></div>`;
+  const wrap = options.wrapClass ? ` ${escAttr(options.wrapClass)}` : "";
+  return `<div class="segwrap${wrap}"><div class="seg seg-sliding${cls}"${group} style="--segn:${items.length};--segi:${idx}"><span class="seg-thumb" aria-hidden="true"></span>${buttons}</div></div>`;
+}
+
+// The section navigation bar (Plan, Progress, Me): the sliding variant.
+function segmentedNavHtml(options: SegmentedNavOptions): string {
+  return segmentedHtml({ items: options.items, active: options.active, label: "Section navigation" });
 }
 
 function jobCaptionHtml(options: JobCaptionOptions = {}): string {
@@ -133,9 +174,7 @@ function sheetChipHtml(options: SheetChipOptions): string {
 function emptyStateHtml(options: EmptyStateOptions): string {
   const className = options.className || "empty-state reveal";
   const style = options.style ? ` style="${escAttr(options.style)}"` : "";
-  const art = options.artHtml
-    ? `<div class="artile artile-lg" style="margin:0 auto 14px">${options.artHtml}</div>`
-    : "";
+  const art = options.artHtml ? `<div class="artile artile-lg">${options.artHtml}</div>` : "";
   const bodyClass = options.bodyClassName || "hpic-hero-sub";
   const body = options.body ? `<div class="${escAttr(bodyClass)}">${escHtml(options.body)}</div>` : "";
   const action = actionButtonHtml(options.action);
@@ -152,6 +191,7 @@ const CAIRN_UI = {
   actionButtonHtml,
   textChipHtml,
   loadingStateHtml,
+  segmentedHtml,
   segmentedNavHtml,
   jobCaptionHtml,
   sheetChipHtml,

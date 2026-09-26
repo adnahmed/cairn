@@ -7,17 +7,9 @@ type HealthStandingControllerRead = import("../contracts/client-api.js").ClientH
     return deps.root.querySelector<T>(selector) || deps.select<T>(selector);
   }
 
-  function documentSelect<T extends Element = Element>(deps: ClientHealthStandingControllerDeps, selector: string): T | null {
-    return deps.document.querySelector<T>(selector) || deps.select<T>(selector);
-  }
-
   function healthStandingRef(deps: ClientHealthStandingControllerDeps, refAge?: unknown): number {
     const value = Number(refAge || deps.state.healthStandingRef || 20);
     return Number.isFinite(value) ? value : 20;
-  }
-
-  function inputValue(deps: ClientHealthStandingControllerDeps, selector: string): string {
-    return documentSelect<HTMLInputElement>(deps, selector)?.value ?? "";
   }
 
   function render(data: HealthStandingControllerRead | null | undefined, deps: ClientHealthStandingControllerDeps): void {
@@ -44,11 +36,15 @@ type HealthStandingControllerRead = import("../contracts/client-api.js").ClientH
 
   function openBpSheet(deps: ClientHealthStandingControllerDeps): void {
     if (deps.document.getElementById("bpSheetOv")) return;
-    const ov = deps.document.createElement("div");
-    ov.id = "bpSheetOv";
-    ov.className = "bpsheet-ov";
-    ov.innerHTML = `<div class="bpsheet" role="dialog" aria-modal="true" aria-label="Log blood pressure">
-      <div class="bpsheet-hd"><h3>Log a reading</h3><button class="xbtn bpsheet-x" type="button" aria-label="Close">✕</button></div>
+    const sheet = CairnUiSheet.open({
+      id: "bpSheetOv",
+      overlayClass: "bpsheet-ov",
+      sheetClass: "bpsheet",
+      label: "Log blood pressure",
+      closeSelector: ".bpsheet-x, [data-close]",
+      initialFocus: "#bpSys",
+      focusDelayMs: 30,
+      html: `<div class="bpsheet-hd"><h3>Log a reading</h3><button class="xbtn bpsheet-x" type="button" aria-label="Close">✕</button></div>
       <form id="bpSheetForm" class="bpsheet-form">
         <div class="bpsheet-row">
           <label>Systolic<input id="bpSys" class="form-input" type="number" inputmode="numeric" min="60" max="260" placeholder="120" required></label>
@@ -61,37 +57,22 @@ type HealthStandingControllerRead = import("../contracts/client-api.js").ClientH
           <label>Note<input id="bpNote" class="form-input" type="text" maxlength="240" placeholder="Optional"></label>
         </div>
         <div class="bpsheet-ft"><button class="ghostbtn" type="button" data-close>Cancel</button><button class="logbtn" type="submit">Save</button></div>
-      </form>
-    </div>`;
-    deps.document.body.appendChild(ov);
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") teardown();
-    };
-    function teardown(): void {
-      deps.document.removeEventListener("keydown", onKey);
-      ov.remove();
-    }
-
-    deps.document.addEventListener("keydown", onKey);
-    ov.querySelector(".bpsheet-x")?.addEventListener("click", teardown);
-    ov.querySelector("[data-close]")?.addEventListener("click", teardown);
-    ov.addEventListener("click", (event) => {
-      if (event.target === ov) teardown();
+      </form>`,
     });
+    const field = (selector: string): string => sheet.sheet.querySelector<HTMLInputElement>(selector)?.value ?? "";
 
-    documentSelect<HTMLFormElement>(deps, "#bpSheetForm")?.addEventListener("submit", async (event: SubmitEvent) => {
+    sheet.sheet.querySelector<HTMLFormElement>("#bpSheetForm")?.addEventListener("submit", async (event: SubmitEvent) => {
       event.preventDefault();
       const form = event.currentTarget instanceof HTMLFormElement ? event.currentTarget : null;
       const submit = form?.querySelector<HTMLButtonElement>("button[type='submit']") || null;
       if (submit) submit.disabled = true;
       const payload = {
-        systolic: inputValue(deps, "#bpSys"),
-        diastolic: inputValue(deps, "#bpDia"),
-        pulse: inputValue(deps, "#bpPulse"),
-        measured_at: inputValue(deps, "#bpAt"),
-        position: inputValue(deps, "#bpPosition"),
-        note: inputValue(deps, "#bpNote"),
+        systolic: field("#bpSys"),
+        diastolic: field("#bpDia"),
+        pulse: field("#bpPulse"),
+        measured_at: field("#bpAt"),
+        position: field("#bpPosition"),
+        note: field("#bpNote"),
         source: "manual",
       };
       try {
@@ -107,15 +88,13 @@ type HealthStandingControllerRead = import("../contracts/client-api.js").ClientH
         }
         deps.toast("BP logged");
         deps.swrInvalidate("markers:");
-        teardown();
+        sheet.close();
         load(deps, deps.pollToken(), deps.state.healthStandingRef || 20);
       } catch {
         deps.toast("Couldn't log BP");
         if (submit) submit.disabled = false;
       }
     });
-
-    setTimeout(() => documentSelect<HTMLInputElement>(deps, "#bpSys")?.focus(), 30);
   }
 
   function load(deps: ClientHealthStandingControllerDeps, token: number, refAge?: unknown): void {

@@ -326,21 +326,14 @@ type MeProfileFormContext = {
       <div class="field" style="margin-bottom:9px">
         <label>Sex</label>
         <p class="aboutme-hint">Sets the baselines the math runs on — strength standards, tape-measure reads, body-fat and heart-risk equations — and the body figure. The clinical equations expect sex at birth.</p>
-        <div class="seg sex-seg" id="sexSeg" role="group" aria-label="Sex">
-          <button type="button" class="segbtn${String(profile.sex || "") === "female" ? " active" : ""}" data-sex="female">Female</button>
-          <button type="button" class="segbtn${String(profile.sex || "") === "female" ? "" : " active"}" data-sex="male">Male</button>
-        </div>
+        ${CairnUi.segmentedHtml({ variant: "plain", className: "sex-seg", id: "sexSeg", label: "Sex", attr: "sex", active: String(profile.sex || "") === "female" ? "female" : "male", items: [["female", "Female"], ["male", "Male"]] })}
       </div>
       ${heightField}
       ${weightField}
       <div class="field" style="margin-bottom:9px">
         <label>Your goal</label>
         <p class="aboutme-hint">Losing weight, holding steady, or a slow lean gain. Cairn fuels and frames everything around this — maintaining is a real goal, not "no goal". Change it anytime.</p>
-        <div class="seg goalmode-seg" id="goalModeSeg" role="group" aria-label="Goal mode">
-          <button type="button" class="segbtn${goalMode === "lose" ? " active" : ""}" data-goalmode="lose">Lose</button>
-          <button type="button" class="segbtn${goalMode === "maintain" ? " active" : ""}" data-goalmode="maintain">Maintain</button>
-          <button type="button" class="segbtn${goalMode === "gain" ? " active" : ""}" data-goalmode="gain">Gain</button>
-        </div>
+        ${CairnUi.segmentedHtml({ variant: "plain", className: "goalmode-seg", id: "goalModeSeg", label: "Goal mode", attr: "goalmode", active: goalMode, items: [["lose", "Lose"], ["maintain", "Maintain"], ["gain", "Gain"]] })}
       </div>
       <div id="goalTargetFields" style="${activeGoalTargetDisplay(goalMode)}">
         <div class="field" style="margin-bottom:9px"><label>Goal weight</label>
@@ -357,11 +350,7 @@ type MeProfileFormContext = {
       <div class="field" style="margin-bottom:9px">
         <label>Your sport</label>
         <p class="aboutme-hint">What you mostly train. Cairn meets you in it — the language, the day's read, and Progress reshape around it. Change it anytime.</p>
-        <div class="seg disc-seg" id="discSeg" role="group" aria-label="Primary discipline">
-          <button type="button" class="segbtn${discipline === "strength" ? " active" : ""}" data-disc="strength">Strength</button>
-          <button type="button" class="segbtn${discipline === "endurance" ? " active" : ""}" data-disc="endurance">Endurance</button>
-          <button type="button" class="segbtn${discipline === "hybrid" ? " active" : ""}" data-disc="hybrid">Hybrid</button>
-        </div>
+        ${CairnUi.segmentedHtml({ variant: "plain", className: "disc-seg", id: "discSeg", label: "Primary discipline", attr: "disc", active: discipline, items: [["strength", "Strength"], ["endurance", "Endurance"], ["hybrid", "Hybrid"]] })}
       </div>
       <div class="field" id="endSportField" style="margin-bottom:9px${discipline === "strength" ? ";display:none" : ""}">
         <label for="endurance_sport">Endurance sport <span class="ob-opt">— optional</span></label>
@@ -376,9 +365,7 @@ type MeProfileFormContext = {
       <div class="field" style="margin-bottom:9px">
         <label>Endurance’s role</label>
         <p class="aboutme-hint">This decides what wins when training goals compete.</p>
-        <div class="seg" id="enduranceRoleSeg" role="group" aria-label="Endurance role">
-          ${[["none", "None"], ["supporting", "Supports"], ["co_primary", "Co-primary"], ["primary", "Primary"]].map(([value, label]) => `<button type="button" class="segbtn${trainingIntent.endurance_role === value ? " active" : ""}" data-endurance-role="${value}">${label}</button>`).join("")}
-        </div>
+        ${CairnUi.segmentedHtml({ variant: "plain", id: "enduranceRoleSeg", label: "Endurance role", attr: "endurance-role", active: trainingIntent.endurance_role, items: [["none", "None"], ["supporting", "Supports"], ["co_primary", "Co-primary"], ["primary", "Primary"]] })}
       </div>
       <div id="enduranceCapacityFields" style="margin-bottom:9px${trainingIntent.endurance_role === "none" ? ";display:none" : ""}">
         <p class="aboutme-hint">A durable capability, not a temporary race. Keep the dated running goal below for an event you are building toward.</p>
@@ -392,11 +379,7 @@ type MeProfileFormContext = {
       <div class="field" id="endGoalField" style="margin-bottom:0">
         <label>Running goal <span class="ob-opt">— optional</span></label>
         <p class="aboutme-hint">A race the coach builds you toward, or an ongoing "stay ready" target. Either way it prescribes your runs each week alongside lifting — separate from the sport above.</p>
-        <div class="seg" id="endGoalMode" role="group" aria-label="Running goal mode">
-          <button type="button" class="segbtn${enduranceMode === "none" ? " active" : ""}" data-egmode="none">None</button>
-          <button type="button" class="segbtn${enduranceMode === "race" ? " active" : ""}" data-egmode="race">Race</button>
-          <button type="button" class="segbtn${enduranceMode === "standing" ? " active" : ""}" data-egmode="standing">Standing</button>
-        </div>
+        ${CairnUi.segmentedHtml({ variant: "plain", id: "endGoalMode", label: "Running goal mode", attr: "egmode", active: enduranceMode, items: [["none", "None"], ["race", "Race"], ["standing", "Standing"]] })}
         <div id="egRace" class="eg-sub" style="${enduranceMode === "race" ? "" : "display:none"}">
           <div class="field" style="margin:9px 0 0"><label for="eg_event">Race</label>
             <input id="eg_event" type="text" maxlength="120" placeholder="e.g. Spring Half Marathon" value="${deps.escapeAttr(enduranceGoal.event || "")}" class="form-input"></div>

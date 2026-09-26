@@ -18,6 +18,8 @@ function loadProgressComponents() {
   };
   context.window = context;
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/ui-components.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/ui-chart.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-components-client.js"), "utf8"), context);
   return context.CairnProgressComponents;
 }

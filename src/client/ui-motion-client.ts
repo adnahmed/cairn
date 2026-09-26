@@ -9,11 +9,6 @@ type CairnMotionElement = HTMLElement & {
 
 type CollapseDone = (() => void) | null | undefined;
 
-function motionReduced(): boolean {
-  if (typeof reducedMotion === "function") return reducedMotion();
-  return typeof window !== "undefined" && "matchMedia" in window && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 function motionElement(el: Element | null | undefined): CairnMotionElement | null {
   return el instanceof HTMLElement ? (el as CairnMotionElement) : null;
 }
@@ -34,7 +29,7 @@ function collapseEl(input: Element | null | undefined, done?: CollapseDone): voi
   }
   el._collapsed = true;
   clearTimeout(el._animTimer);
-  if (motionReduced()) {
+  if (reducedMotion()) {
     if (done) done();
     return;
   }
@@ -60,7 +55,7 @@ function expandEl(input: Element | null | undefined): void {
   if (!el) return;
   clearTimeout(el._animTimer);
   el._collapsed = false;
-  if (motionReduced()) {
+  if (reducedMotion()) {
     clearMotionStyles(el);
     return;
   }
