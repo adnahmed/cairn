@@ -35,6 +35,11 @@ const postBuildJobs = [
   { name: "tests", steps: [["npm", "run", "test:built"]] },
 ];
 
+// The per-route perf budget drives a real Chrome on a throttled profile, so it is opt-in
+// (CAIRN_PERF=1) and runs alone after the rest: sharing the CPU with the test shards
+// would only add noise to its report-only timings.
+const perfJobs = [{ name: "perf budget", steps: [["node", "scripts/check-perf.mjs"]] }];
+
 function runStep(argv) {
   const [cmd, ...args] = argv;
   const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -97,3 +102,5 @@ await runGroup("initial", initialJobs);
 await runGroup("client", clientJobs);
 await runGroup("build", buildJobs);
 await runGroup("post-build", postBuildJobs);
+if (process.env.CAIRN_PERF === "1") await runGroup("perf", perfJobs);
+else console.log("- perf budget skipped (needs Chrome; set CAIRN_PERF=1 to run it)");

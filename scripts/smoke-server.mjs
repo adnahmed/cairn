@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,41 @@ const RANDOM_PORT_SPAN = 7000; // 18000-24999: avoids upper loopback ports block
 const activeServers = new Set();
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * An OFFLINE copy of agents.json in `dir` (every real CLI pointed at a command that
+ * does not exist, `stub` untouched — exactly as test/run.mjs does), so a harness that
+ * boots the app never spawns an agent CLI. Returns the file path for AGENTS_CONFIG.
+ */
+export function writeOfflineAgentsConfig(dir, prefix = "cairn-offline") {
+  const agents = JSON.parse(readFileSync(path.join(root, "agents.json"), "utf8"));
+  for (const [name, def] of Object.entries(agents)) {
+    if (name !== "stub" && def && typeof def === "object") def.command = `${prefix}-${name}`;
+  }
+  const file = path.join(dir, "agents.offline.json");
+  writeFileSync(file, JSON.stringify(agents));
+  return file;
+}
+
+/**
+ * A goal race for the demo persona (its own "Coastal half marathon" context event,
+ * made the structured goal), so Horizon opens on a real build: the first Sunday at
+ * least five weeks out. Set through the API, the same path a person takes.
+ */
+export async function seedDemoRace(base) {
+  const d = new Date();
+  d.setDate(d.getDate() + 35);
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const res = await fetch(`${base}/api/profile`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      endurance_goal: { mode: "race", event: "Coastal half marathon", date, distance_km: 21.1, target: "1:55:00" },
+    }),
+  });
+  return res.ok;
+}
 
 function pickPort(offset = 0, attempt = 0) {
   if (requestedPort) {

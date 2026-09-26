@@ -435,6 +435,21 @@ The real wins were structural, not tooling swaps: the suite wipes the DB before 
 test (`test/_isolate.mjs`, injected via `--import`) so correctness is independent of
 worker count and file order, and the worker default scales with cores (`min(8, cores-1)`).
 
+**Per-route perf budget.** `npm run perf:check` (after `npm run build`) is the browser-side
+twin of the bundle byte budget. It boots the built server on a throwaway data dir with the demo
+seed and offline agents, then opens every home and leaf route in headless Chrome at a 390px
+viewport with CPU 4x and slow 4G, cold (fresh browser context) and warm (the service worker
+installed), three runs each. It **gates** only on measures that do not move with machine speed —
+`/api` calls per load, zero duplicate GET URLs, serial request rounds (the dependency depth read
+from request start/end order), CLS, the JS/CSS bytes a cold load transfers, and no visible
+skeleton left once the route reads ready — against the median run and the checked-in
+`scripts/perf-budget.json`. FCP, first content and ready are **reported** beside the proposed
+per-group targets and only flagged past +30%. A route whose budget sits above its target is
+listed as a miss on every run, so a loosened budget is never silent; raise one deliberately with
+`node scripts/check-perf.mjs --update`. `--only today,ask`, `--runs 1` and `--json <file>`
+narrow or keep a run. It needs Chrome (`CHROME_BIN` overrides discovery), so `npm run verify`
+runs it only with `CAIRN_PERF=1`, and CI runs it as its own non-blocking job.
+
 One gotcha: the `npm run format` script hardcodes `biome format --write .` (the whole
 repo, which is not biome-clean at rest) — to format only the files you touched, run
 `./node_modules/.bin/biome format --write <files>` directly.
@@ -451,6 +466,7 @@ Every script under `scripts/`, one line each (from its own header comment):
 | `backup-example.sh` | Template backup script for a running Cairn instance: pulls a JSON export and a `VACUUM INTO` SQLite snapshot, rotates old copies. Copy and adjust for cron. |
 | `check-action-pins.mjs` | Verifies GitHub Actions workflow steps are pinned to commit SHAs, not moving tags. |
 | `check-bundle-budget.mjs` | Per-bundle byte budget (raw and brotli, `public/styles.css` included) against the checked-in `scripts/bundle-budget.json`, run in `npm run verify` after the build; fails with the delta when a bundle grows past it. Two fixed eager ceilings (every script `index.html` loads — bundles, `art.js`, the body figure — ≤220 KB brotli, the stylesheet ≤70 KB) sit on top and are never raised by `--update`, which re-measures and rewrites the per-bundle budget for a deliberate raise; `--report` lists each bundle's largest inputs. |
+| `check-perf.mjs` | Per-route load budget in headless Chrome (390px, CPU 4x, slow 4G, cold and warm) against `scripts/perf-budget.json`: gates `/api` calls, duplicate GETs, serial request rounds, CLS, cold JS/CSS bytes and leftover skeletons; reports FCP / first content / ready. `npm run perf:check`; in `npm run verify` only with `CAIRN_PERF=1`. |
 | `check-client-build-output.mjs` | Guards that every served `public/js` bundle can be recreated from TypeScript sources in a fresh checkout (generated output is gitignored). |
 | `check-launch-safety.mjs` | Guards the public quickstart docs from regressing to an internet-footgun: copy-paste `docker run` blocks must bind loopback unless deliberately widened. |
 | `check-public-scripts.mjs` | Guards the classic browser app-shell script graph against global-scope hazards (duplicate top-level bindings across `<script>` tags). |
@@ -464,5 +480,5 @@ Every script under `scripts/`, one line each (from its own header comment):
 | `run-verify.mjs` | Runs `npm run verify`'s independent gates (docs, actions, launch safety, and more) in parallel staged groups. |
 | `setup-phone.sh` | Puts Cairn on your phone privately in one step via Tailscale Serve, degrading gracefully to manual instructions if anything is missing. |
 | `smoke-browser.mjs` | Dependency-free browser smoke test for the generated PWA app shell via local Chrome + CDP; a release/manual gate, not part of `npm run verify`. |
-| `smoke-server.mjs` | Shared helper module (server entrypoint, `withServer`) imported by `test/smoke.mjs` and `smoke-browser.mjs`; not run directly. |
+| `smoke-server.mjs` | Shared helper module (server entrypoint, `withServer`, the offline agents table and the demo race seed) imported by `test/smoke.mjs`, `smoke-browser.mjs`, `capture-screens.mjs` and `check-perf.mjs`; not run directly. |
 | `update-agent-clis.sh` | Stable `cairn-update-agent-clis` entrypoint wrapper that execs `install-agent-cli.mjs`, so every install/update command is an argv array with no shell interpolation. |

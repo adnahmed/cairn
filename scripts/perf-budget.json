@@ -1,0 +1,427 @@
+{
+  "note": "Per-route load budget for scripts/check-perf.mjs (npm run perf:check; npm run verify with CAIRN_PERF=1). Mid phone: 390px, CPU 4x, slow 4G. `routes` gates the median run (api calls, serial rounds, CLS, cold JS/CSS bytes; duplicate GETs and a visible skeleton after ready always fail, except a duplicate recorded in a route's knownDupes, which is listed as a miss every run); raise one deliberately with `node scripts/check-perf.mjs --update` after npm run build. `targets` are the proposed per-group goals: api/cls misses are listed every run, timings (ms) are report-only and flagged past +30%.",
+  "targets": {
+    "today": {
+      "api": 10,
+      "cls": 0.02,
+      "warmFirstContent": 200,
+      "warmReady": 900,
+      "coldFcp": 2000,
+      "coldReady": 3500
+    },
+    "focus": {
+      "api": 8,
+      "cls": 0.02,
+      "warmFirstContent": 200,
+      "warmReady": 600,
+      "coldFcp": 2000,
+      "coldReady": 3200
+    },
+    "leaf": {
+      "api": 10,
+      "cls": 0.05,
+      "warmFirstContent": 250,
+      "warmReady": 700,
+      "coldFcp": 2000,
+      "coldReady": 3500
+    }
+  },
+  "routes": {
+    "today": {
+      "cold": {
+        "api": 8,
+        "rounds": 2,
+        "cls": 0.008,
+        "js": 237568,
+        "css": 62464
+      },
+      "warm": {
+        "api": 6,
+        "rounds": 2,
+        "cls": 0.005
+      }
+    },
+    "today-session": {
+      "cold": {
+        "api": 9,
+        "rounds": 4,
+        "cls": 0.005,
+        "js": 237568,
+        "css": 62464
+      },
+      "warm": {
+        "api": 10,
+        "rounds": 3,
+        "cls": 0.005
+      }
+    },
+    "today-fuel": {
+      "cold": {
+        "api": 8,
+        "rounds": 2,
+        "cls": 0.005,
+        "js": 237568,
+        "css": 62464
+      },
+      "warm": {
+        "api": 7,
+        "rounds": 2,
+        "cls": 0.005
+      }
+    },
+    "ask": {
+      "cold": {
+        "api": 6,
+        "rounds": 3,
+        "cls": 0.013,
+        "js": 265216,
+        "css": 62464
+      },
+      "warm": {
+        "api": 6,
+        "rounds": 2,
+        "cls": 0.005
+      }
+    },
+    "ask-changes": {
+      "cold": {
+        "api": 9,
+        "rounds": 2,
+        "cls": 0.014,
+        "js": 265216,
+        "css": 62464
+      },
+      "warm": {
+        "api": 9,
+        "rounds": 2,
+        "cls": 0.005
+      }
+    },
+    "train": {
+      "cold": {
+        "api": 16,
+        "rounds": 2,
+        "cls": 0.006,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 16,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "train-trend": {
+      "cold": {
+        "api": 6,
+        "rounds": 3,
+        "cls": 0.005,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 4,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "train-volume": {
+      "cold": {
+        "api": 6,
+        "rounds": 2,
+        "cls": 0.006,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 4,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "train-program": {
+      "cold": {
+        "api": 14,
+        "rounds": 4,
+        "cls": 0.006,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 14,
+        "rounds": 2,
+        "cls": 0.005
+      }
+    },
+    "train-sessions": {
+      "cold": {
+        "api": 5,
+        "rounds": 2,
+        "cls": 0.007,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 4,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "train-energy": {
+      "cold": {
+        "api": 5,
+        "rounds": 2,
+        "cls": 0.009,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 4,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "train-intake": {
+      "cold": {
+        "api": 5,
+        "rounds": 2,
+        "cls": 0.005,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 5,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "train-endurance": {
+      "cold": {
+        "api": 13,
+        "rounds": 2,
+        "cls": 0.005,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 13,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "train-weight": {
+      "cold": {
+        "api": 6,
+        "rounds": 2,
+        "cls": 0.12,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 4,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "train-plan": {
+      "cold": {
+        "api": 10,
+        "rounds": 4,
+        "cls": 0.005,
+        "js": 309248,
+        "css": 62464
+      },
+      "warm": {
+        "api": 8,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "horizon": {
+      "cold": {
+        "api": 10,
+        "rounds": 2,
+        "cls": 0.005,
+        "js": 333824,
+        "css": 62464
+      },
+      "warm": {
+        "api": 10,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "horizon-race": {
+      "cold": {
+        "api": 5,
+        "rounds": 2,
+        "cls": 0.005,
+        "js": 333824,
+        "css": 62464
+      },
+      "warm": {
+        "api": 5,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "horizon-goal": {
+      "cold": {
+        "api": 7,
+        "rounds": 2,
+        "cls": 0.005,
+        "js": 333824,
+        "css": 62464
+      },
+      "warm": {
+        "api": 7,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "you": {
+      "cold": {
+        "api": 5,
+        "rounds": 1,
+        "cls": 0.012,
+        "js": 237568,
+        "css": 62464
+      },
+      "warm": {
+        "api": 4,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "you-stone": {
+      "cold": {
+        "api": 5,
+        "rounds": 1,
+        "cls": 0.005,
+        "js": 237568,
+        "css": 62464
+      },
+      "warm": {
+        "api": 4,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "you-health": {
+      "cold": {
+        "api": 14,
+        "rounds": 3,
+        "cls": 0.005,
+        "js": 398336,
+        "css": 62464,
+        "knownDupes": [
+          "/api/agent-jobs"
+        ]
+      },
+      "warm": {
+        "api": 13,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "you-records": {
+      "cold": {
+        "api": 15,
+        "rounds": 2,
+        "cls": 0.005,
+        "js": 398336,
+        "css": 62464,
+        "knownDupes": [
+          "/api/agent-jobs"
+        ]
+      },
+      "warm": {
+        "api": 14,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "you-markers": {
+      "cold": {
+        "api": 15,
+        "rounds": 3,
+        "cls": 0.005,
+        "js": 398336,
+        "css": 62464,
+        "knownDupes": [
+          "/api/agent-jobs"
+        ]
+      },
+      "warm": {
+        "api": 14,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "you-share": {
+      "cold": {
+        "api": 17,
+        "rounds": 3,
+        "cls": 0.008,
+        "js": 398336,
+        "css": 62464,
+        "knownDupes": [
+          "/api/agent-jobs"
+        ]
+      },
+      "warm": {
+        "api": 16,
+        "rounds": 2,
+        "cls": 0.008
+      }
+    },
+    "you-settings": {
+      "cold": {
+        "api": 10,
+        "rounds": 3,
+        "cls": 0.005,
+        "js": 269312,
+        "css": 62464
+      },
+      "warm": {
+        "api": 10,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "you-life": {
+      "cold": {
+        "api": 8,
+        "rounds": 2,
+        "cls": 0.005,
+        "js": 398336,
+        "css": 62464,
+        "knownDupes": [
+          "/api/agent-jobs"
+        ]
+      },
+      "warm": {
+        "api": 7,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    },
+    "you-family": {
+      "cold": {
+        "api": 6,
+        "rounds": 2,
+        "cls": 0.053,
+        "js": 398336,
+        "css": 62464,
+        "knownDupes": [
+          "/api/agent-jobs"
+        ]
+      },
+      "warm": {
+        "api": 4,
+        "rounds": 1,
+        "cls": 0.005
+      }
+    }
+  }
+}

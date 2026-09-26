@@ -1,8 +1,8 @@
 // Headless Chrome over the DevTools protocol, dependency-free: find a Chrome, launch
 // it on a free loopback debug port with a throwaway profile, and speak CDP over
-// Node's built-in WebSocket. Shared by the browser smoke (scripts/smoke-browser.mjs)
-// and the screenshot harness (scripts/capture-screens.mjs); neither is part of
-// `npm test`.
+// Node's built-in WebSocket. Shared by the browser smoke (scripts/smoke-browser.mjs),
+// the screenshot harness (scripts/capture-screens.mjs) and the perf gate
+// (scripts/check-perf.mjs); none is part of `npm test`.
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
@@ -189,10 +189,11 @@ export class Cdp {
     for (const listener of this.listeners || []) listener(msg);
   }
 
-  async command(method, params = {}) {
+  /** `sessionId` addresses a flat-attached target (Target.attachToTarget with flatten). */
+  async command(method, params = {}, sessionId = undefined) {
     await this.opened;
     const id = this.nextId++;
-    const payload = JSON.stringify({ id, method, params });
+    const payload = JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) });
     return new Promise((resolve, reject) => {
       this.pending.set(id, { method, resolve, reject });
       this.ws.send(payload);

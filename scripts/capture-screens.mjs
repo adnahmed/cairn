@@ -21,7 +21,7 @@
 //
 // Not part of `npm test` or `npm run verify`: it needs Chrome and ImageMagick.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -60,7 +60,9 @@ const SETTLE_MS = num(args.settle, 1400);
 
 // The SMOKE_PORT the shared server helper reads at import time pins our port.
 process.env.SMOKE_PORT = String(PORT);
-const { root, serverEntry, sleep, startBuiltServer, stopServer } = await import("./smoke-server.mjs");
+const { seedDemoRace, serverEntry, sleep, startBuiltServer, stopServer, writeOfflineAgentsConfig } = await import(
+  "./smoke-server.mjs"
+);
 const { Cdp, launchChrome, stopChrome, tail } = await import("./cdp-chrome.mjs");
 
 // ---------- the routes ----------
@@ -115,16 +117,6 @@ const ROUTES = [
 ];
 
 // ---------- helpers ----------
-function offlineAgentsConfig(dir) {
-  const agents = JSON.parse(readFileSync(path.join(root, "agents.json"), "utf8"));
-  for (const [name, def] of Object.entries(agents)) {
-    if (name !== "stub" && def && typeof def === "object") def.command = `cairn-screens-offline-${name}`;
-  }
-  const file = path.join(dir, "agents.offline.json");
-  writeFileSync(file, JSON.stringify(agents));
-  return file;
-}
-
 /**
  * A little more of the demo conversation than the seed carries: a meal logged in
  * chat (so the compact capture chip and its review render) — synthetic demo text,
@@ -175,26 +167,6 @@ function seedAskThread(dbPath) {
   } finally {
     db.close();
   }
-}
-
-/**
- * A goal race for the demo persona (its own "Coastal half marathon" context event,
- * made the structured goal), so Horizon opens on a real build: the first Sunday at
- * least five weeks out. Set through the API, the same path a person takes.
- */
-async function seedRace(base) {
-  const d = new Date();
-  d.setDate(d.getDate() + 35);
-  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
-  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const res = await fetch(`${base}/api/profile`, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      endurance_goal: { mode: "race", event: "Coastal half marathon", date, distance_km: 21.1, target: "1:55:00" },
-    }),
-  });
-  if (!res.ok) console.warn(`  ! could not set the demo race (${res.status})`);
 }
 
 async function evaluate(cdp, expression) {
@@ -358,11 +330,11 @@ async function captureApp() {
   try {
     server = await startBuiltServer({
       label: "screens",
-      extraEnv: { AGENTS_CONFIG: offlineAgentsConfig(agentsDir), CAIRN_SEED_DEMO: "1" },
+      extraEnv: { AGENTS_CONFIG: writeOfflineAgentsConfig(agentsDir, "cairn-screens-offline"), CAIRN_SEED_DEMO: "1" },
     });
     console.log(`Cairn screens: server on ${server.base} (demo seed, offline agents, temp DB ${server.dir})`);
     seedAskThread(path.join(server.dir, "cairn-smoke.db"));
-    await seedRace(server.base);
+    if (!(await seedDemoRace(server.base))) console.warn("  ! could not set the demo race");
     chrome = await launchChrome({ windowSize: `${WIDTH},${HEIGHT}`, profilePrefix: "cairn-screens-" });
     cdp = await openPage(chrome);
     await setViewport(cdp, { width: WIDTH, height: HEIGHT, dpr: DPR });
