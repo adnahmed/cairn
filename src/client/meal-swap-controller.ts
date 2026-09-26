@@ -95,7 +95,8 @@ function mealSwapOpOpts(
         const day = CairnMealSwapData.days(current)[dayIndex];
         if (day?.meals) day.meals[mealIndex] = CairnMealSwapData.record(row.meal) as ClientMealSwapMeal;
       }
-      swrInvalidate(CairnMealSwapData.cacheKey());
+      if (typeof CairnWriteInvalidation !== "undefined") CairnWriteInvalidation.invalidateWrite("meal_edit");
+      else swrInvalidate(CairnMealSwapData.cacheKey());
       rerenderMealDay(current, dayIndex, ctx, mealIndex);
       toast("Meal swapped");
     },
@@ -185,7 +186,8 @@ async function moveMealRow(
       body: JSON.stringify({ days }),
     });
     if (CairnMealSwapData.errorMessage(result)) throw new Error(CairnMealSwapData.errorMessage(result));
-    swrInvalidate(CairnMealSwapData.cacheKey());
+    if (typeof CairnWriteInvalidation !== "undefined") CairnWriteInvalidation.invalidateWrite("meal_edit");
+      else swrInvalidate(CairnMealSwapData.cacheKey());
   } catch {
     [meals[mealIndex], meals[nextIndex]] = [meals[nextIndex], meals[mealIndex]];
     if (token === pollToken) {

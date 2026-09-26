@@ -15,7 +15,8 @@ function mealPlannerActionsRenderMealPlans(plans: unknown, sel = "#meallist", re
     b.addEventListener("click", async () => {
       await api(`/mealplans/${b.dataset.accept}/accept`, { method: "POST" });
       toast("Kept as this week's ideas");
-      swrInvalidate(MEALS_KEY);
+      if (typeof CairnWriteInvalidation !== "undefined") CairnWriteInvalidation.invalidateWrite("meal_edit");
+      else swrInvalidate(MEALS_KEY);
       if (refresh) refresh(); else mealPlannerActionsRenderMealPlans(await api("/mealplans?limit=8"), sel);
     })
   );
@@ -23,7 +24,8 @@ function mealPlannerActionsRenderMealPlans(plans: unknown, sel = "#meallist", re
     b.addEventListener("click", async () => {
       await api(`/mealplans/${b.dataset.discard}/discard`, { method: "POST" });
       toast("Discarded");
-      swrInvalidate(MEALS_KEY);
+      if (typeof CairnWriteInvalidation !== "undefined") CairnWriteInvalidation.invalidateWrite("meal_edit");
+      else swrInvalidate(MEALS_KEY);
       if (refresh) refresh(); else mealPlannerActionsRenderMealPlans(await api("/mealplans?limit=8"), sel);
     })
   );

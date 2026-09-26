@@ -87,7 +87,7 @@ type CoachProposalControllerOpOptions = ClientAgentOpHandlers & {
     if (Array.isArray(r?.clamped) && r.clamped.length) lastApplyClamp[String(id)] = r.clamped;
     toast(m.message);
     state.plan = [];
-    swrInvalidate("plan");
+    CairnWriteInvalidation.invalidateWrite("proposal_apply");
     return r;
   }
 

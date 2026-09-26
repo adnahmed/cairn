@@ -331,7 +331,7 @@ function appendMsg(
       const hasClamped = Array.isArray(clamped) && clamped.length > 0;
       toast(result.message);
       state.plan = [];
-      swrInvalidate("plan"); // a chat-applied plan change makes the cache stale
+      CairnWriteInvalidation.invalidateWrite("proposal_apply"); // a chat-applied plan change makes every plan read stale
       // Settle into the same calm "done" note the message renders on reload, so a
       // just-applied draft and a long-applied one look identical.
       const label = btn.textContent?.replace(/^Apply:\s*/, "") || "";

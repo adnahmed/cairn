@@ -394,7 +394,8 @@ test("Me Profile controller saves the typed payload and invalidates dependent su
     allergies: "nuts",
     dietary_restrictions: "pescatarian",
   });
-  assert.deepEqual(harness.invalidations, ["profile", "me:goal", "stats", "progress:weight", "progress:energy"]);
+  // "horizon:" retires the race view's last-known reads (offline-state-client.ts).
+  assert.deepEqual(harness.invalidations, ["profile", "me:goal", "stats", "progress:weight", "progress:energy", "horizon:"]);
   assert.equal(harness.goalFlags.at(-1), true);
   assert.equal(harness.toasts.at(-1), "Your running plan now lives in Plan → Endurance");
   assert.equal(harness.renderCount, 1);

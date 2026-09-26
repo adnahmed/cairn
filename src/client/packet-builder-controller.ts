@@ -116,14 +116,14 @@
       paintedJson = json;
     }
 
-    function fail(qs: string): void {
+    function fail(qs: string, unreachable = false): void {
       settle();
       // The preview still matches the packet (a warm default that could not refresh):
       // keep it. Otherwise it would show a selection the person has since changed.
       if (paintedQuery === qs) return;
       paintedQuery = null;
       paintedJson = "";
-      if (preview) preview.innerHTML = V.previewErrorHtml();
+      if (preview) preview.innerHTML = V.previewErrorHtml(unreachable);
       if (status) status.textContent = "";
       if (toggles && !options.length) toggles.innerHTML = "";
     }
@@ -150,9 +150,9 @@
           if (data && typeof data === "object") apply(data, qs);
           else if (!empty) fail(qs);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (gen !== generation || !host.isConnected || empty) return;
-          fail(qs);
+          fail(qs, typeof CairnOffline !== "undefined" && CairnOffline.isUnreachable(error));
         });
     }
 

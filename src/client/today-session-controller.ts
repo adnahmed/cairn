@@ -270,6 +270,10 @@ type TodaySessionSurfaceOptions = ClientTodaySessionSurfaceOptions;
         const summary = CairnTodaySessionSetModel.responseRecord(result.summary);
         if (!CairnTodaySessionSetModel.cacheSessionTruth(deps, actionDate, result)) return;
         deps.state.planReveal = null;
+        // Everything the finished session feeds (Train, volume, calendar, the day's
+        // stones) is retired. The session key just primed above is kept, and the
+        // Brief is set to the finished read right after, so neither is dropped here.
+        if (typeof CairnWriteInvalidation !== "undefined") CairnWriteInvalidation.invalidateWrite("session_finish", { keep: ["@brief"] });
         deps.state.brief = finishedBrief(actionDate, summary, result.headline);
         deps.invalidate("stats");
         deps.invalidate("history:sessions");

@@ -72,37 +72,7 @@ const TOV_GROUP_ORDER = [
   "core", "quads", "hamstrings", "glutes", "calves",
 ];
 
-let tovData: TovData | null = null;
 let tovToken = 0;
-const TOV_SNAP_KEY = "cairn.train.v1";
-// Above this, skip the localStorage copy — a pathological payload shouldn't hog
-// a disproportionate share of the ~5MB quota shared with every other persisted
-// key (the sessionStorage copy below has no such ceiling; it's tab-scoped).
-const TOV_SNAP_MAX_BYTES = 200_000;
-
-function tovSaveSnapshot(data: TovData): void {
-  let json: string;
-  try { json = JSON.stringify(data); } catch { return; }
-  try { sessionStorage.setItem(TOV_SNAP_KEY, json); } catch { /* quota — skip */ }
-  // Unlike the plain SWR cache (which deliberately keeps health-prefixed keys
-  // memory/session-only, see swr-cache.ts), this is training/muscle-balance data,
-  // not health-sensitive lab/recovery data — persist it to localStorage too, the
-  // same way the Brief does, so the Train overview paints instantly on a genuine
-  // cold app launch (not just a same-session tab switch), not only mid-session.
-  if (json.length <= TOV_SNAP_MAX_BYTES) {
-    try { localStorage.setItem(TOV_SNAP_KEY, json); } catch { /* quota — skip */ }
-  }
-}
-function tovLoadSnapshot(): TovData | null {
-  try {
-    // sessionStorage first (this tab's own last paint, always freshest when
-    // present); localStorage as the cold-launch fallback (a new tab/process has
-    // no sessionStorage yet, but may have a prior session's persisted copy).
-    const raw = sessionStorage.getItem(TOV_SNAP_KEY) || localStorage.getItem(TOV_SNAP_KEY) || "null";
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" && "balance" in parsed ? parsed as TovData : null;
-  } catch { return null; }
-}
 
 // The overview's reads, in the order tovCompose() folds them.
 function tovPaths(): string[] {
@@ -149,8 +119,12 @@ function tovCompose(values: unknown[]): TovData {
 // reads with nothing remembered wait on the network. `refresh` settles with the
 // network-fresh overview once every background refresh lands, or null when
 // nothing was served stale (the first answer already IS the network's).
-async function tovFetch(): Promise<{ data: TovData; refresh: Promise<TovData | null> }> {
+async function tovFetch(): Promise<{ data: TovData; refresh: Promise<TovData | null>; unreachable: number }> {
   const refreshes: Array<Promise<unknown> | undefined> = [];
+  // Reads that failed because Cairn is out of reach. They are NOT "nothing trained":
+  // the caller keeps the last-known overview (or says it cannot reach Cairn) rather
+  // than folding a pile of nulls into the first-run empty state.
+  let unreachable = 0;
   const values: unknown[] = await Promise.all(
     tovPaths().map((path, i) =>
       api(path, {
@@ -159,18 +133,21 @@ async function tovFetch(): Promise<{ data: TovData; refresh: Promise<TovData | n
             refreshes[i] = refresh;
           },
         },
-      }).catch(() => null)
+      }).catch((error: unknown) => {
+        if (CairnOffline.isUnreachable(error)) unreachable += 1;
+        return null;
+      })
     )
   );
   const data = tovCompose(values);
-  if (!refreshes.some(Boolean)) return { data, refresh: Promise.resolve(null) };
+  if (!refreshes.some(Boolean)) return { data, refresh: Promise.resolve(null), unreachable };
   const refresh = Promise.all(
     values.map((value, i) => {
       const pending = refreshes[i];
       return pending ? pending.then((fresh) => (fresh === undefined ? value : fresh)) : value;
     })
   ).then(tovCompose);
-  return { data, refresh };
+  return { data, refresh, unreachable };
 }
 
 // SWR entry: paint the last-known read instantly, then revalidate. Guarded
@@ -181,18 +158,20 @@ async function renderTrainOverview(): Promise<void> {
   headerTitle.textContent = "Train";
   state.progressSeg = "overview";
   const token = ++tovToken;
-  if (!tovData) tovData = tovLoadSnapshot();
-  if (tovData) paintTrainOverview(tovData);
+  const known = CairnTrainSnapshot.load() as TovData | null; // last-known read (progress-overview-snapshot-client.ts)
+  if (known) paintTrainOverview(known);
   else view.innerHTML = segSkeleton("overview", PROGRESS_SEG, 3);
   const current = (): boolean => token === tovToken && state.tab === "progress" && state.progressSeg === "overview";
   const land = (fresh: TovData): void => {
-    const changed = JSON.stringify(fresh) !== JSON.stringify(tovData);
-    tovData = fresh;
-    tovSaveSnapshot(fresh);
+    const changed = JSON.stringify(fresh) !== JSON.stringify(CairnTrainSnapshot.load());
+    CairnTrainSnapshot.save(fresh);
     if (changed || !document.querySelector(".tov-mast, .tov-empty")) paintTrainOverview(fresh);
   };
-  const { data, refresh } = await tovFetch();
+  const { data, refresh, unreachable } = await tovFetch();
   if (!current()) return;
+  // Out of reach: never land (or re-save) a partial read over the last-known one,
+  // and never let failed reads masquerade as a fresh install (CairnOffline).
+  if (unreachable) return known ? tovMarkLastKnown() : paintTrainUnreachable();
   land(data);
   const upgraded = await refresh;
   if (upgraded && current()) land(upgraded);
@@ -625,6 +604,19 @@ function wireTovJourneyPointer(): void {
 }
 
 // ---- paint ----------------------------------------------------------------------
+
+// The one quiet "last known" line over a remembered overview (CairnOffline).
+function tovMarkLastKnown(): void {
+  if (view.querySelector(".offline-lastknown")) return;
+  view.querySelector(".segwrap")?.insertAdjacentHTML("afterend", CairnOffline.lastKnownHtml());
+}
+
+// Nothing remembered and Cairn out of reach: say so, never "log a session".
+function paintTrainUnreachable(): void {
+  view.innerHTML = segBar("overview", PROGRESS_SEG) + CairnOffline.unreachableHtml({ body: "Your training map fills in as soon as it's back." });
+  wireSeg(PROGRESS_HANDLERS);
+  CairnOffline.wireRetry(view, () => renderTrainOverview());
+}
 
 function paintTrainOverview(data: TovData): void {
   const head = segBar("overview", PROGRESS_SEG);

@@ -8,6 +8,33 @@ type ServiceWorkerRoot = typeof globalThis & {
 };
 
 {
+  // The timing and the reload rule live once, in app/update-gate.ts (loaded before
+  // this file). Without it (a bare test context) registration runs at once and a
+  // controller change reloads once.
+  type LifecycleGate = {
+    whenLoadedAndIdle?: (run: () => void) => void;
+    controllerChangeListener?: (hadController: boolean, reload: () => void) => () => void;
+  };
+  function lifecycleGate(): LifecycleGate | undefined {
+    return (globalThis as { CairnUpdateGate?: LifecycleGate }).CairnUpdateGate;
+  }
+  function whenLoadedAndIdle(run: () => void): void {
+    const gate = lifecycleGate();
+    if (typeof gate?.whenLoadedAndIdle === "function") gate.whenLoadedAndIdle(run);
+    else run();
+  }
+  function controllerChangeListener(hadController: boolean): () => void {
+    const reload = (): void => location.reload();
+    const gate = lifecycleGate();
+    if (typeof gate?.controllerChangeListener === "function") return gate.controllerChangeListener(hadController, reload);
+    let reloading = false;
+    return () => {
+      if (!hadController || reloading) return;
+      reloading = true;
+      reload();
+    };
+  }
+
   function startServiceWorkerLifecycle(): void {
     if (!("serviceWorker" in navigator)) return;
     const root = globalThis as ServiceWorkerRoot;
@@ -18,14 +45,10 @@ type ServiceWorkerRoot = typeof globalThis & {
     // OR shortly after resume — not only on a cold navigation. sw.js skipWaiting()s
     // on install, so the new worker activates as soon as it downloads; reload once
     // when it takes control. The first-ever install has no prior controller and
-    // must not reload.
-    const hadController = !!navigator.serviceWorker.controller;
-    let swReloading = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!hadController || swReloading) return;
-      swReloading = true;
-      location.reload();
-    });
+    // must not reload. WHEN to reload is the update gate's call (app/update-gate.ts):
+    // at once when nothing is in flight, otherwise a quiet "tap to refresh" line and
+    // a reload the next time the page is hidden — never mid-set or mid-sentence.
+    navigator.serviceWorker.addEventListener("controllerchange", controllerChangeListener(!!navigator.serviceWorker.controller));
 
     // The browser only re-checks sw.js for a new version on navigation, so an
     // installed PWA that resumes from memory (typical for iOS "Add to Home
@@ -45,9 +68,14 @@ type ServiceWorkerRoot = typeof globalThis & {
       registration.update().catch(() => {});
     }
 
-    navigator.serviceWorker.register("/sw.js").then((reg) => {
-      registration = reg;
-    }).catch(() => {});
+    // Register after load, in idle time: the worker's install precaches the whole
+    // shell, and on a cold first open that download must not compete with the
+    // bundles and API reads the first paint is waiting on.
+    whenLoadedAndIdle(() => {
+      navigator.serviceWorker.register("/sw.js").then((reg) => {
+        registration = reg;
+      }).catch(() => {});
+    });
 
     if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
       document.addEventListener("visibilitychange", () => {

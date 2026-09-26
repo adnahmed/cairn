@@ -15,19 +15,29 @@
 //     bundle cannot be born unprecached;
 //   - index.html loads the eager bundles, in manifest order, and NONE of the
 //     bundles marked `lazy` (those are injected by src/client/app/lazy-bundles.ts);
-//   - every precached url exists on disk.
+//   - every precached url exists on disk;
+//   - the per-file hash placeholder (incremental precache) is present and intact,
+//     so the server can hand an install the hashes it copies unchanged files by;
+//   - the stable cache holds only fonts / vendor / icons, under a fixed name that
+//     is never the derived version (it must outlive a deploy);
+//   - the og: share image is not precached (only crawlers fetch it);
+//   - every precached text asset worth compressing ships a .br/.gz sibling.
 // Pure git/fs plumbing, no deps.
 //
 // Usage: node scripts/check-sw-cache.mjs
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BUNDLES } from "./build-client.mjs";
+import { BUNDLES, PRECOMPRESS_EXTRA } from "./build-client.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Must match SW_CACHE_PLACEHOLDER in src/swVersion.ts. */
 const CACHE_PLACEHOLDER = "cairn-shell-dev";
+/** Must match SW_ASSET_HASHES_PLACEHOLDER in src/swVersion.ts. */
+const ASSET_HASHES_PLACEHOLDER = "/*cairn-asset-hashes*/ {}";
+/** A precached .js/.css/.html asset at least this big must be precompressed at build. */
+const PRECOMPRESS_MIN_BYTES = 16 * 1024;
 
 function readRepo(file) {
   return readFileSync(path.join(root, file), "utf8");
@@ -74,6 +84,38 @@ function assertPublicAssetContract() {
       `public/sw.js CACHE must stay the placeholder "${CACHE_PLACEHOLDER}" (got "${cacheLiteral[1]}") — ` +
         "the served version is derived in src/swVersion.ts and substituted by exact match"
     );
+  }
+
+  if (!sw.includes(`const ASSET_HASHES = ${ASSET_HASHES_PLACEHOLDER};`)) {
+    errors.push(
+      `public/sw.js must declare \`const ASSET_HASHES = ${ASSET_HASHES_PLACEHOLDER};\` exactly — ` +
+        "src/swVersion.ts substitutes the per-file hashes by exact match (incremental precache)"
+    );
+  }
+  const stableName = /const STABLE_CACHE\s*=\s*["']([^"']+)["']/.exec(sw)?.[1];
+  if (!stableName) errors.push("public/sw.js is missing its `const STABLE_CACHE = \"…\"` declaration");
+  else if (stableName === CACHE_PLACEHOLDER || /^cairn-[0-9a-f]{12}$/.test(stableName)) {
+    errors.push(`STABLE_CACHE must be a fixed name that outlives a deploy (got "${stableName}")`);
+  }
+  const stableRule = /function isStableAsset\(url\)\s*\{\s*return\s*(\/.*\/)\.test\(url\);/.exec(sw)?.[1];
+  if (!stableRule) errors.push("public/sw.js must keep isStableAsset(url) as a single `return /…/.test(url)`");
+  else {
+    const rule = new RegExp(stableRule.slice(1, -1));
+    for (const asset of allCached.filter((url) => rule.test(url))) {
+      if (!/^\/(fonts|vendor|icons)\//.test(asset)) errors.push(`${asset} is not immutable enough for the stable cache`);
+    }
+    for (const asset of allCached.filter((url) => /^\/(js|styles\.css|index\.html|manifest\.json)/.test(url) || url === "/")) {
+      if (rule.test(asset)) errors.push(`${asset} changes every deploy and must stay in the versioned shell cache`);
+    }
+  }
+  for (const asset of allCached.filter((url) => /^\/icons\/og\./.test(url))) {
+    errors.push(`${asset} is a crawler-only share image and must not be precached`);
+  }
+  const compressed = new Set([...BUNDLES.map((bundle) => servedUrl(bundle.output)), ...PRECOMPRESS_EXTRA.map(servedUrl)]);
+  for (const asset of allCached.filter((url) => /\.(js|css|html)$/.test(url))) {
+    const file = path.join(root, `public${asset}`);
+    if (!existsSync(file) || readFileSync(file).length < PRECOMPRESS_MIN_BYTES) continue;
+    if (!compressed.has(asset)) errors.push(`${asset} is precached and over ${PRECOMPRESS_MIN_BYTES / 1024} KB but not precompressed (scripts/build-client.mjs PRECOMPRESS_EXTRA)`);
   }
 
   for (const [name, values] of [

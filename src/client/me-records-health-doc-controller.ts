@@ -142,13 +142,30 @@ async function loadHealthDocs(deps: HealthRecordsControllerDeps): Promise<Health
 
   let docs: HealthDocument[] = [];
   let fetched = false;
+  let unreachable = false;
   try {
     docs = hrecRows<HealthDocument>(await deps.api("/health-docs"));
     fetched = true;
-  } catch {
+  } catch (error) {
     docs = [];
+    unreachable = CairnOffline.isUnreachable(error);
   }
-  if (!fetched) return peek ? hrecRows<HealthDocument>(peek.data) : [];
+  if (!fetched) {
+    if (peek) return hrecRows<HealthDocument>(peek.data);
+    // Records stay memory-only, so a cold offline open has nothing remembered: say
+    // Cairn is out of reach (or the read failed) rather than leaving a blank list.
+    if (wrap.isConnected && deps.state.tab === "stand" && deps.state.standSeg === "records") {
+      // The list's own quiet empty line, worded for what actually happened.
+      wrap.innerHTML =
+        CairnHealthRecords.recordsEmptyHtml(
+          unreachable
+            ? "Can't reach Cairn right now — your records list fills in as soon as it's back."
+            : "Couldn't load your records just now — they're safe."
+        ) + `<button class="linkbtn" type="button" data-offline-retry>Try again</button>`;
+      CairnOffline.wireRetry(wrap, () => loadHealthDocs(deps));
+    }
+    return [];
+  }
   swrSet(RECORDS_CACHE_KEY, docs);
   try {
     localStorage.setItem("cairn:healthDocCount", String(docs.length));

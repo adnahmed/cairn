@@ -33,6 +33,7 @@ export const CLIENT_API_CONTRACT_PATHS = [
   "/agent-clis/:name/install",
   "/art/manifest",
   "/art/versions",
+  "/art/state",
   "/art/regenerate",
   "/art/stats",
   "/apple-health/config",

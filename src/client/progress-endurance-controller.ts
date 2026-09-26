@@ -98,6 +98,7 @@ const PROGRESS_ENDURANCE_SNAP_KEY = "cairn.endurance.v4";
 function progressEnduranceSaveSnapshot(data: ProgressEnduranceSnapshot): void {
   try { sessionStorage.setItem(PROGRESS_ENDURANCE_SNAP_KEY, JSON.stringify(data)); } catch { /* quota — skip */ }
 }
+(globalThis as { CairnWriteInvalidation?: { register(n: string, c: () => void): void } }).CairnWriteInvalidation?.register("endurance", () => { try { sessionStorage.removeItem(PROGRESS_ENDURANCE_SNAP_KEY); } catch { /* blocked */ } }); // a run-picture write retires the snapshot
 function progressEnduranceLoadSnapshot(): ProgressEnduranceSnapshot | null {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(PROGRESS_ENDURANCE_SNAP_KEY) || "null");

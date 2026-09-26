@@ -19,6 +19,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import {
+  SW_ASSET_HASHES_PLACEHOLDER,
   SW_CACHE_PLACEHOLDER,
   buildServiceWorkerScript,
   serviceWorkerScript,
@@ -185,4 +186,45 @@ test("buildServiceWorkerScript reports the same version it substitutes", () => {
   const built = buildServiceWorkerScript(dir);
   assert.equal(cacheName(built.body), built.version);
   assert.ok(!built.body.includes(SW_CACHE_PLACEHOLDER));
+});
+
+// INCREMENTAL PRECACHE. The served worker carries a hash per precached url, so an
+// install copies unchanged files out of the previous cache and downloads only what
+// moved. The properties: every precached url that exists is hashed, "/" and
+// "/index.html" agree, one edited file moves exactly one hash, and the placeholder
+// never reaches a browser.
+function servedHashes(body) {
+  const m = /const ASSET_HASHES = (\{[^\n]*\});/.exec(body);
+  assert.ok(m, "served sw.js declares ASSET_HASHES");
+  return JSON.parse(m[1]);
+}
+
+test("the served worker carries a hash for every precached url", () => {
+  const dir = makeShell();
+  const built = buildServiceWorkerScript(dir);
+  assert.ok(!built.body.includes(SW_ASSET_HASHES_PLACEHOLDER));
+  const hashes = servedHashes(built.body);
+  assert.deepEqual(hashes, built.assetHashes);
+  const source = fs.readFileSync(path.join(dir, "sw.js"), "utf8");
+  const urls = [...swAssetList(source, "CORE_ASSETS"), ...swAssetList(source, "OPTIONAL_ASSETS")];
+  for (const url of urls) assert.match(hashes[url] || "", /^[0-9a-f]{12}$/, `${url} is hashed`);
+  assert.equal(hashes["/"], hashes["/index.html"]);
+});
+
+test("one changed file moves exactly its own hash (and the version)", () => {
+  const dir = makeShell("body { color: red }");
+  const before = buildServiceWorkerScript(dir);
+  fs.writeFileSync(path.join(dir, "styles.css"), "body { color: blue }");
+  const after = buildServiceWorkerScript(dir);
+  assert.notEqual(before.version, after.version);
+  const moved = Object.keys(after.assetHashes).filter((url) => after.assetHashes[url] !== before.assetHashes[url]);
+  assert.deepEqual(moved, ["/styles.css"]);
+});
+
+test("a missing optional asset is left out of the hashes, never a crash", () => {
+  const dir = makeShell();
+  fs.rmSync(path.join(dir, "vendor", "xterm.js"));
+  const built = buildServiceWorkerScript(dir);
+  assert.equal(built.assetHashes["/vendor/xterm.js"], undefined);
+  assert.ok(built.assetHashes["/styles.css"]);
 });

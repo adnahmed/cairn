@@ -1033,6 +1033,18 @@ export function artManifest(): { ready: string[]; enabled: boolean } {
   return { ready, enabled: !!getSettings().art_enabled };
 }
 
+/**
+ * Everything the PWA needs about art at boot, in one read (`GET /api/art/state`):
+ * the ready tokens, the enabled flag and the exercise version map. It replaces the
+ * boot's two round trips (`/art/manifest` + `/art/versions`, both still served), and
+ * the client persists the versions so the very first render's image URLs already
+ * carry `v=` — a stale `v` would otherwise draw every photo twice.
+ */
+export function artState(): { ready: string[]; enabled: boolean; versions: Record<string, number> } {
+  const manifest = artManifest();
+  return { ...manifest, versions: artVersions().versions };
+}
+
 // ---- pre-baked seed-art pack (offline, no key) ----
 
 // Copy any pre-baked images that match THIS database's art queries into the live

@@ -182,8 +182,9 @@ test("plan endurance draft card escapes runs and preserves apply controls", () =
 
 test("plan endurance orchestration fetches the live run plan and faces next week when this one is banked", () => {
   const source = readFileSync(join(root, "src/client/plan-endurance-client.ts"), "utf8");
-  assert.match(source, /api\(`\/training-agenda\?date=/);
-  assert.match(source, /api\("\/run-plan"\)/);
+  // This week's reads are network-first with a last-known fallback (CairnOffline).
+  assert.match(source, /lastKnown<EnduranceAgenda>\(`\/training-agenda\?date=/);
+  assert.match(source, /lastKnown<EnduranceRunPlan>\("\/run-plan"/);
   assert.match(source, /enduranceModel\(\)\.nextMonday\(today\)/);
   assert.match(source, /enduranceModel\(\)\.buildBriefing/);
   assert.match(source, /end-shape-fold/);
@@ -197,7 +198,7 @@ test("plan endurance orchestration fetches the live run plan and faces next week
 
 test("plan endurance fetches the race build alongside the rest of the segment's reads", () => {
   const source = readFileSync(join(root, "src/client/plan-endurance-client.ts"), "utf8");
-  assert.match(source, /api\("\/race-build"\)\.catch\(\(\) => null\)/);
+  assert.match(source, /lastKnown<EnduranceRaceBuild>\("\/race-build", "horizon:race-build"\)/);
   assert.match(source, /CairnRaceViewController\.mount\(raceSlot/);
   assert.doesNotMatch(source, /raceBuildCard|compact: true/);
   // The one home for runs reads them only from the run endpoints: the lift plan

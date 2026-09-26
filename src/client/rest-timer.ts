@@ -357,6 +357,7 @@ function installRestTimerWatcher(): void {
 }
 
 const CAIRN_REST_TIMER = {
+  isActive: (): boolean => rest.id != null, // a rest bar is on screen: a deploy's reload waits (app/update-gate.ts)
   ensureRestBar,
   paintRest,
   startRest,

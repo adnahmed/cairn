@@ -92,6 +92,10 @@ type CairnLazyBundleName = "me-health";
     if (!src) return Promise.reject(new Error(`unknown lazy bundle: ${String(name)}`));
     const pending = inflight.get(name);
     if (pending) return pending;
+    // A new shell is live but this page deferred its reload (app/update-gate.ts):
+    // never inject the NEW lazy bundle into the OLD page — take the update here.
+    const gate = (globalThis as { CairnUpdateGate?: { reloadIfPending?: () => boolean } }).CairnUpdateGate;
+    if (!bundleLoaded(name) && gate?.reloadIfPending?.()) return new Promise<void>(() => {});
     const promise = injectBundle(name, src).then(() => {
       afterBundleLoaded();
     });

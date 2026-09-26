@@ -902,18 +902,16 @@ test("service worker caches core assets strictly and optional assets best-effort
   const sw = read("public/sw.js");
   assert.match(sw, /const\s+CORE_ASSETS\s*=/);
   assert.match(sw, /const\s+OPTIONAL_ASSETS\s*=/);
-  // Precache fetches bypass the HTTP cache (cache: "reload") so a version bump
-  // always installs fresh bytes instead of a browser-cached stale response.
-  assert.match(
-    sw,
-    /addAll\(CORE_ASSETS\.map\(\(u\)\s*=>\s*new Request\(u,\s*\{\s*cache:\s*"reload"\s*\}\)\)\)/,
-    "CORE_ASSETS install must bypass the HTTP cache for fresh precache bytes"
-  );
-  assert.match(
-    sw,
-    /OPTIONAL_ASSETS\.map[\s\S]*new Request\(asset,\s*\{\s*cache:\s*"reload"\s*\}\)[\s\S]*catch\(\(\)\s*=>\s*null\)/,
-    "OPTIONAL_ASSETS install must also bypass the HTTP cache"
-  );
+  // Precache is incremental (test/swIncrementalPrecache.test.js drives it): a file
+  // whose hash the worker already holds is copied, anything else is fetched past
+  // revalidated with the server (cache: "no-cache", a conditional request every
+  // time) so a version bump never precaches a stale copy — only a filename-versioned
+  // (.vN) asset may come straight from the HTTP cache. CORE_ASSETS fail
+  // the install when missing; OPTIONAL_ASSETS are best-effort.
+  assert.match(sw, /cache:\s*\/\\\.v\\d\+\\\.\[a-z0-9\]\+\$\/i\.test\(url\)\s*\?\s*"default"\s*:\s*"no-cache"/);
+  assert.match(sw, /CORE_ASSETS\.map\(\(url\)\s*=>\s*one\(url,\s*true\)\)/, "CORE_ASSETS are required");
+  assert.match(sw, /OPTIONAL_ASSETS\.map\(\(url\)\s*=>\s*one\(url,\s*false\)\)/, "OPTIONAL_ASSETS are best-effort");
+  assert.match(sw, /if\s*\(required\)\s*throw\s+error;/);
   // The shell ships as a handful of concatenated bundles; CORE_ASSETS must precache
   // exactly those bundles (in manifest order) and no individual module file.
   const cachedJs = [...sw.matchAll(/"(\/js\/[^"]+)"/g)].map((m) => m[1]);

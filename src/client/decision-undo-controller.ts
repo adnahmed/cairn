@@ -59,6 +59,13 @@
       if (!result || result.ok !== true) {
         throw new Error(typeof result?.error === "string" && result.error ? result.error : copy.stale);
       }
+      // The server put back whatever the decision changed — a plan, a target, a
+      // meal plan — so every cache that read it is retired before the repaint.
+      try {
+        (globalThis as { CairnWriteInvalidation?: { invalidateWrite(name: string): unknown } }).CairnWriteInvalidation?.invalidateWrite(
+          "decision_revert"
+        );
+      } catch {}
       deps.toast(copy.success);
       await copy.after?.();
       return true;

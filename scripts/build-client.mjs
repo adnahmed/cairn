@@ -40,10 +40,14 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/outbox-session.ts", output: "public/js/outbox-session.js" },
   { source: "src/client/outbox.ts", output: "public/js/outbox.js" },
   { source: "src/client/outbox-ui.ts", output: "public/js/outbox-ui.js" },
+  { source: "src/client/offline-state-client.ts", output: "public/js/offline-state-client.js" },
   { source: "src/client/app/download.ts", output: "public/js/app-download.js" },
+  { source: "src/client/app/update-gate.ts", output: "public/js/app-update-gate.js" },
   { source: "src/client/app/sw-recovery.ts", output: "public/js/app-sw-recovery.js" },
   { source: "src/client/app/state.ts", output: "public/js/01-core.js" },
   { source: "src/client/cairn-body-figure.ts", output: "public/cairn-body-figure.js" },
+  { source: "src/client/art-memory-client.ts", output: "public/js/art-memory-client.js" },
+  { source: "src/client/art-inflight-client.ts", output: "public/js/art-inflight-client.js" },
   { source: "src/client/art-controller.ts", output: "public/js/art-controller.js" },
   { source: "src/client/ui-header-client.ts", output: "public/js/ui-header-client.js" },
   { source: "src/client/train-nav-client.ts", output: "public/js/train-nav-client.js" },
@@ -70,6 +74,7 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/today-activity-client.ts", output: "public/js/today-activity-client.js" },
   { source: "src/client/save-bar.ts", output: "public/js/save-bar.js" },
   { source: "src/client/swr-cache.ts", output: "public/js/swr-cache.js" },
+  { source: "src/client/write-invalidation-client.ts", output: "public/js/write-invalidation-client.js" },
   { source: "src/client/today-agenda-client.ts", output: "public/js/today-agenda-client.js" },
   { source: "src/client/today-rail-loaders-client.ts", output: "public/js/today-rail-loaders-client.js" },
   { source: "src/client/changes-line-client.ts", output: "public/js/changes-line-client.js" },
@@ -153,6 +158,7 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/progress-program-controller.ts", output: "public/js/progress-program-controller.js" },
   { source: "src/client/journey-progress-client.ts", output: "public/js/journey-progress-client.js" },
   { source: "src/client/journey-timeline-client.ts", output: "public/js/journey-timeline-client.js" },
+  { source: "src/client/progress-overview-snapshot-client.ts", output: "public/js/progress-overview-snapshot-client.js" },
   { source: "src/client/progress-overview-client.ts", output: "public/js/progress-overview-client.js" },
   // v2 wave 5 slots (stream A pre-registered them; B fills You, the stack, the stone detail).
   { source: "src/client/cairn-stack-model.ts", output: "public/js/cairn-stack-model.js" },
@@ -391,8 +397,12 @@ export const BUNDLES = [
       "public/js/outbox.js",
       "public/js/outbox-ui.js",
       "public/js/app-download.js",
+      "public/js/offline-state-client.js",
+      "public/js/app-update-gate.js",
       "public/js/app-sw-recovery.js",
       "public/js/01-core.js",
+      "public/js/art-memory-client.js",
+      "public/js/art-inflight-client.js",
       "public/js/art-controller.js",
       "public/js/pwa-install-coach.js",
       "public/js/ui-header-client.js",
@@ -428,6 +438,7 @@ export const BUNDLES = [
       "public/js/today-activity-client.js",
       "public/js/save-bar.js",
       "public/js/swr-cache.js",
+      "public/js/write-invalidation-client.js",
       "public/js/today-agenda-client.js",
       "public/js/today-rail-loaders-client.js",
       "public/js/changes-line-client.js",
@@ -513,6 +524,7 @@ export const BUNDLES = [
       "public/js/progress-program-controller.js",
       "public/js/journey-progress-client.js",
       "public/js/journey-timeline-client.js",
+      "public/js/progress-overview-snapshot-client.js",
       "public/js/progress-overview-client.js",
       "public/js/03-today.js",
       // v2 wave 5: the You landing, the cairn-stack and the stone detail. EAGER on
@@ -892,7 +904,16 @@ export function pruneBundleIntermediates() {
  * transpile step), but they are still part of the shell, so they are compressed
  * here too — this is the one place that knows what a deploy actually serves.
  */
-const PRECOMPRESS_EXTRA = ["public/index.html", "public/styles.css", "public/art.js", "public/cairn-body-figure.js"];
+export const PRECOMPRESS_EXTRA = [
+  "public/index.html",
+  "public/styles.css",
+  "public/art.js",
+  "public/cairn-body-figure.js",
+  // The vendored terminal (Settings → Agents "Connect") is precached by the service
+  // worker, so every install downloads it: ~280 KB raw, ~70 KB brotli.
+  "public/vendor/xterm.js",
+  "public/vendor/xterm.css",
+];
 
 /**
  * Write the compressed representations ONCE per build, so the server never spends
