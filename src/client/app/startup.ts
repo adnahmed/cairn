@@ -36,6 +36,17 @@
     installMobileViewportGuards();
     installDayRolloverWatcher();
     installWakeLockWatcher();
+    scheduleLazyBundleWarmup();
+  }
+
+  // Train, Horizon, Ask, Settings and Health load on first navigation. Once the
+  // landing screen has painted and the page has finished loading, warm them on
+  // idle so the first tap on another home is as instant as when they were eager.
+  function scheduleLazyBundleWarmup(): void {
+    if (typeof prefetchLazyBundles !== "function") return;
+    const warm = () => prefetchLazyBundles();
+    if (document.readyState === "complete") warm();
+    else window.addEventListener("load", warm, { once: true });
   }
 
   Object.assign(globalThis, { startAppShell });

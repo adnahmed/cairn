@@ -80,6 +80,7 @@ function loadTabs(options = {}) {
     state: {
       planJump: options.planJump || null,
       planSeg: options.planSeg || null,
+      horizonSeg: options.horizonSeg ?? null,
       progressSeg: options.progressSeg,
       tab: options.currentTab || "today",
     },
@@ -307,4 +308,18 @@ test("a keyboard-activated tab keeps the focus ring on the landed heading", asyn
 
   assert.equal(heading.hasAttribute("data-focus-quiet"), false);
   assert.deepEqual(plain(heading.focusCalls), [{ preventScroll: true, focusVisible: true }]);
+});
+
+test("the tab-bar Horizon button always opens the timeline, before the Horizon bundle ever loads", async () => {
+  // The reset lives in the eager shell: a goal-line visit from Train must not stick
+  // even when the lazy horizon bundle (which renders the section) has not loaded.
+  const env = loadTabs({ horizonSeg: "goal" });
+  env.context.registerTabBarHandlers();
+  env.tabs[HOMES.indexOf("today")].click();
+  await flush();
+  assert.equal(env.context.state.horizonSeg, "goal", "another home leaves Horizon's section alone");
+  env.tabs[HOMES.indexOf("horizon")].click();
+  await flush();
+  assert.equal(env.context.state.horizonSeg, null);
+  assert.equal(env.context.state.tab, "horizon");
 });

@@ -787,17 +787,6 @@ test("Horizon's landing is the timeline; its goal section is the journey story w
   assert.equal(state.routed.section, "records");
   assert.equal(state.routed.id, "11");
   assert.deepEqual(tabs, ["horizon", "stand"]);
-
-  // A goal-line visit never sticks: the tab-bar Horizon button is the home, the timeline.
-  const bar = document.createElement("nav");
-  bar.innerHTML = `<button class="tab" data-tab="horizon"><span class="tab-lbl">Horizon</span></button>
-    <button class="tab" data-tab="today"><span class="tab-lbl">Today</span></button>`;
-  document.body.appendChild(bar);
-  state.horizonSeg = "goal";
-  bar.querySelector('[data-tab="today"] .tab-lbl').click();
-  assert.equal(state.horizonSeg, "goal", "another tab leaves Horizon's section alone");
-  bar.querySelector('[data-tab="horizon"] .tab-lbl').click();
-  assert.equal(state.horizonSeg, null);
 });
 
 // ---------- wave 6B: the race build as the Horizon phone draws it ----------

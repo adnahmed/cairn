@@ -22,7 +22,9 @@ function agentName(agent: CoachAgent): string {
 // ---------- Changes (Ask → Changes) ----------
 // A composition only: the shell paints synchronously, then two components mount into
 // their own slots — the calm asks that still need the athlete (ask-card-*.ts) and the
-// history-first Changes feed with Undo (changes-feed-*.ts). The proposal and meal-plan
+// history-first Changes feed with Undo (changes-feed-*.ts). Both ride the lazy ask
+// bundle, so every entry into renderCoach goes through withBundle("ask") (the
+// dispatcher and the segment deps). The proposal and meal-plan
 // histories and the manual review stay below, as before.
 function coachAgentOptionsHtml(agents: CoachAgent[]): string {
   return (

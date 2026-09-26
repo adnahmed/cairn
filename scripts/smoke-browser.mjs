@@ -14,7 +14,7 @@ import { serverEntry, sleep, withServer } from "./smoke-server.mjs";
 const SMOKE_NAME = "browser";
 const NAV_TIMEOUT_MS = 20000;
 const SETTLE_MS = 600;
-const WORKFLOW_COUNT = 13;
+const WORKFLOW_COUNT = 14;
 
 // Five homes (v2 wave 5): Today / Train / Horizon / Ask / You. `tab` is the VIEW
 // (window.state.tab); `home` is the lit tab-bar button. Every v1 path is rewritten
@@ -76,24 +76,39 @@ const requiredGlobals = {
   "CairnRoutes.parseRoute": "function",
   CairnTodayAddExerciseController: "object",
   CairnTodaySessionController: "object",
-  CairnChatClient: "object",
   CairnChatAttachment: "object",
   CairnMealRecipeController: "object",
   CairnFuelTodayController: "object",
-  CairnSettingsAgents: "object",
-  // ensureBundle is the eager half of the lazy me-health bundle contract.
+  // The eager half of the lazy-bundle contract.
   ensureBundle: "function",
+  withBundle: "function",
+  prefetchLazyBundles: "function",
 };
 
-// Globals the LAZY me-health bundle brings with it. Absent on boot by design
-// (index.html no longer loads bundle-05); asserted once a Stand/Me route has
+// Each LAZY bundle (index.html loads none of them) and a few globals it brings.
+// Absent on boot by design; asserted once a route that needs the bundle has
 // navigated, which is what proves the on-demand injection actually works.
-const lazyMeHealthGlobals = {
-  CairnStand: "object",
-  CairnMeMemoryController: "object",
-  CairnHealthClient: "object",
-  renderMe: "function",
+const lazyBundles = {
+  "me-health": { file: "bundle-05-me-health", globals: { CairnStand: "object", CairnMeMemoryController: "object", CairnHealthClient: "object", renderMe: "function" } },
+  train: { file: "bundle-08-train", globals: { renderTrainOverview: "function", renderProgress: "function", renderPlanEditor: "function", CairnBodyMetrics: "object" } },
+  horizon: { file: "bundle-09-horizon", globals: { renderHorizon: "function", renderPlanEndurance: "function" } },
+  ask: { file: "bundle-10-ask", globals: { renderChat: "function", CairnChatClient: "object", CairnRippleCardController: "object" } },
+  settings: { file: "bundle-11-settings", globals: { renderSettings: "function", CairnSettingsAgents: "object" } },
 };
+
+/** The lazy bundles a smoke route's destination must have injected (dependencies included). */
+function lazyBundlesFor(route) {
+  const planSeg = route.expectedState?.planSeg;
+  if (route.tab === "stand" || route.tab === "me") return ["me-health", "train"];
+  if (route.tab === "progress") return ["train"];
+  if (route.tab === "horizon") return ["horizon", "train"];
+  if (route.tab === "chat") return ["ask"];
+  if (route.tab === "settings") return ["settings"];
+  if (route.tab === "plan" && planSeg === "edit") return ["train"];
+  if (route.tab === "plan" && planSeg === "endurance") return ["horizon", "train"];
+  if (route.tab === "plan" && planSeg === "coach") return ["ask"];
+  return [];
+}
 
 function ok(cond, label, detail) {
   if (!cond) throw new Error(`assertion failed: ${label}${detail ? ` - ${detail}` : ""}`);
@@ -225,12 +240,13 @@ async function assertGlobals(cdp) {
   ok(result && result.missing.length === 0, "critical app globals are present", JSON.stringify(result?.missing || []));
 }
 
-// The me-health bundle is injected on the first Stand/Me navigation. Assert both
-// halves: the loader marked its <script> loaded, and the bundle's globals landed.
-async function assertLazyMeHealth(cdp, label) {
-  const globalsJson = JSON.stringify(lazyMeHealthGlobals);
+// A lazy bundle is injected on the first navigation that needs it. Assert both
+// halves: the loader marked its <script> loaded, and the bundle's globals landed
+// — and that no navigation ever injected a second tag for it.
+async function assertLazyBundle(cdp, name, label) {
+  const { file, globals } = lazyBundles[name];
   const result = await evaluate(cdp, `(() => {
-    const required = ${globalsJson};
+    const required = ${JSON.stringify(globals)};
     const missing = [];
     for (const [name, expected] of Object.entries(required)) {
       const actual = window[name] === null ? "null" : typeof window[name];
@@ -238,13 +254,13 @@ async function assertLazyMeHealth(cdp, label) {
     }
     return {
       missing,
-      injected: !!document.querySelector('script[data-cairn-bundle="me-health"][data-cairn-bundle-loaded="1"]'),
-      eagerTags: [...document.querySelectorAll("script[src]")].filter((s) => s.src.includes("bundle-05")).length
+      injected: !!document.querySelector('script[data-cairn-bundle="${name}"][data-cairn-bundle-loaded="1"]'),
+      tags: [...document.querySelectorAll("script[src]")].filter((s) => s.src.includes("${file}")).length
     };
   })()`);
-  ok(result?.injected === true, `${label} injected the lazy me-health bundle`, JSON.stringify(result));
-  ok(result?.missing.length === 0, `${label} lazy me-health globals are present`, JSON.stringify(result?.missing || []));
-  ok(result?.eagerTags === 1, `${label} loaded bundle-05 exactly once`, JSON.stringify(result));
+  ok(result?.injected === true, `${label} injected the lazy ${name} bundle`, JSON.stringify(result));
+  ok(result?.missing.length === 0, `${label} lazy ${name} globals are present`, JSON.stringify(result?.missing || []));
+  ok(result?.tags === 1, `${label} loaded ${file} exactly once`, JSON.stringify(result));
 }
 
 function describeConsole(args) {
@@ -287,7 +303,7 @@ async function smokeRoute(cdp, base, route) {
   try {
     await navigateAndHydrate(cdp, base, route.path, route.tab);
     await assertGlobals(cdp);
-    if (route.tab === "stand" || route.tab === "me") await assertLazyMeHealth(cdp, route.path);
+    for (const name of lazyBundlesFor(route)) await assertLazyBundle(cdp, name, route.path);
     const state = await evaluate(cdp, `(() => {
       const view = document.querySelector("#view");
       return {
@@ -327,6 +343,49 @@ async function navigateAndHydrate(cdp, base, path, tab) {
   await loaded;
   await waitForHydration(cdp, tab);
   await sleep(SETTLE_MS);
+}
+
+// The idle warm-up executes every lazy bundle ~1.5 s after load, so the route pass
+// above can be satisfied by the warm-up rather than by the navigation path. This
+// pass boots with the warm-up OFF (CAIRN_NO_WARMUP) and proves a tab switch onto a
+// COLD bundle injects it, paints the destination, and never double-injects.
+async function smokeColdTabNavigation(cdp, base) {
+  const { failures, off } = collectFailures(cdp, base);
+  const { identifier } = await cdp.command("Page.addScriptToEvaluateOnNewDocument", {
+    source: "window.CAIRN_NO_WARMUP = true;",
+  });
+  try {
+    await navigateAndHydrate(cdp, base, "/app/today", "today");
+    await sleep(2500); // well past the warm-up's delay: nothing may have loaded itself
+    const cold = await evaluate(cdp, `[...document.querySelectorAll("script[data-cairn-bundle]")].map((s) => s.dataset.cairnBundle)`);
+    ok(Array.isArray(cold) && cold.length === 0, "with the warm-up off, no lazy bundle loads on its own", JSON.stringify(cold));
+    const hops = [
+      { home: "train", tab: "progress", bundles: ["train"] },
+      { home: "horizon", tab: "horizon", bundles: ["horizon", "train"] },
+      { home: "ask", tab: "chat", bundles: ["ask"] },
+    ];
+    for (const hop of hops) {
+      await evaluate(cdp, `(() => {
+        const btn = document.querySelector('.tabbar .tab[data-tab="${hop.home}"]');
+        if (!btn) throw new Error("missing the ${hop.home} home");
+        btn.click();
+        return true;
+      })()`);
+      await waitForCondition(cdp, `a tap on the cold ${hop.home} home paints its destination`, `(() => {
+        const view = document.querySelector("#view");
+        return {
+          ok: Boolean(window.state?.tab === "${hop.tab}" && view && view.textContent.trim().length > 0 &&
+            document.querySelector('script[data-cairn-bundle="${hop.bundles[0]}"][data-cairn-bundle-loaded="1"]')),
+          tab: window.state && window.state.tab
+        };
+      })()`);
+      for (const name of hop.bundles) await assertLazyBundle(cdp, name, `cold tap on ${hop.home}`);
+    }
+    ok(failures.length === 0, "cold tab navigation has no browser runtime/load errors", failures.join("\n"));
+  } finally {
+    await cdp.command("Page.removeScriptToEvaluateOnNewDocument", { identifier });
+    off();
+  }
 }
 
 async function smokeTodayAddExercise(cdp, base) {
@@ -1432,6 +1491,7 @@ try {
   cdp = await newPage(chrome);
   await withServer({ label: SMOKE_NAME, authToken: "", portOffset: 2, extraEnv: { AGENTS_CONFIG: smokeAgents.file, CAIRN_SEED_DEMO: "1" } }, async (ctx) => {
     for (const route of routes) await smokeRoute(cdp, ctx.base, route);
+    await smokeColdTabNavigation(cdp, ctx.base);
     await smokeTodayAddExercise(cdp, ctx.base);
     await smokeChatAttachmentFocus(cdp, ctx.base);
     await smokeChatSendStreamReconnect(cdp, ctx.base);

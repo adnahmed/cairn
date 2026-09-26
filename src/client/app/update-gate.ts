@@ -39,6 +39,7 @@ type UpdateGateApi = {
   snapshot(): UpdateGateInput;
   onControllerChange(reload: () => void): "reloaded" | "deferred";
   reloadIfPending(): boolean;
+  hasPending(): boolean;
   whenLoadedAndIdle(run: () => void): void;
   controllerChangeListener(hadController: boolean, reload: () => void): () => void;
   LINE_TEXT: string;
@@ -152,6 +153,11 @@ type UpdateGateApi = {
     return true;
   }
 
+  // An idle warm-up is not a safe point: it asks, and stops rather than reload.
+  function hasPending(): boolean {
+    return pendingReload != null;
+  }
+
   function onControllerChange(reload: () => void): "reloaded" | "deferred" {
     if (isSafe(snapshot())) {
       reload();
@@ -220,6 +226,7 @@ type UpdateGateApi = {
     snapshot,
     onControllerChange,
     reloadIfPending,
+    hasPending,
     whenLoadedAndIdle,
     controllerChangeListener,
     LINE_TEXT,

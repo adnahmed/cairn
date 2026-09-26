@@ -168,6 +168,8 @@ function attachRenderDispatch(env) {
   context.defaultProgressSeg = () => "history";
   context.state = { planJump: null, planSeg: null };
   context.CairnStand = { renderStand: () => {} };
+  // Every lazy bundle reads as already warm: the loader calls straight through.
+  context.withBundle = (_name, fn) => fn();
   for (const name of [
     "renderToday",
     "renderSession",

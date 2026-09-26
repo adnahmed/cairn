@@ -78,11 +78,13 @@ neither cached offline nor covered by the hash. Do not rename the placeholder (t
 an exact match, and `scripts/check-sw-cache.mjs` asserts it). **Art URLs carry `v=`; never strip it**
 — the SW cache-first layer keys on the full URL and evicts older `v` for the same `kind+q`.
 
-**`index.html` does not load every bundle.** A bundle marked `lazy: "<name>"` in `BUNDLES`
-(`scripts/build-client.mjs`) — today only `bundle-05-me-health`, the Stand/Me/Records surfaces — is
-injected on first navigation by `ensureBundle("<name>")` (`src/client/app/lazy-bundles.ts`) and is
-still precached. So an eager bundle may reference a lazy bundle's globals ONLY from inside a
-function that runs after that navigation, never at top level.
+**`index.html` does not load every bundle.** Only the Today/You/Fuel shell is eager; every bundle
+marked `lazy: "<name>"` in `BUNDLES` (`scripts/build-client.mjs`) — Train, Horizon, Ask, Settings,
+Me/Health — is injected on first navigation by `ensureBundle`/`withBundle`
+(`src/client/app/lazy-bundles.ts`), warmed on idle, and still precached. So eager code reaches a lazy
+global ONLY through `withBundle(name, fn)` (or a `typeof` guard), never at top level —
+`test/lazyBundleContract.test.js` enforces it. A job-reconnector factory in a lazy bundle is swept by
+the first NAVIGATION into it (`withBundle`), never by the idle warm-up, which runs off its view.
 
 **`public/js/*.js` is generated** from `src/client/**/*.ts` by `npm run client:build`; the only
 hand-written file there is the `10-boot.js` shim. Never hand-edit generated output. `public/styles.css` is

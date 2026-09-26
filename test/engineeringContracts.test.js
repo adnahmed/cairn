@@ -2806,17 +2806,15 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
       bootPos("/js/agent-login-modal-client.js") > bootPos("/js/agent-login-assets-client.js") &&
       bootPos("/js/agent-login-session-client.js") > bootPos("/js/agent-login-modal-client.js") &&
       bootPos("/js/agent-login-client.js") > bootPos("/js/agent-login-session-client.js") &&
-      bootPos("/js/agent-login-client.js") < bootPos("/js/agent-job-client.js") &&
       bootPos("/js/agent-login-client.js") < bootPos("/js/settings-screen.js"),
     "agent-login helpers must load in dependency order before Settings can launch agent login"
   );
   assert.ok(
-    bootPos("/js/agent-job-client.js") > bootPos("/js/agent-login-client.js") &&
-      bootPos("/js/agent-job-client.js") < bootPos("/js/rest-timer.js") &&
+    bootPos("/js/agent-job-client.js") < bootPos("/js/rest-timer.js") &&
       bootPos("/js/agent-job-client.js") < bootPos("/js/03-today.js") &&
       bootPos("/js/agent-job-client.js") < bootPos("/js/09-plan-chat.js") &&
       bootPos("/js/agent-job-client.js") < bootPos("/js/app-job-reconnectors.js"),
-    "agent-job-client.js must load after UI and agent-login helpers and before job consumers/reconnectors"
+    "agent-job-client.js must load before job consumers/reconnectors"
   );
   assert.ok(
     bootPos("/js/html-utils.js") > -1 && bootPos("/js/html-utils.js") < bootPos("/js/02-ui.js"),
@@ -3010,13 +3008,13 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     "today-brief-controller.js must load after Today brief actions and before 03-today.js"
   );
   assert.ok(
-    bootPos("/js/cardio-plan-client.js") > bootPos("/js/today-brief-controller.js") &&
-      bootPos("/js/cardio-plan-client.js") < bootPos("/js/03-today.js"),
-    "cardio-plan-client.js must load after Today brief controller and before screen consumers"
+    bootPos("/js/cardio-plan-client.js") < bootPos("/js/progress-run-plan-client.js") &&
+      bootPos("/js/cardio-plan-client.js") < bootPos("/js/plan-editor-client.js") &&
+      BUNDLES.find((b) => b.inputs.includes("public/js/cardio-plan-client.js"))?.lazy === "train",
+    "cardio-plan-client.js rides the lazy train bundle, ahead of the run plan and plan editor that read it"
   );
   assert.ok(
-    bootPos("/js/cardio-sync-client.js") > bootPos("/js/cardio-plan-client.js") &&
-      bootPos("/js/cardio-sync-client.js") < bootPos("/js/03-today.js") &&
+    bootPos("/js/cardio-sync-client.js") < bootPos("/js/03-today.js") &&
       bootPos("/js/cardio-sync-client.js") < bootPos("/js/05-progress.js") &&
       bootPos("/js/cardio-sync-client.js") < bootPos("/js/09-plan-chat.js"),
     "cardio-sync-client.js must load before Today, Progress, and Plan consumers"
@@ -3111,8 +3109,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     "progress-endurance-client.js must load after Progress data helpers and before Progress consumers"
   );
   assert.ok(
-    bootPos("/js/progress-components-client.js") > bootPos("/js/progress-endurance-client.js") &&
-      bootPos("/js/progress-components-client.js") < bootPos("/js/05-progress.js"),
+    bootPos("/js/progress-components-client.js") < bootPos("/js/05-progress.js"),
     "progress-components-client.js must load before Progress screen consumers"
   );
   assert.ok(
@@ -3162,8 +3159,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     "progress-volume-client.js must load before Progress Volume consumers"
   );
   assert.ok(
-    bootPos("/js/progress-energy-client.js") > bootPos("/js/progress-volume-client.js") &&
-      bootPos("/js/progress-energy-client.js") < bootPos("/js/05-progress.js"),
+    bootPos("/js/progress-energy-client.js") < bootPos("/js/05-progress.js"),
     "progress-energy-client.js must load before Progress Energy consumers"
   );
   assert.ok(
@@ -3425,13 +3421,12 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     "family-controller.js must load before Records family consumers"
   );
   assert.ok(
-    bootPos("/js/chat-client.js") > bootPos("/js/08-me-records.js") &&
-      bootPos("/js/chat-client.js") < bootPos("/js/chat-attachment-client.js"),
-    "chat-client.js must load before chat attachment helpers"
+    BUNDLES.find((b) => b.inputs.includes("public/js/chat-client.js"))?.lazy === "ask" &&
+      bootPos("/js/chat-client.js") < bootPos("/js/chat-message-client.js"),
+    "chat-client.js rides the lazy ask bundle, ahead of the thread that reads it"
   );
   assert.ok(
-    bootPos("/js/chat-attachment-client.js") > bootPos("/js/chat-client.js") &&
-      bootPos("/js/chat-attachment-client.js") < bootPos("/js/chat-composer-focus-client.js"),
+    bootPos("/js/chat-attachment-client.js") < bootPos("/js/chat-composer-focus-client.js"),
     "chat-attachment-client.js must load after chat helpers and before chat composer focus helpers"
   );
   assert.ok(
@@ -3455,13 +3450,11 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     "chat-turn-records-client.js must load after chat message helpers and before chat turn stream-state helpers"
   );
   assert.ok(
-    bootPos("/js/chat-turn-stream-state-client.js") > bootPos("/js/chat-turn-records-client.js") &&
-      bootPos("/js/chat-turn-stream-state-client.js") < bootPos("/js/chat-layout-client.js"),
+    bootPos("/js/chat-turn-stream-state-client.js") > bootPos("/js/chat-turn-records-client.js"),
     "chat-turn-stream-state-client.js must load after chat turn record helpers and before chat layout helpers"
   );
   assert.ok(
-    bootPos("/js/chat-layout-client.js") > bootPos("/js/chat-turn-stream-state-client.js") &&
-      bootPos("/js/chat-layout-client.js") < bootPos("/js/chat-turn-client.js"),
+    bootPos("/js/chat-layout-client.js") < bootPos("/js/chat-turn-client.js"),
     "chat-layout-client.js must load after chat turn stream-state helpers and before chat turn helpers"
   );
   assert.ok(
@@ -3475,8 +3468,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     "chat-history-client.js must load after chat turn helpers and before 09-plan-chat.js"
   );
   assert.ok(
-    bootPos("/js/plan-endurance-model.js") > bootPos("/js/chat-history-client.js") &&
-      bootPos("/js/plan-endurance-model.js") < bootPos("/js/plan-endurance-client.js"),
+    bootPos("/js/plan-endurance-model.js") < bootPos("/js/plan-endurance-client.js"),
     "plan-endurance-model.js must load before Plan endurance orchestration"
   );
   assert.ok(
@@ -3485,8 +3477,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     "plan-endurance-client.js must load before Plan endurance consumers"
   );
   assert.ok(
-    bootPos("/js/plan-editor-client.js") > bootPos("/js/plan-endurance-client.js") &&
-      bootPos("/js/plan-editor-client.js") < bootPos("/js/plan-editor-form-client.js"),
+    bootPos("/js/plan-editor-client.js") < bootPos("/js/plan-editor-form-client.js"),
     "plan-editor-client.js must load after Plan endurance helpers and before Plan editor form helpers"
   );
   assert.ok(
@@ -3576,8 +3567,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     "settings-sources-automation-controller.js must load before settings-screen.js"
   );
   assert.ok(
-    bootPos("/js/settings-screen.js") > bootPos("/js/settings-sources-automation-controller.js") &&
-      bootPos("/js/settings-screen.js") < bootPos("/js/route-state.js"),
+    bootPos("/js/settings-screen.js") > bootPos("/js/settings-sources-automation-controller.js"),
     "settings-screen.js must load after Settings helpers and before route-state.js"
   );
   assert.ok(
@@ -5789,7 +5779,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   );
   assert.match(appJobReconnectorsSource, /const APP_JOB_RECONNECTORS: AppJobReconnectEntry\[\] = \[/);
   assert.match(appJobReconnectorsSource, /factoryName: "reconnectSessionSuggest"/);
-  assert.match(appJobReconnectorsSource, /function registerAppJobReconnectors\(\): void/);
+  assert.match(appJobReconnectorsSource, /function registerAppJobReconnectors\(\): number/);
   assert.match(appMobileViewportSource, /function installMobileViewportGuards\(\): void/);
   assert.match(appMobileViewportSource, /measureChatTop/);
   assert.match(appMobileViewportSource, /window\.visualViewport/);

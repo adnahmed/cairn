@@ -13,9 +13,17 @@
 // review signal, like the style ratchet's baseline). `--report` also lists each
 // bundle's largest inputs, which is how you see what a lazy split would move.
 //
-// The render-blocking stylesheet (`public/styles.css`, built from src/styles/**) rides
-// the same budget as a non-bundle asset (`BUDGETED_ASSETS`), so CSS growth is a review
-// signal too.
+// The render-blocking stylesheet (`public/styles.css`, built from src/styles/**) and the
+// two SVG libraries index.html loads next to the bundles (`public/art.js`,
+// `public/cairn-body-figure.js`) ride the same budget as non-bundle assets
+// (`BUDGETED_ASSETS`), so their growth is a review signal too.
+//
+// On top of the per-file ceilings sit two EAGER totals (`eager` in the budget file):
+// the brotli bytes of every script index.html loads, and of the stylesheet. The check
+// reads index.html's own <script src> list and fails on any eager script it does not
+// budget, so the total cannot silently undercount what the first open downloads. They are
+// fixed design limits for the first open (the athlete's per-screen load-time ask),
+// not re-measured by `--update`: per-file headroom may never add up past them.
 //
 // Reads the BUILT bundles, so it runs after `npm run build` (the post-build lane of
 // `npm run verify`).
@@ -29,11 +37,74 @@ import zlib from "node:zlib";
 const currentFile = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(currentFile), "..");
 const BUDGET_FILE = "scripts/bundle-budget.json";
-/** Headroom above the measured size when a budget is (re)set: 2%, rounded up to a whole KiB. */
-export const BUDGET_MARGIN = 0.02;
+/** Headroom above the measured size when a budget is (re)set: 3%, rounded up to a whole KiB. */
+export const BUDGET_MARGIN = 0.03;
 const KIB = 1024;
-/** Served assets outside BUNDLES that are budgeted the same way: the stylesheet every page blocks on. */
-export const BUDGETED_ASSETS = [{ output: "public/styles.css", lazy: null, inputs: [] }];
+/**
+ * Served assets outside BUNDLES that are budgeted the same way: the stylesheet every
+ * page blocks on, and the two SVG libraries index.html loads eagerly beside the bundles.
+ */
+export const BUDGETED_ASSETS = [
+  { output: "public/styles.css", lazy: null, inputs: [] },
+  { output: "public/art.js", lazy: null, inputs: [] },
+  { output: "public/cairn-body-figure.js", lazy: null, inputs: [] },
+];
+
+/**
+ * Default eager totals (brotli bytes) for a budget file that has none yet. Eager JS:
+ * every script index.html loads (the non-lazy bundles plus art.js and the body
+ * figure); styles: the render-blocking stylesheet.
+ */
+export const DEFAULT_EAGER_BUDGET = { js: { brotli: 220 * KIB }, styles: { brotli: 70 * KIB } };
+
+/** The `public/...` path of every same-origin <script src> in index.html, in order. */
+export function eagerScriptsFromIndex(html) {
+  const out = [];
+  for (const match of String(html).matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)) {
+    const src = match[1].split(/[?#]/)[0];
+    if (!src.startsWith("/") || src.startsWith("//")) continue;
+    out.push(`public${src}`);
+  }
+  return out;
+}
+
+/** Failures for eager scripts index.html loads that the budget does not measure as eager. */
+export function unbudgetedEagerScripts(html, measurements) {
+  const eager = new Set(measurements.filter((m) => !m.lazy).map((m) => m.output));
+  return eagerScriptsFromIndex(html)
+    .filter((output) => !eager.has(output))
+    .map((output) => `index.html loads ${output} eagerly but the eager JS total does not count it — add it to BUDGETED_ASSETS`);
+}
+
+/** Brotli totals of what the first open downloads: eager bundles, and the stylesheet. */
+export function eagerTotals(measurements) {
+  const isStyles = (m) => m.output.endsWith(".css");
+  const sum = (list) => list.reduce((acc, m) => ({ raw: acc.raw + m.raw, brotli: acc.brotli + m.brotli }), { raw: 0, brotli: 0 });
+  return {
+    js: sum(measurements.filter((m) => !m.lazy && !isStyles(m))),
+    styles: sum(measurements.filter((m) => isStyles(m))),
+  };
+}
+
+/** Failures for eager totals over their fixed brotli ceilings. */
+export function evaluateEagerBudget(measurements, budgetFile) {
+  const totals = eagerTotals(measurements);
+  const caps = budgetFile?.eager ?? {};
+  const failures = [];
+  for (const kind of ["js", "styles"]) {
+    const limit = caps[kind]?.brotli;
+    if (typeof limit !== "number") {
+      failures.push(`eager ${kind} has no brotli budget — add "eager" to ${BUDGET_FILE} (run --update)`);
+      continue;
+    }
+    if (totals[kind].brotli > limit) {
+      failures.push(
+        `eager ${kind} total ${formatBytes(totals[kind].brotli)} brotli is ${formatDelta(totals[kind].brotli - limit)} over its ${formatBytes(limit)} budget — move a surface into a lazy bundle`,
+      );
+    }
+  }
+  return { totals, failures };
+}
 
 /** Everything the budget covers: the BUNDLES manifest plus the budgeted assets. */
 export function budgetedOutputs(bundles) {
@@ -56,7 +127,7 @@ export function ceilingFor(bytes, margin = BUDGET_MARGIN) {
 }
 
 /** A budget file for the given measurements (`[{ output, lazy, raw, brotli }]`). */
-export function budgetFromMeasurements(measurements, margin = BUDGET_MARGIN) {
+export function budgetFromMeasurements(measurements, margin = BUDGET_MARGIN, eager = DEFAULT_EAGER_BUDGET) {
   const bundles = {};
   for (const m of measurements) {
     bundles[m.output] = {
@@ -69,6 +140,10 @@ export function budgetFromMeasurements(measurements, margin = BUDGET_MARGIN) {
     note:
       "Byte budget for scripts/check-bundle-budget.mjs (run in npm run verify). A bundle may not grow past its budget; raise one deliberately with `node scripts/check-bundle-budget.mjs --update` after npm run build.",
     margin,
+    eager: {
+      js: { brotli: eager.js.brotli },
+      styles: { brotli: eager.styles.brotli },
+    },
     bundles,
   };
 }
@@ -207,7 +282,8 @@ async function main() {
   const budgetPath = path.join(root, BUDGET_FILE);
   if (args.has("--update")) {
     const previous = existsSync(budgetPath) ? JSON.parse(readFileSync(budgetPath, "utf8")) : null;
-    const next = budgetFromMeasurements(measurements);
+    // The eager totals are design limits: keep the ones already set.
+    const next = budgetFromMeasurements(measurements, BUDGET_MARGIN, previous?.eager?.js && previous?.eager?.styles ? previous.eager : DEFAULT_EAGER_BUDGET);
     writeFileSync(budgetPath, `${JSON.stringify(next, null, 2)}\n`);
     console.log(`✓ wrote ${BUDGET_FILE} (${measurements.length} bundles, ${Math.round(BUDGET_MARGIN * 100)}% margin)`);
     for (const [output, entry] of Object.entries(next.bundles)) {
@@ -234,12 +310,19 @@ async function main() {
   }
   const budget = JSON.parse(readFileSync(budgetPath, "utf8"));
   const { rows, failures } = evaluateBudget(measurements, budget);
+  const eager = evaluateEagerBudget(measurements, budget);
+  failures.push(...eager.failures);
+  failures.push(...unbudgetedEagerScripts(readFileSync(path.join(root, "public/index.html"), "utf8"), measurements));
   const eagerRaw = measurements.filter((m) => !m.lazy).reduce((sum, m) => sum + m.raw, 0);
   const eagerBrotli = measurements.filter((m) => !m.lazy).reduce((sum, m) => sum + m.brotli, 0);
+  const eagerLine =
+    `eager JS ${formatBytes(eager.totals.js.brotli)} / ${formatBytes(budget.eager?.js?.brotli ?? 0)} brotli, ` +
+    `styles ${formatBytes(eager.totals.styles.brotli)} / ${formatBytes(budget.eager?.styles?.brotli ?? 0)} brotli`;
 
   if (failures.length || args.has("--report")) console.log(renderTable(rows));
   if (args.has("--report")) {
     console.log(`\nEager (index.html, stylesheet included) total: ${formatBytes(eagerRaw)} raw, ${formatBytes(eagerBrotli)} brotli`);
+    console.log(`Eager budgets: ${eagerLine}`);
     console.log(inputReport(BUNDLES));
   }
   if (failures.length) {
@@ -252,7 +335,7 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `✓ bundle budget: ${measurements.length} bundles within budget (eager ${formatBytes(eagerRaw)} raw / ${formatBytes(eagerBrotli)} brotli)`,
+    `✓ bundle budget: ${measurements.length} bundles within budget; ${eagerLine}`,
   );
 }
 

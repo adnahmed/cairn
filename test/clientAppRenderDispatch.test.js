@@ -39,6 +39,11 @@ function loadRenderDispatch(options = {}) {
       calls.push(["ensureBundle", name]);
       return options.bundleFails ? Promise.reject(new Error("boom")) : Promise.resolve();
     },
+    // The loader's contract: warm → the render runs synchronously; cold → after the load.
+    withBundle: (name, fn) => {
+      if ((options.warm || []).includes(name)) return fn();
+      return context.ensureBundle(name).then(() => fn());
+    },
     CairnStand: { renderStand: () => calls.push(["renderStand"]) },
     renderMe: () => calls.push(["renderMe"]),
     renderMeals: () => calls.push(["renderMeals"]),
@@ -132,18 +137,76 @@ test("session paints the today skeleton on an empty view, never over content", (
   assert.equal(painted.innerHTML, "<div class=\"sess-dest\"></div>", "a re-render keeps what is on screen");
 });
 
-test("render dispatcher respects endurance visibility and progress fallback", () => {
+test("render dispatcher respects endurance visibility and progress fallback", async () => {
   const endurance = loadRenderDispatch({ planJump: "endurance", showEnduranceTab: true });
-  endurance.context.renderTab("plan");
-  assert.equal(endurance.calls.at(-1)[0], "renderPlanEndurance");
+  await endurance.context.renderTab("plan");
+  assert.deepEqual(endurance.calls.slice(-2), [["ensureBundle", "horizon"], ["renderPlanEndurance"]]);
 
   const routedEndurance = loadRenderDispatch({ planJump: "endurance", showEnduranceTab: false });
-  routedEndurance.context.renderTab("plan");
+  await routedEndurance.context.renderTab("plan");
   assert.equal(routedEndurance.calls.at(-1)[0], "renderPlanEndurance");
 
   const fallback = loadRenderDispatch({ progressSeg: "missing" });
-  fallback.context.renderTab("progress");
-  assert.equal(fallback.calls.at(-1)[0], "renderHistory");
+  await fallback.context.renderTab("progress");
+  assert.deepEqual(fallback.calls.slice(-2), [["ensureBundle", "train"], ["renderHistory"]]);
+});
+
+test("every lazy destination waits for the bundle that defines it", async () => {
+  const cases = [
+    ["progress", {}, "train", "renderProgram"],
+    ["plan", { planJump: "edit" }, "train", "renderPlanEditor"],
+    ["plan", { planJump: "coach" }, "ask", "renderCoach"],
+    ["chat", {}, "ask", "renderChat"],
+    ["horizon", {}, "horizon", "renderHorizon"],
+    ["settings", {}, "settings", "renderSettings"],
+  ];
+  for (const [tab, options, bundle, renderer] of cases) {
+    const env = loadRenderDispatch(options);
+    await env.context.renderTab(tab);
+    assert.deepEqual(env.calls.slice(-2), [["ensureBundle", bundle], [renderer]], `${tab} → ${bundle}`);
+  }
+});
+
+test("a warm lazy destination renders synchronously, inside the caller's turn", () => {
+  const env = loadRenderDispatch({ warm: ["train"] });
+  env.context.renderTab("progress");
+  assert.deepEqual(env.calls.at(-1), ["renderProgram"], "no microtask between the switch and the paint");
+  assert.equal(env.calls.some(([kind]) => kind === "ensureBundle"), false);
+});
+
+// A cold bundle load can outlast the athlete's patience: a render that lands after
+// a newer navigation must not paint over the destination they moved to.
+test("a deferred lazy render is dropped when a newer navigation happened meanwhile", async () => {
+  const env = loadRenderDispatch();
+  const slow = env.context.renderTab("chat");
+  env.context.renderTab("today");
+  await slow;
+  assert.equal(env.calls.some(([kind]) => kind === "renderChat"), false);
+  assert.equal(env.calls.at(-1)[0], "renderToday");
+});
+
+test("a cold segment render is dropped when the athlete switched home meanwhile", async () => {
+  // A Train segment tap (or the chat hand-off) waiting on a cold bundle must not
+  // paint over the home the athlete moved to while it loaded.
+  const env = loadRenderDispatch();
+  let painted = false;
+  const segment = env.context.withLatestRender("train", () => {
+    painted = true;
+  });
+  env.context.renderTab("today");
+  await segment;
+  assert.equal(painted, false);
+  assert.equal(env.calls.at(-1)[0], "renderToday");
+});
+
+test("a segment render claims #view: an older deferred tab render is dropped", async () => {
+  const env = loadRenderDispatch({ warm: ["ask"] });
+  const slow = env.context.renderTab("horizon");
+  const out = env.context.withLatestRender("ask", () => "chat");
+  assert.equal(out, "chat", "warm: runs synchronously and returns the render");
+  await slow;
+  assert.equal(env.calls.some(([kind]) => kind === "renderHorizon"), false);
+  assert.equal(typeof env.context.window.withLatestRender, "function");
 });
 
 // Stand and Me live in the lazily-injected me-health bundle. The dispatcher must
@@ -167,14 +230,17 @@ test("a failed me-health injection rejects the render instead of throwing blind"
   assert.ok(!env.calls.some(([name]) => name === "renderStand"));
 });
 
-// The You and Horizon landings are in EAGER bundles: neither waits on me-health, so
-// You paints as fast as Today and only a tap into Health or About you loads it.
-test("render dispatcher paints the Horizon and You landings without the lazy bundle", () => {
-  for (const [tab, renderer] of [["horizon", "renderHorizon"], ["you", "renderYou"]]) {
-    const env = loadRenderDispatch();
-    env.context.renderTab(tab);
-    assert.equal(env.body.dataset.tab, tab);
-    assert.deepEqual(env.calls.at(-1), [renderer]);
-    assert.equal(env.calls.some(([kind]) => kind === "ensureBundle"), false, `${tab} never awaits me-health`);
-  }
+// The You landing is EAGER: it paints as fast as Today, and only a tap into Health
+// or About you loads me-health. Horizon rides its own lazy bundle.
+test("render dispatcher paints the You landing without any lazy bundle", async () => {
+  const env = loadRenderDispatch();
+  env.context.renderTab("you");
+  assert.equal(env.body.dataset.tab, "you");
+  assert.deepEqual(env.calls.at(-1), ["renderYou"]);
+  assert.equal(env.calls.some(([kind]) => kind === "ensureBundle"), false, "You never awaits a lazy bundle");
+
+  const horizon = loadRenderDispatch();
+  await horizon.context.renderTab("horizon");
+  assert.equal(horizon.body.dataset.tab, "horizon");
+  assert.deepEqual(horizon.calls.slice(-2), [["ensureBundle", "horizon"], ["renderHorizon"]]);
 });

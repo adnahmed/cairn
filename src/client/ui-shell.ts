@@ -110,10 +110,14 @@ function gotoChatWith(text: string): void {
   if (typeof highlightHome === "function") highlightHome("chat");
   document.body.dataset.tab = "chat"; // keep the header's Today-scoped styling off
   if (typeof syncRouteFromState === "function") syncRouteFromState();
-  Promise.resolve(renderChat()).then(() => {
-    const i = $<HTMLTextAreaElement>("#chatInput");
-    if (i) { i.value = text; autosizeChatInput(i); i.focus(); }
-  });
+  // The thread lives in the lazy ask bundle; a cold tap awaits it, and a newer
+  // paint of #view in the meantime (the athlete moved on) wins.
+  void withLatestRender("ask", () =>
+    Promise.resolve(renderChat()).then(() => {
+      const i = $<HTMLTextAreaElement>("#chatInput");
+      if (i) { i.value = text; autosizeChatInput(i); i.focus(); }
+    })
+  );
 }
 
 // A sub-view reached from inside a home (Fuel from Today, Changes from Ask, the race
@@ -146,22 +150,27 @@ function uiSegmentsDeps(): UiSegmentsDeps {
     requestAnimationFrame: (callback) => requestAnimationFrame(callback),
     cancelAnimationFrame: (handle) => cancelAnimationFrame(handle),
     addResizeListener: (listener) => window.addEventListener("resize", listener),
-    renderTrainOverview: () => renderTrainOverview(),
-    renderProgress: () => renderProgress(),
-    renderVolume: () => renderVolume(),
-    renderEndurance: () => renderEndurance(),
-    renderWeight: () => renderWeight(),
-    renderMeasurements: () => renderMeasurements(),
-    renderCalendar: () => renderCalendar(),
-    renderHistory: () => renderHistory(),
-    renderProgram: () => renderProgram(),
-    renderIntake: () => renderIntake(),
-    renderEnergy: () => renderEnergy(),
-    renderPlanEditor: () => renderPlanEditor(),
-    renderPlanEndurance: () => renderPlanEndurance(),
+    // Train's views and the plan editor ride the lazy train bundle, the race view
+    // the lazy horizon bundle (app/lazy-bundles.ts, defined by a later bundle and
+    // reached at call time). Warm, they call straight through; cold, a segment tap
+    // paints only if no newer paint of #view (a tab switch) has claimed it since
+    // (withLatestRender, app/render-dispatch.ts).
+    renderTrainOverview: () => withLatestRender("train", () => renderTrainOverview()),
+    renderProgress: () => withLatestRender("train", () => renderProgress()),
+    renderVolume: () => withLatestRender("train", () => renderVolume()),
+    renderEndurance: () => withLatestRender("train", () => renderEndurance()),
+    renderWeight: () => withLatestRender("train", () => renderWeight()),
+    renderMeasurements: () => withLatestRender("train", () => renderMeasurements()),
+    renderCalendar: () => withLatestRender("train", () => renderCalendar()),
+    renderHistory: () => withLatestRender("train", () => renderHistory()),
+    renderProgram: () => withLatestRender("train", () => renderProgram()),
+    renderIntake: () => withLatestRender("train", () => renderIntake()),
+    renderEnergy: () => withLatestRender("train", () => renderEnergy()),
+    renderPlanEditor: () => withLatestRender("train", () => renderPlanEditor()),
+    renderPlanEndurance: () => withLatestRender("horizon", () => renderPlanEndurance()),
     renderFoodJournal: () => renderFoodJournal(),
     renderMeals: () => renderMeals(),
-    renderCoach: () => renderCoach(),
+    renderCoach: () => withLatestRender("ask", () => renderCoach()),
   };
 }
 
