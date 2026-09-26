@@ -94,11 +94,13 @@
     const m = obj(raw) as unknown as Marker;
     const side = m.flag === "high" || m.flag === "low" ? m.flag : null;
     const labFlagged = typeof m.lab_flagged === "boolean" ? m.lab_flagged : side != null;
+    const printed = labFlagged && m.labRangeBasis === "printed_range" ? (m.labRangeSide ?? null) : null;
     return {
       title: str(m.name),
       detail: value(m),
       date: str(m.latestDate) || null,
-      flag: labFlagged ? side : null,
+      flag: labFlagged && !printed ? side : null,
+      rangeSide: printed,
       outsideOptimal: typeof m.outside_optimal === "boolean" ? m.outside_optimal : m.inOptimal === false,
     };
   }
