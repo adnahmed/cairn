@@ -57,7 +57,7 @@
 /* The quiet anchor-lift invitation (shown only when no objective is chosen). */
 .sjourney-suggest{border-style:dashed}
 .sjourney-suggest-detail{margin:2px 0 8px;color:var(--ink-2);font-size:.86rem;line-height:1.5}
-.sjourney-suggest-basis{color:var(--muted);font-size:.72rem;margin-bottom:13px;font-style:italic}
+.sjourney-suggest-basis{color:var(--muted);font-size:var(--text-xs);margin-bottom:13px;font-family:var(--font-ui);text-transform:none;letter-spacing:0;font-style:italic}
 .sjourney-suggest-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .sjourney-suggest-actions .draftbtn{flex:1 1 auto;margin:0}
 .sjourney-suggest-dismiss{flex:0 0 auto}
@@ -90,41 +90,44 @@
 
 /* Individual lift row — name / status / figure / why. */
 .prow{
-  background:var(--card);border-radius:var(--radius);
-  box-shadow:var(--shadow-sm);padding:14px 16px;margin-bottom:10px;
-  border-left:3px solid transparent;
+  background:var(--surface);border:1px solid var(--line);border-radius:18px;
+  box-shadow:none;padding:14px 16px;margin-bottom:10px;
 }
-.prow-stalled{border-left-color:var(--accent)}
-.prow-good{border-left-color:var(--sage)}
+/* The state is spoken (the status word, a small dot), never a tone-painted spine. */
+.prow-stalled .prow-status::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--dawn);margin-right:6px;vertical-align:.12em}
 .prow-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .prow-name{
-  font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 40;
-  font-size:.97rem;color:var(--ink);min-width:0;
+  font-family:var(--font-ui);font-weight:600;
+  font-size:var(--text-body);color:var(--ink);min-width:0;
   background:none;border:0;padding:0;margin:0;text-align:left;cursor:pointer;
 }
 button.prow-name:hover{color:var(--accent)}
 .prow-status{
-  font-family:var(--font-ui);font-size:.72rem;font-weight:600;letter-spacing:.07em;
+  font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:400;letter-spacing:var(--tracking-mono);
   text-transform:uppercase;color:var(--muted);white-space:nowrap;flex-shrink:0;
 }
-.prow-status-warn{color:var(--accent)}
-.prow-status-ok{color:var(--sage)}
+.prow-status-warn{color:var(--dawn)}
+.prow-status-ok{color:var(--d-endurance)}
 .prow-figs{margin-top:5px;font-size:.78rem;color:var(--muted)}
 .prow-why{margin-top:6px;font-size:.86rem;color:var(--ink-2);line-height:1.45}
 
 /* Curated program surface (Wave E2): compact "Climbing" rows, a quiet "N more"
    summary line, and the family-grouped long tail behind "Everything you train". */
 .prow-compact{
-  display:block;width:100%;
-  background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);
-  border:0;border-left:3px solid var(--sage);padding:11px 16px;margin-bottom:8px;
-  text-align:left;cursor:pointer;
+  display:block;width:100%;color:inherit;font:inherit;
+  background:none;border-radius:0;box-shadow:none;
+  border:0;border-top:1px solid var(--line);padding:12px 2px;margin:0;
+  text-align:left;cursor:pointer;transition:transform var(--dur-1) var(--ease);
 }
+.prow-compact:active{transform:var(--press-lg)}
+.prow-section-head+.prow-compact{border-top:0}
 .prow-compact-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%}
-.prow-compact .prow-name{font-size:.92rem}
-.prow-compact-meta{font-size:.78rem;color:var(--muted);white-space:nowrap;flex-shrink:0}
-.prow-compact .prow-why{display:block;margin-top:6px}
-.prow-more{color:var(--muted);padding:2px 2px 4px}
+.prow-compact .prow-name{font-size:var(--text-body)}
+.prow-compact-meta{color:var(--d-endurance);white-space:nowrap;flex-shrink:0}
+.prow-compact .prow-why{display:block;margin-top:3px;font-size:var(--text-sm);color:var(--muted)}
+.prow-more{color:var(--muted);padding:10px 2px 4px;border-top:1px solid var(--line)}
+.prow-more.lbl{font-family:var(--font-ui);font-size:var(--text-sm);text-transform:none;letter-spacing:0}
 .prow-fam{margin-bottom:14px}
 .prow-fam-head{
   font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 32;
@@ -197,7 +200,9 @@ button.prow-name:hover{color:var(--accent)}
   margin:24px 0 8px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;
 }
 .prog-evolve-btn{flex-shrink:0}
-.prog-evolve-note{font-size:.72rem;color:var(--muted)}
+.prog-evolve-note{font-size:var(--text-xs);color:var(--muted)}
+/* helper notes under the program's two actions read as a quiet sentence, not a mono wall */
+.prog-evolve-note.lbl{font-family:var(--font-ui);text-transform:none;letter-spacing:0;line-height:1.45}
 .prog-evolve-cap{flex-basis:100%;font-size:.78rem;color:var(--accent)}
 /* One-tap review of the agent's lower-confidence exercise-name merge suggestions
    (Tidy exercise names → not confident/safe enough to auto-apply). Ephemeral —

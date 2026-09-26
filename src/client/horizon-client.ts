@@ -38,9 +38,11 @@
     const behind = lane.rows.map((row, i) => ({ row, i })).filter(({ row }) => row.side === "behind");
     const ahead = lane.rows.map((row, i) => ({ row, i })).filter(({ row }) => row.side === "ahead");
     const now = `<li class="horizon-now"><span class="horizon-row-dot horizon-now-dot" aria-hidden="true"></span><span class="horizon-now-label">Today</span></li>`;
+    // The "Today" mark divides behind from ahead; with nothing behind it would only
+    // repeat the lane's own start, so it stands only between the two.
     const items = [
       ...behind.map(({ row, i }) => rowHtml(lane, row, i, hrefFor)),
-      now,
+      behind.length ? now : "",
       ...ahead.map(({ row, i }) => rowHtml(lane, row, i, hrefFor)),
     ].join("");
     return `<ol class="horizon-rail" aria-label="${escAttr(`${lane.title}, behind and ahead`)}">${items}</ol>`;
@@ -66,6 +68,42 @@
     return `<div class="horizon-lane-links">${links}</div>`;
   }
 
+  /** The race build as terrain, in its chart card; "" when there is no ridge to draw. */
+  function terrainHtml(lane: Lane): string {
+    const chart =
+      typeof CairnHorizonChart !== "undefined" && lane.terrain ? CairnHorizonChart.terrainSvg(lane.terrain) : "";
+    return chart ? `<figure class="horizon-chart-card is-terrain">${chart}</figure>` : "";
+  }
+
+  /**
+   * The goal line's chart slot: space held at the chart's own shape so the season line
+   * lands without moving anything. The controller fills it (or drops it) once the
+   * weigh-ins are read.
+   */
+  function seasonSlotHtml(lane: Lane): string {
+    if (lane.key !== "goal" || lane.state !== "set") return "";
+    return `<figure class="horizon-chart-card is-season is-pending" data-horizon-season aria-busy="true"><div class="hshimmer horizon-chart-skel"></div><div class="horizon-chart-key-skel"></div></figure>`;
+  }
+
+  /** The season line for the goal line's slot; "" when there is no line to draw. */
+  function seasonHtml(season: ClientHorizonSeason | null): string {
+    if (!season || typeof CairnHorizonChart === "undefined") return "";
+    const chart = CairnHorizonChart.seasonSvg(season);
+    if (!chart) return "";
+    // The key names only what the chart drew: the window only beside a goal line, and
+    // each diamond hue only when a mark of it is on the lane.
+    const body = season.marks.filter((m) => CairnHorizonChart.BODY_MARK_KINDS.has(m.kind)).length;
+    const keys = [
+      `<span class="horizon-key is-weight">Weight</span>`,
+      season.goal_lb != null ? `<span class="horizon-key is-goal">Goal</span>` : "",
+      season.goal_lb != null && season.fan ? `<span class="horizon-key is-fan">Likely window</span>` : "",
+      season.marks.length > body ? `<span class="horizon-key is-mark">Labs</span>` : "",
+      body ? `<span class="horizon-key is-mark is-body">Body scans</span>` : "",
+      season.race ? `<span class="horizon-key is-mark is-race">Race day</span>` : "",
+    ].join("");
+    return `${chart}<figcaption class="horizon-chart-key">${keys}</figcaption>`;
+  }
+
   /** One lane, painted. `enter` gives it the shared settle-in entrance once. */
   function laneHtml(lane: Lane, opts: { enter?: boolean; hrefFor?: HrefFor } = {}): string {
     const id = `horizonLane-${lane.key}`;
@@ -82,6 +120,8 @@
       </header>
       ${fitHtml(lane)}
       ${lane.lede ? `<p class="horizon-lane-lede">${escHtml(lane.lede)}</p>` : ""}
+      ${terrainHtml(lane)}
+      ${seasonSlotHtml(lane)}
       ${ladder}
       ${railHtml(lane, opts.hrefFor)}
       ${linksHtml(lane, opts.hrefFor)}
@@ -98,18 +138,41 @@
     </section>`;
   }
 
-  /** The timeline's frame: one slot per lane, in the timeline's order. */
-  function shellHtml(): string {
-    const lanes = KEYS.map(
-      (key) => `<li class="horizon-lane" data-horizon-lane="${key}">${laneSkeletonHtml(key)}</li>`
+  /** The two views over one line of time: the race build, and the season. */
+  const SEGMENTS: ReadonlyArray<readonly [ClientHorizonView, string]> = [
+    ["race", "To the race"],
+    ["season", "Season"],
+  ];
+  /** Which view each lane sits in. */
+  const PANEL: Readonly<Record<Lane["key"], ClientHorizonView>> = { race: "race", goal: "season", labs: "season" };
+
+  function segHtml(active: ClientHorizonView): string {
+    const buttons = SEGMENTS.map(
+      ([key, label]) =>
+        `<button type="button" class="segbtn${key === active ? " active" : ""}" role="tab" id="horizonTab-${key}" aria-controls="horizonPanel-${key}" aria-selected="${key === active}" data-horizon-seg="${key}">${escHtml(label)}</button>`
     ).join("");
-    return `<div class="horizon" data-horizon>
-      <p class="horizon-lede">What's ahead: the race, the goal line, and your next labs and scans.</p>
-      <ol class="horizon-lanes" aria-label="What's ahead">${lanes}</ol>
+    return `<div class="seg horizon-seg" role="tablist" aria-label="Horizon views">${buttons}</div>`;
+  }
+
+  /**
+   * The timeline's frame: the view switch, then one tab panel per view holding its lane
+   * slots, in the timeline's order.
+   */
+  function shellHtml(active: ClientHorizonView = "race"): string {
+    const panels = SEGMENTS.map(([view]) => {
+      const lanes = KEYS.filter((key) => PANEL[key] === view)
+        .map((key) => `<li class="horizon-lane" data-horizon-lane="${key}">${laneSkeletonHtml(key)}</li>`)
+        .join("");
+      const hidden = view === active ? "" : " hidden";
+      return `<div class="horizon-panel" role="tabpanel" id="horizonPanel-${view}" aria-labelledby="horizonTab-${view}" data-horizon-panel="${view}"${hidden}><ol class="horizon-lanes" aria-label="What's ahead">${lanes}</ol></div>`;
+    }).join("");
+    return `<div class="horizon" data-horizon data-horizon-view="${active}">
+      ${segHtml(active)}
+      ${panels}
     </div>`;
   }
 
-  const CAIRN_HORIZON = { KEYS, laneHtml, laneSkeletonHtml, shellHtml };
+  const CAIRN_HORIZON = { KEYS, PANEL, laneHtml, laneSkeletonHtml, seasonHtml, shellHtml };
 
   Object.assign(globalThis, { CairnHorizon: CAIRN_HORIZON });
 }

@@ -81,7 +81,7 @@ function paintProgressBody(exercises: ProgressExercise[]): void {
     <div id="trendHero"></div>
     <div class="field"><label>Exercise</label>
     <select id="exsel">${(exercises.some((e) => e.name === saved) ? exercises : [...exercises, ...allExercises.filter((e) => e.name === saved)]).map((e) => `<option ${e.name === saved ? "selected" : ""}>${escHtml(e.name)}</option>`).join("")}</select></div>
-    <canvas id="chart"></canvas><div id="pstats"></div>`;
+    <canvas id="chart" class="pchart is-strength"></canvas><div id="pstats"></div>`;
   wireSeg(PROGRESS_HANDLERS);
   const select = $<HTMLSelectElement>("#exsel");
   if (select) select.addEventListener("change", () => { state.progressEx = select.value; drawProgress(select.value); });
@@ -108,7 +108,7 @@ function paintWeightBody(rows: ProgressWeightRow[], profile: ProgressRecord): vo
   ]);
   // The goal-pace read (when it resolves) is unified to LEAD, ahead of the numeral
   // hero — see mountGoalPaceChart in progress-screen.ts, which fills this anchor.
-  view.innerHTML = head + `<div id="weightLeadMount"></div>` + hero + `<canvas id="chart"></canvas>
+  view.innerHTML = head + `<div id="weightLeadMount"></div>` + hero + `<canvas id="chart" class="pchart is-body"></canvas>
     <div class="chart-foot lbl">${pts.length} weigh-in${pts.length === 1 ? "" : "s"}${goalW != null ? ` · goal ${goalW} lb` : ""}</div>`;
   wireSeg(PROGRESS_HANDLERS);
   runCountUps(view);

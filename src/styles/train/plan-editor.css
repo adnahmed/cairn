@@ -4,11 +4,12 @@
 .prog-day{border-radius:var(--radius);padding:16px 17px 14px;margin-bottom:14px}
 .prog-head{display:flex;align-items:flex-start;gap:10px}
 .prog-head-main{flex:1;min-width:0}
-.prog-num,.prog-head-main .lbl{font-family:var(--font-ui);font-weight:700;text-transform:uppercase;
-  letter-spacing:.18em;font-size:.6rem;color:var(--accent)}
+.prog-num,.prog-head-main .lbl{font-family:var(--font-mono);font-weight:400;text-transform:uppercase;
+  letter-spacing:var(--tracking-mono);font-size:var(--text-2xs);color:var(--muted)}
+/* Young Serif has no italic: the day name stands upright, like every serif voice. */
 .prog-name{
-  font-family:var(--font-display);font-style:italic;font-weight:520;
-  font-variation-settings:"opsz" 50;font-size:1.3rem;color:var(--ink);
+  font-family:var(--font-display);font-style:normal;font-weight:400;
+  font-size:1.3rem;line-height:1.15;color:var(--ink);
 }
 .prog-focus{width:100%;font-size:.8rem;color:var(--muted);margin-top:1px}
 

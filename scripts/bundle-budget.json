@@ -55,12 +55,12 @@
     },
     "public/js/bundle-06-chat-plan.js": {
       "measured": {
-        "raw": 275651,
-        "brotli": 52452
+        "raw": 293351,
+        "brotli": 56153
       },
       "budget": {
-        "raw": 281600,
-        "brotli": 54272
+        "raw": 300032,
+        "brotli": 57344
       }
     },
     "public/js/bundle-07-settings-boot.js": {

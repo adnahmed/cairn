@@ -76,6 +76,31 @@ test("progress history session card renders safely", () => {
   assert.doesNotMatch(html, /onclick="bad|<A>|<press>|<core>|<good>/);
 });
 
+test("a lift with many sets reads as its best and a count; every set stays in the markup", () => {
+  const history = loadProgressHistory();
+  const html = history.sessionCardHtml(
+    {
+      id: 7,
+      date: "2026-06-29",
+      sets: [
+        { exercise: "Squat", weight: 135, reps: 5 },
+        { exercise: "Squat", weight: 155, reps: 5 },
+        { exercise: "Squat", weight: 175, reps: 3 },
+        { exercise: "Curl", weight: 30, reps: 10 },
+      ],
+    },
+    0,
+  );
+  const squat = html.split('<div class="hist-line">')[1];
+  assert.match(squat, /hist-sets is-many/);
+  assert.match(squat, /hist-count">3 sets/);
+  // The ramp is all there for assistive tech and the edit sheet; the eye gets the best.
+  for (const figure of ["135×5", "155×5", "175×3"]) assert.match(squat, new RegExp(figure));
+  assert.equal((squat.match(/hist-best/g) || []).length, 1);
+  const curl = html.split('<div class="hist-line">')[2];
+  assert.doesNotMatch(curl, /is-many|hist-count/);
+});
+
 test("progress history handles empty sessions and number coercion", () => {
   const history = loadProgressHistory();
   const html = history.sessionCardHtml({ id: 7, date: "2026-06-30", sets: [] }, 1);

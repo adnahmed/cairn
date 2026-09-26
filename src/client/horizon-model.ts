@@ -150,8 +150,22 @@
       fit_word: model.estimate.fit_word,
       fit_line: model.estimate.fit_line,
       ladder: ladderAhead(model.ladder),
+      terrain: terrainOf(value as RaceBuild, model.ladder),
       links,
     });
+  }
+
+  /** The whole build, every week, for the terrain chart. Null when there is no ridge to draw. */
+  function terrainOf(build: RaceBuild, ladder: ClientRaceLadderModel): ClientHorizonTerrain | null {
+    const rows = Array.isArray(ladder?.rows) ? ladder.rows : [];
+    if (rows.length < 2) return null;
+    const raceDate = dayKey(build.race?.date);
+    return {
+      weeks: rows.map((row) => ({ week_start: row.week_start, km: row.km, kind: row.kind, current: row.current })),
+      race_date: raceDate,
+      race_label: ["Race", raceDate ? CairnUiChart.dateLabel(raceDate) : ""].filter(Boolean).join(" · "),
+      as_of: dayKey(build.as_of),
+    };
   }
 
   // ---- Goal line ------------------------------------------------------------------
@@ -332,7 +346,47 @@
     });
   }
 
+  // ---- Season ---------------------------------------------------------------------
+
+  // The season on one line: goal-pace weigh-ins and goal, the timeline's projection window
+  // (the fan) and race day, and dated marks. Null under two weigh-ins; the lanes still speak.
+  function season(pace: unknown, timeline: unknown, docs: unknown, checkupValue: unknown, today: string): ClientHorizonSeason | null {
+    const read = record(pace);
+    const points = (Array.isArray(read?.points) ? (read.points as unknown[]) : [])
+      .map((p) => ({ date: dayKey(record(p)?.date), lb: num(record(p)?.weight_lb) }))
+      .filter((p): p is { date: string; lb: number } => !!p.date && p.lb != null)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    if (points.length < 2) return null;
+    const entry = (id: string) => timelineRows(timeline).find((e) => e.id === id);
+    const win = entry("phase:projection")?.when?.window;
+    const race = entry("goal:endurance-race");
+    const marks: ClientHorizonSeasonMark[] = [];
+    for (const doc of Array.isArray(docs) ? (docs as HealthDoc[]) : []) {
+      const date = record(doc) && Object.hasOwn(LAB_KINDS, String(doc.kind || "")) ? docDate(doc) : "";
+      if (date && date >= points[0].date && (!today || date <= today))
+        marks.push({ date, label: LAB_KINDS[String(doc.kind)], kind: String(doc.kind), side: "behind" });
+    }
+    const checkup = record(checkupValue) as Checkup | null;
+    // A recheck due now stands on today's line even once its date has passed (the labs
+    // rail still lists it); an upcoming one stands at its own date.
+    const due = (checkup?.due_now || []).map((item) => [item, true] as const);
+    for (const [item, now] of [...due, ...(checkup?.upcoming || []).map((item) => [item, false] as const)]) {
+      const date = now && today && dayKey(item?.next_due) < today ? today : dayKey(item?.next_due);
+      if (date && (!today || date >= today)) marks.push({ date, label: text(item.label), kind: text(item.kind) || "lab", side: "ahead" });
+    }
+    return {
+      points,
+      goal_lb: num(record(read?.goal)?.weight_lb),
+      goal_date: dayKey(record(read?.goal)?.date) || dayKey(entry("goal:weight")?.when?.date) || null,
+      fan: dayKey(win?.start) && dayKey(win?.end) ? { start: dayKey(win?.start), end: dayKey(win?.end) } : null,
+      race: race && dayKey(race.when?.date) ? { date: dayKey(race.when?.date), label: text(race.label) } : null,
+      marks,
+      today,
+    };
+  }
+
   const CAIRN_HORIZON_MODEL = {
+    season,
     LAB_KINDS,
     TARGETS,
     raceLane,

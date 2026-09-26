@@ -138,6 +138,27 @@ Phone-first: 16px gutters, 8–18px vertical rhythm, UI body 15px, secondary .76
 No giant inputs, no giant totals, no metric walls. Cards are the exception; a hairline list is the
 default way to show several things.
 
+## Charts: instruments drawn to scale
+
+Horizon's two views and Train's charts share one chart language (`horizon-chart-client.ts`,
+`progress-chart-*`, the goal-pace card):
+
+- **Drawn to scale, in SVG** where the markup is ours: a surface card (1px `--line`, 18px radius),
+  mono axis words (Martian Mono ~8.5px, uppercase, `--muted`), dotted gridlines in `--line`.
+- **A line wears its stone's deep hue**: kilometres are endurance (`--d-endurance` ridge over a
+  `--s-endurance` fill with two quieter contours), bodyweight is body (`--d-body`), a lift's
+  estimate is strength (`--d-strength`). A canvas chart takes it from `--chart-line` on the canvas
+  (`.pchart.is-strength` / `.is-body`). Tone never colors a line.
+- **Annotations are deep-colored words on the chart**, never a legend-only code: `now` (dawn line),
+  race day (dashed endurance line and its date), the goal (dotted body line, its weight and date),
+  the projection window as a fan from the latest weigh-in. That weigh-in says `now` only when it
+  is today's; an older one wears its mono date, and once it is a few days old the fan no longer
+  leaves it (the window lies on the goal line alone). Labs and scans ride the season line as
+  diamonds: filled behind today, open ahead, the same diamonds their rows wear below; one far
+  beyond the season's own span is pinned at the edge rather than squeezing the line. The key
+  names only what was drawn.
+- **Space is held** at the chart's own aspect ratio while its reads land, so nothing jumps.
+
 ## Stylesheet ownership
 
 `public/styles.css` is **generated** — `scripts/build-styles.mjs` concatenates `src/styles/**` in

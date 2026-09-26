@@ -16,7 +16,10 @@ function drawLineChart(
   if (!canvas) return;
   const points = Array.isArray(pts) ? pts : [];
   const chartCanvas = canvas as ProgressChartCanvas;
-  const colors = CairnProgressChartDrawing.chartColors();
+  // A chart's line takes its stone's deep color through the canvas's own
+  // `--chart-line` (1RM is strength's, weight is body's); unset, it stays the accent.
+  const stoneLine = getComputedStyle(chartCanvas).getPropertyValue("--chart-line").trim();
+  const colors = { ...CairnProgressChartDrawing.chartColors(), ...(stoneLine ? { accent: stoneLine } : {}) };
   const count = points.length;
   if (!count) return;
   const fmtVal = opts.fmt || ((value: number) => String(Math.round(value)));

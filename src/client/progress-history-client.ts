@@ -28,6 +28,8 @@ async function renderHistory() {
   });
 }
 
+const HISTORY_LEAD = 6;
+
 // Build + wire the History view from a sessions list. Idempotent: re-queries the
 // freshly-written DOM each call (warm peek + changed revalidate both route here).
 function paintHistoryBody(sessions: HistorySession[]) {
@@ -39,7 +41,14 @@ function paintHistoryBody(sessions: HistorySession[]) {
     return;
   }
   const hero = progressHero("Training history", CairnProgressHistoryModel.summary(sessions).stats);
-  view.innerHTML = head + hero + `<div class="sess-grid">${sessions.map((s, i) => sessionCardHtml(s, i + 1)).join("")}</div>`;
+  // The latest sessions lead; the rest of the month folds under one line, one tap away.
+  const lead = sessions.slice(0, HISTORY_LEAD);
+  const earlier = sessions.slice(HISTORY_LEAD);
+  const more = earlier.length
+    ? `<details class="hist-more"><summary class="hist-more-sum">${earlier.length} earlier session${earlier.length === 1 ? "" : "s"}</summary>
+        <div class="sess-grid">${earlier.map((s, i) => sessionCardHtml(s, Math.min(12, i + 1))).join("")}</div></details>`
+    : "";
+  view.innerHTML = head + hero + `<div class="sess-grid">${lead.map((s, i) => sessionCardHtml(s, i + 1)).join("")}</div>${more}`;
   wireSeg(PROGRESS_HANDLERS);
   runCountUps(view);
   // Tap a past session → edit its logged sets + notes (corrections flow into the brain).

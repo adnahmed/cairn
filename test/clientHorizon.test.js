@@ -22,6 +22,7 @@ const MODULES = [
   "race-ladder-client",
   "race-view-client",
   "horizon-model",
+  "horizon-chart-client",
   "horizon-client",
   "horizon-controller",
 ];
@@ -395,13 +396,14 @@ test("server text stays text", () => {
 
 // ---------- the controller ----------
 
-function reads({ fail = [] } = {}) {
+function reads({ fail = [], extra = {} } = {}) {
   const table = {
     "/race-build": build(),
     "/journey": journey(),
     "/journey/timeline": timeline(),
     "/health-docs": docs(),
     "/health/next-checkup": checkup(),
+    ...extra,
   };
   const calls = [];
   const load = (path) => {
@@ -484,6 +486,237 @@ test("reads that land after the timeline was left write nothing", async () => {
   await flush();
   await flush();
   assert.equal(root.querySelectorAll(".is-loading").length, 3);
+});
+
+// ---------- the season line ----------
+
+function pace(points, goal = { weight_lb: 180, date: "2026-11-15" }) {
+  return { points: points.map(([date, weight_lb]) => ({ date, weight_lb })), goal };
+}
+
+const WEIGH_INS = [
+  ["2026-08-20", 190.2],
+  ["2026-09-01", 188.6],
+  ["2026-08-10", 191.4],
+  ["2026-09-16", 186.9],
+  ["2026-09-10", null],
+];
+
+function seasonTimeline() {
+  return [
+    ...timeline(),
+    { id: "phase:projection", kind: "phase", when: { window: { start: "2026-11-01", end: "2026-11-29" } }, label: "Likely" },
+    { id: "goal:endurance-race", kind: "race", when: { date: "2026-11-08" }, label: "Riverside Half" },
+  ];
+}
+
+test("season: weigh-ins sorted and cleaned, the goal, the window, race day, and draws and rechecks as marks", () => {
+  const win = load();
+  const season = plain(win.CairnHorizonModel.season(pace(WEIGH_INS), seasonTimeline(), docs(), checkup(), TODAY));
+  assert.deepEqual(
+    season.points.map((p) => p.date),
+    ["2026-08-10", "2026-08-20", "2026-09-01", "2026-09-16"]
+  );
+  assert.equal(season.goal_lb, 180);
+  assert.equal(season.goal_date, "2026-11-15");
+  assert.deepEqual(season.fan, { start: "2026-11-01", end: "2026-11-29" });
+  assert.deepEqual(season.race, { date: "2026-11-08", label: "Riverside Half" });
+  // Only draws inside the weigh-in window and not in the future sit behind.
+  const behind = season.marks.filter((m) => m.side === "behind");
+  assert.equal(behind.length, 0, "the draws on the fixture all predate the first weigh-in or are ahead");
+  // A due-now recheck whose date has passed stands on today's line; upcoming ones at their own date.
+  const ahead = season.marks.filter((m) => m.side === "ahead");
+  assert.deepEqual(
+    ahead.map((m) => [m.date, m.label]),
+    [
+      [TODAY, "LDL-C"],
+      ["2026-10-20", "DEXA re-scan"],
+      ["2026-12-01", "HbA1c"],
+      ["2027-01-01", "TSH"],
+    ]
+  );
+});
+
+test("season: a draw inside the window sits behind; fewer than two weigh-ins is no line", () => {
+  const win = load();
+  const season = win.CairnHorizonModel.season(
+    pace(WEIGH_INS),
+    timeline(),
+    [{ id: 1, kind: "bloodwork", doc_date: "2026-08-25" }, { id: 2, kind: "visit_note", doc_date: "2026-08-26" }],
+    null,
+    TODAY
+  );
+  assert.deepEqual(plain(season.marks), [{ date: "2026-08-25", label: "Bloodwork", kind: "bloodwork", side: "behind" }]);
+  assert.equal(season.fan, null);
+  assert.equal(season.race, null);
+  assert.equal(win.CairnHorizonModel.season(pace([["2026-09-16", 186]]), [], [], null, TODAY), null);
+  assert.equal(win.CairnHorizonModel.season(null, [], [], null, TODAY), null);
+});
+
+function seasonOf(_win, points, overrides = {}) {
+  return {
+    points: points.map(([date, lb]) => ({ date, lb })),
+    goal_lb: 180,
+    goal_date: "2026-11-15",
+    fan: { start: "2026-11-01", end: "2026-11-29" },
+    race: null,
+    marks: [],
+    today: TODAY,
+    ...overrides,
+  };
+}
+
+test("season chart: today's weigh-in says 'now' and the fan leaves it", () => {
+  const win = load();
+  const svg = win.CairnHorizonChart.seasonSvg(seasonOf(win, [["2026-08-10", 191], ["2026-09-16", 187]]));
+  assert.match(svg, /187 now</);
+  assert.match(svg, /class="hz-fan"/);
+  assert.match(svg, /class="hz-fan-line"/);
+  assert.doesNotMatch(svg, SCORE);
+});
+
+test("season chart: a stale weigh-in wears its own date, never 'now', and the fan does not leave it", () => {
+  const win = load();
+  const svg = win.CairnHorizonChart.seasonSvg(seasonOf(win, [["2026-08-10", 191], ["2026-08-26", 180.3]]));
+  assert.doesNotMatch(svg, />[^<]*\bnow\b/);
+  assert.match(svg, /180\.3 · AUG 26/);
+  assert.match(svg, /hz-today is-past/);
+  // The window still lies on the goal line; no triangle from the old weight.
+  assert.match(svg, /hz-fan is-window/);
+  assert.doesNotMatch(svg, /class="hz-fan-line"/);
+  assert.match(svg, /aria-label="[^"]*on AUG 26/);
+  // Within the anchor window the fan still leaves the latest weigh-in.
+  const recent = win.CairnHorizonChart.seasonSvg(seasonOf(win, [["2026-08-10", 191], ["2026-09-14", 186]]));
+  assert.match(recent, /class="hz-fan-line"/);
+  assert.match(recent, /186 · SEP 14/);
+});
+
+test("season chart: a recheck far out is pinned at the edge, never squeezing the weight line", () => {
+  const win = load();
+  const xs = (svg) => [...svg.matchAll(/class="hz-weight" d="([^"]+)"/g)][0][1].match(/[ML]([\d.]+)/g).map((t) => Number(t.slice(1)));
+  const base = seasonOf(win, [["2026-08-10", 191], ["2026-09-16", 187]], { goal_date: null, fan: null });
+  const plainSvg = win.CairnHorizonChart.seasonSvg(base);
+  const farSvg = win.CairnHorizonChart.seasonSvg({
+    ...base,
+    marks: [{ date: "2027-09-01", label: "TSH", kind: "lab", side: "ahead" }],
+  });
+  assert.deepEqual(xs(farSvg), xs(plainSvg));
+  assert.match(farSvg, /hz-mark is-ahead is-kind-lab is-beyond/);
+  // A mark within reach widens the span instead.
+  const nearSvg = win.CairnHorizonChart.seasonSvg({
+    ...base,
+    marks: [{ date: "2026-10-01", label: "LDL", kind: "lab", side: "ahead" }],
+  });
+  assert.doesNotMatch(nearSvg, /is-beyond/);
+  assert.ok(xs(nearSvg).at(-1) < xs(plainSvg).at(-1));
+});
+
+test("season key names only what was drawn", () => {
+  const win = load();
+  const html = (overrides) => win.CairnHorizon.seasonHtml(seasonOf(win, [["2026-08-10", 191], ["2026-09-16", 187]], overrides));
+  const noGoal = html({ goal_lb: null });
+  assert.doesNotMatch(noGoal, /Likely window/);
+  assert.doesNotMatch(noGoal, /is-goal/);
+  const full = html({
+    race: { date: "2026-11-08", label: "Riverside Half" },
+    marks: [
+      { date: "2026-10-20", label: "DEXA", kind: "dexa", side: "ahead" },
+      { date: "2026-10-01", label: "LDL", kind: "lab", side: "ahead" },
+    ],
+  });
+  for (const word of ["Weight", "Goal", "Likely window", "Labs", "Body scans", "Race day"]) assert.match(full, new RegExp(`>${word}<`));
+  assert.match(full, /hz-mark is-ahead is-kind-dexa is-body/);
+  const scansOnly = html({ marks: [{ date: "2026-10-20", label: "DEXA", kind: "dexa", side: "ahead" }] });
+  assert.doesNotMatch(scansOnly, />Labs</);
+  assert.match(scansOnly, />Body scans</);
+  assert.equal(win.CairnHorizon.seasonHtml(null), "");
+});
+
+test("terrain chart: a mid-week race ends the ground the day after it", () => {
+  const win = load();
+  const weeks = [
+    { week_start: "2026-09-14", km: 20, current: true },
+    { week_start: "2026-09-21", km: 24, current: false },
+    { week_start: "2026-09-28", km: 12, current: false },
+  ];
+  const svg = win.CairnHorizonChart.terrainSvg({ weeks, race_date: "2026-09-30", race_label: "10K", as_of: TODAY });
+  // Race day stands a day short of the plot's right edge, not a sixth of the width short.
+  const race = Number(svg.match(/class="hz-race" x1="([\d.]+)"/)[1]);
+  assert.ok(race > 300, `race line at ${race}`);
+  assert.match(svg, /class="hz-now"/);
+  assert.equal(win.CairnHorizonChart.terrainSvg({ weeks: weeks.slice(0, 1), race_date: "", race_label: "", as_of: TODAY }), "");
+});
+
+// ---------- the view switch ----------
+
+test("the views are tabs over their own panels; the race view opens first", () => {
+  const win = load();
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.shellHtml();
+  const tabs = host.querySelectorAll('[role="tab"]');
+  assert.equal(tabs.length, 2);
+  for (const tab of tabs) {
+    const panel = host.querySelector(`#${tab.getAttribute("aria-controls")}`);
+    assert.ok(panel, "each tab controls a panel");
+    assert.equal(panel.getAttribute("role"), "tabpanel");
+    assert.equal(panel.getAttribute("aria-labelledby"), tab.getAttribute("id"));
+  }
+  assert.equal(host.querySelector('[data-horizon-panel="race"]').hidden, false);
+  assert.equal(host.querySelector('[data-horizon-panel="season"]').hidden, true);
+  assert.ok(host.querySelector('[data-horizon-panel="season"] [data-horizon-lane="goal"]'));
+  assert.ok(host.querySelector('[data-horizon-panel="season"] [data-horizon-lane="labs"]'));
+});
+
+test("with no race set the timeline steps to the season on its own; a picked view holds", async () => {
+  const win = load();
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.shellHtml();
+  const root = host.querySelector("[data-horizon]");
+  const noRace = { "/race-build": { available: false, race: null, weeks: [], reason: "" } };
+  const { load: loader } = reads({ extra: noRace });
+  const teardown = win.CairnHorizonController.mount(root, { today: TODAY, load: loader, navigate: () => {} });
+  await flush();
+  await flush();
+  assert.equal(root.getAttribute("data-horizon-view"), "season");
+  assert.equal(root.querySelector('[data-horizon-panel="season"]').hidden, false);
+  assert.equal(root.querySelector('[data-horizon-seg="season"]').getAttribute("aria-selected"), "true");
+  // The athlete picks the race view; a remount in the same session keeps it, even with no race.
+  await root.querySelector('[data-horizon-seg="race"]').click();
+  assert.equal(root.getAttribute("data-horizon-view"), "race");
+  teardown();
+  host.innerHTML = win.CairnHorizon.shellHtml();
+  const again = host.querySelector("[data-horizon]");
+  win.CairnHorizonController.mount(again, { today: TODAY, load: reads({ extra: noRace }).load, navigate: () => {} });
+  await flush();
+  await flush();
+  assert.equal(again.getAttribute("data-horizon-view"), "race");
+  assert.equal(again.querySelector('[data-horizon-panel="race"]').hidden, false);
+});
+
+test("the goal line's held slot takes the season line, or goes when there is none", async () => {
+  const win = load();
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.shellHtml();
+  const root = host.querySelector("[data-horizon]");
+  const { load: loader } = reads({ extra: { "/nutrition/goal-pace?days=180": pace(WEIGH_INS) } });
+  win.CairnHorizonController.mount(root, { today: TODAY, load: loader, navigate: () => {} });
+  await flush();
+  await flush();
+  const slot = root.querySelector("[data-horizon-season]");
+  assert.ok(slot);
+  assert.equal(slot.classList.contains("is-pending"), false);
+  assert.equal(slot.getAttribute("aria-busy"), null);
+  assert.ok(slot.querySelector("svg.hz-season"));
+
+  const bare = load();
+  const host2 = createHost(bare.document);
+  host2.innerHTML = bare.CairnHorizon.shellHtml();
+  const root2 = host2.querySelector("[data-horizon]");
+  bare.CairnHorizonController.mount(root2, { today: TODAY, load: reads().load, navigate: () => {} });
+  await flush();
+  await flush();
+  assert.equal(root2.querySelector("[data-horizon-season]"), null);
+  assert.match(root2.querySelector('[data-horizon-lane="goal"]').textContent, /Mid-cut/);
 });
 
 // ---------- the screen ----------

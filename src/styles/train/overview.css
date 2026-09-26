@@ -1,15 +1,20 @@
 /* ---------- Train overview (the training home) ---------- */
 /* Masthead: editorial serif week-read over an honest stat strip. */
-.tov-mast{padding:6px 4px 14px}
+.tov-mast{padding:2px 0 6px}
 .tov-mast-h{
-  font-family:var(--font-display, ui-serif, Georgia, serif);
-  font-size:1.45rem;line-height:1.25;font-weight:600;color:var(--ink);
-  margin:6px 0 12px;letter-spacing:-.01em;
+  font-family:var(--font-display);font-size:1.62rem;line-height:1.12;font-weight:400;color:var(--ink);
+  margin:6px 0 14px;letter-spacing:-.005em;text-wrap:balance;
 }
+/* The week in three numbers: one hairline-ruled row, serif numerals over mono labels. */
+.tov-mast .statstrip{gap:0;margin:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.tov-mast .stat{background:none;border:0;border-radius:0;padding:10px 0 9px;text-align:left}
+.tov-mast .stat+.stat{border-left:1px solid var(--line);padding-left:14px}
+.tov-mast .stat-n{font-weight:400;font-size:1.36rem}
+.tov-mast .stat-l{font-family:var(--font-mono);font-weight:400;font-size:var(--text-2xs);letter-spacing:var(--tracking-mono)}
 /* Training-load band: ONE aligned row under the masthead — label · compact meter ·
    one plain word (usual / lighter / heavier), never a number. Composes §04d
    .read-band; the word takes terracotta only when the band is .hot. */
-.tov-loadband{margin:0 4px 14px}
+.tov-loadband{margin:4px 0 18px}
 .tov-loadband .read-band{flex-direction:row;align-items:center;gap:12px}
 .tov-loadband .read-band-label{flex:0 0 auto}
 .tov-loadband .read-band-track{flex:1 1 auto;min-width:48px;height:6px}
@@ -18,10 +23,10 @@
   font-size:.8rem;font-weight:600;line-height:1;color:var(--ink-2)}
 .tov-loadband .read-band.hot .read-band-phrase{color:var(--accent-deep)}
 /* The muscle map: front + back silhouettes, tones = plain-word bands. */
-.tov-map{padding:16px 18px 14px}
+.tov-map.sess{padding:14px 16px 12px;border-radius:18px;margin:6px 0 0}
 .tov-figs{display:flex;justify-content:center;gap:26px;margin:10px 0 4px}
 .tov-figs figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px}
-.tov-fig{width:128px;height:auto;display:block}
+.tov-fig{width:112px;height:auto;display:block}
 .tov-map [data-group]{cursor:pointer}
 .tov-map [data-group]:focus-visible,.bm-co2:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .tov-legend{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;padding:8px 0 2px}
@@ -33,18 +38,31 @@
 .tov-dot-recover{background:var(--ink-2);opacity:.55}
 .tov-dot-idle{background:var(--line)}
 /* Per-muscle rows: name + verdict chip, a you-are-here band, one honest note. */
-.tov-kicker{margin:16px 4px 8px}
+.tov-kicker{margin:22px 0 2px}
+/* Muscle rows: hairline-divided on the ground, never a stack of cards. */
+.tov-rows{display:grid}
 .tov-row{
-  width:100%;display:flex;align-items:center;gap:12px;text-align:left;
-  background:var(--card);border:0;border-radius:var(--radius-sm);
-  padding:11px 14px;margin-bottom:8px;box-shadow:var(--shadow-sm);
+  width:100%;display:flex;align-items:center;gap:12px;text-align:left;color:inherit;font:inherit;
+  background:none;border:0;border-top:1px solid var(--line);border-radius:0;
+  padding:12px 2px;margin:0;box-shadow:none;
   cursor:pointer;transition:transform var(--dur-1) var(--ease);
 }
+.tov-rows>.tov-row:first-child{border-top:0}
+.tov-more{border-top:1px solid var(--line)}
+.tov-more-sum{display:flex;align-items:baseline;gap:10px;min-height:46px;padding:12px 2px;cursor:pointer;list-style:none;
+  font-size:var(--text-sm);font-weight:600;color:var(--ink-2)}
+.tov-more-sum::-webkit-details-marker{display:none}
+.tov-more-sum::after{content:"›";margin-left:auto;color:var(--muted);transition:transform var(--dur-1) var(--ease)}
+.tov-more[open]>.tov-more-sum::after{transform:rotate(90deg)}
+.tov-more-hint{min-width:0;flex:1;font-weight:400;font-size:var(--text-xs);color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tov-more[open] .tov-more-hint{visibility:hidden}
+.tov-more>.tov-rows>.tov-row:first-child{border-top:1px solid var(--line)}
 .tov-row:active{transform:var(--press-lg)}
-.tov-row-dot{width:10px;height:10px;border-radius:50%;flex:none}
+.tov-row-dot{width:8px;height:8px;border-radius:50%;flex:none}
 .tov-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
 .tov-row-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.tov-row-name{font-weight:600;color:var(--ink);font-size:.92rem}
+.tov-row-name{font-weight:500;color:var(--ink);font-size:var(--text-body)}
 .tov-row-note{font-size:.74rem;color:var(--muted)}
 .tov-row-arw{color:var(--muted);flex:none}
 .tov-chip{
@@ -54,7 +72,7 @@
 .tov-chip-adv{color:var(--sage-text);background:var(--sage-bg)}
 .tov-chip-stall{color:var(--accent-deep);background:var(--accent-wash)}
 /* Categorical band: three zones, productive shaded sage, a placed dot. */
-.tov-band{position:relative;height:8px;border-radius:var(--radius-pill);background:var(--card-2);overflow:visible}
+.tov-band{position:relative;height:6px;border-radius:var(--radius-pill);background:var(--well, var(--card-2));overflow:visible}
 .tov-band-zone{position:absolute;left:33%;width:34%;top:0;bottom:0;background:var(--sage-bg);border-radius:var(--radius-pill)}
 .tov-band-dot{
   position:absolute;top:50%;width:12px;height:12px;border-radius:50%;
@@ -62,7 +80,12 @@
 }
 /* Focus well + weekly moves + latest sessions. */
 .tov-focus{margin:14px 0;padding:16px 18px 14px}
-.tov-focus-title{font-weight:650;color:var(--ink);margin:4px 0 2px}
+/* The focus read: a quiet surface card, the headline in the serif voice. No spine:
+   tone never paints chrome. */
+.well-accent.tov-focus{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:none}
+.well-accent.tov-focus::before{display:none}
+.tov-focus>.lbl+p{margin:6px 0 12px;font-family:var(--font-display);font-size:1.06rem;line-height:1.28;color:var(--ink);text-wrap:balance}
+.tov-focus-title{font-weight:600;color:var(--ink);margin:4px 0 2px}
 .tov-focus-why{font-size:.82rem;color:var(--ink-2)}
 .tov-focus-move{font-size:.82rem;color:var(--ink-2);font-style:italic;margin-top:6px}
 .tov-focus-retest{font-size:.74rem;color:var(--muted);margin-top:6px}
@@ -115,22 +138,27 @@
   .jprog-suggestion{display:block}
   .jprog-suggestion .linkbtn{margin-top:8px}
 }
-.tov-moves{padding:14px 16px;margin:14px 0}
-.tov-move{display:flex;align-items:flex-start;gap:10px;padding:7px 0}
+.tov-moves.sess{padding:0;margin:22px 0 0;background:none;border:0;border-radius:0}
+.tov-moves .lbl{display:block;margin-bottom:2px}
+.tov-move{display:flex;align-items:flex-start;gap:10px;padding:11px 2px;border-top:1px solid var(--line)}
+.tov-moves .lbl+.tov-move{border-top:0}
 .tov-move .tov-row-dot{margin-top:5px}
-.tov-move-main{display:flex;flex-direction:column;gap:2px;font-size:.86rem;color:var(--ink)}
+.tov-move-main{display:flex;flex-direction:column;gap:2px;font-size:var(--text-sm);color:var(--ink)}
+.tov-move-main b{font-weight:600}
 .tov-move-why{font-size:.74rem;color:var(--muted);font-weight:400}
-.tov-recent{margin:14px 0 8px}
-.tov-recent .lbl{margin:0 4px 8px}
+.tov-recent{margin:22px 0 8px}
+.tov-recent .lbl{display:block;margin:0 0 2px}
 .tov-sess{
-  width:100%;display:flex;align-items:center;gap:10px;text-align:left;
-  background:var(--card);border:0;border-radius:var(--radius-sm);
-  padding:11px 14px;margin-bottom:8px;box-shadow:var(--shadow-sm);
+  width:100%;display:flex;align-items:center;gap:10px;text-align:left;color:inherit;font:inherit;
+  background:none;border:0;border-top:1px solid var(--line);border-radius:0;
+  padding:12px 2px;margin:0;box-shadow:none;
   cursor:pointer;transition:transform var(--dur-1) var(--ease);
 }
+.tov-recent .lbl+.tov-sess{border-top:0}
+.tov-recent>.linkbtn,.tov-moves>.linkbtn{margin-top:4px}
 .tov-sess:active{transform:var(--press-lg)}
-.tov-sess-name{font-weight:600;color:var(--ink);font-size:.9rem;flex:1;min-width:0}
-.tov-sess-meta{font-size:.74rem;color:var(--muted);white-space:nowrap}
+.tov-sess-name{font-weight:500;color:var(--ink);font-size:var(--text-body);flex:1;min-width:0}
+.tov-sess-meta{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted);white-space:nowrap}
 @media (min-width:960px){
   .tov-figs{gap:52px}
   .tov-fig{width:150px}
@@ -142,7 +170,7 @@
    timeline live in full. The Fuel group's "Log food" line (Intake, Energy) wears
    the same shape, pointing to Today's Fuel. */
 .tov-jpoint{margin:16px 0;display:flex;align-items:center;gap:12px;min-height:44px;
-  padding:13px 16px;background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
+  padding:13px 16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:none;
   color:inherit;text-decoration:none;transition:transform var(--dur-1) var(--ease)}
 .tov-jpoint:active{transform:var(--press-lg)}
 .tov-jpoint-kick{flex:none;color:var(--muted)}
@@ -168,7 +196,7 @@
 .prog-head-actions .ghostbtn{margin-top:0}
 /* Train overview: the calm "Start today's training" CTA under the week masthead. */
 .tov-start{margin:4px 0 12px}
-.tov-today{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin:4px 0 12px;
-  padding:14px 16px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.tov-today{display:flex;flex-direction:column;align-items:stretch;gap:12px;margin:18px 0 14px;
+  padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:none}
 .tov-today .tov-start{margin:0}
 
