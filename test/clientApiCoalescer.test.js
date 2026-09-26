@@ -310,3 +310,27 @@ test("SWR tier: bounded — the least-recently-stored entry drops first", () => 
   assert.equal(c.peekStale("/a", 1e9)?.data, 11);
   assert.equal(c.peekStale("/c", 1e9)?.data, 3);
 });
+
+// ---------- primed reads (fan-ins) ----------
+
+test("prime: an older fan-in landing never replaces a newer one still in flight, and entries expire after landing", async () => {
+  const { createApiCoalescer } = loadApiCache();
+  let t = 0;
+  const c = createApiCoalescer({ now: () => t });
+  const older = deferred();
+  const newer = deferred();
+  c.prime(["/directives"], older.promise, 1000);
+  c.prime(["/directives"], newer.promise, 1000);
+  older.resolve({ "/directives": { v: "old" }, "/week-ahead": { v: "old" } });
+  await new Promise((r) => setImmediate(r));
+  const waiting = c.primed("/directives");
+  newer.resolve({ "/directives": { v: "new" }, "/week-ahead": { v: "new" } });
+  assert.equal((await waiting).data.v, "new", "the pending newer fan-in answers its path");
+  await new Promise((r) => setImmediate(r));
+  assert.equal((await c.primed("/week-ahead")).data.v, "new", "the newer map replaces the older one's extras");
+  t = 1001;
+  assert.equal(c.primed("/week-ahead"), undefined, "a landed prime expires after its ttl");
+  c.prime(["/brain/changes"], Promise.resolve({ "/brain/changes": 1 }));
+  c.invalidateAll();
+  assert.equal(c.primed("/brain/changes"), undefined, "a write clears every prime");
+});

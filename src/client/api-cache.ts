@@ -173,7 +173,7 @@ type ApiCoalescer = {
     // one surface fetches seconds before another); any other path joins the first
     // time a caller opts it in.
     const staleable = new Set<string>(ttlPaths);
-    const primes = new Map<string, { gen: number; expires: number; settled: Promise<ApiPrimeResult> }>();
+    const primes = new Map<string, { gen: number; owner: object; expires: number; settled: Promise<ApiPrimeResult> }>();
     const staleCache = new Map<string, ApiStaleEntry<unknown>>();
     let writeGen = 0;
 
@@ -216,6 +216,7 @@ type ApiCoalescer = {
     }
     function prime(paths: readonly string[], source: Promise<unknown>, primeTtlMs = API_PRIME_TTL_MS): void {
       const gen = writeGen;
+      const owner = {};
       const table: Promise<Record<string, unknown> | null> = Promise.resolve(source).then(
         (value) => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null),
         () => null
@@ -227,20 +228,21 @@ type ApiCoalescer = {
         const settled: Promise<ApiPrimeResult> = table.then((map) =>
           map && Object.prototype.hasOwnProperty.call(map, path) ? { hit: true, data: map[path] } : { hit: false }
         );
-        primes.set(path, { gen, expires: Number.POSITIVE_INFINITY, settled });
+        primes.set(path, { gen, owner, expires: Number.POSITIVE_INFINITY, settled });
       }
       void table.then((map) => {
         if (writeGen !== gen) return; // a write landed: this map is pre-write truth
         const expires = now() + primeTtlMs;
         for (const path of paths) {
           const entry = primes.get(path);
-          if (entry && entry.gen === gen) entry.expires = expires;
+          if (entry && entry.owner === owner) entry.expires = expires;
         }
         if (!map) return;
         for (const path of Object.keys(map)) {
-          const entry = primes.get(path);
-          if (entry && entry.gen === gen) continue; // already the pending entry above
-          primes.set(path, { gen, expires, settled: Promise.resolve({ hit: true, data: map[path] }) });
+          // Never replace a path still waiting on a fan-in (this one's, or a newer one's).
+          const current = primes.get(path);
+          if (current && (current.owner === owner || current.expires === Number.POSITIVE_INFINITY)) continue;
+          primes.set(path, { gen, owner, expires, settled: Promise.resolve({ hit: true, data: map[path] }) });
         }
       });
     }
