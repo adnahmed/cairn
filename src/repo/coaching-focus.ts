@@ -1475,8 +1475,30 @@ const WHY_MIN_WITH_CAVEAT = 90;
 // "…focused volume here is where the…" on the card, cut mid-thought. As many whole
 // sentences as fit the budget are kept, and the first always is, even when it runs
 // long — a complete sentence over budget beats a broken one inside it.
-function wholeSentences(text: string, budget: number): string {
-  const sentences = text.match(/[^.!?…]+(?:[.!?…]+|$)(?:\s+|$)/g)?.map((part) => part.trim()).filter(Boolean) ?? [text];
+// A sentence ends only at terminal punctuation (plus any closing quote/bracket) that is
+// followed by whitespace or the end of the text — so "187.5 lb" and "1.2 lb a week" never
+// split — and never after a known mid-sentence abbreviation ("e.g. ", "vs. ").
+const SENTENCE_END = /[.!?…]+["'”’)\]]*(?=\s|$)/g;
+const NON_TERMINAL_ABBREVIATION = /(?:^|[^A-Za-z.])(?:e\.g|i\.e|vs|approx|incl|cf)\.$/i;
+export function splitWholeSentences(text: string): string[] {
+  const out: string[] = [];
+  let start = 0;
+  for (const match of text.matchAll(SENTENCE_END)) {
+    const end = (match.index ?? 0) + match[0].length;
+    const candidate = text.slice(start, end);
+    if (match[0] === "." && NON_TERMINAL_ABBREVIATION.test(candidate)) continue;
+    const sentence = candidate.trim();
+    if (sentence) out.push(sentence);
+    start = end;
+  }
+  const rest = text.slice(start).trim();
+  if (rest) out.push(rest);
+  return out;
+}
+
+export function wholeSentences(text: string, budget: number): string {
+  const found = splitWholeSentences(text);
+  const sentences = found.length ? found : [text];
   let out = "";
   for (const sentence of sentences) {
     const next = out ? `${out} ${sentence}` : sentence;

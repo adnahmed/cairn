@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { coachingFocus } from "../dist/repo/coaching-focus.js";
+import { coachingFocus, splitWholeSentences, wholeSentences } from "../dist/repo/coaching-focus.js";
 import { SIGNAL_VOICE_KEYS, spokenSignalVoice } from "../dist/repo/signal-state.js";
 
 // A rich, multi-domain athlete: a stalled shoulder lift, an act-now lipid finding,
@@ -1142,4 +1142,36 @@ test("getCoachingFocus memoizes across requests and invalidates on a data write"
   repo.logSetByName({ exercise: "Back Squat", weight: 225, reps: 5 }); // bumps the training version
   const third = repo.getCoachingFocus();
   assert.notEqual(third, first, "a training write invalidates the conductor memo");
+});
+
+// The caveat budget keeps WHOLE sentences. A period inside a number or an abbreviation
+// is not a sentence end: the old splitter silently dropped everything before it, so a
+// lead's "187.5 lb" reached the focus card as "5 lb".
+test("whole-sentence budgeting never splits on a decimal point", () => {
+  const why = "Squat moved from 185 to 187.5 lb this block, so focused volume here is where the next step comes from. Keep it.";
+  assert.deepEqual(splitWholeSentences(why), [
+    "Squat moved from 185 to 187.5 lb this block, so focused volume here is where the next step comes from.",
+    "Keep it.",
+  ]);
+  assert.equal(wholeSentences(why, 500), why);
+  assert.equal(
+    wholeSentences(why, 60),
+    "Squat moved from 185 to 187.5 lb this block, so focused volume here is where the next step comes from."
+  );
+  const cut = "Your cut is running at 1.2 lb a week, a touch quick for the lifts. Hold the calories.";
+  assert.ok(wholeSentences(cut, 70).startsWith("Your cut is running at 1.2 lb a week"));
+});
+
+test("whole-sentence budgeting never splits after e.g. or vs.", () => {
+  const why = "Pick a row variant, e.g. a chest-supported row, and keep the pull honest vs. last week. Then rest.";
+  assert.deepEqual(splitWholeSentences(why), [
+    "Pick a row variant, e.g. a chest-supported row, and keep the pull honest vs. last week.",
+    "Then rest.",
+  ]);
+  assert.equal(
+    wholeSentences(why, 40),
+    "Pick a row variant, e.g. a chest-supported row, and keep the pull honest vs. last week."
+  );
+  // A text with no terminal punctuation survives whole.
+  assert.equal(wholeSentences("Hold 187.5 lb", 5), "Hold 187.5 lb");
 });
