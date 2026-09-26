@@ -429,17 +429,37 @@ test("the injury work-around survives intact on a lead whose why is already at i
     }),
   });
   assert.equal(out.lead.domain, "running");
-  // The budget is spent on the PRODUCER'S prose, never stolen from the caveat: the
-  // lead's own sentence is what gets clipped, and the caveat is appended whole after
-  // it. (Asserted as the invariant rather than as a total length — the caveat is a
+  // The budget is spent on the PRODUCER'S prose, never stolen from the caveat, and it
+  // is spent in WHOLE sentences: the caveat is appended whole, and the producer's one
+  // sentence stays whole too rather than being cut mid-thought to make room.
+  // (Asserted as the invariant rather than as a total length — the caveat is a
   // rotating variant set, so its length is not a fixed number.)
   assert.ok(out.lead.why.endsWith(out.caveat), "the caveat is appended whole, never clipped");
-  assert.match(out.lead.why, /…/, "the producer's own prose is what absorbed the budget");
+  assert.doesNotMatch(out.lead.why, /…/, "no sentence is cut mid-thought to fit the budget");
+  assert.ok(out.lead.why.startsWith("You are in the build phase, so this week the quality session drives fitness while the long run builds durability and the easy runs protect recovery across the whole block."));
   assert.ok(out.lead.why.includes(out.caveat), "the caveat is appended whole, never clipped");
   assert.match(out.lead.why, /pain-free substitutions and keep the load conservative\.$/);
   assert.doesNotMatch(out.caveat, /…$/, "the caveat itself never ends in an ellipsis");
   // The producer's prose still leads the line — budgeted, not erased.
   assert.match(out.lead.why, /^You are in the build phase/);
+});
+
+test("a long producer why keeps whole sentences before the caveat, dropping only the ones that do not fit", () => {
+  const out = coachingFocus({
+    enduranceGoal: { is_race: true, phase: "build", weeks_to_race: 8 },
+    runPlan: {
+      available: true,
+      quality_focus: "tempo",
+      why: "Build phase: the quality session drives fitness. The long run builds durability for race day. The easy runs protect recovery across the block, week after week, all the way to the taper.",
+    },
+    signalState: unifiedState({ posture: "modify", readiness: "caution", training: "modify", injury: true }),
+  });
+  assert.ok(out.lead.why.endsWith(out.caveat));
+  const head = out.lead.why.slice(0, out.lead.why.length - out.caveat.length).trim();
+  assert.match(head, /^Build phase: the quality session drives fitness\./);
+  // Whatever was kept ends on a sentence end, never on a cut word or an ellipsis.
+  assert.match(head, /[.!?]$/);
+  assert.doesNotMatch(head, /…/);
 });
 
 test("a modify posture with no injury gets a cause-shaped caveat, never injury prose", () => {

@@ -1471,11 +1471,26 @@ function caveatCause(state: UnifiedSignalState | null | undefined): SignalDimens
 const CAVEAT_MAX = 220;
 const WHY_WITH_CAVEAT_MAX = 240;
 const WHY_MIN_WITH_CAVEAT = 90;
+// The head is budgeted by WHOLE sentences, never characters: a character clip left
+// "…focused volume here is where the…" on the card, cut mid-thought. As many whole
+// sentences as fit the budget are kept, and the first always is, even when it runs
+// long — a complete sentence over budget beats a broken one inside it.
+function wholeSentences(text: string, budget: number): string {
+  const sentences = text.match(/[^.!?…]+(?:[.!?…]+|$)(?:\s+|$)/g)?.map((part) => part.trim()).filter(Boolean) ?? [text];
+  let out = "";
+  for (const sentence of sentences) {
+    const next = out ? `${out} ${sentence}` : sentence;
+    if (out && next.length > budget) break;
+    out = next;
+  }
+  return out || text;
+}
+
 function joinCaveat(why: unknown, caveat: string): string {
   const head = String(why ?? "").trim();
   if (!caveat) return head;
   if (!head) return caveat;
-  return `${clip(head, Math.max(WHY_MIN_WITH_CAVEAT, WHY_WITH_CAVEAT_MAX - caveat.length - 1))} ${caveat}`;
+  return `${wholeSentences(head, Math.max(WHY_MIN_WITH_CAVEAT, WHY_WITH_CAVEAT_MAX - caveat.length - 1))} ${caveat}`;
 }
 
 // UnifiedSignalState has already resolved source collisions, freshness and the

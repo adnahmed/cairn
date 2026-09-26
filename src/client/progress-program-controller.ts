@@ -413,11 +413,18 @@ async function renderProgressProgram(deps: ClientProgressProgramControllerDeps):
   deps
     .api("/coaching-focus")
     .then((focus) => {
+      // headline:false — "Where to focus" is said once, on Train; Program holds the
+      // plan beneath it (lead actions, alongside, the next check-in) and links back.
       // blockLine:false — this screen already owns block truth via the pblock
       // card's "Current block · week N of M"; stating the week twice is noise.
       const card =
         typeof coachingFocusCardHtml === "function"
-          ? coachingFocusCardHtml(focus as ClientCoachingFocus | null | undefined, { blockLine: false, actions: true })
+          ? coachingFocusCardHtml(focus as ClientCoachingFocus | null | undefined, {
+              blockLine: false,
+              actions: true,
+              // Train's overview says the headline; this card is the plan under it.
+              headline: false,
+            })
           : "";
       const prev = _progFocusCard;
       _progFocusCard = card;

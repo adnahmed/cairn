@@ -85,6 +85,10 @@ type CoachingFocusRenderOptions = {
   // `full` only: render the [data-cfocus-act] buttons. Only Program wires them;
   // every navigate-only surface keeps the default so a button never renders dead.
   actions?: boolean;
+  // `full` only: false says the read's headline ONCE elsewhere (Train's overview owns
+  // "Where to focus"), so this card opens on the plan beneath it — a mast of its own
+  // and a quiet link back to the headline — instead of repeating the sentence.
+  headline?: boolean;
   // Inline style for the wrapper (the Progress overview's reveal stagger).
   style?: string;
 };
@@ -343,8 +347,13 @@ function coachingFocusHtml(
   const style = options.style ? ` style="${escAttr(options.style)}"` : "";
 
   let html = `<div class="${spec.wrap}"${style}>`;
-  html += `<${spec.mastTag} class="${spec.mastClass}">Where to focus</${spec.mastTag}>`;
-  if (headline)
+  const saidElsewhere = spec === CFOCUS_VARIANTS.full && options.headline === false;
+  if (saidElsewhere) {
+    html += `<div class="cfocus-plan-head"><${spec.mastTag} class="${spec.mastClass}">The focus plan</${spec.mastTag}><button class="cfocus-full-link" type="button" data-cfocus-go="train">Where to focus ›</button></div>`;
+  } else {
+    html += `<${spec.mastTag} class="${spec.mastClass}">Where to focus</${spec.mastTag}>`;
+  }
+  if (headline && !saidElsewhere)
     html +=
       spec.headlineTag === "h2"
         ? `<h2 class="${spec.headlineClass}">${escHtml(headline)}</h2>`
@@ -400,7 +409,7 @@ function coachingFocusHtml(
 // shape, and there is still exactly one place the read is built.
 function coachingFocusCardHtml(
   focus: ClientCoachingFocus | null | undefined,
-  options: { blockLine?: boolean; actions?: boolean } = {}
+  options: { blockLine?: boolean; actions?: boolean; headline?: boolean } = {}
 ): string {
   return coachingFocusHtml(focus, { ...options, variant: "full" });
 }
@@ -516,6 +525,12 @@ function cfocusRoute(go: unknown): void {
     case "markers":
       state.standSeg = "markers";
       activateTab("stand");
+      break;
+    case "train":
+      // Train's overview carries the "Where to focus" read; Program links back to it.
+      if (cfocusSettleIfThere("progress", "overview")) break;
+      state.progressSeg = "overview";
+      activateTab("progress");
       break;
     case "plan-coach":
       // The waiting recovery-week draft (and any future "review it in Coach" link).

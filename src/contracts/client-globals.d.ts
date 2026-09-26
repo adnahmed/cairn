@@ -1716,7 +1716,7 @@ declare global {
   declare function cfocusDomainTag(domain: unknown): string;
   declare function coachingFocusCardHtml(
     focus: ClientCoachingFocus | null | undefined,
-    options?: { blockLine?: boolean; actions?: boolean }
+    options?: { blockLine?: boolean; actions?: boolean; headline?: boolean }
   ): string;
   declare function coachingFocusCompactHtml(focus: ClientCoachingFocus | null | undefined): string;
   declare function loadCoachingFocus(slotSelector: string, root?: ParentNode | null): Promise<void>;
@@ -3933,7 +3933,7 @@ declare global {
       cfocusDomainTag(domain: unknown): string;
       coachingFocusCardHtml(
         focus: ClientCoachingFocus | null | undefined,
-        options?: { blockLine?: boolean; actions?: boolean }
+        options?: { blockLine?: boolean; actions?: boolean; headline?: boolean }
       ): string;
       coachingFocusCompactHtml(focus: ClientCoachingFocus | null | undefined): string;
       loadCoachingFocus(slotSelector: string, root?: ParentNode | null): Promise<void>;
