@@ -7105,3 +7105,52 @@ ul.packet-rows{list-style:none;padding-left:0}
   .race-view.is-entering .race-ladder-bar,.race-view.is-entering .race-ladder-logged{animation:none}
   .race-view.settle-in{animation:none}
 }
+
+/* =====================================================================
+   Pebble strip (Wave 4 stream C): pebble-strip (.pebble-strip-*), six
+   stones directly under the Brief — Strength, Endurance, Fuel, Recovery,
+   Body, Heart. A small stone tinted by the reading layer's tone (-ok sage,
+   -watch terracotta as attention never punishment, -quiet the neutral
+   outline), its name, and the server's word beneath it. One quiet row that
+   fits 360px; no badge, no count, no chevron, nothing that asks for a tap.
+   ===================================================================== */
+.pebble-strip-slot:empty{display:none}
+.pebble-strip-slot{margin:0 calc(-1 * var(--space-2)) var(--space-6)}
+.pebble-strip{container-type:inline-size}
+.pebble-strip-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.pebble-strip-item{display:flex;min-width:0}
+.pebble-strip-pebble{flex:1;min-width:0;min-height:44px;display:flex;flex-direction:column;align-items:center;
+  gap:var(--space-1);padding:var(--space-3) 1px var(--space-2);border-radius:var(--radius-sm);text-align:center;
+  color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent;
+  transition:background-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+a.pebble-strip-pebble:hover{background:var(--card-2)}
+a.pebble-strip-pebble:active{transform:var(--press-sm)}
+.pebble-strip-stone{display:block;flex:none;width:26px;height:18px;margin:0 0 var(--space-1);
+  border-radius:52% 48% 46% 54% / 60% 56% 44% 40%;background:var(--stone-taupe)}
+.pebble-strip-item:nth-child(2) .pebble-strip-stone{width:24px;border-radius:46% 54% 50% 50% / 56% 62% 38% 44%}
+.pebble-strip-item:nth-child(3) .pebble-strip-stone{width:27px;height:17px;border-radius:55% 45% 52% 48% / 62% 54% 46% 38%}
+.pebble-strip-item:nth-child(4) .pebble-strip-stone{width:25px;border-radius:48% 52% 44% 56% / 58% 60% 40% 42%}
+.pebble-strip-item:nth-child(5) .pebble-strip-stone{width:26px;height:19px;border-radius:50% 50% 55% 45% / 54% 58% 42% 46%}
+.pebble-strip-item:nth-child(6) .pebble-strip-stone{width:23px;border-radius:53% 47% 48% 52% / 64% 56% 44% 36%}
+.pebble-strip-ok .pebble-strip-stone{background:var(--sage)}
+.pebble-strip-watch .pebble-strip-stone{background:var(--accent)}
+.pebble-strip-quiet .pebble-strip-stone{background:transparent;box-shadow:inset 0 0 0 1.5px var(--line-2)}
+.pebble-strip-label{max-width:100%;font-size:var(--text-2xs);font-weight:600;line-height:1.2;color:var(--muted);
+  overflow-wrap:anywhere}
+.pebble-strip-word{max-width:100%;font-size:clamp(.6rem,3.1cqi,var(--text-xs));font-weight:600;line-height:1.2;
+  color:var(--ink-2);hyphens:auto;overflow-wrap:anywhere}
+.pebble-strip-ok .pebble-strip-word{color:var(--sage-text)}
+.pebble-strip-watch .pebble-strip-word{color:var(--accent-deep)}
+.pebble-strip-quiet .pebble-strip-word{color:var(--muted)}
+@keyframes pebble-settle{
+  0%{opacity:0;transform:translateY(-6px) rotate(-5deg)}
+  60%{opacity:1;transform:translateY(1px) rotate(1deg)}
+  100%{opacity:1;transform:none}
+}
+.pebble-strip.is-entering .pebble-strip-stone{animation:pebble-settle var(--dur-3) var(--ease) both;
+  animation-delay:calc(min(var(--i,0),12) * 60ms)}
+.pebble-strip-skel .pebble-strip-stone.hshimmer{margin:0 0 var(--space-1);height:18px}
+.pebble-strip-skel .pebble-strip-ghost{margin:0;width:70%;height:var(--space-4)}
+@media (prefers-reduced-motion:reduce){
+  .pebble-strip.is-entering .pebble-strip-stone{animation:none}
+}
