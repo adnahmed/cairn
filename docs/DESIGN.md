@@ -988,3 +988,11 @@ in each row.
 `pebble-strip`, `cairn-stack`, `app-readd` (the one-time iOS re-add note) and `app-id` (Settings →
 Data's "This app" block: server build, this app's shell, Copy token), both from
 `app-identity-{model,client,controller}.ts`.
+
+**`ripple-card`** (Ask, `ripple-card-{model,client,controller}.ts`, `.ripple-*`): the what-if
+answer inline at the foot of the thread, opened by the "What if…" starter chip. The change in
+words, then the six stones as a mini pebble row (the server's before and after words and tones,
+never a number), one line of why per stone that moves with the confidence as a word, and "Do it"
+/ "Not now". Its one entrance: the stones settle, then one ring spreads from each stone that
+moves; reduced motion paints it still. After "Do it" it prints the Changes feed's own row for
+that decision (same Undo), or a framing line, never a tier of its own.
