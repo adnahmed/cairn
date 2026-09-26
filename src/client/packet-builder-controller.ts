@@ -14,7 +14,10 @@
 //   - "Open the packet" and "Download as text" hand the current query to
 //     `deps.onShare`; the composer owns the transport.
 // Nothing to hand over (no panels and no body composition on the default read) paints
-// the empty state with "Add a document" (`deps.onAdd`). Returns the teardown.
+// the empty state with "Add a document" (`deps.onAdd`), and the informational line
+// still shows. An empty default is never final: the default read always revalidates
+// (a cached empty packet from before an upload must not pin the empty state), and a
+// later default answer with records rebuilds the shell. Returns the teardown.
 {
   type Deps = ClientPacketBuilderDeps;
 
@@ -34,12 +37,29 @@
     let empty = false;
     let questionsTeardown: (() => void) | null = null;
 
-    host.innerHTML = V.shellHtml();
-    const toggles = host.querySelector<HTMLElement>("[data-packet-toggles]");
-    const preview = host.querySelector<HTMLElement>("[data-packet-preview]");
-    const status = host.querySelector<HTMLElement>("[data-packet-status]");
-    const disclaimer = host.querySelector<HTMLElement>("[data-packet-disclaimer]");
-    const questionsSlot = host.querySelector<HTMLElement>("[data-packet-questions-slot]");
+    let toggles: HTMLElement | null = null;
+    let preview: HTMLElement | null = null;
+    let status: HTMLElement | null = null;
+    let disclaimer: HTMLElement | null = null;
+    let questionsSlot: HTMLElement | null = null;
+
+    /** Paint the builder shell and (re)bind its element refs; a fresh shell knows nothing yet. */
+    function buildShell(): void {
+      empty = false;
+      options = [];
+      sections = null;
+      touched = false;
+      paintedQuery = null;
+      paintedJson = "";
+      host.innerHTML = V.shellHtml();
+      toggles = host.querySelector<HTMLElement>("[data-packet-toggles]");
+      preview = host.querySelector<HTMLElement>("[data-packet-preview]");
+      status = host.querySelector<HTMLElement>("[data-packet-status]");
+      disclaimer = host.querySelector<HTMLElement>("[data-packet-disclaimer]");
+      questionsSlot = host.querySelector<HTMLElement>("[data-packet-questions-slot]");
+    }
+
+    buildShell();
 
     function currentQuery(): string {
       return M.query({ sections: touched ? sections : null, questions });
@@ -50,10 +70,12 @@
       preview?.removeAttribute("aria-busy");
     }
 
-    function paintEmpty(): void {
+    function paintEmpty(line: string): void {
+      if (empty) return;
       empty = true;
       stopQuestions();
-      host.innerHTML = V.emptyHtml();
+      host.innerHTML = V.emptyHtml({ disclaimer: line });
+      toggles = preview = status = disclaimer = questionsSlot = null;
     }
 
     function stopQuestions(): void {
@@ -71,14 +93,16 @@
     }
 
     function apply(report: unknown, qs: string): void {
+      if (!qs && M.hasRecords(report) === false) {
+        paintEmpty(M.previewModel(report).disclaimer);
+        return;
+      }
+      // Records arrived for a builder showing the empty state: back to the full shell.
+      if (empty) buildShell();
       if (!options.length) {
         options = M.catalog(report);
         if (!touched) sections = M.sectionsOf(report);
         if (toggles) toggles.innerHTML = options.length ? V.togglesHtml(options, sections || []) : "";
-      }
-      if (!qs && M.hasRecords(report) === false) {
-        paintEmpty();
-        return;
       }
       syncQuestionsSlot();
       settle();
@@ -115,16 +139,16 @@
       if (!qs) {
         const peek = deps.peekCached(KEY);
         if (peek && paintedQuery === null && peek.data && typeof peek.data === "object") apply(peek.data, qs);
-        if (empty) return;
+        // Always revalidate, even after an empty peek: the peek may predate an upload.
         request = deps.cachedApi(PATH, { key: KEY });
       } else {
         request = deps.api(PATH + qs);
       }
       request
         .then((data) => {
-          if (gen !== generation || !host.isConnected || empty) return;
+          if (gen !== generation || !host.isConnected) return;
           if (data && typeof data === "object") apply(data, qs);
-          else fail(qs);
+          else if (!empty) fail(qs);
         })
         .catch(() => {
           if (gen !== generation || !host.isConnected || empty) return;

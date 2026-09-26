@@ -5762,7 +5762,7 @@ declare global {
       previewHtml(preview: ClientPacketPreview, opts?: { enter?: boolean }): string;
       previewSkeletonHtml(): string;
       previewErrorHtml(): string;
-      emptyHtml(): string;
+      emptyHtml(opts?: { disclaimer?: string }): string;
       statusText(preview: ClientPacketPreview): string;
     };
     CairnPacketBuilderController: {

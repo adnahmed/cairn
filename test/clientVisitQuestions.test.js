@@ -146,6 +146,11 @@ test("a failed read is one calm line; the athlete can still add, and Try again a
   win.CairnVisitQuestionsController.mount(host, d);
   await flush();
   assert.match(host.textContent, /Couldn't gather the suggested questions just now/);
+  assert.match(
+    host.textContent,
+    /Any you add here stand in for the suggested list in this packet/,
+    "the copy says an addition replaces the suggestions, not appends to them"
+  );
   const input = host.querySelector("[data-vq-input]");
   input.value = "My synthetic question?";
   await host.querySelector("[data-vq-add]").click();

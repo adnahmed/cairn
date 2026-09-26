@@ -147,17 +147,28 @@ test("query: defaults send nothing; none, an empty question list and encoding ar
   ]);
 });
 
-test("the preview prints the lab flag and outside-optimal as two marks, escapes caller text, never a score", () => {
+test("the preview marks a row as the packet does: the lab flag alone, else outside-optimal; escapes caller text, never a score", () => {
   const win = load();
   const report = packet("/x");
-  report.findings = [FINDING, { ...FINDING, name: "<b>Synthetic</b>", flag: null, inOptimal: true }];
+  report.findings = [
+    FINDING,
+    { ...FINDING, name: "<b>Synthetic</b>", flag: null, inOptimal: true },
+    { ...FINDING, name: "Synthetic Marker C", flag: null, abnormal: false, inOptimal: false },
+  ];
   const model = win.CairnPacketBuilderModel.previewModel(report);
   const host = renderHtml(win.CairnPacketBuilder.previewHtml(model, { enter: true }), { document: win.document });
   const rows = host.querySelectorAll('[data-packet-pv="findings"] .packet-row');
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 3);
   assert.equal(rows[0].querySelector(".packet-flag").textContent, "Lab: high");
-  assert.equal(rows[0].querySelector(".packet-opt").textContent, "Outside optimal");
+  assert.equal(
+    rows[0].querySelector(".packet-opt"),
+    null,
+    "a lab-flagged row carries the lab's flag alone, as the packet prints it"
+  );
   assert.equal(rows[1].querySelector(".packet-flag"), null, "no lab flag, no mark");
+  assert.equal(rows[1].querySelector(".packet-opt"), null);
+  assert.equal(rows[2].querySelector(".packet-flag"), null, "not flagged by the lab");
+  assert.equal(rows[2].querySelector(".packet-opt").textContent, "Outside optimal", "a separate mark, never the lab's");
   assert.equal(rows[1].querySelector("b"), null, "caller text is text, never markup");
   assert.equal(rows[1].querySelector(".packet-row-title").textContent, "<b>Synthetic</b>");
   const order = host.querySelectorAll(".packet-pv-sec").map((s) => s.dataset.packetPv);
@@ -323,8 +334,44 @@ test("nothing to hand over: one empty state whose action goes to Records", async
   await flush();
   assert.match(host.querySelector(".empty-state-line").textContent, /Nothing to share yet/);
   assert.equal(host.querySelector("[data-packet-toggles]"), null);
+  assert.equal(
+    host.querySelector("[data-packet-disclaimer]").textContent,
+    DISCLAIMER,
+    "the informational line shows in the empty state too"
+  );
   await host.querySelector("[data-packet-add]").click();
   assert.equal(added, 1);
+});
+
+test("a cached empty packet is never final: the default read revalidates and records rebuild the builder", async () => {
+  const win = load();
+  const deps = recorder();
+  const host = createHost(win.document);
+  let peeks = 0;
+  win.CairnPacketBuilderController.mount(host, {
+    ...deps,
+    // An empty packet cached before an upload, stale by now.
+    peekCached: (key) => {
+      if (key !== "health:packet") return null;
+      peeks++;
+      return { data: packet("/x", { records: false }), fresh: false };
+    },
+    onShare() {},
+  });
+  assert.equal(peeks, 1);
+  assert.match(host.querySelector(".empty-state-line").textContent, /Nothing to share yet/, "the peek paints at once");
+  assert.equal(host.querySelector("[data-packet-disclaimer]").textContent, DISCLAIMER);
+  await flush();
+  assert.equal(deps.asked.filter((p) => p === "/health-report.json").length, 1, "one default read went out");
+  assert.equal(host.querySelector(".empty-state-line"), null, "the empty state gave way");
+  assert.ok(host.querySelector('[data-packet-pv="findings"]'), "the preview painted");
+  assert.ok(host.querySelector('[data-packet-sec="panels"]'), "the toggles painted");
+  assert.match(host.querySelector("[data-packet-status]").textContent, /sections? in the packet/);
+  assert.equal(host.querySelector("[data-packet-disclaimer]").textContent, DISCLAIMER);
+  // The rebuilt shell is live: a toggle still asks for the edited packet.
+  await leaveOut(host, "panels");
+  assert.equal(host.querySelector('[data-packet-pv="panels"]'), null);
+  assert.ok(deps.asked.some((p) => p.startsWith("/health-report.json?sections=")));
 });
 
 // ---- the composition in health-share-controller.ts ----

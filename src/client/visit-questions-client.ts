@@ -46,7 +46,7 @@
     }
     const failure =
       view.status === "error"
-        ? `<p class="vq-note">Couldn't gather the suggested questions just now. You can still add your own. <button type="button" class="linkbtn linkbtn-plain vq-link" data-vq-retry>Try again</button></p>`
+        ? `<p class="vq-note">Couldn't gather the suggested questions just now. Any you add here stand in for the suggested list in this packet. <button type="button" class="linkbtn linkbtn-plain vq-link" data-vq-retry>Try again</button></p>`
         : "";
     const list = view.items.length
       ? `<ol class="vq-list">${view.items.map((item) => itemHtml(item, item.id === view.newId)).join("")}</ol>`

@@ -11,8 +11,13 @@
   type Row = ClientPacketPreviewRow;
   type Section = ClientPacketPreviewSection;
 
+  /** The informational line; it rides every state, the empty one included. */
+  function disclaimerHtml(text?: string): string {
+    const line = text || CairnPacketBuilderModel.DISCLAIMER;
+    return `<p class="packet-disclaimer" role="note" data-packet-disclaimer>${escHtml(line)}</p>`;
+  }
+
   function shellHtml(opts: { disclaimer?: string } = {}): string {
-    const line = opts.disclaimer || CairnPacketBuilderModel.DISCLAIMER;
     return `<section class="hshare-card packet" aria-label="Doctor packet">
     <div class="packet-head">
       <div class="lbl hshare-kicker">For your doctor</div>
@@ -29,7 +34,7 @@
       <button type="button" class="logbtn packet-act" data-packet-open>Open the packet</button>
       <button type="button" class="ghostbtn packet-act" data-packet-text>Download as text</button>
     </div>
-    <p class="packet-disclaimer" role="note" data-packet-disclaimer>${escHtml(line)}</p>
+    ${disclaimerHtml(opts.disclaimer)}
   </section>`;
   }
 
@@ -65,12 +70,16 @@
     return `<div class="skel-card packet-skel" aria-hidden="true"><div class="hshimmer hshimmer-lg"></div><div class="hshimmer"></div><div class="hshimmer"></div><div class="hshimmer hshimmer-sm"></div></div>`;
   }
 
-  /** The lab's flag and the optimal phrase: two marks, never one word. */
+  /**
+   * The lab's flag or the optimal phrase, as the packet itself prints them: a lab flag
+   * stands alone (the packet drops the optimal note beside it), and "Outside optimal"
+   * shows only for a marker the lab did not flag. Two marks, never one word.
+   */
   function marksHtml(row: Row): string {
     const flag = row.flag
       ? `<span class="packet-flag" title="Flagged by the lab">Lab: ${row.flag === "high" ? "high" : "low"}</span>`
       : "";
-    const opt = row.outsideOptimal ? `<span class="packet-opt">Outside optimal</span>` : "";
+    const opt = !row.flag && row.outsideOptimal ? `<span class="packet-opt">Outside optimal</span>` : "";
     return flag || opt ? `<span class="packet-marks">${flag}${opt}</span>` : "";
   }
 
@@ -108,8 +117,8 @@
     return `<div class="packet-error"><p class="packet-empty-line">Couldn't build the preview just now.</p><button type="button" class="linkbtn linkbtn-plain packet-retry" data-packet-retry>Try again</button></div>`;
   }
 
-  function emptyHtml(): string {
-    return CairnUi.emptyStateHtml({
+  function emptyHtml(opts: { disclaimer?: string } = {}): string {
+    return `${CairnUi.emptyStateHtml({
       title: "Nothing to share yet",
       body: "Add a lab report or DEXA scan first. The packet stays grouped by clinical panel once markers exist.",
       action: {
@@ -118,7 +127,7 @@
         attrs: { "data-packet-add": "" },
       },
       className: "empty-state reveal packet-empty",
-    });
+    })}${disclaimerHtml(opts.disclaimer)}`;
   }
 
   /** The status line after a paint: how many sections are going in. */

@@ -7004,6 +7004,7 @@ ul.packet-rows{list-style:none;padding-left:0}
 .packet-actions{display:flex;flex-wrap:wrap;gap:var(--space-5)}
 .packet-act{min-height:44px}
 .packet-disclaimer{margin:0;font-size:var(--text-xs);color:var(--muted);line-height:1.45}
+.packet-empty+.packet-disclaimer{margin-top:var(--space-5);text-align:center}
 .packet-skel{box-shadow:none;margin:0}
 .vq{display:grid;gap:var(--space-5)}
 .vq-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
