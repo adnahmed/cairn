@@ -482,12 +482,10 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   }
 
   // ---- hosted health tools (records / share / learned / connections / age) -------
+  // The decade view is reached only from You → Heart, so it steps back there.
   const BACK_TO_HEALTH = `<button class="stand-back linkbtn linkbtn-plain" type="button" data-back>‹ Health</button>`;
-  // The decade view is reached only from the Heart stone (You → Heart), so it steps
-  // back there rather than to the Health overview.
-  const BACK_TO_HEART = `<button class="stand-back linkbtn linkbtn-plain" type="button" data-back-heart>‹ Heart</button>`;
-  // These reuse the shipped controllers with Stand-shaped deps: same upload flow,
-  // same doctor report, same directive flips — rendered inside Stand's shell.
+  const BACK_TO_HEART = `<button class="stand-back linkbtn linkbtn-plain" type="button" data-back data-back-heart>‹ Heart</button>`;
+  // The shipped controllers (upload, doctor report, directive flips), in Stand's shell.
   function toolShellHtml(title: string, mounts: string, lede = "", back = BACK_TO_HEALTH): string {
     return `<div class="stand-detail stand-root">
       ${back}
@@ -708,7 +706,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     const wrap = view.querySelector<HTMLElement>("#standLearned");
     if (!wrap || !wrap.isConnected || token !== pollToken) return;
     wrap.innerHTML = learnedTimelineHtml((data || { items: [] }) as Parameters<typeof learnedTimelineHtml>[0]);
-    // Curation lives in the about-you home (Settings → You → Memory).
+    // Curation lives in the about-you home (You → About you → Memory).
     wrap.querySelector<HTMLElement>("#learnedToMemory")?.addEventListener("click", () => {
       state.meSeg = "memory";
       activateTab("me");
@@ -746,9 +744,8 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
         BACK_TO_HEART
       )
     );
-    view.querySelector<HTMLElement>("[data-back-heart]")?.addEventListener("click", () => {
-      state.youSeg = "stone";
-      state.youStone = "heart";
+    wireBack(() => {
+      Object.assign(state, { youSeg: "stone", youStone: "heart" });
       activateTab("you");
     });
     CairnHealthRiskController.load(riskDeps(), pollToken);
@@ -1065,8 +1062,8 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
       })
     );
   }
-  function wireBack(): void {
-    view.querySelector<HTMLElement>("[data-back]")?.addEventListener("click", () => showOverview());
+  function wireBack(onBack: () => void = showOverview): void {
+    view.querySelector<HTMLElement>("[data-back]")?.addEventListener("click", () => onBack());
   }
   // marker row expand + chart + ask (mirrors the Markers catalog wiring)
   function wireRows(wrap: ParentNode): void {

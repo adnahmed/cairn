@@ -451,6 +451,18 @@ test("an unknown stone is the landing, rewritten in place; the You tab always re
   tab.click();
   assert.equal(state.youSeg, null);
   assert.equal(state.youStone, null);
+
+  // Leaving through any other tab forgets the stone too, so a later '‹ You' opens
+  // the landing rather than a stale stone detail.
+  state.youSeg = "stone";
+  state.youStone = "heart";
+  const today = win.document.createElement("button");
+  today.className = "tab";
+  today.setAttribute("data-tab", "today");
+  win.document.body.appendChild(today);
+  today.click();
+  assert.equal(state.youSeg, null);
+  assert.equal(state.youStone, null);
 });
 
 // ---------- the homes around You ----------

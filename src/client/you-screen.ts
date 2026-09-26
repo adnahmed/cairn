@@ -36,7 +36,7 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
           title: "Health: where you stand",
           sub: "Your markers, what they connect to, and what to do next",
         },
-        { view: "stand", section: "records", title: "Add labs or scan", sub: "Upload a lab report, scan or document" },
+        { view: "stand", section: "records", title: "Records", sub: "Add labs or scans, and everything already uploaded" },
         { view: "stand", section: "checkup", title: "Checkup", sub: "What is worth re-checking, and when" },
       ],
     },
@@ -196,14 +196,14 @@ type YouLandingGroup = { key: string; title: string; rows: readonly YouLandingRo
     renderLanding();
   }
 
-  // The You tab-bar button always opens the landing, even from inside a stone. The
-  // capture listener runs before the shell's own button handler switches views.
+  // Any tab-bar tap forgets the open stone, so the You tab (or a later '‹ You') opens
+  // the landing. The capture listener runs before the shell's own tab handler.
   if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
     document.addEventListener(
       "click",
       (event) => {
         const target = event.target as Element | null;
-        if (target && typeof target.closest === "function" && target.closest('.tab[data-tab="you"]')) {
+        if (target && typeof target.closest === "function" && target.closest(".tab[data-tab]")) {
           state.youSeg = null;
           state.youStone = null;
         }
