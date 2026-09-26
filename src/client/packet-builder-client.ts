@@ -78,8 +78,10 @@
   function marksHtml(row: Row): string {
     const flag = row.flag
       ? `<span class="packet-flag" title="Flagged by the lab">Lab: ${row.flag === "high" ? "high" : "low"}</span>`
-      : "";
-    const opt = !row.flag && row.outsideOptimal ? `<span class="packet-opt">Outside optimal</span>` : "";
+      : row.rangeSide
+        ? `<span class="packet-flag packet-flag-range" title="Outside the range the lab printed; the lab did not flag it">${row.rangeSide === "high" ? "Above" : "Below"} the lab's range</span>`
+        : "";
+    const opt = !row.flag && !row.rangeSide && row.outsideOptimal ? `<span class="packet-opt">Outside optimal</span>` : "";
     return flag || opt ? `<span class="packet-marks">${flag}${opt}</span>` : "";
   }
 

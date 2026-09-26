@@ -42,12 +42,10 @@ import {
   healthFocus,
   healthStanding,
   listMarkerAliases,
-  prioritizeMarkers,
-  publicMarkerRow,
+  publicPriorityMarkers,
   recordHealthOutcomeAnnotations,
   setDirectiveStatusByUser,
   symptomMarkerLinks,
-  wearableWeeklyMarkerRead,
 } from "../domain/health/index.js";
 import { addMemory } from "../domain/person/index.js";
 import { backgroundOp } from "./background-op.js";
@@ -218,10 +216,7 @@ connectedBrainRouter.post("/health/review", async (req, res, next) => {
 // (wearableWeeklyMarkerRead, health-focus.ts) so this catalog can never disagree with a
 // directive over the same night's number — a single night still shows as the latest
 // reading, but never as the status.
-connectedBrainRouter.get("/markers/priority", (_req, res) => {
-  const priority = prioritizeMarkers();
-  res.json({ ...priority, markers: priority.markers.map((m: any) => publicMarkerRow(wearableWeeklyMarkerRead(m))) });
-});
+connectedBrainRouter.get("/markers/priority", (_req, res) => res.json(publicPriorityMarkers()));
 
 // Marker-name canonicalization (analyte de-duplication). GET lists the learned
 // variant->canonical aliases; POST runs the agentic reconciler over the distinct

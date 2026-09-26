@@ -147,6 +147,20 @@ test("query: defaults send nothing; none, an empty question list and encoding ar
   ]);
 });
 
+test("the preview words a printed-range-only value apart from the lab's own flag", () => {
+  const win = load();
+  const report = packet("/x");
+  report.findings = [
+    { ...FINDING, name: "Synthetic Marker E", flag: null, lab_flagged: true, labRange: "out", labRangeSide: "low", labRangeBasis: "printed_range", outside_optimal: true },
+  ];
+  const model = win.CairnPacketBuilderModel.previewModel(report);
+  const host = renderHtml(win.CairnPacketBuilder.previewHtml(model, { enter: true }), { document: win.document });
+  const row = host.querySelector('[data-packet-pv="findings"] .packet-row');
+  assert.equal(row.querySelector(".packet-flag").textContent, "Below the lab's range");
+  assert.ok(row.querySelector(".packet-flag-range"), "outlined, not the lab's own flag chip");
+  assert.equal(row.querySelector(".packet-opt"), null, "the range mark stands alone, as the packet prints it");
+});
+
 test("the preview marks a row as the packet does: the lab flag alone, else outside-optimal; escapes caller text, never a score", () => {
   const win = load();
   const report = packet("/x");

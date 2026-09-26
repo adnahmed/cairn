@@ -5713,6 +5713,8 @@ declare global {
     date: string | null;
     /** The lab's own HIGH/LOW flag — a mark of its own. */
     flag: "high" | "low" | null;
+    /** Outside the range the lab printed without the lab flagging it — worded apart from `flag`. */
+    rangeSide?: "high" | "low" | null;
     /** Outside the optimal band — a separate mark, never merged with `flag`. */
     outsideOptimal: boolean;
   };

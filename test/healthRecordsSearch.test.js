@@ -236,6 +236,40 @@ test("GET /api/markers/priority: the page's rows carry the lab's range, never th
   }
 });
 
+test("MCP get_priority_markers hands out the same public rows as the route: no impact_score, no distance", async () => {
+  seedPanel();
+  seedHealthDoc("2026-05-03", [
+    { ...marker("Sodium", 129, { unit: "mmol/L" }), ref_low: 135, ref_high: 145 },
+    marker("VLDL Cholesterol", 45, { unit: "mg/dL", flag: "normal" }), // an untrusted optimal match
+  ]);
+  const tools = new Map();
+  registerConnectedBrainTools({ tool: (name, _d, _s, handler) => tools.set(name, handler) });
+  const out = await tools.get("get_priority_markers")({});
+  const text = out.content[0].text;
+  assert.ok(!text.includes("impact_score"), "no impact_score in the MCP payload");
+  const body = JSON.parse(text);
+  const keys = walkKeys(body);
+  assert.ok(!keys.has("impact_score"));
+  assert.ok(!keys.has("distance"), "the optimal distance stays in-process");
+  const row = (re) => body.markers.find((m) => re.test(m.name));
+  assert.deepEqual([row(/apob/i).lab_range, row(/apob/i).lab_out_of_range_side], ["out", "high"]);
+  assert.deepEqual([row(/sodium/i).lab_out_of_range, row(/sodium/i).lab_out_of_range_side], [true, "low"]);
+  assert.equal(row(/^ldl/i).lab_range, "within");
+  assert.deepEqual([row(/vldl/i).optimal, row(/vldl/i).in_optimal], [null, null], "an untrusted band is cleared");
+
+  const app = express();
+  app.use("/api", connectedBrainRouter);
+  const server = await new Promise((resolve) => {
+    const s = app.listen(0, "127.0.0.1", () => resolve(s));
+  });
+  try {
+    const rest = await (await fetch(`http://127.0.0.1:${server.address().port}/api/markers/priority`)).json();
+    assert.deepEqual(body, rest, "MCP ⊆ REST: one projection");
+  } finally {
+    server.close();
+  }
+});
+
 test("search spans documents, visit notes and body readings; every word must match", () => {
   seedPanel();
   repo.addHealthDocument({

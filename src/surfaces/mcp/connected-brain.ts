@@ -44,7 +44,7 @@ import {
   visitQuestionsRead,
   healthFocus,
   healthStanding,
-  prioritizeMarkers,
+  publicPriorityMarkers,
   recordHealthOutcomeAnnotations,
   setDirectiveStatusByUser,
   symptomMarkerLinks,
@@ -173,9 +173,9 @@ export function registerConnectedBrainTools(server: McpToolRegistrar) {
 
   server.tool(
     "get_priority_markers",
-    "Markers re-ranked by impact: distance from the OPTIMAL zone (not just the lab's normal range), most-actionable first, flagged (low/high) markers always on top, and a marker HEADING out of optimal ranked above a stably-borderline one. Each marker carries optimal/distance/in_optimal/actionable, its health group (group/group_label), a least-squares trend ({dir: rising|falling|stable, change, span_days, n, slope_per_week, projection}) and a forecast ({direction: improving|worsening|stable, eta_text, crossing}) — eta_text is a PLAIN-LANGUAGE projection vs optimal ('trending toward optimal, roughly 6 weeks out'). The top-level `groups` lists the canonical-ordered groups present. The internal impact_score is an ordering signal only, never a user-facing grade.",
+    "Markers re-ranked by impact: distance from the OPTIMAL zone (not just the lab's normal range), most-actionable first, flagged (low/high) markers always on top, and a marker HEADING out of optimal ranked above a stably-borderline one. Each marker carries optimal/in_optimal/actionable (optimal and in_optimal are null where the band is not trustworthy for that marker), out-of-range per the LAB (lab_range: out|within|unranged, lab_out_of_range, lab_out_of_range_side — the lab's own flag or its printed range; a home reading is unranged), its health group (group/group_label), a least-squares trend ({dir: rising|falling|stable, change, span_days, n, slope_per_week, projection}) and a forecast ({direction: improving|worsening|stable, eta_text, crossing}) — eta_text is a PLAIN-LANGUAGE projection vs optimal ('trending toward optimal, roughly 6 weeks out'). The top-level `groups` lists the canonical-ordered groups present. The same rows as GET /api/markers/priority: the internal ordering signals (impact_score and the optimal distance) never leave the server.",
     {},
-    async () => asText(prioritizeMarkers())
+    async () => asText(publicPriorityMarkers())
   );
 
   server.tool(

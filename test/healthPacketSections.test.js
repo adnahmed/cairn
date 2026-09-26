@@ -39,7 +39,8 @@ beforeEach(() => {
     "bodyweight_log",
     "body_measurements",
     "daily_metrics",
-    "brain_decisions"
+    "brain_decisions",
+    "blood_pressure_readings"
   );
 });
 
@@ -214,7 +215,7 @@ test("clinical order, lab flags and the stale-results note survive the toggles",
   );
   const tsh = json.groups.flatMap((g) => g.markers).find((m) => m.name === "TSH");
   assert.equal(tsh.flag, "high", "the lab flag is carried");
-  assert.match(text, /TSH: 6\.2 uIU\/mL.*\[High\]/);
+  assert.match(text, /TSH: 6\.2 uIU\/mL.*\[Lab: High\]/, "the lab's own flag, worded as the lab's");
   assert.match(text, /older out-of-range reading/, "the stale-results note stays with findings");
   const crp = data.groups.flatMap((g) => g.markers).find((m) => /crp/i.test(m.name));
   assert.equal(crp.staleForFinding, true);
@@ -230,7 +231,7 @@ test("the JSON packet names the lab flag and the optimal miss as two fields; `ab
   for (const m of all) {
     assert.equal(typeof m.lab_flagged, "boolean", `${m.name} names the lab's flag`);
     assert.equal(typeof m.outside_optimal, "boolean", `${m.name} names the optimal miss`);
-    assert.equal(m.lab_flagged, m.flag === "high" || m.flag === "low");
+    assert.equal(m.lab_flagged, m.labRange === "out", "lab_flagged is the one lab-range rule");
     assert.equal(m.outside_optimal, m.inOptimal === false);
     assert.equal(m.abnormal, m.lab_flagged || m.outside_optimal, "abnormal is exactly the two merged — read the two fields");
   }
@@ -238,6 +239,83 @@ test("the JSON packet names the lab flag and the optimal miss as two fields; `ab
   assert.deepEqual([ldl.lab_flagged, ldl.outside_optimal, ldl.abnormal], [false, true, true], "optimal only: never lab-flagged");
   const tsh = all.find((m) => m.name === "TSH");
   assert.equal(tsh.lab_flagged, true);
+});
+
+// The packet row for one marker in each format: the HTML panel row, the HTML findings
+// item, the text panel line and the text findings bullet.
+function rowsFor(out, name) {
+  const htmlName = name.replace(/&/g, "&amp;");
+  const at = (hay, start, end) => {
+    const i = hay.indexOf(start);
+    return i < 0 ? null : hay.slice(i, hay.indexOf(end, i));
+  };
+  return {
+    htmlPanel: at(out.html, `<td class="m-name">${htmlName}`, "</tr>"),
+    htmlFinding: at(out.html, `<span class="f-name">${htmlName}</span>`, "</li>"),
+    textPanel: out.text.split("\n").find((l) => l.startsWith(`  ${name}: `)) ?? null,
+    textFinding: out.text.split("\n").find((l) => l.startsWith(`    • ${name} — `)) ?? null,
+    json: [...out.json.findings, ...out.json.groups.flatMap((g) => g.markers)].filter((m) => m.name === name),
+  };
+}
+
+test("the packet's lab mark is the one lab-range rule: the lab's flag, the lab's printed range, never a home threshold", () => {
+  seedHealthDoc(localDaysAgo(15), [
+    marker("ApoB", 131, { unit: "mg/dL", flag: "high" }), // the lab flagged it
+    { ...marker("Sodium", 129, { unit: "mmol/L" }), ref_low: 135, ref_high: 145 }, // printed range only, no flag
+  ]);
+  // A home cuff reading over Cairn's own 130/80 threshold: no lab ranged it.
+  repo.addBloodPressureReading({ measured_at: localDaysAgo(3), systolic: 142, diastolic: 91 });
+  const out = renderAll(["findings", "panels"]);
+  const all = [...out.json.findings, ...out.json.groups.flatMap((g) => g.markers)];
+
+  // Lab-flagged: "Lab: High" in every format, and the JSON names it.
+  const apobName = all.find((m) => /apob/i.test(m.name)).name;
+  const apob = rowsFor(out, apobName);
+  assert.match(apob.htmlPanel, /<span class="flag flag-h">Lab: High<\/span>/);
+  assert.match(apob.htmlFinding, /<span class="f-flag high">Lab: High<\/span>/);
+  assert.match(apob.textPanel, /\[Lab: High\]/);
+  assert.match(apob.textFinding, /\(Lab: High\)/);
+  for (const m of apob.json) {
+    assert.deepEqual([m.flag, m.labRange, m.labRangeSide, m.labRangeBasis], ["high", "out", "high", "lab_flag"]);
+    assert.equal(m.lab_flagged, true);
+  }
+
+  // Printed range only: outside the range the lab printed, which the lab did not flag —
+  // never worded as the lab's own flag.
+  const sodium = rowsFor(out, "Sodium");
+  assert.match(sodium.htmlPanel, /<span class="flag flag-r">Below the lab's range<\/span>/);
+  assert.doesNotMatch(sodium.htmlPanel, /Lab: /);
+  assert.match(sodium.htmlFinding, /<span class="f-flag low">Below the lab's range<\/span>/);
+  assert.match(sodium.textPanel, /\[Below the lab's range\]/);
+  assert.match(sodium.textFinding, /\(Below the lab's range\)/);
+  assert.doesNotMatch(`${sodium.textPanel}${sodium.textFinding}`, /Lab: |\[Low\]|\(Low\)/);
+  assert.ok(sodium.json.length >= 2, "a finding and a panel row");
+  for (const m of sodium.json) {
+    assert.deepEqual([m.flag, m.labRange, m.labRangeSide, m.labRangeBasis], [null, "out", "low", "printed_range"]);
+    assert.equal(m.lab_flagged, true, "out of the lab's range: the same rule as the Records page");
+    assert.equal(m.abnormal, true);
+  }
+
+  // Home BP: Cairn's threshold is not a lab flag — no lab mark in any format.
+  const sys = rowsFor(out, "Systolic BP");
+  assert.ok(sys.htmlPanel && sys.textPanel, "the home reading is still in its panel");
+  assert.doesNotMatch(sys.htmlPanel, /class="flag /, "no lab chip on a home reading");
+  assert.doesNotMatch(sys.textPanel, /\[(?:Lab: )?(?:High|Low)\]|lab's range/);
+  if (sys.htmlFinding) assert.doesNotMatch(sys.htmlFinding, /Lab: |>High<|lab's range/);
+  if (sys.textFinding) assert.doesNotMatch(sys.textFinding, /\((?:Lab: )?High\)|lab's range/);
+  assert.ok(sys.json.length >= 1);
+  for (const m of sys.json) {
+    assert.deepEqual([m.flag, m.labRange, m.labRangeSide, m.labRangeBasis], [null, "unranged", null, null]);
+    assert.equal(m.lab_flagged, false, "a home reading is never lab-flagged");
+    assert.ok(
+      m.history.every((h) => h.flag == null),
+      "Cairn's home threshold never travels as a history flag"
+    );
+  }
+
+  // The legend says what the two marks mean.
+  assert.match(out.html, /Above \/ Below the lab's range<\/b> means the value sits outside the range the lab printed/);
+  assert.match(out.text, /Above\/Below the lab's range = outside the range the lab printed, not flagged by the lab/);
 });
 
 test("the athlete's question list is used verbatim; an empty list prints none; nothing is stored", () => {
