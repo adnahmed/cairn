@@ -52,16 +52,19 @@
     return `<span class="meal-card-amount">${escHtml(row.amount)}</span>`;
   }
 
-  function rowHtml(row: Row, opts: { mealBasis?: unknown } = {}): string {
-    const name = row.item || "this item";
-    const basis = model().rowBasisLine(row, opts.mealBasis);
-    return `<li class="meal-card-row${row.added ? " is-added" : ""}" data-meal-card-row="${escAttr(row.key)}">
-      <div class="meal-card-main">
-        ${rowNameHtml(row)}
+  /** The row's text column: name, estimate, stated amount and provenance words. */
+  function rowMainHtml(row: Row, opts: { mealBasis?: unknown } = {}): string {
+    const note = model().rowNoteLine(row, opts.mealBasis);
+    return `${rowNameHtml(row)}
         <span class="meal-card-nutri">${escHtml(rowNutriText(row))}</span>
         ${amountHtml(row)}
-        ${basis ? `<span class="meal-card-basis">${escHtml(basis)}</span>` : ""}
-      </div>
+        ${note ? `<span class="meal-card-basis">${escHtml(note)}</span>` : ""}`;
+  }
+
+  function rowHtml(row: Row, opts: { mealBasis?: unknown } = {}): string {
+    const name = row.item || "this item";
+    return `<li class="meal-card-row${row.added ? " is-added" : ""}" data-meal-card-row="${escAttr(row.key)}">
+      <div class="meal-card-main">${rowMainHtml(row, opts)}</div>
       <label class="meal-card-grams">
         <input class="meal-card-grams-input" type="text" inputmode="decimal" autocomplete="off"
           enterkeyhint="done" data-meal-card-grams value="${escAttr(model().formatGrams(row.grams))}"
@@ -87,7 +90,7 @@
     return `<section class="meal-card" data-meal-card="${escAttr(m.id ?? "")}" aria-label="Items in this meal">
       <div class="meal-card-head">
         <span class="lbl">Items</span>
-        ${m.provenance ? `<span class="meal-card-prov">${escHtml(m.provenance)}</span>` : ""}
+        <span class="meal-card-prov"${m.provenance ? "" : " hidden"}>${escHtml(m.provenance)}</span>
       </div>
       <ul class="meal-card-rows${m.rows.length === 1 ? " is-single" : ""}">${rowsHtml(m.rows, m.basis)}</ul>
       <button class="linkbtn-quiet meal-card-add" type="button" data-meal-card-add>Add an item</button>
@@ -102,6 +105,7 @@
   const CAIRN_MEAL_CARD = {
     mealCardHtml,
     rowHtml,
+    rowMainHtml,
     rowNutriText,
     totalsText,
   };

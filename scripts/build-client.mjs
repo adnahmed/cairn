@@ -202,6 +202,7 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/meal-card-model.ts", output: "public/js/meal-card-model.js" },
   { source: "src/client/meal-card-client.ts", output: "public/js/meal-card-client.js" },
   { source: "src/client/meal-card-controller.ts", output: "public/js/meal-card-controller.js" },
+  { source: "src/client/chat-capture-card-client.ts", output: "public/js/chat-capture-card-client.js" },
   { source: "src/client/food-detail-controller.ts", output: "public/js/food-detail-controller.js" },
   { source: "src/client/me-profile-form-client.ts", output: "public/js/me-profile-form-client.js" },
   { source: "src/client/me-profile-controller.ts", output: "public/js/me-profile-controller.js" },
@@ -482,6 +483,7 @@ export const BUNDLES = [
       "public/js/meal-card-model.js",
       "public/js/meal-card-client.js",
       "public/js/meal-card-controller.js",
+      "public/js/chat-capture-card-client.js",
       "public/js/food-detail-controller.js",
       // Plan → Changes components (v2 wave 1). renderCoach reaches them only from
       // inside a function, so they may follow the screen that mounts them.

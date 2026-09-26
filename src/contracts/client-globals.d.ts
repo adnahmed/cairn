@@ -5224,6 +5224,8 @@ declare global {
     /** The stored row's macros, at baseGrams. */
     base: Record<ClientMealCardMacroKey, number | null>;
     basis: string | null;
+    /** "low" only when the server marked the row a rough estimate after an edit. */
+    confidence: "low" | null;
     added: boolean;
     edited: boolean;
   };
@@ -5267,6 +5269,7 @@ declare global {
     rowsChanged(original: readonly ClientMealCardRow[], rows: readonly ClientMealCardRow[]): boolean;
     savableRows(rows: readonly ClientMealCardRow[]): ClientMealCardRow[];
     rowBasisLine(row: ClientMealCardRow, mealBasis: unknown): string;
+    rowNoteLine(row: ClientMealCardRow, mealBasis: unknown): string;
     basisWords(basis: unknown): string;
     confidenceWords(confidence: unknown): string;
   };
@@ -5275,14 +5278,30 @@ declare global {
     CairnMealCard: {
       mealCardHtml(model: ClientMealCardModel, opts?: { totals?: boolean }): string;
       rowHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
+      rowMainHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
       rowNutriText(row: ClientMealCardRow): string;
       totalsText(totals: ClientMealCardTotals): string;
     };
     CairnMealCardController: {
       mount(host: Element, deps: ClientMealCardDeps): () => void;
     };
+    CairnChatCaptureCard: {
+      editable(note: unknown): boolean;
+      noteFromStamp(id: number, food: unknown): unknown | null;
+      mount(review: HTMLElement, note: unknown, deps: ClientChatCaptureCardDeps, opts?: { settle?: boolean }): boolean;
+      settleFromRow(review: HTMLElement, row: unknown, deps: ClientChatCaptureCardDeps): boolean;
+      mountAll(scope: ParentNode, applied: readonly unknown[], deps: ClientChatCaptureCardDeps): void;
+      repaintChips(note: unknown): void;
+      chatDeps(): ClientChatCaptureCardDeps;
+    };
   }
+  /** The chat capture card's deps (chat-capture-card-client.ts): the meal card's, minus the note. */
+  type ClientChatCaptureCardDeps = Pick<
+    ClientMealCardDeps,
+    "api" | "toast" | "expandEl" | "collapseEl" | "reducedMotion" | "onSaved"
+  >;
   declare const CairnMealCardModel: Window["CairnMealCardModel"];
   declare const CairnMealCard: Window["CairnMealCard"];
   declare const CairnMealCardController: Window["CairnMealCardController"];
+  declare const CairnChatCaptureCard: Window["CairnChatCaptureCard"];
 }

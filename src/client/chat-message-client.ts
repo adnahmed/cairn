@@ -155,6 +155,8 @@ function applyCaptureFoodRow(id: number, row: unknown): void {
   tag.innerHTML = CairnChatClient.captureFoodTagInner(status, food);
   const review = document.querySelector(`.capture-review[data-capture-review="${id}"]`);
   if (!(review instanceof HTMLElement)) return;
+  // Settled with rows to edit: the review becomes the meal card (chat-capture-card-client.ts).
+  if (CairnChatCaptureCard.settleFromRow(review, row, CairnChatCaptureCard.chatDeps())) return;
   const inner = CairnChatClient.captureFoodReviewInner(status, food);
   if (inner === review.innerHTML) return; // an SSE re-emit of the same state: don't re-animate
   const wasEmpty = !!review.hidden;
@@ -374,7 +376,10 @@ function appendMsg(
   // Resume the enrichment watch for any still-filling capture chip — on a live turn,
   // a reload, or a tab-switch re-render. The read-only history overlay never arms it
   // (its notes have long settled). pollEnrichment's stale guard tears it down.
-  if (!readonly && applied.length) armCaptureFoodWatches(applied);
+  if (!readonly && applied.length) {
+    armCaptureFoodWatches(applied);
+    CairnChatCaptureCard.mountAll(el, applied, CairnChatCaptureCard.chatDeps());
+  }
   if (!noScroll && log && stickBottom && (!before || before === host.lastElementChild)) log.scrollTop = log.scrollHeight;
   return el;
 }

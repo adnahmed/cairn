@@ -259,7 +259,9 @@ test("correcting grams in the sheet: the hero follows at once, one PUT, then the
   await flush();
   assert.equal(puts().length, 1);
   assert.equal(puts()[0].path, "/food-notes/42");
-  assert.equal(JSON.parse(puts()[0].opts.body).ingredients[0].amount, "300 g");
+  const sentChicken = JSON.parse(puts()[0].opts.body).ingredients[0];
+  assert.equal(sentChicken.amount, "200 g", "the stored row goes back as stored");
+  assert.equal(sentChicken.grams, 300, "plus the new weight, for the server to scale");
   assert.equal(el.querySelector(".detail-num").textContent, "700", "the server's total");
   assert.equal(
     el
@@ -272,4 +274,84 @@ test("correcting grams in the sheet: the hero follows at once, one PUT, then the
   assert.equal(entry.querySelector(".fn-macros").textContent, "700 kcal", "the log card reprints");
   assert.deepEqual([...harness.invalidated], ["progress:energy", "progress:intake"]);
   assert.equal(harness.toasts.length, 0);
+});
+
+function chickenNote() {
+  return {
+    id: 42,
+    raw: "chicken and rice",
+    created_at: "2026-06-30T12:30:00Z",
+    parsed: {
+      summary: "Chicken and rice",
+      kcal: 525,
+      protein_g: 66,
+      carbs_g: 43,
+      fat_g: 8,
+      ingredients: [
+        { item: "Chicken", amount: "200 g", kcal: 330, protein_g: 62 },
+        { item: "Rice", amount: "150 g", kcal: 195, protein_g: 4, carbs_g: 43 },
+      ],
+    },
+  };
+}
+
+test("a saved correction lands in the Me log's note cache, so the entry reopens as saved", async () => {
+  const { context, document } = loadController();
+  logEntry(document);
+  const saved = {
+    id: 42,
+    raw: "chicken and rice",
+    created_at: "2026-06-30T12:30:00Z",
+    parsed: {
+      summary: "Chicken and rice",
+      kcal: 690,
+      protein_g: 97,
+      carbs_g: 43,
+      fat_g: 8,
+      ingredients: [
+        { item: "Chicken", amount: "300 g", kcal: 495, protein_g: 93, basis: "user_report" },
+        { item: "Rice", amount: "150 g", kcal: 195, protein_g: 4, carbs_g: 43 },
+      ],
+    },
+  };
+  const harness = foodDeps(document, {
+    api: (path, opts) =>
+      path === "/goal" ? { recommended: { target_intake_kcal: 2000 } } : opts?.method === "PUT" ? saved : {},
+  });
+  const before = chickenNote();
+  harness.deps.state._notesById = { 42: before, 7: { id: 7 } };
+  await context.CairnFoodDetailController.openFoodDetail(harness.deps.state._notesById["42"], null, harness.deps);
+  const grams = harness.mounted.querySelector("[data-meal-card-grams]");
+  grams.value = "300";
+  await fire(grams, "input");
+  await harness.mounted.querySelector("[data-meal-card-save]").click();
+  await flush();
+
+  const cached = harness.deps.state._notesById["42"];
+  assert.equal(cached, saved, "the cache holds the saved row");
+  assert.equal(harness.deps.state._notesById["7"].id, 7, "other entries are untouched");
+
+  // Tapping the (reprinted) entry again opens the sheet from the cache: saved grams.
+  await context.CairnFoodDetailController.openFoodDetail(cached, null, harness.deps);
+  assert.equal(harness.mounted.querySelector("[data-meal-card-grams]").value, "300");
+  assert.equal(harness.mounted.querySelector(".detail-num").dataset.cu, "690");
+});
+
+test("an edit during the opening count-up is never overwritten by its last frame", async () => {
+  const { context, document } = loadController();
+  const harness = foodDeps(document);
+  await context.CairnFoodDetailController.openFoodDetail(chickenNote(), null, harness.deps);
+  const el = harness.mounted;
+  const counting = el.querySelector(".detail-num");
+  assert.equal(harness.countUps.length, 1, "the hero counts up as the sheet opens");
+  assert.equal(counting.isConnected, true, "mounting the card does not cut the opening count-up");
+
+  const grams = el.querySelector("[data-meal-card-grams]");
+  grams.value = "300";
+  await fire(grams, "input");
+  const hero = el.querySelector(".detail-num");
+  assert.notEqual(hero, counting, "the edited total is a fresh numeral");
+  assert.equal(counting.isConnected, false, "the count-up's node is gone, so its next frame stops");
+  assert.equal(hero.textContent, "690");
+  assert.equal(hero.dataset.cu, "690");
 });

@@ -150,6 +150,50 @@ test("the settled payload carries the ingredient rows and the estimate's provena
   assert.equal(food.basis, "estimated_from_foods");
 });
 
+// The meal card (v2 wave 2) mounts over a settled capture from this stamp: every
+// structured row as stored (so a save sends each row's own estimate back), plus the
+// meal-level totals. An items-only estimate has nothing to edit and carries none.
+test("the settled payload carries the editable card read: every stored row and the totals", () => {
+  const { turnId } = instantCapture("Log swordfish with medley vegetables for lunch");
+  const note = repo.listFoodNotes(10)[0];
+  const rows = Array.from({ length: 8 }, (_, i) => ({
+    item: `item ${i}`,
+    amount: `${(i + 1) * 10} g`,
+    kcal: 50,
+    protein_g: 2,
+    carbs_g: 6,
+    fat_g: 1.5,
+    basis: i === 0 ? "label" : undefined,
+  }));
+  repo.updateFoodNoteParsed(note.id, {
+    summary: "A long meal",
+    kcal: 460,
+    protein_g: 16,
+    carbs_g: 48,
+    ingredients: rows,
+    confidence: "medium",
+    basis: "estimated_from_foods",
+  });
+  repo.setFoodNoteEnrichStatus(note.id, "done");
+
+  const { food } = appliedFood(repo.getChatMessage(repo.getChatTurn(turnId).assistant_message_id)).result;
+  assert.equal(food.ingredients.length, 6, "the read-only review stays capped");
+  assert.equal(food.card.ingredients.length, 8, "the card edits every row");
+  assert.equal(food.card.ingredients[0].amount, "10 g");
+  assert.equal(food.card.ingredients[0].carbs_g, 6);
+  assert.equal(food.card.ingredients[0].fat_g, 1.5);
+  assert.equal(food.card.ingredients[0].basis, "label");
+  assert.equal(food.card.kcal, 460);
+  assert.equal(food.card.carbs_g, 48);
+  assert.equal(food.card.fat_g, null, "a total the meal never carried stays null, never 0");
+  assert.equal(food.card.confidence, "medium");
+  assert.equal(food.card.basis, "estimated_from_foods");
+
+  repo.updateFoodNoteParsed(note.id, { summary: "Toast", kcal: 200, items: ["toast", "jam"] });
+  const itemsOnly = appliedFood(repo.getChatMessage(repo.getChatTurn(turnId).assistant_message_id)).result.food;
+  assert.equal(itemsOnly.card, null, "an items-only estimate has no rows to edit");
+});
+
 test("a re-enrichment revises the review in place — never appends a second one", () => {
   const { turnId } = instantCapture("Log turkey and rice for lunch");
   const note = repo.listFoodNotes(10)[0];

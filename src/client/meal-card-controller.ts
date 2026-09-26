@@ -4,13 +4,16 @@
 // one delegated listener per event type (CairnUiActions.mount, so mounting again on
 // the same host never doubles a save).
 //
-// Editing a row's grams moves the totals at once — the stored total shifted by what
-// the edit changed — and Save sends every row, in the foodCapture.ts ingredient
-// shape, as ONE `PUT /api/food-notes/:id` with body `{ingredients: [...]}`. The server
-// recomputes the note's totals from those rows and the card then prints the totals
-// the response carries, so the server's numbers always win. A failed save keeps
-// every edit in place and says so; nothing is lost and nothing is retried behind the
-// athlete's back.
+// Editing a row's grams moves the totals at once — the server's own arithmetic,
+// previewed (meal-card-model.ts) — and Save sends every row, in the foodCapture.ts
+// ingredient shape as stored plus a numeric `grams` for a moved weight, as ONE
+// `PUT /api/food-notes/:id` with body `{ingredients: [...]}`. The server
+// recomputes the note's totals from those rows and the card then prints the totals,
+// rows and provenance the response carries, so the server's numbers always win. A
+// successful save updates the card IN PLACE — the field being typed in keeps focus
+// and the status line stays the same live region — and never rebuilds it. A failed
+// save keeps every edit in place and says so; nothing is lost and nothing is retried
+// behind the athlete's back.
 {
   type Row = ClientMealCardRow;
   type Totals = ClientMealCardTotals;
@@ -30,7 +33,10 @@
     return { ...row, base: { ...row.base } };
   }
 
-  /** The rows as they now stand on the server: each one's weight and estimate become its base. */
+  /**
+   * The rows as they now stand on the server when its answer cannot be matched row
+   * for row: each sent row's weight and preview estimate become its base.
+   */
   function rebase(rows: readonly Row[]): Row[] {
     return rows.map((row) => ({
       ...row,
@@ -40,6 +46,31 @@
       added: false,
       edited: false,
     }));
+  }
+
+  /**
+   * Fold the server's saved rows (matched to the sent rows by position, keeping the
+   * card's keys) into the rows on screen. A row untouched since the save becomes the
+   * server's row; a row the athlete kept editing keeps its newer grams and name,
+   * measured from what was just saved.
+   */
+  function reconcile(current: readonly Row[], sent: readonly Row[], saved: readonly Row[]): Row[] {
+    const byKey = new Map(saved.map((row) => [row.key, row]));
+    const sentByKey = new Map(sent.map((row) => [row.key, row]));
+    return current.map((row) => {
+      const next = byKey.get(row.key);
+      const was = sentByKey.get(row.key);
+      if (!next || !was) return row;
+      const newer = row.grams !== was.grams || row.item !== was.item;
+      if (!newer) return copyRow(next);
+      return {
+        ...copyRow(next),
+        item: row.item,
+        grams: row.grams,
+        added: row.added && row.item !== was.item,
+        edited: row.grams !== next.baseGrams,
+      };
+    });
   }
 
   function responseError(result: unknown): string | null {
@@ -52,7 +83,8 @@
   function mountMealCard(host: Element, deps: Deps): () => void {
     const first = model().mealCardModel(deps.note);
     const id = first.id;
-    const mealBasis = first.basis;
+    let mealBasis = first.basis;
+    let provenance = first.provenance;
     let stored: Totals = first.totals;
     let original: Row[] = first.rows.map(copyRow);
     let rows: Row[] = first.rows.map(copyRow);
@@ -66,11 +98,43 @@
     const rowKeyOf = (el: Element): string | undefined =>
       el.closest<HTMLElement>("[data-meal-card-row]")?.dataset.mealCardRow;
 
+    /** Rebuild the whole card, then put focus back on the same field of the same row. */
     function paint(): void {
+      const active = host.ownerDocument?.activeElement;
+      const focusKey = active && host.contains(active) ? rowKeyOf(active) : undefined;
+      const focusField = active instanceof HTMLElement && active.hasAttribute("data-meal-card-name") ? "name" : "grams";
       host.innerHTML = view().mealCardHtml(
-        { id, rows, totals: stored, basis: mealBasis, provenance: first.provenance },
+        { id, rows, totals: stored, basis: mealBasis, provenance },
         { totals: deps.totals }
       );
+      if (focusKey) {
+        const li = host.querySelector(`[data-meal-card-row="${focusKey}"]`);
+        li?.querySelector<HTMLElement>(`[data-meal-card-${focusField}]`)?.focus();
+      }
+    }
+
+    /** Repaint one row's text and grams in place; a focused field is never swapped out. */
+    function patchRow(row: Row): void {
+      const li = host.querySelector<HTMLElement>(`[data-meal-card-row="${row.key}"]`);
+      if (!li) return;
+      const grams = li.querySelector<HTMLInputElement>("[data-meal-card-grams]");
+      const main = li.querySelector<HTMLElement>(".meal-card-main");
+      // A saved row's name is text, not a field: move a typing cursor to its grams first.
+      const typing = host.ownerDocument?.activeElement;
+      if (main && typing && main.contains(typing) && !row.added) grams?.focus();
+      const active = host.ownerDocument?.activeElement;
+      if (main && !(active && main.contains(active))) main.innerHTML = view().rowMainHtml(row, { mealBasis });
+      else paintRowNutri(row);
+      li.classList.toggle("is-added", row.added);
+      const value = model().formatGrams(row.grams);
+      if (grams && grams !== active && grams.value !== value) grams.value = value;
+    }
+
+    function paintProvenance(): void {
+      const prov = q(".meal-card-prov");
+      if (!prov) return;
+      prov.textContent = provenance;
+      prov.hidden = !provenance;
     }
 
     function currentTotals(): Totals {
@@ -145,6 +209,7 @@
         grams: null,
         base: { kcal: null, protein_g: null, carbs_g: null, fat_g: null, fiber_g: null },
         basis: null,
+        confidence: null,
         added: true,
         edited: false,
       };
@@ -216,9 +281,18 @@
       }
       const next = model().mealCardModel(result);
       stored = next.totals;
-      if (revision === startedAt && next.rows.length) {
-        // Nothing moved while the save was in flight: print the rows as the server
-        // now holds them.
+      mealBasis = next.basis;
+      provenance = next.provenance;
+      if (next.rows.length === sent.length) {
+        // The server's rows, one per sent row, under the card's own keys: rows
+        // untouched since the save print as saved, newer edits stay on top of them.
+        const saved = next.rows.map((row, i) => ({ ...copyRow(row), key: sent[i].key }));
+        original = saved.map(copyRow);
+        rows = reconcile(rows, sent, saved);
+        paintProvenance();
+        for (const row of rows) patchRow(row);
+      } else if (revision === startedAt && next.rows.length) {
+        // The server folded rows together: print them as it now holds them.
         original = next.rows.map(copyRow);
         rows = next.rows.map(copyRow);
         paint();
@@ -226,6 +300,7 @@
         // The athlete kept typing: keep their newer edits and measure them from
         // what was just saved.
         original = rebase(sent);
+        paintProvenance();
       }
       setStatus(COPY.saved);
       sync({ saved: !dirty() });

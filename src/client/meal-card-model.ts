@@ -5,11 +5,15 @@
 // food note into rows the card can edit, rescales a row when its grams change, and
 // works out the totals the card shows before the server answers.
 //
-// The server owns the numbers. The optimistic total is the server's stored total
-// moved by exactly what the edits changed (never a fresh sum that could disagree
-// with the stored meal on first paint), and it is replaced by the totals the PUT
-// returns. A row whose amount carries no weight ("2 eggs") takes grams, but its
-// macros are not rescaled: there is no per-gram figure to scale from.
+// The server owns the numbers (recomputeFoodIngredients, src/foodCapture.ts). A save
+// sends each row's STORED estimate unchanged plus a numeric `grams` for a row whose
+// weight moved, so the server scales from its own twin row and never mistakes a
+// client-scaled number for macros a person typed. The preview here mirrors that
+// arithmetic — the same quantity reading (parseFoodQuantity's mass arm), the same
+// one-decimal row rounding and the same meal total (the rows plus whatever the
+// stored total carried beyond them) — so the optimistic number is the number the
+// save comes back with. A row whose amount carries no weight ("2 eggs", "250 ml")
+// takes grams, but its macros are not rescaled: there is no per-gram figure.
 {
   type Row = ClientMealCardRow;
   type Totals = ClientMealCardTotals;
@@ -17,15 +21,23 @@
 
   const MACRO_KEYS: readonly MacroKey[] = ["kcal", "protein_g", "carbs_g", "fat_g", "fiber_g"];
   const MAX_GRAMS = 5000;
-  const GRAMS_PER_UNIT: Record<string, number> = {
+  // parseFoodQuantity's mass table (src/foodCapture.ts), so a weight reads the same
+  // on both sides of the PUT.
+  const MASS_TO_G: Record<string, number> = {
     g: 1,
     gr: 1,
     gram: 1,
     grams: 1,
     kg: 1000,
-    oz: 28.35,
-    ounce: 28.35,
-    ounces: 28.35,
+    kilogram: 1000,
+    kilograms: 1000,
+    oz: 28.3495,
+    ounce: 28.3495,
+    ounces: 28.3495,
+    lb: 453.592,
+    lbs: 453.592,
+    pound: 453.592,
+    pounds: 453.592,
   };
 
   // The food-capture contract's own basis values, in the athlete's register — how a
@@ -51,12 +63,22 @@
     return value === null || value === undefined ? "" : String(value).trim();
   }
 
-  /** Grams in an amount ("205 g", "0.2 kg", "6 oz"), or null when it states no weight. */
+  /**
+   * Grams in an amount, read the way the server reads it: "205 g", "0.2 kg",
+   * "8 oz chicken", "~1/2 lb", "200 g cooked". Null when it states no weight
+   * ("2 eggs", "250 ml"). Unrounded, so a rescale uses the server's own ratio.
+   */
   function gramsFromAmount(amount: unknown): number | null {
-    const match = /^~?\s*(\d+(?:[.,]\d+)?)\s*(g|gr|grams?|kg|oz|ounces?)\.?$/i.exec(text(amount));
+    const s = text(amount)
+      .toLowerCase()
+      .replace(/^(~|about|approx\.?|approximately|around)\s*/, "");
+    const match = /^(\d+(?:[.,]\d+)?)(?:\s*\/\s*(\d+))?\s*([a-z]+)?/.exec(s);
     if (!match) return null;
-    const value = Number(match[1].replace(",", ".")) * (GRAMS_PER_UNIT[match[2].toLowerCase()] ?? 0);
-    return Number.isFinite(value) && value > 0 ? Math.round(value * 10) / 10 : null;
+    let value = Number(match[1].replace(",", "."));
+    if (match[2]) value = value / Number(match[2]);
+    const factor = MASS_TO_G[match[3] ?? ""];
+    if (!factor || !Number.isFinite(value) || value <= 0) return null;
+    return value * factor;
   }
 
   /** What a person typed into a grams field, or null when it is not a usable weight. */
@@ -107,6 +129,8 @@
       grams,
       base: baseMacros(r),
       basis: basis || null,
+      // Only a person's edit ever sets a row's own confidence, and only to "low".
+      confidence: text(r.confidence) === "low" ? "low" : null,
       added: false,
       edited: false,
     };
@@ -130,7 +154,9 @@
 
   /** A row's macros at its current grams: scaled only when both weights are known. */
   function rowMacros(row: Row): Record<MacroKey, number | null> {
-    const scale = row.baseGrams && row.grams != null && !row.added ? row.grams / row.baseGrams : 1;
+    const moved = row.baseGrams && row.grams != null && !row.added && row.grams !== row.baseGrams;
+    if (!moved) return { ...row.base };
+    const scale = (row.grams as number) / (row.baseGrams as number);
     const out = {} as Record<MacroKey, number | null>;
     for (const key of MACRO_KEYS) {
       const base = row.base[key];
@@ -149,32 +175,37 @@
   }
 
   /**
-   * The totals to show while an edit is unsaved: the stored total moved by what the
-   * edits changed. A key the meal never stored falls back to the rows' own sum.
+   * The totals to show while an edit is unsaved — recomputeFoodIngredients' rule 4:
+   * the rows now, plus whatever the stored total carried beyond the stored rows
+   * (never negative). A key neither the rows nor the stored total carry stays null.
    */
   function optimisticTotals(stored: Totals, original: readonly Row[], current: readonly Row[]): Totals {
     const out = {} as Totals;
     for (const key of MACRO_KEYS) {
       const now = sumRows(current, key);
-      const before = sumRows(original, key);
       const base = stored[key];
-      if (base == null) out[key] = now == null ? null : Math.round(now);
-      else out[key] = Math.max(0, Math.round(base + (now ?? 0) - (before ?? 0)));
+      if (base == null && now == null) {
+        out[key] = null;
+        continue;
+      }
+      const unitemized = base == null ? 0 : Math.max(0, base - (sumRows(original, key) ?? 0));
+      out[key] = Math.round(unitemized + (now ?? 0));
     }
     return out;
   }
 
-  /** One row in the PUT body, in the foodCapture.ts ingredient shape. */
+  /**
+   * One row in the PUT body: the foodCapture.ts ingredient shape as it is STORED,
+   * plus a numeric `grams` when the weight moved. The macros go back unscaled — the
+   * server scales them from its own row, and a changed macro would read to it as
+   * one a person typed (which it never rescales).
+   */
   function rowBody(row: Row): Record<string, unknown> {
-    const macros = rowMacros(row);
-    const grams = row.grams != null && row.grams !== row.baseGrams;
-    const body: Record<string, unknown> = {
-      item: row.item,
-      amount: grams || (row.added && row.grams != null) ? `${formatGrams(row.grams)} g` : row.amount,
-    };
-    for (const key of MACRO_KEYS) body[key] = macros[key];
-    // A weight the athlete typed is a stated quantity (foodCapture.ts: "user_report").
-    body.basis = row.added || (row.edited && row.baseGrams) ? "user_report" : row.basis;
+    const body: Record<string, unknown> = { item: row.item };
+    if (row.amount) body.amount = row.amount;
+    for (const key of MACRO_KEYS) if (row.base[key] != null) body[key] = row.base[key];
+    if (row.basis) body.basis = row.basis;
+    if (row.grams != null && (row.added || row.grams !== row.baseGrams)) body.grams = Math.round(row.grams * 10) / 10;
     return body;
   }
 
@@ -216,6 +247,11 @@
     return basisWords(row.basis);
   }
 
+  /** The row's quiet provenance: its own basis, and "rough estimate" when it reads low. */
+  function rowNoteLine(row: Row, mealBasis: unknown): string {
+    return [rowBasisLine(row, mealBasis), row.confidence === "low" ? "rough estimate" : ""].filter(Boolean).join(" · ");
+  }
+
   function mealCardModel(note: unknown): ClientMealCardModel {
     const row = record(note);
     const id = Number(row.id);
@@ -243,6 +279,7 @@
     rowsChanged,
     savableRows,
     rowBasisLine,
+    rowNoteLine,
     basisWords,
     confidenceWords,
   };

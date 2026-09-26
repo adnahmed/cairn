@@ -12,7 +12,7 @@ import {
   type ChatRoutingDecision,
 } from "../chatRouting.js";
 import { withSqliteSavepoint } from "./sqlite-savepoint.js";
-import { FOOD_BASIS_VALUES, FOOD_CONFIDENCE_BANDS } from "../foodCapture.js";
+import { FOOD_BASIS_VALUES, FOOD_CONFIDENCE_BANDS, FOOD_MACRO_KEYS } from "../foodCapture.js";
 
 // ---------- chat ----------
 function hydrateChat(row: any) {
@@ -121,6 +121,37 @@ function captureReviewBand(value: unknown, allowed: readonly string[]): string |
   return allowed.includes(band) ? band : null;
 }
 
+// The editable read the meal card mounts over a settled capture (v2 wave 2): the
+// note's structured ingredient rows as STORED (so a save sends each row's own
+// estimate back and the server scales it) and its meal-level totals. Only a note
+// with rows to edit carries one; an items-only estimate keeps the read-only review.
+const CAPTURE_CARD_MAX_ROWS = 50;
+const CAPTURE_CARD_ROW_KEYS = ["item", "amount", ...FOOD_MACRO_KEYS, "basis", "confidence"] as const;
+
+function captureCardMacro(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function captureCard(parsed: any): Record<string, unknown> | null {
+  if (!parsed || !Array.isArray(parsed.ingredients)) return null;
+  const rows = parsed.ingredients
+    .filter((row: unknown) => row && typeof row === "object" && String((row as any).item ?? "").trim())
+    .slice(0, CAPTURE_CARD_MAX_ROWS)
+    .map((row: any) => {
+      const out: Record<string, unknown> = {};
+      for (const key of CAPTURE_CARD_ROW_KEYS) if (row[key] !== undefined && row[key] !== null) out[key] = row[key];
+      return out;
+    });
+  if (!rows.length) return null;
+  const card: Record<string, unknown> = { ingredients: rows };
+  for (const key of FOOD_MACRO_KEYS) card[key] = captureCardMacro(parsed[key]);
+  card.basis = captureReviewBand(parsed.basis, FOOD_BASIS_VALUES);
+  card.confidence = captureReviewBand(parsed.confidence, FOOD_CONFIDENCE_BANDS);
+  return card;
+}
+
 function stampCaptureFood(meta: any): void {
   const applied = Array.isArray(meta?.applied) ? meta.applied : null;
   if (!applied) return;
@@ -152,6 +183,7 @@ function stampCaptureFood(meta: any): void {
       ingredient_count: review.total,
       confidence: captureReviewBand(parsed?.confidence, FOOD_CONFIDENCE_BANDS),
       basis: captureReviewBand(parsed?.basis, FOOD_BASIS_VALUES),
+      card: captureCard(parsed),
     };
   }
 }

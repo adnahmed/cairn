@@ -36,7 +36,9 @@ type FoodDetailFoodNoteApi = {
   noteEntryInner?(note: FoodDetailControllerRecord): string;
 };
 type FoodDetailControllerDeps = {
-  state: { _goal?: FoodDetailControllerRecord | null };
+  // `_notesById` is the Me log's note cache (me-health-log-renderer.ts): a saved
+  // correction is written back into it so reopening the entry opens the saved meal.
+  state: { _goal?: FoodDetailControllerRecord | null; _notesById?: Record<string, unknown> | null };
   api(path: string, opts?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
   art(kind: string, ...args: unknown[]): string;
   artEnabled(): boolean;
@@ -104,15 +106,25 @@ type FoodDetailControllerDeps = {
     return bits.join(" · ");
   }
 
-  /** Repaint the sheet's hero from the meal card's totals (no count-up: it is a correction). */
+  // The hero's one number format — the count-up's own (ui-feedback-client.ts runCountUps).
+  const heroKcal = (kcal: number): string => Math.round(kcal).toLocaleString();
+
+  /**
+   * Repaint the sheet's hero from the meal card's totals (no count-up: it is a
+   * correction). The numeral is swapped for a fresh node, so an opening count-up
+   * still running on the old one stops (it only ticks while its node is connected)
+   * and can never land its last frame over the edited total.
+   */
   function applyTotals(el: HTMLElement, totals: Totals, target: number, time: string, deps: FoodDetailControllerDeps): void {
     const kcal = totals.kcal ?? 0;
     const kcalEl = el.querySelector<HTMLElement>(".detail-kcal");
     const num = kcalEl?.querySelector<HTMLElement>(".detail-num");
     if (kcalEl && num) {
       kcalEl.hidden = !kcal;
-      num.dataset.cu = String(kcal);
-      num.textContent = deps.formatFoodNum(kcal);
+      const fresh = num.cloneNode(false) as HTMLElement;
+      fresh.dataset.cu = String(kcal);
+      fresh.textContent = heroKcal(kcal);
+      num.replaceWith(fresh);
     }
     const ctx = el.querySelector<HTMLElement>(".detail-ctx");
     if (ctx) {
@@ -132,6 +144,9 @@ type FoodDetailControllerDeps = {
     const host = el.querySelector("[data-fdet-meal]");
     if (!host) return;
     const invalidate = deps.swrInvalidate ?? ((key: string) => swrInvalidate(key));
+    // The card reports its stored totals once as it mounts: the hero already shows
+    // them (counting up), so only a later change repaints it.
+    let opened = false;
     CairnMealCardController.mount(host, {
       note: row,
       api: deps.api,
@@ -140,13 +155,22 @@ type FoodDetailControllerDeps = {
       collapseEl: deps.collapseEl ?? ((node, done) => CairnUiMotion.collapseEl(node, done)),
       reducedMotion: deps.reducedMotion ?? (() => reducedMotion()),
       totals: false,
-      onTotals: (totals) => applyTotals(el, totals, target, time, deps),
+      onTotals: (totals) => {
+        if (!opened) {
+          opened = true;
+          return;
+        }
+        applyTotals(el, totals, target, time, deps);
+      },
       onSaved: (note) => {
-        // The Me log card for this note reprints from the saved row; Fuel and the
+        // The Me log card for this note reprints from the saved row, the log's note
+        // cache takes the saved row (so the entry reopens as saved); Fuel and the
         // intake reads refetch.
         const entry = document.querySelector(`.fnent[data-noteid="${row.id}"]`);
         const inner = deps.foodNote.noteEntryInner;
         if (entry && inner && note && typeof note === "object") entry.innerHTML = inner(note as FoodDetailControllerRecord);
+        const cache = deps.state._notesById;
+        if (cache && note && typeof note === "object") cache[String(row.id)] = note;
         invalidate("progress:energy");
         invalidate("progress:intake");
       },

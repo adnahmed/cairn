@@ -6855,3 +6855,7 @@ body[data-tab="session"] .tabbar{display:none}
 .detail-kcal[hidden],.detail-ctx[hidden],.detail-macros[hidden]{display:none}
 .fdet-meal{text-align:left}
 .fdet-note{color:var(--muted)}
+/* In a chat bubble the capture review becomes the card, a step tighter; targets stay 44px. */
+.capture-review-card .meal-card{gap:var(--space-3)}
+.capture-review-card .meal-card-row{gap:var(--space-3);padding:var(--space-2) 0;font-size:var(--text-sm)}
+.capture-review-card .meal-card-grams-input{width:4em;padding:0 var(--space-3)}
