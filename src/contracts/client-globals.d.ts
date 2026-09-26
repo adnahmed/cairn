@@ -2203,6 +2203,8 @@ declare global {
       captureFoodFromRow(row: unknown): { status: string; food: Record<string, unknown> };
       captureFoodTagInner(status: unknown, food: unknown): string;
       captureFoodReviewInner(status: unknown, food: unknown): string;
+      amendedFoodRow(action: unknown): { id: number; row: Record<string, unknown> } | null;
+      amendedFoodTag(action: unknown): string | null;
       planLandingTag(action: unknown): { text: string; scheduled: boolean } | null;
     };
 
@@ -5287,6 +5289,7 @@ declare global {
     gramsFromAmount(amount: unknown): number | null;
     parseGramsInput(value: unknown): number | null;
     formatGrams(grams: number | null): string;
+    portionWords(amount: unknown): string;
     mealCardModel(note: unknown): ClientMealCardModel;
     mealCardRows(note: unknown): ClientMealCardRow[];
     storedTotals(note: unknown): ClientMealCardTotals;
@@ -5307,7 +5310,9 @@ declare global {
   interface Window {
     CairnMealCardModel: CairnMealCardModelApi;
     CairnMealCard: {
-      mealCardHtml(model: ClientMealCardModel, opts?: { totals?: boolean }): string;
+      mealCardHtml(model: ClientMealCardModel, opts?: { totals?: boolean; editing?: boolean }): string;
+      readRowHtml(row: ClientMealCardRow): string;
+      rowKcalText(row: ClientMealCardRow): string;
       rowHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
       rowMainHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
       rowNutriText(row: ClientMealCardRow): string;
@@ -5316,25 +5321,10 @@ declare global {
     CairnMealCardController: {
       mount(host: Element, deps: ClientMealCardDeps): () => void;
     };
-    CairnChatCaptureCard: {
-      editable(note: unknown): boolean;
-      noteFromStamp(id: number, food: unknown): unknown | null;
-      mount(review: HTMLElement, note: unknown, deps: ClientChatCaptureCardDeps, opts?: { settle?: boolean }): boolean;
-      settleFromRow(review: HTMLElement, row: unknown, deps: ClientChatCaptureCardDeps): boolean;
-      mountAll(scope: ParentNode, applied: readonly unknown[], deps: ClientChatCaptureCardDeps): void;
-      repaintChips(note: unknown): void;
-      chatDeps(): ClientChatCaptureCardDeps;
-    };
   }
-  /** The chat capture card's deps (chat-capture-card-client.ts): the meal card's, minus the note. */
-  type ClientChatCaptureCardDeps = Pick<
-    ClientMealCardDeps,
-    "api" | "toast" | "expandEl" | "collapseEl" | "reducedMotion" | "onSaved"
-  >;
   declare const CairnMealCardModel: Window["CairnMealCardModel"];
   declare const CairnMealCard: Window["CairnMealCard"];
   declare const CairnMealCardController: Window["CairnMealCardController"];
-  declare const CairnChatCaptureCard: Window["CairnChatCaptureCard"];
   declare const CairnFoodComposerModel: Window["CairnFoodComposerModel"];
   declare const CairnFoodComposerClient: Window["CairnFoodComposerClient"];
   declare const CairnFoodComposerTurn: Window["CairnFoodComposerTurn"];

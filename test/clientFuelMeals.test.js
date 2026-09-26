@@ -175,8 +175,12 @@ test("opening a meal mounts the meal card; a grams edit is one PUT and the head 
   await head.click();
   assert.equal(head.getAttribute("aria-expanded"), "true");
   assert.ok(row.classList.contains("is-open"));
+  // Approximate by default: the card opens reading its rows in words, no gram fields.
+  assert.equal(row.querySelectorAll(".meal-card-row").length, 2, "the meal card's rows are there");
+  assert.equal(row.querySelector("[data-meal-card-grams]"), null, "no gram fields until Edit");
+  await row.querySelector("[data-meal-card-edit]").click();
   const input = row.querySelector("[data-meal-card-grams]");
-  assert.ok(input, "the meal card's rows are there");
+  assert.ok(input, "Edit reveals the editors");
   assert.equal(input.getAttribute("inputmode"), "decimal");
   input.value = "300";
   await fire(input, "input");
@@ -200,6 +204,7 @@ test("a re-read keeps an open card's node; a new meal settles in; a gone meal le
   await flush();
   const open = h.host.querySelector('[data-fuel-meal="42"]');
   await open.querySelector("[data-fuel-meals-toggle]").click();
+  await open.querySelector("[data-meal-card-edit]").click();
   const input = open.querySelector("[data-meal-card-grams]");
   input.value = "250";
   await fire(input, "input");
@@ -238,12 +243,12 @@ test("an open estimating meal gets its card the moment it settles", async () => 
   await flush();
   const row = h.host.querySelector('[data-fuel-meal="42"]');
   await row.querySelector("[data-fuel-meals-toggle]").click();
-  assert.equal(row.querySelector("[data-meal-card-grams]"), null);
+  assert.equal(row.querySelector(".meal-card"), null);
   h.setDay([bowl()]);
   await h.handle.refresh();
   await flush();
   assert.equal(h.host.querySelector('[data-fuel-meal="42"]'), row);
-  assert.ok(row.querySelector("[data-meal-card-grams]"), "the card mounted in place");
+  assert.ok(row.querySelector(".meal-card [data-meal-card-edit]"), "the card mounted in place, at rest");
 });
 
 test("Remove takes a second tap, deletes once, and the row leaves", async () => {

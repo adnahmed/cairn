@@ -129,6 +129,18 @@
     return String(Math.round(grams * 10) / 10);
   }
 
+  /**
+   * A portion in words, for the card at rest: an estimate's "1 handful (~30 g)"
+   * reads "1 handful" — the bracketed weight is the estimator's working, not a
+   * weighing. A stated weight on its own ("40 g") is the portion and stays. Twin of
+   * chat's capturePortionWords (chat-client.ts).
+   */
+  function portionWords(amount: unknown): string {
+    const words = text(amount);
+    const bare = words.replace(/\s*\(\s*(?:~|about|approx\.?|≈)?\s*\d+(?:[.,]\d+)?\s*(?:g|ml|oz)\s*\)\s*$/i, "");
+    return bare || words;
+  }
+
   function parsedOf(note: unknown): Record<string, unknown> {
     const row = record(note);
     let parsed: unknown = row.parsed;
@@ -346,6 +358,7 @@
     gramsFromAmount,
     parseGramsInput,
     formatGrams,
+    portionWords,
     mealCardModel,
     mealCardRows,
     storedTotals,

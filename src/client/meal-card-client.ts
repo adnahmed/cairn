@@ -1,8 +1,11 @@
 // @ts-check
 // The meal card's view (docs/V2-PLAN.md wave 2, stream B; docs/DESIGN.md
-// "Component architecture"). One row per item in the src/foodCapture.ts ingredient
-// shape, each with its grams in a decimal field, a remove button and the row's own
-// estimate; an add button; the meal's totals; and one Save. How the numbers were
+// "Component architecture"). Approximate by default: the card first READS — one
+// quiet line per item in the src/foodCapture.ts ingredient shape, its portion in
+// words and a muted ~kcal — because the point of approximate logging is that nobody
+// weighed it. An explicit Edit opens the editors: each row's grams in a decimal
+// field, a remove button and the row's own estimate; an add button; the meal's
+// totals; one Save and a Done/Cancel that closes them again. How the numbers were
 // obtained is shown as words, never a grade. Pure renderers: every caller string
 // goes through escHtml/escAttr, and the controller (meal-card-controller.ts) does
 // the wiring.
@@ -80,11 +83,43 @@
     return rows.map((row) => rowHtml(row, { mealBasis })).join("");
   }
 
+  /** The row's own estimate as one muted number ("~330 kcal"); "" when it has none. */
+  function rowKcalText(row: Row): string {
+    const kcal = model().rowMacros(row).kcal;
+    return kcal != null && kcal > 0 ? `~${round(kcal)} kcal` : "";
+  }
+
+  /** One read-only line: the item, its portion in words, a muted ~kcal. */
+  function readRowHtml(row: Row): string {
+    const portion = model().portionWords(row.amount);
+    const kcal = rowKcalText(row);
+    return `<li class="meal-card-row is-read" data-meal-card-row="${escAttr(row.key)}">
+      <span class="meal-card-item">${escHtml(row.item)}</span>${
+        portion ? `<span class="meal-card-amount">${escHtml(portion)}</span>` : ""
+      }${kcal ? `<span class="meal-card-nutri">${escHtml(kcal)}</span>` : ""}
+    </li>`;
+  }
+
+  /** The card at rest: what was eaten, approximately, and one Edit. */
+  function readCardHtml(m: ClientMealCardModel): string {
+    return `<section class="meal-card is-read" data-meal-card="${escAttr(m.id ?? "")}" aria-label="Items in this meal">
+      <div class="meal-card-head">
+        <span class="lbl">Items</span>
+        <span class="meal-card-prov"${m.provenance ? "" : " hidden"}>${escHtml(m.provenance)}</span>
+        <button class="linkbtn linkbtn-quiet meal-card-edit" type="button" data-meal-card-edit
+          aria-label="Edit the items in this meal">Edit</button>
+      </div>
+      <ul class="meal-card-rows is-read">${m.rows.map(readRowHtml).join("")}</ul>
+      <p class="meal-card-status" role="status" aria-live="polite"></p>
+    </section>`;
+  }
+
   /**
    * The whole card. `totals:false` leaves the total to the host (the food detail
    * sheet prints its own hero and takes the card's live totals through onTotals).
    */
-  function mealCardHtml(m: ClientMealCardModel, opts: { totals?: boolean } = {}): string {
+  function mealCardHtml(m: ClientMealCardModel, opts: { totals?: boolean; editing?: boolean } = {}): string {
+    if (!opts.editing) return readCardHtml(m);
     const showTotals = opts.totals !== false;
     const totals = totalsText(m.totals);
     return `<section class="meal-card" data-meal-card="${escAttr(m.id ?? "")}" aria-label="Items in this meal">
@@ -97,6 +132,7 @@
       ${showTotals ? `<p class="meal-card-totals"${totals ? "" : " hidden"}>${escHtml(totals)}</p>` : ""}
       <div class="meal-card-foot">
         <p class="meal-card-status" role="status" aria-live="polite"></p>
+        <button class="linkbtn linkbtn-quiet meal-card-done" type="button" data-meal-card-done>Done</button>
         <button class="pillbtn pill-accent meal-card-save" type="button" data-meal-card-save disabled>Save</button>
       </div>
     </section>`;
@@ -104,6 +140,8 @@
 
   const CAIRN_MEAL_CARD = {
     mealCardHtml,
+    readRowHtml,
+    rowKcalText,
     rowHtml,
     rowMainHtml,
     rowNutriText,

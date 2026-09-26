@@ -1572,17 +1572,22 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
   border-radius:50%;border:1.5px solid var(--accent);border-top-color:transparent;
   animation:enrspin .7s linear infinite;vertical-align:-1px}
 @media (prefers-reduced-motion:reduce){.bubble-tag.capture-food.pending .enr-dot{animation:none;opacity:.6}}
-/* What the estimate was built from, settling under the chip once enrichment lands.
-   Reuses the food detail sheet's .ing-breakdown/.ing-row family, one notch tighter
-   for a chat bubble; the basis line stays muted — provenance, never a verdict. */
-.capture-review{margin-top:10px}
+/* What the estimate was built from, settling under the chip once enrichment lands:
+   one quiet line per item (name · portion in words · a muted ~kcal), read-only and
+   phone-sized. No inputs, no totals line (the chip above carries the meal's total),
+   no provenance line — a correction is the next message, never a form. */
+.capture-review{margin-top:var(--space-3)}
 /* Only the review that lands WHILE you are looking settles in; one rendered from
    history is already part of the message and must not re-animate on every paint. */
 .capture-review.settling{animation:settlein var(--dur-2) var(--ease)}
-.capture-review .ing-row{padding:6px 0;font-size:.82rem}
-.capture-review .ing-row:last-child{border-bottom:none}
-.capture-review .ing-nutri{font-size:.78rem}
-.capture-review-more,.capture-review-basis{margin-top:6px;font-size:.76rem;color:var(--muted);line-height:1.45}
+.capture-items{list-style:none;margin:0;padding:0;font-size:var(--text-xs);line-height:1.5;color:var(--ink-2)}
+.capture-item{display:flex;align-items:baseline;gap:var(--space-2);min-width:0}
+.capture-item-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.capture-item-portion{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.capture-item-portion::before{content:"· "}
+.capture-item-kcal{flex:0 0 auto;margin-left:auto;padding-left:var(--space-3);color:var(--muted);
+  font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.capture-item-more{color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.capture-review.settling{animation:none}}
 .agentcheck{
   display:inline-flex;align-items:center;gap:7px;margin-top:8px;max-width:100%;
@@ -6798,10 +6803,21 @@ body[data-tab="session"] .tabbar{display:none}
 .detail-kcal[hidden],.detail-ctx[hidden],.detail-macros[hidden]{display:none}
 .fdet-meal{text-align:left}
 .fdet-note{color:var(--muted)}
-/* In a chat bubble the capture review becomes the card, a step tighter; targets stay 44px. */
-.capture-review-card .meal-card{gap:var(--space-3)}
-.capture-review-card .meal-card-row{gap:var(--space-3);padding:var(--space-2) 0;font-size:var(--text-sm)}
-.capture-review-card .meal-card-grams-input{width:4em;padding:0 var(--space-3)}
+/* Approximate by default: the card opens READ-ONLY — one line per item, its portion
+   in words and a muted ~kcal — and the gram fields, remove and add appear only after
+   an explicit Edit. */
+.meal-card-edit{order:2;min-height:44px;margin:-12px 0;display:inline-flex;align-items:center;font-size:var(--text-sm);margin-left:auto}
+.meal-card.is-read .meal-card-prov{order:3;flex:1 1 100%}
+.meal-card.is-read .meal-card-head{row-gap:var(--space-1)}
+.meal-card-rows.is-read{border-top:none}
+.meal-card-row.is-read{display:flex;align-items:baseline;gap:var(--space-2);min-height:0;
+  padding:var(--space-2) 0;border-bottom:none;font-size:var(--text-sm)}
+.meal-card-row.is-read .meal-card-item{flex:0 1 auto;min-width:0;font-weight:500}
+.meal-card-row.is-read .meal-card-amount{flex:0 1 auto;min-width:0}
+.meal-card-row.is-read .meal-card-amount::before{content:"· "}
+.meal-card-row.is-read .meal-card-nutri{flex:0 0 auto;margin-left:auto;white-space:nowrap;
+  font-variant-numeric:lining-nums tabular-nums}
+.meal-card-done{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
 
 /* -------------------------------------------------------------------
    43 · Fuel — Plan → Food (.fuel-today-*, .fuel-log-*, .fuel-meal-*, .idea-card-*)
@@ -7261,12 +7277,23 @@ a.stone-detail-link{color:inherit;text-decoration:none}
    keyframe (the global reduced-motion reset zeroes it) and steps aside while
    Today's pinned header is condensed.
    ===================================================================== */
-.moved-note{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:baseline;
-  margin:var(--space-3) 0 0;font-size:var(--text-sm);color:var(--muted);
+.moved-note{display:block;margin:var(--space-3) 0 0;font-size:var(--text-xs);line-height:1.5;color:var(--muted);
   animation:settlein var(--dur-2) var(--ease) both}
 .moved-note[hidden]{display:none}
-.moved-note-dismiss{font-size:var(--text-sm);min-height:32px}
+.moved-note-text{margin-right:var(--space-4)}
+/* Inline with the sentence, but still a 44px target: the negative block margin keeps
+   the tall hit area from growing the line. */
+.moved-note-dismiss{display:inline-flex;align-items:center;min-height:44px;margin:-14px 0;
+  font-size:var(--text-xs);vertical-align:baseline}
 body[data-tab="today"] header.condensed .moved-note{display:none}
+/* A header that carries controls (Ask's Changes / history / fresh-start cluster)
+   lays them on the TITLE's row and gives the moved-here line a full-width row of its
+   own below — it never competes with, or slides under, the controls. */
+header:has(> .hdr-chat-actions){display:grid;grid-template-columns:minmax(0,1fr) auto;
+  column-gap:var(--space-4);align-items:center}
+header:has(> .hdr-chat-actions) > #header-title{grid-column:1;grid-row:1;min-width:0}
+header:has(> .hdr-chat-actions) > .hdr-chat-actions{position:static;grid-column:2;grid-row:1}
+header:has(> .hdr-chat-actions) > .moved-note{grid-column:1 / -1;grid-row:2}
 /* The You landing's groups, under the cairn-stack. */
 .you-group{margin-top:var(--space-10)}
 .you-group:first-child{margin-top:0}

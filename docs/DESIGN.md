@@ -118,8 +118,10 @@ a horizon line), Ask (speech bubble), You (a three-stone cairn). `data-tab` on a
 key; `body[data-tab]` stays the rendered VIEW, so view-scoped CSS never keys on the home. A sub-view
 reached inside a home (Fuel from Today, Changes from Ask) steps back with one quiet
 `.home-back` link ("‹ Today"; `homeBackHtml`/`wireHomeBack` in `ui-shell.ts`), never a seg bar. The one-time "what moved here" line is
-`.moved-note` in the header: muted `--text-sm` prose with a plain "Got it", settling in on the
-shared `settlein` keyframe, hidden while Today's header is condensed.
+`.moved-note` in the header: one quiet full-width line of muted `--text-xs` prose with an inline
+"Got it", settling in on the shared `settlein` keyframe, hidden while Today's header is condensed.
+A header that carries controls (Ask's cluster) puts them on the title's row and the line below
+them — never beside them.
 
 New/changed components (CSS must implement, the client JS must emit):
 
@@ -983,7 +985,7 @@ in each row.
 | Screen snapshots | `today-screen.ts:162` (HTML), `stand-screen.ts:1243` (JSON) | SWR |
 
 **Components v2 adds** (sequenced in `docs/V2-PLAN.md`): `changes-line`, `changes-feed`,
-`decision-undo`, `meal-card` (editable rows), `food-composer` (shared by Fuel and chat),
+`decision-undo`, `meal-card` (read-only portions in words; an explicit Edit opens the gram rows), `food-composer` (shared by Fuel and chat),
 `fuel-today`, `idea-card`, `records-search`, `packet-builder`, `visit-questions`, `race-ladder`,
 `pebble-strip`, `cairn-stack`, `app-readd` (the one-time iOS re-add note) and `app-id` (Settings →
 Data's "This app" block: server build, this app's shell, Copy token), both from

@@ -4,8 +4,9 @@
 // fuel-today reads) and keeps them current by id: a re-read moves, updates, adds and
 // removes rows without repainting the list, so a meal card open mid-edit keeps its
 // node, its focus and its unsaved grams. Opening a meal mounts the meal card
-// (CairnMealCardController) into its panel: a row's grams are corrected there with
-// one PUT and the head follows the card's live totals. A meal with no items to
+// (CairnMealCardController) into its panel, read-only (portions in words) until its
+// Edit: a row's grams are then corrected there with one PUT and the head follows the
+// card's live totals. A meal with no items to
 // adjust opens into the totals correction instead (what it was, its slot, its
 // numbers), also one PUT. Remove deletes the note after a second tap. A
 // still-estimating meal is watched until it settles; a watch that gives up (the poll

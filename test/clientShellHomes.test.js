@@ -210,3 +210,24 @@ test("the You landing lists Health, About you and Settings and opens each where 
 
 // The Horizon landing itself (the timeline, its lanes and the goal section) is
 // covered by test/clientHorizon.test.js.
+
+// The moved-here line never squeezes a header's controls: it is a quiet full-width
+// line of its own, and a header that carries controls (Ask's Changes / history /
+// fresh-start cluster, appended into <header>) puts them on the TITLE's row with the
+// line below them, never beside or under them.
+test("the moved-here line is a quiet full-width line below a header's controls", () => {
+  const css = read("public/styles.css");
+  const rule = (selector) => {
+    const at = css.indexOf(`${selector}{`);
+    assert.ok(at >= 0, `${selector} is styled`);
+    return css.slice(at, css.indexOf("}", at));
+  };
+  assert.match(rule(".moved-note"), /display:block/);
+  assert.match(rule(".moved-note"), /font-size:var\(--text-xs\)/);
+  assert.match(rule(".moved-note-dismiss"), /min-height:44px/, "Got it stays a 44px target");
+  assert.match(rule("header:has(> .hdr-chat-actions)"), /display:grid/);
+  assert.match(rule("header:has(> .hdr-chat-actions) > .hdr-chat-actions"), /position:static;grid-column:2;grid-row:1/);
+  assert.match(rule("header:has(> .hdr-chat-actions) > .moved-note"), /grid-column:1 \/ -1;grid-row:2/);
+  // The cluster is appended to <header> itself, which is what the grid keys on.
+  assert.match(read("src/client/chat-header-controller.ts"), /document\.querySelector\("header"\)!\.appendChild\(wrap\)/);
+});

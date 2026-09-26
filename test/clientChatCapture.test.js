@@ -109,31 +109,42 @@ test("captureFoodFromRow maps a fetched food-note row (parsed or parsed_json) to
   assert.match(upgraded, /✓ Dinner · 720 kcal · 52g protein/);
 });
 
-test("captureFoodReviewInner shows what the estimate was built from, once it exists", () => {
+// The athlete's own phone feedback: in chat a logged meal is approximate, so the
+// review under the chip is compact and read-only — one line per item, its portion in
+// words and a muted ~kcal. No inputs, no remove, no "Add an item", no Save, no
+// provenance line, no totals line (the chip above carries the meal's total).
+test("captureFoodReviewInner is one quiet read-only line per item, once the estimate exists", () => {
   const chat = loadChatClient();
   const food = {
     meal: "lunch",
-    kcal: 635,
-    protein_g: 51,
-    ingredient_count: 3,
+    kcal: 711,
+    protein_g: 61,
+    ingredient_count: 5,
     confidence: "medium",
     basis: "estimated_from_foods",
     ingredients: [
-      { item: "swordfish", amount: "6 oz", kcal: 320, protein_g: 42 },
-      { item: "vegetable medley", amount: "1.5 cups", kcal: 95, protein_g: 4 },
-      { item: "olive oil", amount: "1 tbsp", kcal: 120 },
+      { item: "Trail mix", amount: "1 handful (~30 g)", kcal: 150, protein_g: 4 },
+      { item: "Greek yogurt", amount: "170 g", kcal: 100, protein_g: 17 },
+      { item: "Chicken breast", amount: "150 g", kcal: 248, protein_g: 35 },
+      { item: "Sourdough toast", amount: "2 slices", kcal: 160, protein_g: 6 },
+      { item: "Olive oil", amount: "1 tsp" },
     ],
   };
 
   const done = chat.captureFoodReviewInner("done", food);
-  assert.match(done, /swordfish/);
-  assert.match(done, /6 oz/);
-  assert.match(done, /~320 kcal · 42g P/);
-  assert.match(done, /1 tbsp/);
-  assert.match(done, /~120 kcal/);
-  // Provenance in the athlete's register, never the wire vocabulary and never a score.
-  assert.match(done, /Estimated from usual servings · medium confidence/);
-  assert.doesNotMatch(done, /estimated_from_foods/);
+  assert.equal(
+    done,
+    '<ul class="capture-items">' +
+      '<li class="capture-item"><span class="capture-item-name">Trail mix</span><span class="capture-item-portion">1 handful</span><span class="capture-item-kcal">~150 kcal</span></li>' +
+      '<li class="capture-item"><span class="capture-item-name">Greek yogurt</span><span class="capture-item-portion">170 g</span><span class="capture-item-kcal">~100 kcal</span></li>' +
+      '<li class="capture-item"><span class="capture-item-name">Chicken breast</span><span class="capture-item-portion">150 g</span><span class="capture-item-kcal">~248 kcal</span></li>' +
+      '<li class="capture-item"><span class="capture-item-name">Sourdough toast</span><span class="capture-item-portion">2 slices</span><span class="capture-item-kcal">~160 kcal</span></li>' +
+      '<li class="capture-item"><span class="capture-item-name">Olive oil</span><span class="capture-item-portion">1 tsp</span></li>' +
+      "</ul>"
+  );
+  for (const absent of [/<input/, /<button/, /Add an item/, /Save/, /confidence/i, /usual servings/, /protein/]) {
+    assert.doesNotMatch(done, absent, `nothing editable or verbose: ${absent}`);
+  }
 
   // Nothing is claimed before the estimate lands, or when it never will.
   assert.equal(chat.captureFoodReviewInner("pending", food), "");
@@ -150,17 +161,8 @@ test("the review is bounded, honest about what it hides, and escapes every strin
     ingredient_count: 11,
     ingredients: Array.from({ length: 11 }, (_, i) => ({ item: `component ${i + 1}` })),
   });
-  assert.equal((many.match(/class="ing-row"/g) || []).length, 6, "a chat bubble never grows a wall of rows");
+  assert.equal((many.match(/class="capture-item"/g) || []).length, 6, "a chat bubble never grows a wall of rows");
   assert.match(many, /and 5 more/);
-
-  // Provenance the food-capture contract doesn't define is simply not spoken.
-  const unknownBasis = chat.captureFoodReviewInner("done", {
-    ingredient_count: 1,
-    ingredients: [{ item: "toast" }],
-    basis: "vibes",
-    confidence: "92%",
-  });
-  assert.doesNotMatch(unknownBasis, /capture-review-basis/);
 
   const hostile = chat.captureFoodReviewInner("done", {
     ingredient_count: 1,
@@ -188,8 +190,8 @@ test("captureFoodFromRow carries the review through the SSE path, not just the m
   assert.equal(live.food.ingredients[0].item, "swordfish");
   // Composing fromRow → reviewInner is exactly the in-place fill the watcher performs.
   const review = chat.captureFoodReviewInner(live.status, live.food);
-  assert.match(review, /swordfish/);
-  assert.match(review, /Read from the photo · medium confidence/);
+  assert.match(review, /swordfish<\/span><span class="capture-item-portion">6 oz/);
+  assert.doesNotMatch(review, /photo/, "provenance stays off the chat bubble");
 
   // An older estimate that only carried a flat items list still yields rows.
   const flat = chat.captureFoodFromRow({
@@ -199,6 +201,38 @@ test("captureFoodFromRow carries the review through the SSE path, not just the m
   });
   assert.equal(flat.food.ingredient_count, 2);
   assert.match(chat.captureFoodReviewInner("done", flat.food), /turkey \(5 oz\)/);
+});
+
+// A follow-up correction ("oh and 40 g of avocado") comes back as an applied
+// update_food_note carrying the updated row: its chip says the new total once, and
+// the row is what repaints the original meal's chip + review in place.
+test("an applied amendment names the updated meal once and hands its row to the repaint", () => {
+  const chat = loadChatClient();
+  const action = {
+    type: "update_food_note",
+    result: {
+      id: 42,
+      meal: "lunch",
+      enrichment_status: "done",
+      parsed: {
+        kcal: 775,
+        protein_g: 62,
+        ingredients: [
+          { item: "Trail mix", amount: "1 handful (~30 g)", kcal: 150 },
+          { item: "Avocado", amount: "40 g", kcal: 64 },
+        ],
+      },
+    },
+  };
+  const amended = chat.amendedFoodRow(action);
+  assert.equal(amended.id, 42);
+  assert.equal(chat.amendedFoodTag(action), "✓ Lunch updated · 775 kcal · 62g protein");
+  const { status, food } = chat.captureFoodFromRow(amended.row);
+  assert.match(chat.captureFoodReviewInner(status, food), /Avocado<\/span><span class="capture-item-portion">40 g/);
+
+  assert.equal(chat.amendedFoodRow({ type: "update_food_note", result: { error: "not found", id: 42 } }), null);
+  assert.equal(chat.amendedFoodRow({ type: "log_food", result: { id: 42, parsed: {} } }), null);
+  assert.equal(chat.amendedFoodTag({ type: "log_weight", result: {} }), null);
 });
 
 // ---- wiring: chat-message-client.ts DOM glue --------------------------------
@@ -216,9 +250,13 @@ test("the applied-tag renderer branches a trackable food log to a live capture c
 });
 
 test("appendMsg arms the enrichment watch on any live re-render, never in the readonly overlay", () => {
-  assert.match(messageClient, /if \(!readonly && applied\.length\) \{\s*armCaptureFoodWatches\(applied\);/);
-  // The same live render mounts the meal card on a settled capture (never the overlay).
-  assert.match(messageClient, /CairnChatCaptureCard\.mountAll\(el, applied, CairnChatCaptureCard\.chatDeps\(\)\)/);
+  assert.match(messageClient, /if \(!readonly && applied\.length\) armCaptureFoodWatches\(applied\);/);
+  // Chat never mounts an editable card over a capture: the review stays read-only.
+  assert.doesNotMatch(messageClient, /CairnChatCaptureCard|CairnMealCardController/);
+  // An amendment repaints the meal it amended — on the live turn only, never a history paint.
+  assert.match(messageClient, /for \(const a of !readonly && !noScroll \? applied : \[\]\) \{/);
+  assert.match(messageClient, /CairnChatClient\.amendedFoodRow\(a\)/);
+  assert.match(messageClient, /applyCaptureFoodRow\(amended\.id, amended\.row\)/);
   assert.match(messageClient, /function armCaptureFoodWatches/);
   assert.match(messageClient, /CairnChatClient\.captureFoodActive\(info\.status\)\) watchCaptureFoodNote/);
 });
@@ -252,8 +290,6 @@ test("the review fills the ORIGINAL message in place — a slot on render, fille
   assert.match(messageClient, /document\.querySelector\(`\.capture-review\[data-capture-review="\$\{id\}"\]`\)/);
   assert.match(messageClient, /CairnChatClient\.captureFoodReviewInner\(status, food\)/);
   assert.match(messageClient, /review\.hidden = !inner/);
-  // A settled row with rows to edit becomes the meal card instead (chat-capture-card-client.ts).
-  assert.match(messageClient, /if \(CairnChatCaptureCard\.settleFromRow\(review, row, CairnChatCaptureCard\.chatDeps\(\)\)\) return;/);
 });
 
 // A plan change that did NOT go live must never render as "✓ plan update": the chip was

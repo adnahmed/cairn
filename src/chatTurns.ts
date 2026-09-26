@@ -52,7 +52,7 @@ import {
   type LogFoodAction,
   type SetRunAction,
 } from "./chatActions.js";
-import { normalizeFoodCaptureParsed } from "./foodCapture.js";
+import { amendFoodIngredients, normalizeFoodCaptureParsed } from "./foodCapture.js";
 import { recordBloodPressureReading } from "./domain/health/blood-pressure.js";
 import { pickDayVariant } from "./repo/brain/day-read-rules.js";
 import { applyProposalWithAutonomy, revertDecision } from "./domain/brain/autonomy-service.js";
@@ -2135,6 +2135,28 @@ function storedBodyweightLb(): number | null {
   }
 }
 
+// A chat correction in ROWS ("oh and 40 g of avocado", "it was two slices", "no
+// cheese"): the rows that join or change plus the items to drop, amended over the
+// SAME note's stored rows (src/foodCapture.ts amendFoodIngredients) into the full
+// list updateFoodNote recomputes from. Null when the action named no rows, or the
+// note is gone (updateFoodNote then answers not-found). A meal stored with only a
+// flat `items` list (the older shape) carries those names as rows with no numbers of
+// their own, so the correction never drops what was already logged.
+function foodAmendment(id: number, a: { ingredients?: unknown; remove_items?: unknown }): unknown[] | null {
+  const changes = Array.isArray(a.ingredients) ? a.ingredients : [];
+  const remove = Array.isArray(a.remove_items) ? a.remove_items : a.remove_items == null ? [] : [a.remove_items];
+  if (!changes.length && !remove.length) return null;
+  const note = repo.getFoodNote(id) as any;
+  if (!note) return null;
+  const parsed = note.parsed && typeof note.parsed === "object" ? note.parsed : {};
+  const hasRows = Array.isArray(parsed.ingredients) && parsed.ingredients.length > 0;
+  const base =
+    !hasRows && Array.isArray(parsed.items)
+      ? { ingredients: parsed.items.map((item: unknown) => ({ item: String(item ?? "") })) }
+      : parsed;
+  return amendFoodIngredients(base, changes, remove);
+}
+
 // ---------- action application ----------
 // Lifted verbatim from the old inline POST /api/chat handler so the worker is the
 // single place chat actions are applied. Safe actions apply immediately; plan
@@ -2380,16 +2402,19 @@ export function applyChatActions(
           break;
         }
         case "update_food_note": {
+          const rows = foodAmendment(Number(a.id), a);
           const result = repo.updateFoodNote(Number(a.id), {
             meal: a.meal,
             summary: a.summary,
-            items: a.items,
+            // Rows re-derive the flat items list; a stale one sent beside them must not win.
+            items: rows ? undefined : a.items,
             notes: a.notes,
-            kcal: a.kcal,
-            protein_g: a.protein_g,
-            carbs_g: a.carbs_g,
-            fat_g: a.fat_g,
-            fiber_g: a.fiber_g,
+            // A correction in rows owns the totals: the server rebuilds them from
+            // the amended rows, so a model's own re-summed total never overrides
+            // the arithmetic (and an amount-only change still scales).
+            ...(rows
+              ? { ingredients: rows }
+              : { kcal: a.kcal, protein_g: a.protein_g, carbs_g: a.carbs_g, fat_g: a.fat_g, fiber_g: a.fiber_g }),
             // Undefined leaves the stored day/time alone — "that was last night"
             // moves it; correcting only a macro must not restamp the clock.
             date: stringOrUndefined(a.date),

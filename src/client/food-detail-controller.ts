@@ -1,8 +1,9 @@
 // @ts-check
 // Food note detail modal controller: food-note detail rendering, correction and removal.
-// The items are the meal card (meal-card-controller.ts): grams are corrected in place
-// with one PUT, and the sheet's hero follows the card's totals — optimistic while
-// editing, the server's once saved — so a correction never needs a chat message.
+// The items are the meal card (meal-card-controller.ts): read-only portions in words
+// until Edit opens the gram fields, then corrected in place with one PUT, and the
+// sheet's hero follows the card's totals — optimistic while editing, the server's
+// once saved.
 
 type FoodDetailControllerRecord = Record<string, unknown>;
 type FoodDetailIngredientRow = FoodDetailControllerRecord & {

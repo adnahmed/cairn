@@ -9,7 +9,7 @@ import {
 } from "../chatActions.js";
 import { getCoachContext } from "../repo/coach.js";
 import { listMemory } from "../repo/memory.js";
-import { mealPlanConstraintSnapshot } from "../repo/nutrition.js";
+import { getFoodNote, mealPlanConstraintSnapshot } from "../repo/nutrition.js";
 import type { ChatLane } from "../chatRouting.js";
 import { renderChatLinkedPagesBlock, type ChatLinkedPage } from "../chatLinks.js";
 import { promptData } from "./context-projection.js";
@@ -152,6 +152,59 @@ function escalationContract(lane: ChatLane): string {
   return `\nHIDDEN ONE-WAY ESCALATION: if this needs the stronger ${target} lane, put this exact marker on its own line BEFORE ${CHAT_REPLY_SENTINEL}:\n${sentinel}\nThen STOP. Do not write a reply marker, prose, actions, or any other escalation. Never request a weaker lane.\n`;
 }
 
+// The rows of the meals most likely to be corrected next — today's few most recently
+// logged — so a follow-up ("oh and 40 g of avocado", "it was two slices") can name
+// an existing row by its item and amend THAT entry (update_food_note ingredients /
+// remove_items) instead of logging a duplicate. Bounded: only the latest entries,
+// only item/amount/kcal per row. Keyed by entry id.
+const AMENDABLE_ENTRIES = 3;
+const AMENDABLE_ROWS = 15;
+
+function amendableMealRows(ctx: any): Map<number, Array<Record<string, unknown>>> {
+  const out = new Map<number, Array<Record<string, unknown>>>();
+  const entries = Array.isArray(ctx?.day_intake?.entries) ? ctx.day_intake.entries : [];
+  const ids = entries
+    .map((entry: any) => Number(entry?.id))
+    .filter((id: number) => Number.isSafeInteger(id) && id > 0)
+    .sort((a: number, b: number) => b - a)
+    .slice(0, AMENDABLE_ENTRIES);
+  for (const id of ids) {
+    let parsed: any = null;
+    try {
+      parsed = (getFoodNote(id) as any)?.parsed;
+    } catch {
+      parsed = null;
+    }
+    const source = Array.isArray(parsed?.ingredients) ? parsed.ingredients : Array.isArray(parsed?.items) ? parsed.items : [];
+    const rows = source
+      .map((raw: any) => {
+        const item = String((raw && typeof raw === "object" ? raw.item : raw) ?? "").trim().slice(0, 80);
+        if (!item) return null;
+        const row: Record<string, unknown> = { item };
+        const amount = raw && typeof raw === "object" ? String(raw.amount ?? "").trim().slice(0, 60) : "";
+        if (amount) row.amount = amount;
+        const kcal = raw && typeof raw === "object" ? Number(raw.kcal) : Number.NaN;
+        if (Number.isFinite(kcal)) row.kcal = Math.round(kcal);
+        return row;
+      })
+      .filter(Boolean)
+      .slice(0, AMENDABLE_ROWS);
+    if (rows.length) out.set(id, rows);
+  }
+  return out;
+}
+
+/** The coach lane's plain-text twin of the capture lane's `rows`: "" when there are none. */
+function renderAmendableMealRows(ctx: any): string {
+  const rows = amendableMealRows(ctx);
+  if (!rows.size) return "";
+  const lines = [...rows].map(
+    ([id, list]) =>
+      `  - id ${id}: ${list.map((row) => `${row.item}${row.amount ? ` (${row.amount})` : ""}`).join("; ")}`
+  );
+  return `\nLOGGED MEAL ROWS (the latest entries, as logged — a follow-up that adds to or corrects one of these meals is update_food_note on its id, naming rows by these exact item names):\n${lines.join("\n")}\n`;
+}
+
 function captureContext(ctx: any): Record<string, unknown> {
   const foodMemoryPattern =
     /\b(?:allerg|diet|food|meal|eat|breakfast|lunch|dinner|snack|fasted|veget|vegan|protein|calorie|macro|restaurant|cafe|café|supplement)\b/i;
@@ -180,6 +233,7 @@ function captureContext(ctx: any): Record<string, unknown> {
     hardConstraints = null;
   }
   const intake = ctx?.day_intake ?? {};
+  const amendable = amendableMealRows(ctx);
   return {
     now: ctx?.now ?? null,
     today_food: {
@@ -188,6 +242,10 @@ function captureContext(ctx: any): Record<string, unknown> {
       entries: (Array.isArray(intake.entries) ? intake.entries : []).slice(0, 30).map((entry: any) => ({
         id: entry.id,
         meal: entry.meal ?? null,
+        // What it was, so a follow-up finds the meal it is about.
+        summary: String(entry.summary ?? "").slice(0, 120) || null,
+        // The latest meals' rows, so a correction can name one (update_food_note).
+        ...(amendable.has(Number(entry.id)) ? { rows: amendable.get(Number(entry.id)) } : {}),
         eaten_at: entry.eaten_at ?? null, // so a correction to WHEN can target the right row
         kcal: entry.kcal ?? null,
         protein_g: entry.protein_g ?? null,
@@ -325,7 +383,7 @@ ${MECHANICS_ENCODING}
 ${CONTEXT_GUARDRAILS}
 
 ${renderChatActionPromptProse()}
-${renderSignalState(ctx)}${renderCoachingFocus(ctx, { brief: true })}${renderTrainingSignals(ctx)}${renderStrengthJourney(ctx)}${renderReactionModel(ctx)}${renderActiveContext(ctx)}${renderMovementConsiderations(ctx)}${renderTodayFuel(ctx)}
+${renderSignalState(ctx)}${renderCoachingFocus(ctx, { brief: true })}${renderTrainingSignals(ctx)}${renderStrengthJourney(ctx)}${renderReactionModel(ctx)}${renderActiveContext(ctx)}${renderMovementConsiderations(ctx)}${renderTodayFuel(ctx)}${renderAmendableMealRows(ctx)}
 Keep the reply short and human; confirm safe capture actions you logged. NEVER state that you logged,
 added, updated, or changed anything unless THIS turn emits the matching action after the action marker —
 a reply with no actions block must never claim a change was made; say what you would log and confirm, or
