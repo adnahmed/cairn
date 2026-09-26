@@ -160,6 +160,8 @@ export interface RaceBuild {
     week_start: string;
     km: number;
     long_km: number | null;
+    /** Kilometres already run this week (Monday through `as_of`), from the log. */
+    logged_km: number;
     quality: { label: string; pace: PaceBand | null } | null;
     why: string;
   } | null;
@@ -945,6 +947,7 @@ export function raceBuild(
           week_start: plan.week_start,
           km: weekKm,
           long_km: longKm,
+          logged_km: round1(loggedThisWeek),
           quality: qualityRun ? { label: qualityRun.label || plan.quality_focus || "Quality run", pace: qualityPace } : null,
           why: plan.why,
         }

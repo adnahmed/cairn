@@ -115,22 +115,23 @@ function paintPlanEndurance(
     laterRunPlan: extra?.laterRunPlan,
     laterRaceBuild: extra?.laterRaceBuild,
   });
-  const liveRaceBuild = briefing.horizon === "this_week" ? raceBuild : (extra?.nextRaceBuild || extra?.laterRaceBuild || raceBuild);
-  const briefingHtml = enduranceModel().briefingHtml(briefing, 0);
-  const goalHtml = goal
-    ? `<div class="card-stack-item">${typeof enduranceGoalCard === "function" ? enduranceGoalCard(goal, { units }) : ""}</div>`
-    : `<div class="end-goal card-stack-item reveal" style="${stagger(0)}">
+  const briefingHtml = CairnPlanEnduranceBriefing.briefingHtml(briefing, 0);
+  // The race view is the primary race surface (race-view-*): this week's build, read
+  // as it stands today, with the weeks to race, the ladder and the finish estimate. A
+  // failed read still mounts it for a race goal, so it can say so and try again.
+  const showRace = enduranceModel().showsRaceView(goal, raceBuild);
+  const goalHtml = showRace
+    ? ""
+    : goal
+      ? `<div class="card-stack-item">${typeof enduranceGoalCard === "function" ? enduranceGoalCard(goal, { units }) : ""}</div>`
+      : `<div class="end-goal card-stack-item reveal" style="${stagger(0)}">
          <div class="end-goal-head"><span class="lbl">Running goal</span></div>
          <div class="end-goal-name">No goal set yet</div>
          <div class="end-goal-sub">Set a race or a standing readiness target in <b>Settings → You → Profile</b> and the coach will periodize your running toward it.</div>
        </div>`;
-
-  const raceBuildHtml = liveRaceBuild && liveRaceBuild.available !== false && liveRaceBuild.race && typeof raceBuildCard === "function"
-    ? raceBuildCard(liveRaceBuild, { underGoal: true, legMap: typeof loadPlanWeekStrip !== "function", compact: true, units })
-    : "";
-  // The race build's own week-by-week ladder supersedes the generic "typical
-  // arc" ramp placeholder — show one or the other, never both.
-  const rampHtml = raceBuildHtml ? "" : rampHtmlForGoal(goal);
+  // The race view's own ladder supersedes the generic "typical arc" ramp
+  // placeholder — show one or the other, never both.
+  const rampHtml = showRace ? "" : rampHtmlForGoal(goal);
   const standingNote = goal && goal.mode === "standing"
     ? `<div class="end-ramp-note reveal" style="${stagger(1)}"><span class="lbl">Steady readiness</span> — no race to peak for, so the plan holds a sustainable rhythm rather than ramping.${goal.weekly_km ? ` Target around <b>${escHtml(typeof fmtDist === "function" ? fmtDist(goal.weekly_km, units) : `${goal.weekly_km} km`)}/wk</b>.` : ""}</div>`
     : "";
@@ -168,7 +169,7 @@ function paintPlanEndurance(
      </details>` +
     `<div id="endUpcomingSlot" class="card-stack-item"></div>` +
     goalHtml +
-    (raceBuildHtml ? `<div class="card-stack-item">${raceBuildHtml}</div>` : "") +
+    (showRace ? `<div id="endRaceSlot" class="card-stack-item"></div>` : "") +
     (rampHtml ? `<div class="card-stack-item">${rampHtml}</div>` : "") +
     (standingNote ? `<div class="card-stack-item">${standingNote}</div>` : "") +
     (complianceHtml ? `<div class="card-stack-item">${complianceHtml}</div>` : "") +
@@ -187,6 +188,15 @@ function paintPlanEndurance(
     });
   }
   if (typeof loadPlanUpcomingNote === "function") loadPlanUpcomingNote(pollToken, "#endUpcomingSlot");
+  const raceSlot = body.querySelector("#endRaceSlot");
+  if (raceSlot && typeof CairnRaceViewController !== "undefined") {
+    CairnRaceViewController.mount(raceSlot, {
+      initial: raceBuild ?? null,
+      load: () => api("/race-build"),
+      units,
+      reducedMotion: () => (typeof reducedMotion === "function" ? reducedMotion() : false),
+    });
+  }
 
   body.querySelectorAll<HTMLElement>("[data-run-units]").forEach((button) => {
     button.addEventListener("click", () => {

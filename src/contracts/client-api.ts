@@ -1355,6 +1355,8 @@ export interface ClientRaceBuild {
     week_start: ISODateString | string;
     km: number;
     long_km: number | null;
+    /** Kilometres already run this week (Monday through `as_of`), from the log. */
+    logged_km: number;
     quality: { label: string; pace: ClientRacePaceBand | null } | null;
     why: string;
   } | null;

@@ -369,6 +369,19 @@ test("mid-week, the ladder never collapses to the partial log: Tuesday with one 
   );
 });
 
+test("this week carries the kilometres already run, Monday through the as-of day, read off the log", () => {
+  seedRaceProfile("sub-1:45");
+  seedHybridRunner();
+  const tuesday = "2026-09-15";
+  repo.addActivity({ type: "run", duration_min: 25, distance_km: 4, date: tuesday });
+  const out = raceBuild(tuesday);
+  assert.equal(out.available, true, out.reason);
+  assert.ok(out.this_week, "the live engine prescribed a week");
+  // Last week's runs are not this week's; Tuesday's 4 km is.
+  assert.equal(out.this_week.logged_km, 4);
+  assert.equal(raceBuild("2026-09-14").this_week?.logged_km, 0, "Monday with nothing run yet");
+});
+
 test("training paces follow current fitness when the target is beyond it; the target stays the race band", () => {
   seedRaceProfile("1:30"); // far beyond a ~1:49 estimate
   seedHybridRunner({ rideWeeks: [] });

@@ -4369,9 +4369,11 @@ new profile fields, and `{available:false, reason}` for everyone else. `raceBuil
   the clear-slot sentence rotates through `pickDayVariant` like every other athlete-facing line.
 
 Surfaces: `GET /api/race-build`, MCP `get_race_build`, the "Race build" card on Progress →
-Endurance (`raceBuildCard`, fetched into the endurance snapshot v4), Plan → Endurance (the same
-card in `compact` form under a next-session briefing built from `/run-plan` + the rolling agenda —
-the tab shows the next three open runs, with anything further behind "Later in the build"; pace
+Endurance (`raceBuildCard`, fetched into the endurance snapshot v4), Plan → Endurance (the race
+view, `race-view-*` / `race-ladder-client` / `race-estimate-client`: weeks to race, race day, the
+fit word, and the ladder's weeks as rows with km per week as bars against the longest week, this
+week filled with `this_week.logged_km` — km always, whatever the pace units — under a next-session
+briefing built from `/run-plan` + the rolling agenda — the tab shows the next three open runs, with anything further behind "Later in the build"; pace
 and distance follow `settings.run_units` (`km` or `mi`); the connected week strip is a collapsed
 "This week's map" fetched only when opened; when this week's intents are banked the featured run
 is next week's), and the `race_build` key in the ENDURANCE prompt bundle, rendered by

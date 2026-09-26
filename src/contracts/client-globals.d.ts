@@ -3045,7 +3045,7 @@ declare global {
           status: "open" | "completed";
         }>;
       };
-      briefingHtml(briefing: unknown, start?: number): string;
+      showsRaceView(goal: ClientEnduranceGoal | null | undefined, build: ClientRaceBuild | null | undefined): boolean;
     };
 
     CairnPlanEndurance: Window["CairnPlanEnduranceModel"];
@@ -5789,4 +5789,96 @@ declare global {
   declare const CairnPacketBuilderController: Window["CairnPacketBuilderController"];
   declare const CairnVisitQuestions: Window["CairnVisitQuestions"];
   declare const CairnVisitQuestionsController: Window["CairnVisitQuestionsController"];
+  // ---- Wave 4 stream B: race view (race-ladder, race-estimate), Plan → Endurance ----
+  type ClientRaceLadderRow = {
+    week_start: string;
+    weeks_to_race: number;
+    kind: "build" | "down" | "peak" | "taper" | "race";
+    /** "Build", "Down week", "Peak", "Taper", "Race". */
+    kind_word: string;
+    /** "7 wk out", or "Race week". */
+    out_word: string;
+    /** The week's Monday as the one date label ("Sep 14"). */
+    date_word: string;
+    km: number;
+    /** Kilometres per week, always ("32 km"). */
+    km_text: string;
+    long_text: string;
+    /** The bar: this week's km against the ladder's longest week, 0..1. */
+    frac: number;
+    current: boolean;
+    logged_km: number | null;
+    logged_frac: number | null;
+    so_far_text: string;
+    race_day_text: string;
+  };
+  type ClientRaceLadderModel = { rows: ClientRaceLadderRow[]; max_km: number; taper_text: string };
+  type ClientRaceEstimateModel = {
+    fit: import("./client-api.js").ClientRaceFit | null;
+    /** "Fits", "Stretch" or "Beyond horizon" — the whole vocabulary; "" without a target. */
+    fit_word: string;
+    fit_line: string;
+    estimate_clock: string;
+    target_clock: string;
+    basis_text: string;
+    trend_text: string;
+    empty: boolean;
+  };
+  type ClientRaceViewModel = {
+    event: string;
+    countdown: string;
+    race_day: string;
+    phase_word: string;
+    estimate: ClientRaceEstimateModel;
+    ladder: ClientRaceLadderModel;
+    paces: Array<{ label: string; text: string }>;
+    notes: string[];
+  };
+  type ClientRaceViewDeps = {
+    /** GET /api/race-build. */
+    load(): Promise<unknown>;
+    /** A build the screen already holds; painted at once, no second read. */
+    initial?: unknown;
+    /** Pace units only; run volume is kilometres per week everywhere. */
+    units?: "km" | "mi";
+    reducedMotion?(): boolean;
+  };
+  interface Window {
+    CairnPlanEnduranceBriefing: {
+      briefingHtml(briefing: unknown, start?: number): string;
+    };
+    CairnRaceViewModel: {
+      FIT_WORD: Record<import("./client-api.js").ClientRaceFit, string>;
+      KIND_WORD: Record<ClientRaceLadderRow["kind"], string>;
+      kmText(km: unknown): string;
+      clock(sec: unknown): string;
+      longDate(iso: unknown): string;
+      isShowable(value: unknown): value is ClientRaceBuild;
+      ladderModel(build: ClientRaceBuild | null | undefined): ClientRaceLadderModel;
+      estimateModel(build: ClientRaceBuild | null | undefined): ClientRaceEstimateModel;
+      viewModel(value: unknown, opts?: { units?: unknown }): ClientRaceViewModel | null;
+    };
+    CairnRaceLadder: {
+      ladderHtml(model: ClientRaceLadderModel, opts?: { reveal?: boolean }): string;
+      rowHtml(row: ClientRaceLadderRow, index: number, opts: { reveal?: boolean }): string;
+    };
+    CairnRaceEstimate: {
+      estimateHtml(model: ClientRaceEstimateModel): string;
+    };
+    CairnRaceView: {
+      viewHtml(model: ClientRaceViewModel, opts?: { enter?: boolean }): string;
+      skeletonHtml(): string;
+      emptyHtml(reason?: unknown): string;
+      errorHtml(): string;
+    };
+    CairnRaceViewController: {
+      mount(host: Element, deps: ClientRaceViewDeps): () => void;
+    };
+  }
+  declare const CairnPlanEnduranceBriefing: Window["CairnPlanEnduranceBriefing"];
+  declare const CairnRaceViewModel: Window["CairnRaceViewModel"];
+  declare const CairnRaceLadder: Window["CairnRaceLadder"];
+  declare const CairnRaceEstimate: Window["CairnRaceEstimate"];
+  declare const CairnRaceView: Window["CairnRaceView"];
+  declare const CairnRaceViewController: Window["CairnRaceViewController"];
 }
