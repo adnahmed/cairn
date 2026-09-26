@@ -173,7 +173,7 @@ test("the muscle rows lead with the groups that ask for a look; the rest fold un
 
 test("a tap on a folded muscle opens its fold and finds its row", () => {
   const ctx = loadRoadFold();
-  const opened = { open: false };
+  const opened = { open: false, setAttribute: (name) => (opened[name] = true) };
   const row = { closest: (sel) => (sel === "details" ? opened : null) };
   const view = { querySelector: (sel) => (sel === '.tov-row[data-group="calves"]' ? row : null) };
   assert.equal(ctx.tovOpenRow(view, "calves"), row);

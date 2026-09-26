@@ -515,8 +515,7 @@ function tovRowsHtml(rows: TovRow[]): string {
 /** A muscle's row, with its fold opened when it sits among the quiet groups. */
 function tovOpenRow(view: ParentNode, group: string): HTMLElement | null {
   const row = group ? view.querySelector<HTMLElement>(`.tov-row[data-group="${group}"]`) : null;
-  const fold = row?.closest("details");
-  if (fold && !fold.open) fold.open = true;
+  row?.closest("details")?.setAttribute("open", "");
   return row;
 }
 
@@ -524,12 +523,9 @@ function tovCapitalize(value: string): string {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }
 
-// The always-available start entry: routes through the shared openSession() (the
-// Brief's path; dayPicked reset in wireTovStart).
-//
-// Today's lift in the server's one line, with the one door into it. The door names the
-// plan day ("Start Pull →") and goes away once the day's lift is logged; the line
-// itself then says so.
+// The always-available start entry, through the shared openSession() (the Brief's path;
+// dayPicked reset in wireTovStart). Today's lift in the server's one line, with the one
+// door into it: it names the plan day ("Start Pull →") and goes once the lift is logged.
 function tovStartHtml(data?: TovData): string {
   const line = data?.strengthLine || null;
   const lineHtml = line ? CairnUiReads.strengthLineHtml(line, { kicker: "Today" }) : "";
@@ -700,8 +696,5 @@ function paintTrainOverview(data: TovData): void {
   });
 }
 
-// tovJourneyPointerHtml, tovRowsHtml and tovOpenRow are exposed alongside the render
-// entry so the journey line and the muscle-row fold can be unit-tested in isolation
-// (test/clientRoadFold.test.js), the same way the journey/timeline card renderers are.
 Object.assign(globalThis, { renderTrainOverview, tovJourneyPointerHtml, tovRowsHtml, tovOpenRow });
 if (typeof window !== "undefined") Object.assign(window, { renderTrainOverview, tovJourneyPointerHtml, tovRowsHtml, tovOpenRow });

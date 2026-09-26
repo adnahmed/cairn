@@ -144,7 +144,8 @@
     const ticks = new Set<number>([0, Math.round((weeks.length - 1) / 3), Math.round(((weeks.length - 1) * 2) / 3)]);
     for (const i of ticks) {
       const x = X(dayNum(weeks[i].week_start));
-      if (rx - x < 60) continue;
+      // The race date is written leftward from the race line; a tick needs room for both.
+      if (rx - x < 76) continue;
       g += `<text class="hz-axis" x="${fx(x)}" y="${fx(Y(0) + 14)}">${escHtml(monoDate(weeks[i].week_start))}</text>`;
     }
     g += `<text class="hz-axis" x="${fx(rx)}" y="${fx(Y(0) + 14)}" text-anchor="end">${escHtml(monoDate(terrain.race_date || isoOf(raceDay)))}</text>`;
@@ -210,7 +211,8 @@
     const nx = X(dayNum(last.date));
     const ny = Y(last.lb);
     const age = Number.isFinite(today) ? today - dayNum(last.date) : Number.POSITIVE_INFINITY;
-    const isToday = age === 0;
+    // A weigh-in dated a day ahead of the device's today (a timezone edge) is still today's.
+    const isToday = age <= 0;
     if (season.goal_lb != null) {
       const gy = Y(season.goal_lb);
       const goalWord = [kmWord(season.goal_lb), season.goal_date ? CairnUiChart.dateLabel(season.goal_date) : ""]

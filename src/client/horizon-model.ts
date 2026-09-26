@@ -348,9 +348,8 @@
 
   // ---- Season ---------------------------------------------------------------------
 
-  // The season on one line: the goal-pace weigh-ins (with its goal), the timeline's own
-  // projection window as the fan and its race day, and draws, scans and rechecks as
-  // dated marks. Null with fewer than two weigh-ins; the lanes still say everything.
+  // The season on one line: goal-pace weigh-ins and goal, the timeline's projection window
+  // (the fan) and race day, and dated marks. Null under two weigh-ins; the lanes still speak.
   function season(pace: unknown, timeline: unknown, docs: unknown, checkupValue: unknown, today: string): ClientHorizonSeason | null {
     const read = record(pace);
     const points = (Array.isArray(read?.points) ? (read.points as unknown[]) : [])
@@ -368,16 +367,13 @@
         marks.push({ date, label: LAB_KINDS[String(doc.kind)], kind: String(doc.kind), side: "behind" });
     }
     const checkup = record(checkupValue) as Checkup | null;
-    // A recheck the checkup calls due now stands on today's line even when its date has
-    // passed (the labs rail still lists it); an upcoming one stands at its own date.
-    const aheadMark = (item: CheckupItem | null | undefined, dueNow: boolean): void => {
-      const due = dayKey(item?.next_due);
-      if (!item || !due) return;
-      const date = dueNow && today && due < today ? today : due;
-      if (!today || date >= today) marks.push({ date, label: text(item.label), kind: text(item.kind) || "lab", side: "ahead" });
-    };
-    for (const item of Array.isArray(checkup?.due_now) ? checkup.due_now : []) aheadMark(item, true);
-    for (const item of Array.isArray(checkup?.upcoming) ? checkup.upcoming : []) aheadMark(item, false);
+    // A recheck due now stands on today's line even once its date has passed (the labs
+    // rail still lists it); an upcoming one stands at its own date.
+    const due = (checkup?.due_now || []).map((item) => [item, true] as const);
+    for (const [item, now] of [...due, ...(checkup?.upcoming || []).map((item) => [item, false] as const)]) {
+      const date = now && today && dayKey(item?.next_due) < today ? today : dayKey(item?.next_due);
+      if (date && (!today || date >= today)) marks.push({ date, label: text(item.label), kind: text(item.kind) || "lab", side: "ahead" });
+    }
     return {
       points,
       goal_lb: num(record(read?.goal)?.weight_lb),
