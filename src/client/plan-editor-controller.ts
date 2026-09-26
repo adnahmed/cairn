@@ -200,8 +200,8 @@ function planUpcomingNoteHtml(note: import("../contracts/client.js").ClientPlanU
 
 // Shared by the Plan edit segment and the endurance segment (both under the
 // "plan" tab) — paints into whichever slot the caller owns.
-function loadPlanUpcomingNote(token: number, slotSel = "#planUpcomingSlot"): void {
-  void api("/plan/upcoming")
+function loadPlanUpcomingNote(token: number, slotSel = "#planUpcomingSlot", pending?: Promise<unknown>): void {
+  void (pending ?? api("/plan/upcoming"))
     .then((note) => {
       if (token !== pollToken || state.tab !== "plan") return;
       const slot = $(slotSel);
@@ -215,9 +215,10 @@ function loadPlanUpcomingNote(token: number, slotSel = "#planUpcomingSlot"): voi
 function loadPlanWeekStrip(
   token: number,
   slotSel = "#planWeekSlot",
-  onWeek?: (week: import("../contracts/client.js").ClientPlanWeek) => void
+  onWeek?: (week: import("../contracts/client.js").ClientPlanWeek) => void,
+  pending?: Promise<unknown>
 ): void {
-  void api("/plan/week")
+  void (pending ?? api("/plan/week"))
     .then((week) => {
       if (token !== pollToken || state.tab !== "plan") return;
       const slot = view.querySelector(slotSel) || $(slotSel);
@@ -402,8 +403,8 @@ function pollPlanRedraw(token: number, tries: number): void {
 
 // Read once on render, so a reload never loses an in-flight redraw and a failed one is
 // still visible the next time the tab opens.
-function loadPlanRedraw(token: number): void {
-  void api("/plan/redraw")
+function loadPlanRedraw(token: number, pending?: Promise<unknown>): void {
+  void (pending ?? api("/plan/redraw"))
     .then((data) => {
       if (token !== pollToken || state.tab !== "plan") return;
       const status = data as PlanRedrawStatus;
@@ -440,8 +441,8 @@ function paintExerciseNameOptions(rows: unknown): void {
   list.innerHTML = names.map((name) => `<option value="${escAttr(name)}">`).join("");
 }
 
-function loadPlanRecoveryBanner(token: number): void {
-  void api("/plan/recovery-status")
+function loadPlanRecoveryBanner(token: number, pending?: Promise<unknown>): void {
+  void (pending ?? api("/plan/recovery-status"))
     .then((rs) => {
       if (token !== pollToken || state.tab !== "plan") return;
       const slot = $("#planRecoverySlot");
@@ -546,6 +547,29 @@ function wireComposeWeek(root: ParentNode): void {
   btn?.addEventListener("click", () => { void composeFirstWeek(btn); });
 }
 
+// The four reads that sit ABOVE the day gallery (week strip, recovery banner, "Coming
+// up", redraw strip) each used to land on their own and push the gallery down as they
+// did (a 0.37 layout shift on a cold open). They start together with /plan and the
+// screen paints once they have all answered, so every slot fills in the same frame.
+// The wait is bounded: a read slower than this paints when it lands, as before.
+const PLAN_HEAD_WAIT_MS = 2000;
+
+// A read started ahead of its consumer must not surface as an unhandled rejection;
+// the consumer still sees the original outcome.
+function planHeadRead(path: string): Promise<unknown> {
+  const pending = api(path);
+  pending.catch(() => {});
+  return pending;
+}
+
+function planHeadReads(): { week: Promise<unknown>; recovery: Promise<unknown>; upcoming: Promise<unknown> } {
+  return {
+    week: planHeadRead("/plan/week"),
+    recovery: planHeadRead("/plan/recovery-status"),
+    upcoming: planHeadRead("/plan/upcoming"),
+  };
+}
+
 async function renderPlanEditor(): Promise<void> {
   const helpers = planHelpers();
   const form = planForm();
@@ -554,6 +578,7 @@ async function renderPlanEditor(): Promise<void> {
   const token = ++pollToken;
   const peek = peekCached<PlanEditorControllerApiDay[]>("plan");
   if (!peek) view.innerHTML = segSkeleton("plan", PROGRESS_SEG, 3);
+  const heads = planHeadReads();
   const revalidate = cachedApi("/plan", {
     key: "plan",
     onUpgrade: (_data, { changed }) => {
@@ -565,6 +590,21 @@ async function renderPlanEditor(): Promise<void> {
     },
   });
   const plan = peek ? peek.data : await revalidate.catch(() => []);
+  // Lift days only. A rest day or a run-only day an older payload still carries is
+  // not edited here (runs live in Endurance; rest is the calendar), and the next save
+  // writes the strength week alone.
+  const model: PlanEditorControllerModelDay[] = strengthPlanDays(Array.isArray(plan) ? plan : []).map((day) =>
+    helpers.dayModelFromPlan(day)
+  );
+  // The redraw strip exists only over a week with work in it (see planIsBlank below),
+  // so its read waits for the plan and is never asked for a blank page.
+  const redrawRead = model.some((day) => (Array.isArray(day.items) ? day.items : []).length > 0)
+    ? planHeadRead("/plan/redraw")
+    : null;
+  await settledWithin(
+    [heads.week, heads.recovery, heads.upcoming, ...(redrawRead ? [redrawRead] : [])],
+    PLAN_HEAD_WAIT_MS
+  );
   if (token !== pollToken || state.tab !== "plan") return;
   if (peek && !peek.fresh) markRefreshing(true);
 
@@ -576,16 +616,10 @@ async function renderPlanEditor(): Promise<void> {
     <div id="planstatus" style="margin-top:8px;color:var(--muted);font-size:.82rem"></div>${calFooter}
     <datalist id="exerciseNames"></datalist>`;
   wireSeg(PROGRESS_LINK_HANDLERS);
-  loadPlanRecoveryBanner(token);
-  loadPlanUpcomingNote(token);
+  loadPlanRecoveryBanner(token, heads.recovery);
+  loadPlanUpcomingNote(token, "#planUpcomingSlot", heads.upcoming);
   loadExerciseNameOptions(token);
 
-  // Lift days only. A rest day or a run-only day an older payload still carries is
-  // not edited here (runs live in Endurance; rest is the calendar), and the next save
-  // writes the strength week alone.
-  const model: PlanEditorControllerModelDay[] = strengthPlanDays(Array.isArray(plan) ? plan : []).map((day) =>
-    helpers.dayModelFromPlan(day)
-  );
   view.querySelector<HTMLElement>("[data-plan-runs]")?.addEventListener("click", () => {
     state.planJump = state.planSeg = "endurance"; activateTab("plan"); // the race view is Horizon's
   });
@@ -609,7 +643,7 @@ async function renderPlanEditor(): Promise<void> {
     // Re-draw gallery cards with weekday/status once the week lands — skip if editing.
     if (view.querySelector(".pday") || document.querySelector(".savebar.show")) return;
     draw();
-  });
+  }, heads.week);
 
   function markDirty(): void {
     planBar?.markDirty();
@@ -840,7 +874,7 @@ async function renderPlanEditor(): Promise<void> {
 
   // A blank plan already has the compose-week entry — asking to REDRAW a week that does
   // not exist yet would be two doors to the same empty room.
-  if (!planIsBlank()) loadPlanRedraw(token);
+  if (!planIsBlank()) loadPlanRedraw(token, redrawRead ?? undefined);
 
   draw();
 }

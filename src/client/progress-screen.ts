@@ -342,23 +342,66 @@ async function renderMeasurements() {
 // ---------- Progress: volume by muscle group ----------
 // SWR over /volume?days=30 (key progress:volume): the Volume seg paints the
 // per-muscle bars instantly on a warm re-entry, then revalidates.
+//
+// The balance read (/program/balance) sits ABOVE the ranked bars, so it rides the same
+// cycle: it has its own SWR key (dropped with progress:volume on every set write), the
+// warm path paints both from their peeks at once, and a cold open waits (bounded) for
+// both before the first paint. It used to land on its own and push every bar down.
+const VOLUME_BALANCE_KEY = "progress:volume-balance";
+const VOLUME_BALANCE_WAIT_MS = 2000;
+
 async function renderVolume() {
   headerTitle.textContent = "Volume";
   state.progressSeg = "volume";
   const token = ++pollToken;
   const peek = peekCached("progress:volume");
-  if (!peek) view.innerHTML = segSkeleton("volume", PROGRESS_SEG, 2); // cold: skeleton-first
-  return paintSWR({
+  const balancePeek = peekCached(VOLUME_BALANCE_KEY);
+  const warm = !!(peek && balancePeek);
+  // `undefined` = not answered yet; null = answered with nothing to say.
+  let balance: unknown = warm ? balancePeek!.data : undefined;
+  let volumeBalanceHeld = false;
+  const live = () => token === pollToken && state.tab === "progress" && state.progressSeg === "volume";
+  const balanceRead = cachedApi("/program/balance", {
+    key: VOLUME_BALANCE_KEY,
+    onUpgrade: (data, { changed }) => {
+      if (changed && warm && live()) paintVolumeBalance(data);
+    },
+  })
+    .then((data) => {
+      balance = data;
+      return data;
+    })
+    .catch(() => {
+      if (balance === undefined) balance = null;
+      return null;
+    });
+  // A slow balance read paints into its slot when it lands, as it always did.
+  void balanceRead.then((data) => {
+    if (!warm && live() && volumeBalanceHeld) paintVolumeBalance(data);
+  });
+  if (!warm) view.innerHTML = segSkeleton("volume", PROGRESS_SEG, 2); // cold: skeleton-first
+  const balanceSettled = warm ? Promise.resolve() : settledWithin([balanceRead], VOLUME_BALANCE_WAIT_MS);
+  let painted: Promise<void> = Promise.resolve();
+  const result = await paintSWR({
     key: "progress:volume",
     path: "/volume?days=30",
-    peek: peek as never,
+    peek: (warm ? peek : null) as never,
     token,
     tab: "progress",
-    render: (data: unknown) => paintVolumeBody(CairnProgressData.record(data)),
+    render: (data: unknown) => {
+      if (warm) return paintVolumeBody(CairnProgressData.record(data), balance);
+      painted = balanceSettled.then(() => {
+        if (!live()) return;
+        volumeBalanceHeld = balance === undefined;
+        paintVolumeBody(CairnProgressData.record(data), balance);
+      });
+    },
   });
+  await painted;
+  return result;
 }
 
-function paintVolumeBody(data: ProgressRecord) {
+function paintVolumeBody(data: ProgressRecord, balance: unknown) {
   const groups = CairnProgressData.rows<ProgressVolumeGroup>(data.by_muscle)
     .slice()
     .sort((a, b) => CairnProgressData.number(b.sets) - CairnProgressData.number(a.sets));
@@ -404,10 +447,11 @@ function paintVolumeBody(data: ProgressRecord) {
     rows;
   wireSeg(PROGRESS_HANDLERS);
   runCountUps(view);
-  // The balance read settles in above the numbers (best-effort, async) — the engine
-  // reads your volume per canonical muscle group, names what's DUE and what's
-  // running high, and flags the patterns (core / grip / mobility) that are absent.
-  loadVolumeBalance();
+  // The balance read sits above the numbers — the engine reads your volume per
+  // canonical muscle group, names what's DUE and what's running high, and flags the
+  // patterns (core / grip / mobility) that are absent. Painted in the same frame when
+  // it has answered; a read still out fills the slot when it lands.
+  if (balance !== undefined) paintVolumeBalance(balance);
 }
 
 // ---------- Volume: the balance read (which groups are due / high / missing) ----------
@@ -417,22 +461,10 @@ function paintVolumeBody(data: ProgressRecord) {
 // new taxonomy made visible (core, forearms/grip). Best-effort + null-safe: the
 // SURFACE endpoint may not be wired yet (404) — guard like every optional fetch,
 // leaving the bars untouched if it's missing. Constitution: pull, never push.
-async function loadVolumeBalance() {
+function paintVolumeBalance(bal: unknown) {
   const slot = view.querySelector("#volBalanceSlot");
-  if (!slot) return;
-  let bal = null;
-  try {
-    bal = await api("/program/balance");
-  } catch {
-    bal = null;
-  }
-  if (state.tab !== "progress" || state.progressSeg !== "volume" || !slot.isConnected) return;
-  const html = volBalanceHtml(bal);
-  if (!html) {
-    slot.innerHTML = "";
-    return;
-  }
-  slot.innerHTML = html;
+  if (!slot || state.tab !== "progress" || state.progressSeg !== "volume") return;
+  slot.innerHTML = volBalanceHtml(bal as never) || "";
 }
 
 // ---------- Progress: Endurance (runner/cyclist-first read) ----------

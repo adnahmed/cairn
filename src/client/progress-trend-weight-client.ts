@@ -70,13 +70,47 @@ function lastTrainedExercise(exercises: ProgressExercise[]): string | undefined 
   return best?.name ?? exercises[0]?.name;
 }
 
+// The chosen lift's series (/progress/<name>) carries the hero line above the chart,
+// so the body paints once it is in hand: from its SWR peek at once on a warm open,
+// else after the read (the skeleton holds). Painting the shell first and the hero
+// later pushed the picker and chart down under the athlete's thumb.
+const ONE_RM_SERIES_KEY = "progress:1rm:";
+
 function paintProgressBody(exercises: ProgressExercise[]): void {
+  const token = pollToken;
   const allExercises = exercises;
   exercises = oneRmPickerExercises(allExercises);
   const saved =
     state.progressEx && allExercises.some((e) => e.name === state.progressEx)
       ? state.progressEx
       : lastTrainedExercise(exercises);
+  const name = saved ?? "";
+  const key = ONE_RM_SERIES_KEY + name;
+  const peek = name ? peekCached(key) : null;
+  const live = () => token === pollToken && state.tab === "progress" && state.progressSeg === "trend";
+  const series = name
+    ? cachedApi(`/progress/${encodeURIComponent(name)}`, {
+        key,
+        onUpgrade: (data, { changed }) => {
+          if (peek && changed && live() && $<HTMLSelectElement>("#exsel")?.value === name) paintOneRm(name, data);
+        },
+      })
+    : Promise.resolve(null);
+  if (peek) {
+    paintProgressShell(exercises, allExercises, saved);
+    paintOneRm(name, peek.data);
+    return;
+  }
+  void series
+    .catch(() => null)
+    .then((data) => {
+      if (!live()) return;
+      paintProgressShell(exercises, allExercises, saved);
+      if (name) paintOneRm(name, data);
+    });
+}
+
+function paintProgressShell(exercises: ProgressExercise[], allExercises: ProgressExercise[], saved: string | undefined): void {
   view.innerHTML = segBar("trend", PROGRESS_SEG) + `<div id="trendHero"></div>
     <div class="field"><label>Exercise</label>
     <select id="exsel">${(exercises.some((e) => e.name === saved) ? exercises : [...exercises, ...allExercises.filter((e) => e.name === saved)]).map((e) => `<option ${e.name === saved ? "selected" : ""}>${escHtml(e.name)}</option>`).join("")}</select></div>
@@ -84,7 +118,6 @@ function paintProgressBody(exercises: ProgressExercise[]): void {
   wireSeg(PROGRESS_HANDLERS);
   const select = $<HTMLSelectElement>("#exsel");
   if (select) select.addEventListener("change", () => { state.progressEx = select.value; drawProgress(select.value); });
-  drawProgress(saved ?? "");
 }
 
 // Pounds still between the athlete and their goal, in the goal's direction (never
@@ -123,18 +156,22 @@ function paintWeightBody(rows: ProgressWeightRow[], profile: ProgressRecord): vo
           ? `${last} lb, ${toGoal} ${profile.goal_mode === "maintain" ? "from your goal" : "to go"}.`
           : `${last} lb — at your goal.`,
     fact: pts.length > 1 ? `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)} lb since ${fmtShortDate(pts[0].date)}` : "",
+    meta: `${pts.length} weigh-in${pts.length === 1 ? "" : "s"}${goalW != null ? ` · goal ${goalW} lb` : ""}`,
   });
   // The goal-pace read (when it resolves) is unified to LEAD, ahead of the numeral
   // hero — see mountGoalPaceChart in progress-screen.ts, which fills this anchor.
-  view.innerHTML = head + `<div id="weightLeadMount"></div>` + hero + `<canvas id="chart" class="pchart is-body"></canvas>
-    <div class="chart-foot lbl">${pts.length} weigh-in${pts.length === 1 ? "" : "s"}${goalW != null ? ` · goal ${goalW} lb` : ""}</div>`;
+  view.innerHTML = head + `<div id="weightLeadMount"></div>` + hero + `<canvas id="chart" class="pchart is-body"></canvas>`;
   wireSeg(PROGRESS_HANDLERS);
   runCountUps(view);
   drawLineChart($<HTMLCanvasElement>("#chart"), pts, { goal: goalW ?? null, fmt: (v) => `${Math.round(v * 10) / 10} lb` });
 }
 
 async function drawProgress(name: string): Promise<void> {
-  const data = await api("/progress/" + encodeURIComponent(name));
+  const data = await cachedApi(`/progress/${encodeURIComponent(name)}`, { key: ONE_RM_SERIES_KEY + name }).catch(() => null);
+  paintOneRm(name, data);
+}
+
+function paintOneRm(name: string, data: unknown): void {
   const row = CairnProgressData.record(data);
   const canvas = $<HTMLCanvasElement>("#chart"), stats = $<HTMLElement>("#pstats"), heroWrap = $<HTMLElement>("#trendHero");
   if (!canvas || !canvas.isConnected) return; // navigated away mid-fetch

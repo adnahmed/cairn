@@ -177,6 +177,59 @@ function todayLoadSurfaceSnapshot(date: string): string | null {
   }
 }
 
+// ---- warm instant-paint for the Session destination (the same idea as Today's) ----
+// Session's first content waits on the plan-session preparation and the strength
+// line — round trips even when every cached read is warm — so a re-entry showed the
+// previous screen for over half a second. The last real session paint is kept per
+// DATE, together with a stamp of the cached reads it was drawn from (the session, the
+// day's composed session, the plan). It repaints at once only while those reads are
+// untouched: any write drops or replaces one of them (a logged set, a skip, a swap,
+// an outbox replay, a plan save), the stamp stops matching, and the screen waits for
+// the truth instead. The real render always follows and settles on the live content.
+const SESSION_SURFACE_SNAP_KEY = "cairn.session.surface.v1";
+
+function sessionSnapshotStamp(date: string): string | null {
+  const session = peekCached<unknown>(`today:session:${date}`);
+  if (!session) return null;
+  let text = "";
+  try {
+    text = JSON.stringify([
+      session.data ?? null,
+      peekCached<unknown>(`today:daily-session:${date}`)?.data ?? null,
+      peekCached<unknown>("plan")?.data ?? null,
+    ]);
+  } catch {
+    return null;
+  }
+  let hash = 5381;
+  for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
+  return `${text.length}:${hash >>> 0}`;
+}
+
+function sessionSaveSurfaceSnapshot(date: string, html: string): void {
+  const stamp = sessionSnapshotStamp(date);
+  try {
+    if (!stamp) sessionStorage.removeItem(SESSION_SURFACE_SNAP_KEY);
+    else sessionStorage.setItem(SESSION_SURFACE_SNAP_KEY, JSON.stringify({ date, stamp, html }));
+  } catch {
+    /* quota — skip */
+  }
+}
+
+/** The last session paint for `date`, only while the reads it was drawn from are unchanged. */
+function sessionLoadSurfaceSnapshot(date: string): string | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_SURFACE_SNAP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { date?: unknown; stamp?: unknown; html?: unknown } | null;
+    if (!parsed || parsed.date !== date || typeof parsed.html !== "string" || typeof parsed.stamp !== "string") return null;
+    const stamp = sessionSnapshotStamp(date);
+    return stamp && stamp === parsed.stamp ? parsed.html : null;
+  } catch {
+    return null;
+  }
+}
+
 function wireExerciseDecisionUndo(root: Element, repaint: () => Promise<unknown> | unknown): void {
   // Autonomous changes explain themselves at the affected exercise and can be
   // put back immediately. The server owns the exact rollback snapshot; the UI
@@ -1425,12 +1478,41 @@ function wireSessionDestination(): void {
   });
 }
 
+const SESSION_PRIMER_WAIT_MS = 1200;
+
+/** The primer's read for a date and plan day, spelled exactly as the primer asks it. */
+function sessionPrimerPath(date: string, dayNumber: number | null): string {
+  const params: string[] = [];
+  if (date) params.push(`date=${encodeURIComponent(String(date))}`);
+  if (dayNumber != null && Number.isFinite(Number(dayNumber))) params.push(`day=${encodeURIComponent(String(dayNumber))}`);
+  return `/session-primer?${params.join("&")}`;
+}
+
 async function renderSession(opts: any = {}): Promise<void> {
   const enteredDate = todayState.logDate;
   const hadSurface = !!todayView.querySelector(".sess-dest");
   const fresh = !hadSurface || sessionFreshNext || !!opts.fresh;
   sessionFreshNext = false;
   const prevY = typeof window !== "undefined" ? window.scrollY : 0;
+
+  // A bare entry repaints this date's last session at once (see the snapshot above);
+  // a soft repaint, or a surface already on screen, never does.
+  if (!opts?.soft && !hadSurface && todayState.tab === "session" && enteredDate) {
+    const snap = sessionLoadSurfaceSnapshot(enteredDate);
+    if (snap) {
+      todayView.classList.remove("today-soft");
+      todayView.innerHTML = snap;
+    }
+  }
+
+  // The primer sits ABOVE the lift list, so it is asked now, beside the data load,
+  // and the first paint waits (briefly) for it: filled in afterwards it pushed the
+  // whole list down. The pre-asked read is used only if the plan day it was asked
+  // for is still the one the surface opens on.
+  const primerDayAtStart = todayState.day == null ? null : Number(todayState.day);
+  const primerPath = sessionPrimerPath(todayState.logDate, primerDayAtStart);
+  const primerPending = todayApi(primerPath);
+  primerPending.catch(() => {});
 
   // Today's lift, in the server's one line — requested beside the data load so the
   // header names the plan day (never a rest suggestion as its title) on first paint.
@@ -1503,6 +1585,7 @@ async function renderSession(opts: any = {}): Promise<void> {
   );
 
   const strengthLine = await strengthLinePromise;
+  await settledWithin([primerPending], SESSION_PRIMER_WAIT_MS);
   // The plan day's NAME is the title everywhere ("Pull"); its focus is the quiet
   // second half. The server line owns today's title when it speaks for the day this
   // session holds — or when the accepted session holds no lift at all (a rest/easy
@@ -1596,14 +1679,23 @@ async function renderSession(opts: any = {}): Promise<void> {
   // the session has logged sets), decorating any fresh movement rows. A missing lib /
   // null payload / a stale render is a calm no-op. Not awaited (never blocks logging).
   const primerDay = todayState.day == null ? null : Number(todayState.day);
-  window.CairnSessionPrimer?.hydrate({
+  const primerDayNumber = primerDay != null && Number.isFinite(primerDay) ? primerDay : null;
+  const primerGuard = () => todayState.tab === "session" && todayState.logDate === enteredDate;
+  const primerHydrated = window.CairnSessionPrimer?.hydrate({
     root: todayView,
     date: todayState.logDate,
-    dayNumber: primerDay != null && Number.isFinite(primerDay) ? primerDay : null,
+    dayNumber: primerDayNumber,
     hasLoggedSets,
     api: todayApi,
-    guard: () => todayState.tab === "session" && todayState.logDate === enteredDate,
+    guard: primerGuard,
+    pending: sessionPrimerPath(todayState.logDate, primerDayNumber) === primerPath ? primerPending : undefined,
   });
+  // Keep this paint (primer included) for the next bare entry's instant repaint.
+  void Promise.resolve(primerHydrated)
+    .catch(() => {})
+    .then(() => {
+      if (primerGuard() && todayView.querySelector(".sess-dest")) sessionSaveSurfaceSnapshot(enteredDate, todayView.innerHTML);
+    });
 
   if (fresh) {
     try {

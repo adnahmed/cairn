@@ -258,6 +258,20 @@ function paintSWR<Path extends string>(
     });
 }
 
+// Resolve once every read has answered (either way) or `ms` has passed, whichever is
+// first. A screen whose slots arrive from several reads waits on this before its first
+// paint, so they all land in one frame instead of pushing each other down one by one;
+// the bound keeps a slow read from holding the screen hostage (it paints when it lands).
+function settledWithin(reads: Promise<unknown>[], ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    void Promise.allSettled(reads).then(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 // The calm "we have your data, just checking" hairline: a single low-key filament
 // under the header, distinct from the offline bar. Reference-counted so concurrent
 // surfaces don't fight over it. Reduced-motion -> a static tinted top border (CSS).

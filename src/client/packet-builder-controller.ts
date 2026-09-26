@@ -126,6 +126,8 @@
       if (preview) preview.innerHTML = V.previewErrorHtml();
       if (status) status.textContent = "";
       if (toggles && !options.length) toggles.innerHTML = "";
+      // Nothing loaded, so the questions' held box has nothing coming to fill it.
+      if (questionsSlot && !options.length && !questionsTeardown) questionsSlot.innerHTML = "";
     }
 
     function load(): void {

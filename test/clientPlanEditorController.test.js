@@ -235,6 +235,16 @@ function loadPlanEditorController(plan) {
       return {};
     },
     swrInvalidate: (key) => invalidations.push(key),
+    // swr-cache.ts's bounded wait, as the app has it (the module's own timers stay
+    // absent from this context, so the redraw poll never keeps a test alive).
+    settledWithin: (reads, ms) =>
+      new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        Promise.allSettled(reads).then(() => {
+          clearTimeout(timer);
+          resolve();
+        });
+      }),
     // The durable-job surface the compose-week entry drives. Captured rather than
     // run, so each of the op's endings can be replayed through the recorded handlers.
     runOp: (kind, body, options) => { runOpCalls.push({ kind, body, options }); return Promise.resolve(); },

@@ -21,6 +21,7 @@
 .phero-line{font-family:var(--font-display);font-weight:400;font-size:1.62rem;line-height:1.14;
   letter-spacing:-.005em;color:var(--ink);margin:0;text-wrap:balance;max-width:24ch}
 .phero-fact{display:block;margin-top:10px;color:var(--muted)}
+.phero-meta{display:block;margin-top:4px;color:var(--muted);opacity:.8;text-align:left}
 
 /* ---- Train's one-level nav ----
    A deeper leaf wears one quiet step back to its landing (the .home-back look);

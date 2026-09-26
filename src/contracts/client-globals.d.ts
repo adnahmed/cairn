@@ -918,7 +918,7 @@ declare global {
     hero(
       title: string,
       stats: Array<readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }]>,
-      voice?: { line?: unknown; fact?: unknown } | null
+      voice?: { line?: unknown; fact?: unknown; meta?: unknown } | null
     ): string;
     art(kind: string, label: string): string;
     runCountUps(root: ParentNode): void;
@@ -943,7 +943,7 @@ declare global {
     hero(
       title: string,
       stats: Array<readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }]>,
-      voice?: { line?: unknown; fact?: unknown } | null
+      voice?: { line?: unknown; fact?: unknown; meta?: unknown } | null
     ): string;
     /** A count as a voice line speaks it ("Fifteen"). */
     countWord(n: unknown, lead?: boolean): string;
@@ -1611,7 +1611,7 @@ declare global {
       | undefined
       | false
     >,
-    voice?: { line?: unknown; fact?: unknown } | null
+    voice?: { line?: unknown; fact?: unknown; meta?: unknown } | null
   ): string;
   declare function progressCountWord(n: unknown, lead?: boolean): string;
   declare function emptyStateHtml(svg: string | null | undefined, line: unknown): string;
@@ -1817,11 +1817,12 @@ declare global {
   declare function strengthChangeHtml(change: unknown): string;
   declare function isOpenProposal(proposal: unknown): boolean;
   declare function renderPlanEditor(): unknown;
-  declare function loadPlanUpcomingNote(token: number, slotSel?: string): void;
+  declare function loadPlanUpcomingNote(token: number, slotSel?: string, pending?: Promise<unknown>): void;
   declare function loadPlanWeekStrip(
     token: number,
     slotSel?: string,
-    onWeek?: (week: import("./client-api.js").ClientPlanWeek) => void
+    onWeek?: (week: import("./client-api.js").ClientPlanWeek) => void,
+    pending?: Promise<unknown>
   ): void;
   declare function renderHistory(): unknown;
   declare function renderProgress(): unknown;
@@ -4569,6 +4570,7 @@ declare global {
         hasLoggedSets?: boolean;
         api?: (path: string) => Promise<unknown>;
         guard?: () => boolean;
+        pending?: Promise<unknown>;
       }): Promise<void>;
       mountToggle(slot: Element): () => void;
     };
@@ -5559,6 +5561,8 @@ declare global {
     CairnFuelTodayController: {
       dayKey(date: string): string;
       bandKey(date: string): string;
+      dayPath(date: string): string;
+      bandPath(date: string): string;
       mount(host: Element, deps: ClientFuelTodayDeps): ClientFuelRefreshHandle;
     };
     CairnFuelMeals: {

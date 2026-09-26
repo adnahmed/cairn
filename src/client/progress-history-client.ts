@@ -118,6 +118,8 @@ async function openSessionEdit(sess: HistorySession, fromEl: Element) {
       swrInvalidate("history:sessions");
       swrInvalidate("stats");
       swrInvalidate("progress:volume");
+      swrInvalidate("progress:volume-balance");
+      swrInvalidate("progress:1rm:");
       if (sess.date) swrInvalidate("today:session:" + sess.date);
       closeDetail(true);
       renderHistory();

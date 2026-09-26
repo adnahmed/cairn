@@ -179,6 +179,8 @@ declare const CairnOutboxReplay: OutboxReplayApi;
       g.swrInvalidate?.("today:daily-session:");
       g.swrInvalidate?.("history:sessions");
       g.swrInvalidate?.("progress:volume");
+      g.swrInvalidate?.("progress:volume-balance");
+      g.swrInvalidate?.("progress:1rm:");
       g.swrInvalidate?.("progress:energy");
       if (g.state) g.state.brief = null;
       for (const truth of prepared) storePreparedReplayTruth(truth);

@@ -10,7 +10,9 @@ function progressShortDate(iso: unknown): string {
   return CairnUiChart.dateLabel(iso);
 }
 
-type ProgressHeroVoice = { line?: unknown; fact?: unknown };
+// `meta` is the quiet provenance under the fact (how many readings, the goal): the
+// same mono register, a step fainter, left-aligned with the line it qualifies.
+type ProgressHeroVoice = { line?: unknown; fact?: unknown; meta?: unknown };
 
 // A Progress header. Given a `voice`, it is ONE serif voice line with at most one
 // supporting mono fact — never a wall of numbers (the numbers live one tap deeper,
@@ -21,9 +23,11 @@ function progressHeroHtml(title: unknown, stats: Array<ProgressHeroStat | null |
   if (voice) {
     const line = String(voice.line ?? "").trim() || String(title ?? "");
     const fact = String(voice.fact ?? "").trim();
+    const meta = String(voice.meta ?? "").trim();
     return `<div class="phero phero-voice reveal" style="${stagger(0)}">
       <h2 class="phero-line">${escHtml(line)}</h2>
       ${fact ? `<div class="phero-fact lbl">${escHtml(fact)}</div>` : ""}
+      ${meta ? `<div class="phero-meta lbl">${escHtml(meta)}</div>` : ""}
     </div>`;
   }
   const cells = (stats || [])
