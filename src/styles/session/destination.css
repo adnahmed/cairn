@@ -45,7 +45,7 @@ body[data-tab="session"] .tabbar{display:none}
 
 /* lift progress: one slim bar per lift, filled in the strength stone's hue */
 .sess-dots{display:flex;gap:4px;padding:8px 0 12px}
-.sess-dot{flex:1 1 0;height:4px;border-radius:2px;background:var(--surface2);
+.sess-dot{flex:1 1 0;height:4px;border-radius:2px;background:var(--line);
   transition:background var(--dur-2) var(--ease)}
 .sess-dot.on{background:var(--s-strength)}
 

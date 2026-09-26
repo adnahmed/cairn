@@ -141,6 +141,9 @@
 .logrow .logbtn{width:58px;height:42px;background:var(--dawn);color:var(--on-accent);font-size:var(--text-sm);
   font-weight:650;letter-spacing:.01em}
 .logrow .logbtn:hover{background:var(--dawn-deep)}
+/* only the active card's Log is dawn; the others wait in ink on surface2 */
+.sess-dest .ex:not(:nth-child(1 of .ex:not(.ex-complete))):not(:focus-within) .logrow .logbtn{
+  background:var(--surface2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
 .timerbtn{
   flex:0 0 auto;min-width:56px;height:44px;padding:0 9px;border:1px solid var(--line);border-radius:var(--radius-pill);
   background:var(--card-2);color:var(--muted);font-family:var(--font-ui);font-size:.72rem;font-weight:700;
@@ -192,10 +195,16 @@
 .skip-name:active{transform:var(--press)}
 .skip-undo{display:inline-block;color:var(--accent);font-size:.82rem} /* inline-block escapes the strikethrough */
 
-/* finish workout */
-.finish{margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
-.finish-stat{font-family:var(--font-display);font-variation-settings:"opsz" 40;
-  font-size:.92rem;color:var(--ink-2);font-variant-numeric:lining-nums}
+/* finish workout — the tally in mono, a notes well and the one solid ink Finish */
+.finish{margin-top:var(--space-4);padding-top:var(--space-7);border-top:1px solid var(--line)}
+.finish-stat{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--muted);font-variant-numeric:tabular-nums}
+.finish .finish-row{margin-top:var(--space-5)}
+.finish .finish-row input{font-size:var(--text-md);background:var(--surface)}
+@media (pointer:coarse){.finish .finish-row input{font-size:16px}}
+.finish .finish-row input::placeholder{font-family:var(--font-ui);font-size:var(--text-sm);letter-spacing:0}
+.finish .logrow .finish-btn{width:auto;padding:0 20px;background:var(--ink);color:var(--on-ink);font-size:.84rem}
+.finish .logrow .finish-btn:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
 
 /* Finish micro-exit: the logging surface lifts away before the "done" card reveals. */
 @keyframes slideOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-18px) scale(.98)}}

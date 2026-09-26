@@ -207,6 +207,19 @@
 /* the other options freeze while we think */
 .brief-steer-opt:disabled,.brief-steer-reset:disabled{opacity:.45;cursor:default;text-decoration-color:transparent}
 
+/* The LIVE card — a session under way. It stands where the lift facts sat, over
+   the Continue button: the dawn ping and a mono key, the last set and the next
+   lift as one serif line, then one slim bar per lift in the strength hue. */
+.brief-live{margin-top:var(--space-8);background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:var(--space-4)}
+.brief-live-top{display:flex;align-items:center;gap:7px;color:var(--ink2)}
+.brief-live-line{font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.25;
+  color:var(--ink);text-wrap:balance}
+.brief-live-bars{display:flex;gap:4px}
+.brief-live-bars i{flex:1 1 0;height:4px;border-radius:2px;background:var(--surface2)}
+.brief-live-bars i.on{background:var(--s-strength)}
+.brief-live + .brief-launch{margin-top:var(--space-5)}
+
 /* launchpad redirects — the heart of "you drive": always present, quiet. Small
    rounded buttons; the one primary is solid ink (the v2 solid), never a shout. */
 .brief-launch{display:flex;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-8)}

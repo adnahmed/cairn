@@ -1,0 +1,160 @@
+// @ts-check
+// The Brief's Atelier v2 voice pieces (docs/DESIGN.md "Stones"): the stone tokens in
+// the why, the folded "Around today" disclosure, and the live-session card that
+// stands in for the start button while a session is under way. Pure string
+// builders; today-brief-client.ts reaches for them through a guarded global, so a
+// partial boot (or a unit test that loads the Brief alone) simply renders plain.
+
+type TodayBriefLive = {
+  /** The session's name ("Pull", "Lower B"). */
+  name: string;
+  /** Lifts with every set in, and all of them. */
+  done: number;
+  total: number;
+  /** The last logged set, already in words ("Deadlift 225 × 6"). */
+  last?: string;
+  /** The next lift still open ("Split squat 60 × 8–10"). */
+  next?: string;
+};
+
+type TodayBriefLiveItem = {
+  exercise?: unknown;
+  sets?: unknown;
+  rep_low?: unknown;
+  rep_high?: unknown;
+  target_weight?: unknown;
+  target_seconds?: unknown;
+};
+type TodayBriefLiveSet = { id?: unknown; weight?: unknown; reps?: unknown; duration_sec?: unknown };
+
+type TodayBriefVoiceApi = {
+  liveFacts(input: {
+    name: string;
+    done: number;
+    total: number;
+    items: TodayBriefLiveItem[];
+    logged: Record<string, TodayBriefLiveSet[] | undefined>;
+  }): TodayBriefLive;
+  whyHtml(escaped: string): string;
+  aroundHtml(parts: { forward: string; periodization: string; arc: string; provenance: string }): string;
+  liveHtml(live: TodayBriefLive | null | undefined): string;
+};
+
+(() => {
+  // The first word in the read's own prose that names one of the six stones is
+  // set in ink with that stone's hue as its underline, so the sentence shows which
+  // parts of the picture it leans on. Words only (the tone never colours it), at
+  // most one per stone and three in all. Runs over ESCAPED text, so nothing the
+  // model wrote can open markup; the vocabulary is plain letters no entity holds.
+  const TOKENS: Array<[string, RegExp]> = [
+    ["recovery", /\b(slept|sleep|HRV|recovered|recovery|readiness|resting heart rate)\b/i],
+    ["strength", /\b(deadlifts?|squats?|bench(?: press)?|lifts?|lifting|strength|back work|top sets?)\b/i],
+    ["endurance", /\b(long run|easy run|runs?|running|aerobic|ride|km)\b/i],
+    ["fuel", /\b(fuel|protein|calories|eating|meals?|carbs)\b/i],
+    ["body", /\b(bodyweight|body weight|weight|waist|lean mass)\b/i],
+    ["heart", /\b(lipids?|ApoB|cholesterol|blood pressure|cardiovascular)\b/i],
+  ];
+
+  function whyHtml(escaped: string): string {
+    if (!escaped) return "";
+    const hits: Array<{ start: number; end: number; key: string }> = [];
+    for (const [key, pattern] of TOKENS) {
+      const match = pattern.exec(escaped);
+      if (!match) continue;
+      const start = match.index;
+      const end = start + match[0].length;
+      if (hits.some((hit) => start < hit.end && end > hit.start)) continue;
+      hits.push({ start, end, key });
+    }
+    let out = "";
+    let at = 0;
+    for (const hit of hits.sort((a, b) => a.start - b.start).slice(0, 3)) {
+      out += `${escaped.slice(at, hit.start)}<span class="brief-tok stone-${hit.key}">${escaped.slice(hit.start, hit.end)}</span>`;
+      at = hit.end;
+    }
+    return out + escaped.slice(at);
+  }
+
+  // The week around the read — the forward look, the block clock, the plan's arc and
+  // the finding the day honours — folded behind one quiet tap, so the first view is
+  // the read and its one action. With nothing to fold, the provenance slot stands
+  // alone (it fills only when a finding shapes the day).
+  function aroundHtml(parts: { forward: string; periodization: string; arc: string; provenance: string }): string {
+    if (!parts.forward && !parts.periodization && !parts.arc) return parts.provenance;
+    return `<details class="brief-around"><summary class="brief-around-sum"><span class="lbl">Around today</span><span class="brief-around-chev" aria-hidden="true">▾</span></summary><div class="brief-around-body">${parts.forward}${parts.periodization}${parts.arc}${parts.provenance}</div></details>`;
+  }
+
+  // The live card: while a session holds logged work, the Brief shows where it
+  // stands — a ping, the last set and the next lift in the serif voice, and one
+  // slim bar per lift — above the Continue button. Nothing to say, nothing drawn.
+  function liveHtml(live: TodayBriefLive | null | undefined): string {
+    if (!live || !(live.total > 0)) return "";
+    const total = Math.min(Math.max(0, Math.round(live.total)), 12);
+    const done = Math.min(Math.max(0, Math.round(live.done)), total);
+    const bars = Array.from({ length: total }, (_v, i) => `<i${i < done ? ` class="on"` : ""}></i>`).join("");
+    const line = [live.last ? `${live.last}.` : "", live.next ? `Next: ${live.next}.` : ""].filter(Boolean).join(" ");
+    return `<div class="brief-live" data-brief-live>
+      <div class="brief-live-top lbl"><span class="ping" aria-hidden="true"></span>Now · ${escHtml(live.name)} · ${escHtml(`${done} of ${total}`)}</div>
+      ${line ? `<div class="brief-live-line">${escHtml(line)}</div>` : ""}
+      <div class="brief-live-bars" aria-hidden="true">${bars}</div>
+    </div>`;
+  }
+
+  function weightWord(weight: unknown): string {
+    if (weight == null || weight === "") return "";
+    const n = Number(weight);
+    if (!Number.isFinite(n) || n === 0) return "";
+    return n < 0 ? `${Math.abs(n)} assist` : String(n);
+  }
+
+  function seconds(total: unknown): string {
+    const n = Math.round(Number(total));
+    if (!Number.isFinite(n) || n <= 0) return "";
+    return n < 60 ? `${n} s` : `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+  }
+
+  // Where a started session stands, in words: the newest logged set and the first
+  // lift still open, each "<lift> <load> × <reps>". Every number comes off the log
+  // or the card's own prescription; nothing is invented when a field is missing.
+  function liveFacts(input: Parameters<TodayBriefVoiceApi["liveFacts"]>[0]): TodayBriefLive {
+    let newest: { exercise: string; set: TodayBriefLiveSet; id: number } | null = null;
+    for (const [exercise, sets] of Object.entries(input.logged || {})) {
+      for (const set of sets || []) {
+        const id = Number(set?.id);
+        if (!newest || (Number.isFinite(id) && id > newest.id)) newest = { exercise, set, id: Number.isFinite(id) ? id : -1 };
+      }
+    }
+    let last = "";
+    if (newest) {
+      const load = weightWord(newest.set.weight);
+      const dose = newest.set.duration_sec != null ? seconds(newest.set.duration_sec) : String(newest.set.reps ?? "");
+      last = [newest.exercise, [load, dose].filter(Boolean).join(" × ")].filter(Boolean).join(" ");
+    }
+    const open = (input.items || []).find((item) => {
+      const name = String(item?.exercise ?? "");
+      const goal = Number(item?.sets) || 0;
+      return !!name && (input.logged?.[name]?.length ?? 0) < Math.max(goal, 1);
+    });
+    let next = "";
+    const openName = open ? String(open.exercise) : "";
+    const openGoal = open ? Number(open.sets) || 0 : 0;
+    if (open && newest && openName === newest.exercise && openGoal > 0) {
+      // Still on the same lift: the next thing is its next set, not its name again.
+      next = `set ${Math.min((input.logged?.[openName]?.length ?? 0) + 1, openGoal)} of ${openGoal}`;
+    } else if (open) {
+      const low = Number(open.rep_low);
+      const high = Number(open.rep_high);
+      const reps = Number.isFinite(low) && low > 0 ? (Number.isFinite(high) && high > low ? `${low}–${high}` : String(low)) : "";
+      const dose = open.target_seconds != null ? seconds(open.target_seconds) : reps;
+      next = [String(open.exercise), [weightWord(open.target_weight), dose].filter(Boolean).join(" × ")].filter(Boolean).join(" ");
+    }
+    return { name: input.name, done: input.done, total: input.total, last, next };
+  }
+
+  const CAIRN_TODAY_BRIEF_VOICE: TodayBriefVoiceApi = { whyHtml, aroundHtml, liveHtml, liveFacts };
+
+  Object.assign(globalThis, { CairnTodayBriefVoice: CAIRN_TODAY_BRIEF_VOICE });
+  if (typeof window !== "undefined") {
+    Object.assign(window, { CairnTodayBriefVoice: CAIRN_TODAY_BRIEF_VOICE });
+  }
+})();

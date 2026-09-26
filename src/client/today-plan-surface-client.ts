@@ -188,9 +188,9 @@ type TodayRunLineDeps = Pick<TodayPlanSurfaceDeps, "escapeHtml"> & {
     return `<div class="finish">
         <div class="finish-stat" data-finishstat>${sets.length} sets · ${Math.round(tonnage).toLocaleString()} lb ${options.isToday ? "logged today" : "on " + options.logDate}</div>
         <div id="feedbackSlot" class="feedback-slot"></div>
-        <div class="logrow" style="margin-top:8px">
-          <input id="sessNotes" type="text" placeholder="Session notes (optional)" value="${deps.escapeAttr(session.notes || "")}" style="text-align:left">
-          <button id="finishBtn" class="logbtn" style="width:auto;padding:0 16px;font-size:.82rem;letter-spacing:.04em">FINISH</button>
+        <div class="logrow finish-row">
+          <input id="sessNotes" type="text" placeholder="How did it go? (optional)" aria-label="Session notes (optional)" value="${deps.escapeAttr(session.notes || "")}">
+          <button id="finishBtn" class="logbtn finish-btn">Finish</button>
         </div>
       </div>`;
   }

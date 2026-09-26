@@ -65,7 +65,7 @@ test("a loaded carry card shows its load in the header and a WT + TIME log row",
     { day: 2 }
   );
   assert.match(html, /<span class="ex-sets">2 × 0:40 @ <span class="ex-target numeral">55<\/span><\/span>/);
-  assert.match(html, /<span>WT<\/span><span>TIME<\/span>/);
+  assert.match(html, /<span>Weight<\/span><span>Time<\/span>/);
   const logrow = html.match(/<div class="logrow logrow-timed"[\s\S]*?<\/div>/)?.[0] || "";
   assert.match(logrow, /data-mode="timed"/);
   assert.match(logrow, /class="in-w"[^>]*value="55"/);

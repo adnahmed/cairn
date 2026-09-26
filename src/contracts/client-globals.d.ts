@@ -4034,6 +4034,9 @@ declare global {
       loadGarminReconcile(deps: ClientTodayRailControllerDeps): Promise<void>;
     };
 
+    /** The Brief's v2 voice pieces (today-brief-voice-client.ts); absent under a partial boot. */
+    CairnTodayBriefVoice?: TodayBriefVoiceApi;
+
     CairnChangesLine: {
       model(read: Partial<import("./brain-changes.js").ClientBrainChanges> | null | undefined): ClientChangesLineModel | null;
       html(model: ClientChangesLineModel | null, opts?: { enter?: boolean }): string;

@@ -1176,6 +1176,9 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 .logrow .logbtn{width:58px;height:42px;background:var(--dawn);color:var(--on-accent);font-size:var(--text-sm);
   font-weight:650;letter-spacing:.01em}
 .logrow .logbtn:hover{background:var(--dawn-deep)}
+/* only the active card's Log is dawn; the others wait in ink on surface2 */
+.sess-dest .ex:not(:nth-child(1 of .ex:not(.ex-complete))):not(:focus-within) .logrow .logbtn{
+  background:var(--surface2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
 .timerbtn{
   flex:0 0 auto;min-width:56px;height:44px;padding:0 9px;border:1px solid var(--line);border-radius:var(--radius-pill);
   background:var(--card-2);color:var(--muted);font-family:var(--font-ui);font-size:.72rem;font-weight:700;
@@ -1227,10 +1230,16 @@ a.li:active,button.li:active{transform:var(--press-lg)}
 .skip-name:active{transform:var(--press)}
 .skip-undo{display:inline-block;color:var(--accent);font-size:.82rem} /* inline-block escapes the strikethrough */
 
-/* finish workout */
-.finish{margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
-.finish-stat{font-family:var(--font-display);font-variation-settings:"opsz" 40;
-  font-size:.92rem;color:var(--ink-2);font-variant-numeric:lining-nums}
+/* finish workout — the tally in mono, a notes well and the one solid ink Finish */
+.finish{margin-top:var(--space-4);padding-top:var(--space-7);border-top:1px solid var(--line)}
+.finish-stat{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--muted);font-variant-numeric:tabular-nums}
+.finish .finish-row{margin-top:var(--space-5)}
+.finish .finish-row input{font-size:var(--text-md);background:var(--surface)}
+@media (pointer:coarse){.finish .finish-row input{font-size:16px}}
+.finish .finish-row input::placeholder{font-family:var(--font-ui);font-size:var(--text-sm);letter-spacing:0}
+.finish .logrow .finish-btn{width:auto;padding:0 20px;background:var(--ink);color:var(--on-ink);font-size:.84rem}
+.finish .logrow .finish-btn:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
 
 /* Finish micro-exit: the logging surface lifts away before the "done" card reveals. */
 @keyframes slideOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-18px) scale(.98)}}
@@ -3595,6 +3604,19 @@ body.sheet-open{overflow:hidden}
 .brief-steer-busy{display:inline-flex;align-items:center;gap:6px;cursor:progress;color:var(--accent)}
 /* the other options freeze while we think */
 .brief-steer-opt:disabled,.brief-steer-reset:disabled{opacity:.45;cursor:default;text-decoration-color:transparent}
+
+/* The LIVE card — a session under way. It stands where the lift facts sat, over
+   the Continue button: the dawn ping and a mono key, the last set and the next
+   lift as one serif line, then one slim bar per lift in the strength hue. */
+.brief-live{margin-top:var(--space-8);background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:var(--space-4)}
+.brief-live-top{display:flex;align-items:center;gap:7px;color:var(--ink2)}
+.brief-live-line{font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.25;
+  color:var(--ink);text-wrap:balance}
+.brief-live-bars{display:flex;gap:4px}
+.brief-live-bars i{flex:1 1 0;height:4px;border-radius:2px;background:var(--surface2)}
+.brief-live-bars i.on{background:var(--s-strength)}
+.brief-live + .brief-launch{margin-top:var(--space-5)}
 
 /* launchpad redirects — the heart of "you drive": always present, quiet. Small
    rounded buttons; the one primary is solid ink (the v2 solid), never a shout. */
@@ -6814,7 +6836,7 @@ body[data-tab="session"] .tabbar{display:none}
 
 /* lift progress: one slim bar per lift, filled in the strength stone's hue */
 .sess-dots{display:flex;gap:4px;padding:8px 0 12px}
-.sess-dot{flex:1 1 0;height:4px;border-radius:2px;background:var(--surface2);
+.sess-dot{flex:1 1 0;height:4px;border-radius:2px;background:var(--line);
   transition:background var(--dur-2) var(--ease)}
 .sess-dot.on{background:var(--s-strength)}
 

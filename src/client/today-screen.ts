@@ -467,6 +467,28 @@ async function renderToday(opts: any = {}) {
     showPlan && !showDone && !nothingToStart && previewHasItems !== false && CairnTodayBrief.kind(read) === "train";
   const folded = briefCarriesStart ? sessionLaunchFacts(launchOpts) : null;
 
+  // The awaits above (data load, session prep, the brief race) can outlast a tab
+  // switch or a date change — bail rather than paint Today over whichever surface
+  // the user moved to. Instant-paint Stand exposed this: a later cold repaint no
+  // longer papers over a stale write. (Phase two below re-checks the same way.)
+  if (todayState.tab !== "today" || todayState.logDate !== enteredDate) return;
+  // Nothing between here and the paint awaits, so the bail holds for the whole write.
+  // Persisted on state BEFORE this render's briefHtml call (so the fold and the live
+  // card land on first paint) and so a LATER, DOM-only repaint (the brief controller's
+  // upgradeBriefInPlace) and the Brief's start action reuse this render's exact
+  // values. Assigned only after the bail so a superseded render never overwrites them.
+  todayState.nothingToStart = nothingToStart;
+  todayState.briefSession = folded
+    ? {
+        date: todayState.logDate,
+        started: folded.started,
+        progress: folded.progress,
+        minutes: folded.minutes,
+        lines: [folded.guardrails, folded.journey].filter(Boolean),
+        preview: sessionPreview,
+        live: folded.started ? window.CairnTodayBriefVoice?.liveFacts({ name: folded.name, done: exDone, total: exTotal, items: activeItems, logged: loggedByEx }) : null,
+      }
+    : null;
   let html = todayMainShell.leadHtml(
     {
       isToday,
@@ -532,33 +554,8 @@ async function renderToday(opts: any = {}) {
   // mobile/tablet. The rail is DEFERRED: paint an empty (but present) .today-rail now
   // so the two-column desktop layout is stable from the first frame, and hydrate its
   // structure + loaders in phase two once the agenda resolves.
-  // The awaits above (data load, session prep, the brief race) can outlast a tab
-  // switch or a date change — bail rather than paint Today over whichever surface
-  // the user moved to. Instant-paint Stand exposed this: a later cold repaint no
-  // longer papers over a stale write. (Phase two below re-checks the same way.)
-  if (todayState.tab !== "today" || todayState.logDate !== enteredDate) return;
-  // Persisted on state (not just passed to this render's briefHtml call) so a
-  // LATER, DOM-only repaint — today-brief-controller.ts's upgradeBriefInPlace,
-  // invoked from outside this closure once an agentic read lands — can reuse the
-  // exact value this render computed instead of re-deriving an approximation of
-  // the same rule from markup. Assigned only after the bail above so a superseded
-  // render for another date/tab can never overwrite the current render's fold.
-  todayState.nothingToStart = nothingToStart;
-  // On state (like nothingToStart) so the Brief-only repaint in
-  // today-brief-controller.ts and the Brief's start action read the same fold.
-  todayState.briefSession = folded
-    ? {
-        date: todayState.logDate,
-        started: folded.started,
-        progress: folded.progress,
-        minutes: folded.minutes,
-        lines: [folded.guardrails, folded.journey].filter(Boolean),
-        preview: sessionPreview,
-      }
-    : null;
-  // The class must be on an ancestor at the moment innerHTML mounts the cards,
-  // since the CSS `rise` animation fires on insertion. toggle() also clears it on
-  // the next hard render so real entrances still animate.
+  // The class must be on an ancestor when innerHTML mounts the cards (the CSS `rise`
+  // fires on insertion); toggle() clears it on the next hard render.
   todayView.classList.toggle("today-soft", !!soft);
   const todayWrappedHtml = todayMainShell.wrapHtml(html, {
     railHtml: `<aside class="today-rail" aria-busy="true"></aside>`,
