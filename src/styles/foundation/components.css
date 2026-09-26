@@ -1,0 +1,131 @@
+/* -------------------------------------------------------------------
+   05b · Base components — Atelier v2 (docs/DESIGN.md "Components")
+   The shared families every screen composes. Defined HERE, before any
+   surface partial, so a surface layers its own delta with a more specific
+   selector and never re-declares the family.
+
+     Voice        .voice / .voice-sm   the Young Serif line that leads a home
+                  .why                  its muted prose under it
+     Surfaces     .card                 surface + 1px line + 18px radius (sparingly)
+     Lists        .list > .li           hairline-divided rows: dot, title (.li-t),
+                                        muted meta (.li-m), optional chevron (.chev)
+     Marks        .dot (--c)            a 9px stone/tone dot
+                  .pill (--c)           a fully rounded tag, tinted by --c
+                  .ping                 the live dot (dawn, pulsing)
+     Numbers      .num                  tabular figures
+     Buttons      .btn / .btn-solid / .btn-dawn   small, rounded 999, .84rem;
+                                        solid = ink with ground text
+                  .logbtn  primary solid (the set row's +, the app's main verb)
+                  .pillbtn .pill-accent .pill-warn .pill-sm   action pills
+                  .ghostbtn outline pill, .draftbtn full-width call to action
+                  .iconbtn .delbtn .ordbtn   small square-ish utility buttons
+     Inputs       .input                one quiet field (surface2 → dawn focus)
+   ------------------------------------------------------------------- */
+
+/* ---- voice ---- */
+.voice{font-family:var(--font-display);font-weight:400;font-size:var(--text-2xl);line-height:1.1;
+  letter-spacing:-.01em;color:var(--ink);margin:6px 0 0;text-wrap:balance}
+.voice-sm{font-size:var(--text-xl)}
+.why{margin:10px 0 0;color:var(--ink2);font-size:var(--text-base);line-height:1.6}
+
+/* ---- surfaces ---- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+
+/* ---- hairline lists ---- */
+.list{display:flex;flex-direction:column;margin:0;padding:0;list-style:none}
+.li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;
+  padding:10px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none;text-align:left;width:100%}
+.li:first-child{border-top:0}
+.li > .dot{margin-top:6px}
+.li-t{display:block;font-size:var(--text-md);line-height:1.4;color:var(--ink)}
+.li-m{display:block;font-size:var(--text-xs);line-height:1.4;color:var(--muted);margin-top:2px}
+.chev{color:var(--muted);align-self:center}
+a.li:active,button.li:active{transform:var(--press-lg)}
+
+/* ---- marks ---- */
+.dot{width:9px;height:9px;border-radius:50%;background:var(--c,var(--muted));flex:0 0 auto}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-xs);padding:4px 10px;
+  border-radius:var(--radius-pill);background:color-mix(in srgb,var(--c,var(--muted)) 30%,transparent);color:var(--ink)}
+.ping{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--dawn);flex:0 0 auto;
+  animation:ping var(--dur-ping) var(--ease) infinite}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---- the small rounded button ---- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border:1px solid var(--line);border-radius:var(--radius-pill);padding:7px 13px;
+  font-family:var(--font-ui);font-size:.84rem;font-weight:500;line-height:1.3;
+  background:var(--surface);color:var(--ink);text-decoration:none;
+  transition:transform .15s var(--ease),background var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
+.btn:hover{border-color:var(--line-strong)}
+.btn:active{transform:var(--press)}
+.btn-solid{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+.btn-solid:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground));border-color:transparent}
+.btn-dawn{background:var(--dawn);color:var(--on-accent);border-color:var(--dawn)}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* ---- the primary action: solid ink, ground glyph ---- */
+.logbtn{
+  flex:0 0 auto;background:var(--ink);color:var(--on-ink);border:none;border-radius:var(--radius-pill);
+  width:44px;height:42px;font-size:1.3rem;font-weight:600;line-height:1;
+  transition:background var(--dur-1) var(--ease),transform .12s var(--ease);
+}
+.logbtn:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
+.logbtn:active{transform:var(--press)}
+.logbtn:disabled{opacity:.5;cursor:default}
+
+/* ---- action pills ---- */
+.pillbtn{
+  background:var(--surface);border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--radius-pill);padding:8px 16px;font-family:var(--font-ui);font-weight:500;
+  font-size:.84rem;line-height:1.3;
+  transition:border-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease);
+}
+.pillbtn:hover{border-color:var(--line-strong)}
+.pillbtn:active{transform:var(--press)}
+.pill-warn{color:var(--warn)}
+.pill-accent{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+.pill-accent:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground));border-color:transparent;color:var(--on-ink)}
+.pill-sm{padding:6px 13px;font-size:var(--text-sm)}
+
+/* ---- outline pill ---- */
+.ghostbtn{
+  background:transparent;border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--radius-pill);padding:7px 13px;font-family:var(--font-ui);font-weight:500;
+  font-size:var(--text-sm);letter-spacing:0;margin-top:4px;line-height:1.3;
+  transition:border-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease),background var(--dur-1) var(--ease);
+}
+.ghostbtn:hover{border-color:var(--line-strong);background:var(--surface)}
+.ghostbtn:active{transform:var(--press)}
+
+/* ---- the full-width call to action ---- */
+.draftbtn{
+  display:block;margin-top:9px;width:100%;background:var(--ink);
+  border:1px solid var(--ink);color:var(--on-ink);border-radius:var(--radius-pill);padding:9px 14px;
+  font-family:var(--font-ui);font-weight:500;font-size:.84rem;letter-spacing:0;line-height:1.3;
+  text-transform:none;transition:background var(--dur-1) var(--ease),color var(--dur-1) var(--ease),transform .15s var(--ease);
+}
+.draftbtn:hover{background:color-mix(in srgb,var(--ink) 86%,var(--ground))}
+.draftbtn:active{transform:var(--press)}
+/* an applied draft — calm, done, non-interactive (no hover, no pointer) */
+.draftbtn.applied{
+  border-color:transparent;background:var(--sage-bg);color:var(--sage-text);
+  cursor:default;text-transform:none;letter-spacing:0;
+}
+.draftbtn.applied:hover{background:var(--sage-bg);color:var(--sage-text)}
+
+/* ---- small utility buttons ---- */
+.delbtn{flex:0 0 auto;background:var(--surface);border:1px solid var(--line);color:var(--warn);
+  border-radius:var(--radius-xs);width:34px;height:32px;font-size:.8rem}
+.iconbtn{background:var(--surface);border:1px solid var(--line);color:var(--muted);
+  border-radius:var(--radius-xs);min-width:30px;height:30px;font-size:.88rem;padding:0 7px}
+.iconbtn:hover{color:var(--ink);border-color:var(--line-strong)}
+.ordbtn{background:var(--surface);border:1px solid var(--line);color:var(--ink2);
+  border-radius:var(--radius-xs);width:30px;height:30px;font-size:.92rem}
+.ordbtn:disabled{opacity:.3;cursor:default}
+
+/* ---- one quiet field ---- */
+.input{width:100%;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:var(--radius-xs);padding:8px 10px;font-family:var(--font-ui);font-size:var(--text-base);line-height:1.4}
+.input:focus{outline:none;border-color:var(--dawn)}
+.input-pill{border-radius:var(--radius-pill);padding:8px 13px}
+

@@ -1,0 +1,69 @@
+/* -------------------------------------------------------------------
+   04b · Loading & progress — full-area "working" state
+   The inline vocabulary (the .aspin ring, btnBusy, .typing chat dots, the
+   .is-thinking filament) lives in §"atelier loading". This is the one piece
+   they don't cover: a centered region-loader for a whole panel that's
+   fetching/thinking (chat log hydrating, history overlay). See DESIGN.md.
+   ------------------------------------------------------------------- */
+.loadstate{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:13px;padding:42px 16px;text-align:center;animation:settlein var(--dur-3) var(--ease) both}
+.loadstate-label{font-family:var(--font-display);font-size:1.05rem;color:var(--ink-2);line-height:1.3}
+
+/* -------------------------------------------------------------------
+   05 · Cards & illustration tiles
+   ------------------------------------------------------------------- */
+/* v2: a card is surface + one hairline, no drop shadow — used sparingly */
+.ex,.sess,.pday,.mp-card,.prog-day,.memrow,.qlent,
+.hupload,.lifeadd,.stat{
+  background:var(--surface);border:1px solid var(--line);box-shadow:none;
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease);
+}
+@media (hover:hover){
+  .ex:hover,.sess:hover,.pday:hover,.mp-card:hover,.prog-day:hover,
+  .memrow:hover,.qlent:hover{
+    border-color:var(--line-strong);
+  }
+}
+
+/* illustration tile — art carries its own cream circle */
+.artile{display:grid;grid-template:100% / 100%;place-items:center;flex:0 0 auto;background:transparent}
+.artile svg{width:100%;height:100%}
+.artile-xl{width:160px;height:160px}
+.artile-lg{width:96px;height:96px}
+.artile-md{width:64px;height:64px}
+.artile-sm{width:44px;height:44px}
+.ex-art,.qlent-art,.meal-art{display:grid;place-items:center;flex:0 0 auto}
+.ex-art svg,.qlent-art svg,.meal-art svg{width:100%;height:100%}
+
+/* progressive artwork: CairnArt SVG shows instantly, the generated studio photo
+   fades in over it on load (204 / failure → SVG stays, no flash) */
+.artimg{position:relative}
+.artimg svg{grid-area:1/1}
+.artimg .artimg-photo{
+  grid-area:1/1;width:100%;height:100%;object-fit:cover;border-radius:50%;
+  opacity:0;transform:scale(1.04);
+  transition:opacity var(--dur-3) ease,transform var(--dur-3) var(--ease);
+  /* the long-press redraw menu is a custom gesture — iOS's own "save/copy image"
+     callout must never fight it over the same long-press */
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;
+}
+.artimg .artimg-photo.on{opacity:1;transform:scale(1)}
+/* already-generated art (known ready) paints straight over the SVG — no fade,
+   no scale — so a re-render or reload never flashes the wire placeholder */
+.artimg .artimg-photo.instant{opacity:1;transform:none;transition:none}
+
+/* quiet long-press / right-click repair on an exercise figurine */
+.art-redraw-menu{
+  position:fixed;z-index:var(--z-detail);min-width:11rem;
+  background:var(--card);color:var(--ink);border:1px solid var(--line);
+  border-radius:var(--radius-sm);box-shadow:var(--shadow-md);
+  padding:6px;font-family:var(--font-ui);
+}
+.art-redraw-btn{
+  appearance:none;display:block;width:100%;margin:0;border:0;background:transparent;
+  color:var(--ink);font:inherit;font-size:.86rem;font-weight:560;text-align:left;
+  padding:8px 10px;border-radius:10px;cursor:pointer;
+}
+.art-redraw-btn:hover,.art-redraw-btn:focus-visible{background:var(--accent-wash);outline:none}
+.artile.art-redrawing .artimg-photo{opacity:.45}
+

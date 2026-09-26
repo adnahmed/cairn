@@ -1,0 +1,41 @@
+/* -------------------------------------------------------------------
+   30 · Reduced motion — kill the decorative, keep the functional
+   ------------------------------------------------------------------- */
+/* The old rule was a sledgehammer: `*{animation:none;transition:none}`. That
+   silenced the "an agent is thinking" vocabulary (spinner ring, filament,
+   typing dots, shimmer) AND the short functional transitions that carry meaning
+   (focus rings, the segmented-control thumb, disclosure chevrons). Both matter
+   for legibility, so this splits the rule:
+   1. Kill decorative ENTRANCE/looping animations and long transitions.
+   2. Slow — not stop — the loading indicators, so "working" still reads.
+   3. Preserve the curated set of short functional transitions below. */
+@media (prefers-reduced-motion: reduce){
+  /* decorative entrances + idle loops go silent */
+  *{animation:none!important}
+  /* most transitions snap, but functional micro-states are restored below */
+  *{transition:none!important}
+
+  /* loading vocabulary stays alive — slowed and gentle, never frantic — so a
+     long agent call still reads as "working", not frozen (per docs/DESIGN.md) */
+  .aspin{animation:sugspin 1.6s linear infinite!important}
+  .is-thinking::after{animation:atelier-filament 2.4s linear infinite!important}
+  .typing i{animation:typingdot 1.8s var(--ease) infinite!important}
+  .hshimmer{animation:hshine 2.4s linear infinite!important}
+  .offline-dot{animation:offlinepulse 2.6s ease infinite!important}
+
+  /* the new background-work primitives degrade to STATIC state, no motion:
+     the determinate fill keeps its --frac width (transition killed → it jumps);
+     the SWR hairline becomes a calm static tinted 1px top border, no sweep. */
+  .is-thinking--determinate::after{animation:none!important}
+  body.swr-busy::after{animation:none!important;height:1px;opacity:.45;
+    background:var(--accent)!important}
+
+  /* short FUNCTIONAL transitions kept (the seg thumb sliding to the tapped
+     sub-view, disclosure chevrons, save/offline bars) — these communicate
+     state, not decoration. The focus ring is an instant `outline`, so it never
+     needed a transition to stay visible. */
+  .seg-thumb{transition:transform var(--dur-1) ease!important}
+  .weekfold-chev,.hdoc-chev{transition:transform var(--dur-1) ease!important}
+  .offline-bar,.savebar{transition:transform var(--dur-1) ease!important}
+}
+

@@ -1,0 +1,55 @@
+/* -------------------------------------------------------------------
+   35 · Garmin — wearable strip (Today) + sync status (Settings)
+   ------------------------------------------------------------------- */
+.wearstrip{display:flex;align-items:center;gap:16px;background:var(--card);
+  border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);padding:10px 14px;
+  margin:0 0 12px;overflow-x:auto;scrollbar-width:none}
+.wearstrip::-webkit-scrollbar{display:none}
+.wear-kicker{flex:none;white-space:nowrap}
+.wear-cell{display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap;flex:none}
+.wear-n{font-size:1.05rem;font-weight:600;line-height:1;color:var(--ink);
+  font-variant-numeric:lining-nums}
+.wear-l{letter-spacing:.1em;font-size:.56rem}
+
+/* Garmin "body's reaction" card — a reconciled strength session's physiology layer. */
+.garmin-card{background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
+  padding:12px 14px;margin:0 0 12px;border-left:3px solid var(--sage)}
+.garmin-card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.garmin-tag{flex:none;font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--accent);background:var(--accent-wash);border-radius:var(--radius-pill);padding:3px 8px}
+.garmin-tiles{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+.gz-bar{display:flex;height:9px;border-radius:var(--radius-pill);overflow:hidden;background:var(--line-2);margin:2px 0 5px}
+.gz-seg{height:100%;min-width:1px}
+.gz-legend{font-size:.56rem;letter-spacing:.1em;color:var(--muted)}
+.garmin-sum{margin-top:8px;font-size:.86rem;line-height:1.45;color:var(--ink-2)}
+/* What actually reached Garmin, on the days some of it could not. A quiet receipt,
+   never a warning: the work is logged here either way — Garmin simply has no name
+   for that lift yet. */
+.garmin-receipt{margin-top:8px;font-size:.78rem;line-height:1.45;color:var(--muted)}
+
+/* The calm "Garmin logged a lift not in Cairn yet — reconcile?" pull-card on Today.
+   Waits quietly (pull, never push); a single Reconcile action links it to a session. */
+.garmin-reconcile{display:flex;align-items:center;gap:12px;justify-content:space-between;
+  background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius-sm);
+  border-left:3px solid var(--sage);padding:11px 14px;margin:0 0 12px}
+.garmin-reconcile-text{display:flex;align-items:center;gap:8px;min-width:0;
+  font-size:.84rem;line-height:1.4;color:var(--ink-2)}
+.garmin-reconcile-glyph{flex:0 0 auto;color:var(--sage)}
+.garmin-reconcile-btn{flex:0 0 auto;font:inherit;font-size:.78rem;letter-spacing:.03em;
+  cursor:pointer;color:var(--on-accent);background:var(--accent);border:none;border-radius:var(--radius-pill);
+  padding:6px 14px;transition:background var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.garmin-reconcile-btn:hover{background:var(--accent-deep)}
+.garmin-reconcile-btn:active{transform:var(--press-lg)}
+.garmin-reconcile-btn:disabled{opacity:.6;cursor:default}
+
+.syncrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
+.syncstatus{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--ink-2);min-width:0}
+.sync-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--line-2);flex:none;
+  transition:background var(--dur-1) var(--ease)}
+.sync-dot.ok{background:var(--sage)}
+.sync-dot.err{background:var(--warn)}
+.sync-dot.pulse{background:var(--accent);animation:syncpulse .9s var(--ease) infinite alternate}
+.syncbtn{flex:none;margin-top:0}
+@keyframes syncpulse{from{opacity:.35;transform:scale(.78)}to{opacity:1;transform:scale(1.06)}}
+

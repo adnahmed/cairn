@@ -1,0 +1,36 @@
+/* -------------------------------------------------------------------
+   04e · Stones — the one stone every surface draws (docs/DESIGN.md "Stones")
+   Drawn by CairnStone (src/client/ui-stone.ts) as SVG: a contact shadow, the
+   rock in ITS OWN hue, a vertical sheen, a faint under-curve, and optionally
+   a small dawn dot ("worth a look"). A stone's hue is its key — `stone-<key>`
+   sets --c (the hue) and --cd (its deep text variant) — and is never swapped
+   for a tone. State is spoken in words beside the stone, in --cd.
+   The drift is 1.6px over 7s; reduced motion stills it (§30).
+   ------------------------------------------------------------------- */
+.stone-strength {--c:var(--s-strength); --cd:var(--d-strength)}
+.stone-endurance{--c:var(--s-endurance);--cd:var(--d-endurance)}
+.stone-recovery {--c:var(--s-recovery); --cd:var(--d-recovery)}
+.stone-fuel     {--c:var(--s-fuel);     --cd:var(--d-fuel)}
+.stone-body     {--c:var(--s-body);     --cd:var(--d-body)}
+.stone-heart    {--c:var(--s-heart);    --cd:var(--d-heart)}
+.stone-plain    {--c:var(--surface2);   --cd:var(--ink2)}
+
+.stone-svg{display:block;overflow:visible}
+.stone-rock{fill:var(--c,var(--surface2));stroke:var(--stone-rim);stroke-width:1;vector-effect:non-scaling-stroke}
+.stone-sheen{pointer-events:none}
+.stone-sheen-hi{stop-color:var(--sheen-hi)}
+.stone-sheen-mid{stop-color:var(--sheen-hi);stop-opacity:0}
+.stone-sheen-lo{stop-color:var(--sheen-lo)}
+.stone-contact{fill:var(--shadow);opacity:.5}
+.stone-under{fill:none;stroke:var(--sheen-lo);stroke-opacity:.8;stroke-width:1.2;pointer-events:none;
+  vector-effect:non-scaling-stroke}
+.stone-flag{fill:var(--dawn);stroke:var(--ground);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.stone-drift{animation:stone-drift var(--dur-drift) ease-in-out infinite;
+  animation-delay:calc(var(--i,0) * -1.3s)}
+/* a stone that is also a control lights its rim in dawn under the pointer or keyboard */
+.stone[data-cairn-stack-go]{cursor:pointer}
+@media (hover:hover){.stone[data-cairn-stack-go]:hover .stone-rock{stroke:var(--dawn);stroke-width:2}}
+
+/* the word a stone speaks: its own deep hue, never a tone colour */
+.stone-word{color:var(--cd,var(--ink2))}
+

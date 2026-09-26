@@ -1,0 +1,239 @@
+/* ===================================================================
+   CAIRN — "Atelier v2" design system
+   Calm stones on warm ground. Contract: docs/DESIGN.md ("Atelier v2").
+   Display: Young Serif. UI: Hanken Grotesk. Labels: Martian Mono.
+   =================================================================== */
+
+/* -------------------------------------------------------------------
+   01 · Tokens
+   The v2 palette is named for what it is (ground / surface / ink / dawn /
+   the six stones). The v1 names every section still reads (--paper, --card,
+   --accent, --sage …) are ALIASES onto it, so a screen restyles by moving
+   to the v2 names, never by re-deriving a colour. Dark values live in the
+   two blocks below the light ones; an alias follows its target for free.
+   ------------------------------------------------------------------- */
+:root{
+  color-scheme:light;
+
+  /* ground → surface → ink: the neutrals */
+  --ground:   #ebe7de;   /* page */
+  --surface:  #f7f4ee;   /* cards, sheets, the tab bar */
+  --surface2: #ece7dd;   /* quiet chips and fills that sit on a surface */
+  /* a well that reads on BOTH ground and surface: tracks, bars, inset wells.
+     surface2 alone is ~1:1 against ground, so anything painted straight onto
+     the page (a read-band track, a volume bar) takes this instead. */
+  --well:     color-mix(in srgb, var(--surface2) 55%, var(--line));
+  --line:     #d5cec0;   /* hairlines */
+  --line-strong: #c3bbab;/* a firmer hairline: input borders, dividers that must read */
+  --ink:      #191d20;   /* primary text */
+  --ink2:     #454b50;   /* secondary text */
+  --muted:    #626762;   /* tertiary text, labels. The brief's #6c716c nudged to clear AA 4.5:1 on --ground */
+  --faint-ink:#a9a79f;   /* dismiss glyphs, ghosted marks, placeholders */
+  --on-ink:   var(--ground); /* text on a solid ink fill (the solid button, a selected segment) */
+
+  /* one accent: dawn */
+  --dawn:      #b8611a;
+  --dawn-deep: #95490c;
+  --dawn-wash: rgba(184,97,26,.12);
+
+  /* the six stones — each keeps its OWN hue; tone is never a stone's fill */
+  --s-strength:  #a2b2bf;  --d-strength:  #4f6577;
+  --s-endurance: #97b89f;  --d-endurance: #46735a;
+  --s-recovery:  #aca4cf;  --d-recovery:  #655c96;
+  --s-fuel:      #dbb882;  --d-fuel:      #8e6424;
+  --s-body:      #cfa18b;  --d-body:      #8d5238;
+  --s-heart:     #dc877b;  --d-heart:     #a53d35;
+  --on-stone:    #15191c;  /* a glyph or initial on a stone fill */
+  --shadow:      rgba(20,24,27,.22); /* the contact shadow under a stone */
+  --sheen-hi:    rgba(255,255,255,.34);
+  --sheen-lo:    rgba(0,0,0,.16);
+  --stone-rim:   rgba(0,0,0,.16);
+
+  /* ---- v1 aliases (kept so nothing ripples; new CSS uses the v2 names) ---- */
+  --paper:   var(--ground);
+  --card:    var(--surface);
+  --card-2:  var(--well);  /* v1 painted card-2 on the page ground too */
+  --ink-2:   var(--ink2);
+  --line-2:  var(--line-strong);
+  --faint:   var(--faint-ink);
+  --accent:  var(--dawn);
+  --accent-deep: var(--dawn-deep);
+  --accent-wash: var(--dawn-wash);
+  --on-accent: #fbf8f2;  /* ink/glyph on a saturated fill (dawn / sage / warn / ink / gold) */
+  --sage:    #5b8467;    /* done, completion — marks and borders */
+  --sage-text: var(--d-endurance); /* sage for small text, AA on surface */
+  --sage-deep: #37604a;
+  --sage-bg: color-mix(in srgb, var(--s-endurance) 22%, var(--surface));
+  --warn:    var(--d-heart);
+  --warn-bg: color-mix(in srgb, var(--s-heart) 18%, var(--surface));
+  --gold:    var(--s-fuel);
+  --gold-deep: var(--d-fuel);
+  --rust:    var(--d-body);
+  --stone-deep:  #1c2125;  /* the darkest ground: code wells, the mark */
+  --stone:       #2f363b;
+  --stone-taupe: #6c716c;
+
+  --shadow-sm: 0 1px 2px rgba(20,24,27,.05), 0 4px 14px rgba(20,24,27,.05);
+  --shadow-md: 0 2px 4px rgba(20,24,27,.06), 0 14px 36px rgba(20,24,27,.1);
+  --shadow-lg: 0 6px 16px rgba(20,24,27,.1), 0 28px 64px rgba(20,24,27,.18);
+  --radius-lg: 22px;  /* a hero card, a stone head */
+  --radius: 18px;     /* cards */
+  --radius-md: 14px;  /* inset cards, photo tiles */
+  --radius-sm: 12px;  /* notes, wells */
+  --radius-xs: 10px;  /* inputs, small tiles */
+  --radius-pill: 999px; /* fully rounded ends — chips, pills, buttons, segments, tracks */
+  --space-card: 10px; /* one vertical rhythm between sibling cards */
+  /* spacing — a 2px-step ladder for gaps, padding and margins, drawn from the
+     values the sheet already leans on. New CSS picks from here. */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 16px;
+  --space-9: 18px;
+  --gutter: 16px;     /* page gutter: phone-first, 16px each side */
+  --space-10: 24px;
+
+  /* type — a tight, phone-first scale. The UI body is 15px (--text-base);
+     secondary copy runs --text-xs…--text-md; mono labels sit on --text-2xs.
+     The sheet still carries one-off rem sizes; new CSS uses only these. */
+  --text-body: 15px;   /* body copy size (px, so it never compounds) */
+  --text-2xs: .62rem;  /* mono eyebrows, tracked labels (.lbl, .eyebrow) */
+  --text-xs:  .74rem;  /* meta lines, chips, footnotes */
+  --text-sm:  .8rem;   /* secondary UI copy, small buttons */
+  --text-md:  .88rem;  /* list titles, card body copy */
+  --text-base: .94rem; /* body, inputs (≈15px) */
+  --text-lg:  1.15rem; /* card titles, serif leads */
+  --text-xl:  1.4rem;  /* .numeral-lg, the small voice line */
+  --text-2xl: 1.72rem; /* h1, the voice line */
+  --text-3xl: 2.4rem;  /* .numeral-xl, a race-day number */
+  --leading: 1.5;
+  --tracking-mono: .09em; /* Martian Mono labels, uppercase */
+
+  /* z layers — named app-level stacking, low to high. Stacking local to one
+     component (-1…4 inside its own positioned box) stays a raw number. */
+  --z-grain: 1;          /* body::before paper grain */
+  --z-list-head: 18;     /* sticky group heads inside a list */
+  --z-sticky: 20;        /* in-view sticky bars (.hread-nav, .stand-actionbar) */
+  --z-sticky-menu: 22;   /* a menu opening from a sticky bar */
+  --z-header: 25;        /* the pinned Today header; the chat-mode thread */
+  --z-pinned-under: 29;  /* a second pinned seg band, under the first */
+  --z-pinned: 30;        /* the pinned seg band; the chat-mode header */
+  --z-tabbar: 40;
+  --z-rest: 45;          /* the rest-timer bar */
+  --z-savebar: 46;       /* the save bar; the SWR refresh hairline */
+  --z-offline: 48;       /* the offline band */
+  --z-outbox: 49;        /* the "N to sync" pill */
+  --z-toast: 50;
+  --z-session-bar: 50;   /* the sticky session top bar */
+  --z-modal: 60;
+  --z-sheet: 65;
+  --z-detail: 70;        /* the detail overlay; the art redraw menu */
+  --z-dialog: 80;        /* blocking dialogs (BP sheet, agent sign-in) */
+  --z-review: 86;        /* the outbox review sheet */
+  --z-token: 90;         /* the token sheet — above everything */
+
+  /* motion tokens — one easing family, three speeds. Nothing snaps. */
+  --ease:  cubic-bezier(.22,1,.36,1);
+  --dur-1: 200ms;   /* presses, hovers, small state flips */
+  --dur-2: 320ms;   /* thumbs, sheets, overlays */
+  --dur-in: 350ms;  /* the content entrance (`in`: fade + 8px rise) */
+  --dur-3: 450ms;   /* bars growing, photo fades */
+  --dur-drift: 7s;  /* a stone's slow drift (off under reduced motion) */
+  --dur-ping: 2.2s; /* the live ping dot */
+  --rise: 8px;      /* how far the entrance rises */
+
+  /* tactile press — one intentional depth scale, keyed to target size.
+     The press deepens as the target shrinks, so the feedback reads the
+     same at any size. Apply as `transform:var(--press*)` in :active. */
+  --press-lg: scale(.99);   /* large surfaces — cards, rows, tap-entries */
+  --press:    scale(.96);   /* standard — buttons, pills, day/seg buttons */
+  --press-sm: scale(.94);   /* compact action buttons */
+  --press-xs: scale(.9);    /* tiny icon buttons — ×, dots, swatches, chevrons */
+
+  --font-display: "Young Serif", "Iowan Old Style", Georgia, serif;
+  --font-ui: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* The dark palette: the system setting, unless a page pins data-theme="light";
+   and data-theme="dark" forces it. Keep the two blocks identical. */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:   #121619;
+    --surface:  #1a2024;
+    --surface2: #21282d;
+    --line:     #2e373d;
+    --line-strong: #3d474e;
+    --ink:      #ece6da;
+    --ink2:     #b0b3ad;
+    --muted:    #80877f;
+    --faint-ink:#5d655f;
+    --dawn:      #f0aa62;
+    --dawn-deep: #f6c28e;
+    --dawn-wash: rgba(240,170,98,.13);
+    --s-strength:  #8fa1b0;  --d-strength:  #a9bccb;
+    --s-endurance: #80a68c;  --d-endurance: #9cc4a8;
+    --s-recovery:  #9990c3;  --d-recovery:  #b7aee0;
+    --s-fuel:      #d1a86d;  --d-fuel:      #e6c08a;
+    --s-body:      #c3907a;  --d-body:      #dcab94;
+    --s-heart:     #d4756a;  --d-heart:     #ee9184;
+    --on-stone:    #12161a;
+    --shadow:      rgba(0,0,0,.5);
+    --sheen-hi:    rgba(255,255,255,.26);
+    --sheen-lo:    rgba(0,0,0,.22);
+    --stone-rim:   rgba(0,0,0,.3);
+    --on-accent:   #12161a;  /* every saturated fill is light in the dark palette */
+    --sage:        #80a68c;
+    --sage-deep:   #b4d6bd;
+    --sage-bg:     color-mix(in srgb, var(--s-endurance) 16%, var(--surface));
+    --warn-bg:     color-mix(in srgb, var(--s-heart) 14%, var(--surface));
+    --stone-deep:  #0b0e10;
+    --stone:       #3a4349;
+    --stone-taupe: #80877f;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.24);
+    --shadow-md: 0 2px 4px rgba(0,0,0,.32), 0 14px 36px rgba(0,0,0,.36);
+    --shadow-lg: 0 6px 16px rgba(0,0,0,.4), 0 28px 64px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:   #121619;
+  --surface:  #1a2024;
+  --surface2: #21282d;
+  --line:     #2e373d;
+  --line-strong: #3d474e;
+  --ink:      #ece6da;
+  --ink2:     #b0b3ad;
+  --muted:    #80877f;
+  --faint-ink:#5d655f;
+  --dawn:      #f0aa62;
+  --dawn-deep: #f6c28e;
+  --dawn-wash: rgba(240,170,98,.13);
+  --s-strength:  #8fa1b0;  --d-strength:  #a9bccb;
+  --s-endurance: #80a68c;  --d-endurance: #9cc4a8;
+  --s-recovery:  #9990c3;  --d-recovery:  #b7aee0;
+  --s-fuel:      #d1a86d;  --d-fuel:      #e6c08a;
+  --s-body:      #c3907a;  --d-body:      #dcab94;
+  --s-heart:     #d4756a;  --d-heart:     #ee9184;
+  --on-stone:    #12161a;
+  --shadow:      rgba(0,0,0,.5);
+  --sheen-hi:    rgba(255,255,255,.26);
+  --sheen-lo:    rgba(0,0,0,.22);
+  --stone-rim:   rgba(0,0,0,.3);
+  --on-accent:   #12161a;  /* every saturated fill is light in the dark palette */
+  --sage:        #80a68c;
+  --sage-deep:   #b4d6bd;
+  --sage-bg:     color-mix(in srgb, var(--s-endurance) 16%, var(--surface));
+  --warn-bg:     color-mix(in srgb, var(--s-heart) 14%, var(--surface));
+  --stone-deep:  #0b0e10;
+  --stone:       #3a4349;
+  --stone-taupe: #80877f;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.24);
+  --shadow-md: 0 2px 4px rgba(0,0,0,.32), 0 14px 36px rgba(0,0,0,.36);
+  --shadow-lg: 0 6px 16px rgba(0,0,0,.4), 0 28px 64px rgba(0,0,0,.5);
+}

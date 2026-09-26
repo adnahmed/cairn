@@ -4898,7 +4898,7 @@ ships the placeholder `const CACHE = "cairn-shell-dev"` and `src/swVersion.ts` (
 `GET /sw.js` ahead of both static layers) substitutes `cairn-<hash>`, a content hash over every url
 in the worker's own `CORE_ASSETS` + `OPTIONAL_ASSETS` plus `sw.js` itself. Same shell bytes → the
 same name and no re-download; one changed byte → a new cache, a fresh precache, and `skipWaiting()`.
-The computation is memoized on a size+mtime signature, so `tsx watch` tracks an edited `styles.css`
+The computation is memoized on a size+mtime signature, so `tsx watch` tracks a rebuilt `styles.css` (`node scripts/build-styles.mjs` after editing `src/styles/`, or keep `npm run styles:watch` running beside `npm run dev`)
 while a production process hashes once. Adding an asset to `CORE_ASSETS` is therefore the single
 edit that both precaches it and folds it into the version. Navigations are answered **cache-first** from the precached
 `/index.html`: the installed PWA opens over a tailnet that may be asleep, and a network-first

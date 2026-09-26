@@ -1,0 +1,227 @@
+/* =====================================================================
+   Stand — the card-based "where you stand" brain (Today · STAND · Plan · Coach).
+   Consume the overview, tap a tile to dig deeper, tap a marker to expand.
+   Cards + visual points + progressive disclosure; never a long scroll.
+   ===================================================================== */
+.stand-root{padding-bottom:8px}
+.stand-focus{background:var(--card);border-left:3px solid var(--accent);border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);padding:17px 18px;margin:6px 0 15px;position:relative;overflow:hidden}
+.stand-focus::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 80% at 0 0,color-mix(in srgb,var(--accent) 6%,transparent),transparent 60%)}
+.stand-focus-k{font-size:.6rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);position:relative}
+.stand-focus-h{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 40;
+  font-size:1.3rem;line-height:1.18;margin:6px 0 0;color:var(--ink);position:relative;text-wrap:balance}
+.stand-focus-p{font-size:.86rem;line-height:1.45;color:var(--ink-2);margin:8px 0 0;position:relative;max-width:60ch}
+
+/* Your Read — the health synthesis as tap-to-expand focus-zones, never a scroll. */
+.stand-read{margin:4px 0 20px}
+.stand-read-k{display:block;color:var(--muted);margin-bottom:6px}
+.stand-read-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.stand-read-top .stand-read-k{margin-bottom:6px}
+.stand-read-refresh{flex:0 0 auto;font-size:.72rem;letter-spacing:.02em;display:inline-flex;align-items:center;gap:5px}
+.stand-read-gen{margin-top:2px}
+.stand-read-lede{font-family:var(--font-display);font-weight:460;font-variation-settings:"opsz" 48;
+  font-size:1.2rem;line-height:1.32;color:var(--ink);margin:0 0 15px;text-wrap:balance;max-width:60ch}
+.stand-zones{display:flex;flex-direction:column;gap:10px}
+.stand-zone{background:var(--card);border-radius:15px;box-shadow:var(--shadow-sm);border-left:3px solid var(--line-2);
+  padding:13px 15px;cursor:pointer;transition:transform var(--dur-1) var(--ease)}
+.stand-zone.tone-warn{border-left-color:var(--warn)}
+.stand-zone.tone-watch{border-left-color:var(--gold)}
+.stand-zone.tone-ok{border-left-color:var(--sage)}
+.stand-zone:active{transform:var(--press-sm)}
+.stand-zt{display:flex;align-items:center;gap:8px}
+.stand-zlabel{font-weight:680;font-size:.96rem;color:var(--ink)}
+.stand-zchev{margin-left:auto;color:var(--line-2);font-size:.72rem;transition:transform var(--dur-2) var(--ease)}
+.stand-zone.open .stand-zchev{transform:rotate(180deg)}
+.stand-zmove{font-size:.86rem;color:var(--ink-2);line-height:1.42;margin-top:6px}
+.stand-zwhy{font-size:.83rem;color:var(--muted);line-height:1.45;
+  max-height:0;overflow:hidden;transition:max-height var(--dur-2) var(--ease)}
+.stand-zone.open .stand-zwhy{max-height:240px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+.stand-zwhy .stand-ask{display:block;margin-top:8px}
+.stand-onechange{margin:16px 0 0;padding:12px 14px;background:var(--card-2)}
+.stand-onechange .lbl{display:block;color:var(--accent);margin-bottom:4px}
+.stand-conns{margin-top:20px}
+.stand-conns-h{color:var(--muted);margin-bottom:9px}
+.stand-conn{display:flex;gap:9px;align-items:flex-start;background:var(--card);border-radius:12px;
+  box-shadow:var(--shadow-sm);padding:11px 13px;margin-bottom:8px;font-size:.83rem;color:var(--ink-2);line-height:1.42}
+.stand-conn-i{color:var(--gold-deep);flex:0 0 auto;margin-top:1px}
+/* recheck timing chip on a priority — a quiet "↻ recheck in ~3 months" nudge */
+.stand-zrecheck{display:block;margin-top:8px;color:var(--sage-text);letter-spacing:.02em}
+/* "The full story" — progressive disclosure of the read's depth, collapsed by default */
+.stand-story{margin-top:18px}
+.stand-story-t{display:inline-flex;align-items:center;gap:5px}
+.stand-story-chev{font-size:.7rem;transition:transform var(--dur-2) var(--ease)}
+.stand-story.open .stand-story-chev{transform:rotate(180deg)}
+.stand-story-body{max-height:0;overflow:hidden;transition:max-height var(--dur-3) var(--ease)}
+.stand-story.open .stand-story-body{max-height:1600px;margin-top:11px}
+.stand-story-p{font-size:.9rem;color:var(--ink-2);line-height:1.5;margin:0 0 14px}
+.stand-story-prios{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
+.stand-sp{background:var(--card);border-radius:13px;box-shadow:var(--shadow-sm);border-left:3px solid var(--line-2);padding:12px 14px}
+.stand-sp-label{font-weight:560;color:var(--ink);font-size:.9rem}
+.stand-sp-why{max-height:none;overflow:visible;margin-top:8px;font-size:.83rem;color:var(--muted);line-height:1.45}
+.stand-sp-why .stand-ask{display:block;margin-top:8px}
+.stand-ask-all{display:inline-block;margin-top:2px}
+.stand-browse{display:flex;align-items:baseline;justify-content:space-between;gap:12px;color:var(--muted);margin:0 2px 9px}
+.stand-allmk{flex:0 0 auto;font-size:.72rem;letter-spacing:.02em}
+.stand-bodymetrics{margin-bottom:4px}
+
+.stand-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stand-tile{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:13px 13px 12px;
+  text-align:left;cursor:pointer;position:relative;font-family:var(--font-ui);
+  transition:box-shadow var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+@media (hover:hover){.stand-tile:hover{box-shadow:var(--shadow-sm);border-color:var(--line-2)}}
+.stand-tile:active{transform:var(--press)}
+.stand-tile-top{display:flex;align-items:center;gap:7px}
+.stand-tile-name{font-size:.84rem;font-weight:680;color:var(--ink)}
+.stand-tile-read{display:block;font-size:.8rem;color:var(--ink-2);margin-top:7px;line-height:1.35}
+.stand-tile-read b{font-variant-numeric:lining-nums;font-weight:640}
+.stand-tile-read.warn b{color:var(--warn)}
+.stand-tile-read.watch b{color:var(--gold-deep)}
+.stand-tile-arw{position:absolute;right:12px;bottom:11px;color:var(--line-2);font-size:.85rem}
+
+/* Sticky action bar — pinned to the top of Stand so Add labs is always one tap
+   away, never buried at the scroll bottom. Full-bleed blurred scrim like the seg nav. */
+.stand-actionbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:var(--z-sticky);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:-4px calc(-1 * var(--gutter)) 14px;padding:8px var(--gutter);
+  background:color-mix(in srgb,var(--ground) 86%,transparent);backdrop-filter:blur(12px) saturate(1.1);-webkit-backdrop-filter:blur(12px) saturate(1.1)}
+.stand-addbtn{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:var(--on-accent);
+  border:none;border-radius:var(--radius-pill);padding:8px 16px 8px 12px;font-family:var(--font-ui);font-weight:600;font-size:.82rem;
+  cursor:pointer;box-shadow:var(--shadow-sm);transition:transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
+.stand-addbtn:hover{background:var(--accent-deep)}
+.stand-addbtn:active{transform:var(--press)}
+.stand-addbtn-p{font-size:1.05rem;line-height:1}
+.stand-more{position:relative}
+.stand-morebtn{background:var(--card);border:1px solid var(--line-2);color:var(--ink-2);border-radius:var(--radius-pill);
+  width:38px;height:34px;font-size:1.1rem;line-height:1;cursor:pointer;letter-spacing:.06em}
+.stand-morebtn:active{transform:var(--press)}
+.stand-moremenu{position:absolute;right:0;top:calc(100% + 6px);z-index:var(--z-sticky-menu);min-width:200px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);
+  padding:6px;display:flex;flex-direction:column;animation:chipin var(--dur-1) var(--ease)}
+.stand-moremenu[hidden]{display:none}
+.stand-moreitem{text-align:left;background:none;border:none;color:var(--ink);font-family:var(--font-ui);font-size:.85rem;
+  padding:9px 11px;border-radius:9px;cursor:pointer}
+.stand-moreitem:hover{background:var(--card-2)}
+
+/* Next checkup — the doctor-loop surfaced. Editorial recheck / follow-through read:
+   due & coming-up rechecks, visible follow-through on what you've started, calm prep. */
+.chk-sec{margin:0 0 22px}
+.chk-sec-sub{font-size:.82rem;color:var(--muted);line-height:1.45;margin:0 2px 11px;max-width:60ch}
+.chk-subhead{font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:14px 2px 8px}
+.chk-item{display:flex;gap:10px;align-items:flex-start;background:var(--card);border:1px solid var(--line);
+  border-radius:13px;padding:12px 14px;margin-bottom:8px}
+.chk-item .hdot{margin-top:5px;flex:0 0 auto}
+.chk-item-body{flex:1;min-width:0}
+.chk-item-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.chk-item-label{font-weight:640;font-size:.92rem;color:var(--ink)}
+.chk-item-why{font-size:.82rem;color:var(--muted);line-height:1.45;margin-top:5px}
+.chk-ft-grid{display:flex;flex-direction:column;gap:10px}
+.chk-ft{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 14px}
+.chk-ft .trend-lead{margin-bottom:2px}
+.chk-ft-meta{font-size:.8rem;color:var(--ink-2);line-height:1.4;margin-top:5px;font-variant-numeric:lining-nums}
+.chk-ft-via{color:var(--muted);margin-top:6px;text-transform:none;letter-spacing:0;font-weight:600;font-size:.74rem}
+.chk-ft-recheck{display:flex;align-items:center;gap:7px;font-size:.78rem;color:var(--ink-2);margin-top:8px;
+  padding-top:8px;border-top:1px solid var(--line)}
+.chk-prep-block{margin:0 0 12px}
+.chk-prep-block .lbl{display:block;margin-bottom:7px}
+.chk-prep-block.well-accent-sm{padding:12px 14px;background:var(--card-2)}
+.chk-list,.chk-ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.chk-list li,.chk-ol li{font-size:.86rem;color:var(--ink-2);line-height:1.45}
+.chk-ol-name{font-weight:600;color:var(--ink)}
+.chk-ol-detail{color:var(--muted)}
+.chk-frame{font-size:.75rem;color:var(--muted);line-height:1.5;margin:18px 2px 0;max-width:60ch}
+
+/* Settings → You: the about-you & context home (Profile / Family / Life / Memory). */
+.set-you{display:flex;flex-direction:column;gap:10px}
+.set-you-card{display:flex;flex-direction:column;gap:3px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:14px 40px 14px 16px;text-align:left;cursor:pointer;position:relative;
+  box-shadow:var(--shadow-sm);transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+@media (hover:hover){.set-you-card:hover{border-color:var(--line-2)}}
+.set-you-card:active{transform:var(--press)}
+.set-you-t{font-weight:680;font-size:.95rem;color:var(--ink)}
+.set-you-s{font-size:.8rem;color:var(--muted);line-height:1.4}
+.set-you-arw{position:absolute;right:15px;top:50%;transform:translateY(-50%);color:var(--line-2);font-size:.9rem}
+.stand-back,.home-back{margin:2px 0 4px;font-size:.84rem}
+.stand-subhead{font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);margin:16px 2px 2px}
+.stand-detail-h{font-family:var(--font-display);font-weight:560;font-size:1.5rem;letter-spacing:-.01em;margin:2px 0 12px}
+.stand-empty{color:var(--muted);font-size:.88rem;padding:10px 2px}
+.stand-figrow{display:flex;gap:15px;align-items:center;background:var(--card);border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);padding:14px 16px;margin:2px 0 14px}
+.stand-figrow svg{height:150px;width:auto;flex:0 0 auto}
+.stand-figtxt p{font-size:.86rem;color:var(--ink-2);line-height:1.45;margin:0}
+
+/* traffic-light value tint: a good reading stays calm ink (green dot says enough);
+   an off-optimal one goes amber, an out-of-range one red — so attention pops. */
+.hmk-val.mst-watch{color:var(--gold-deep)}
+.hmk-val.mst-warn{color:var(--warn)}
+.hmk-val.mst-watch .hmk-unit,.hmk-val.mst-warn .hmk-unit{color:inherit;opacity:.7}
+.hmk-unit{font-family:var(--font-ui);font-size:.62rem;color:var(--muted);margin-left:3px;
+  letter-spacing:.04em}
+.hmk-delta{font-size:.7rem;color:var(--muted);white-space:nowrap}
+.hmk-chev{color:var(--muted);font-size:.68rem;align-self:center;width:.8em;text-align:center;
+  transition:transform var(--dur-2) var(--ease)}
+.hmk.open .hmk-chev{transform:rotate(180deg)}
+.hmk-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--dur-2) var(--ease)}
+.hmk.open .hmk-panel{grid-template-rows:1fr}
+.hmk-panel-in{overflow:hidden;min-height:0;padding:0 16px 4px}
+/* the richer inline progress chart */
+.hchart-latest{display:flex;align-items:baseline;gap:9px;padding:8px 0 2px}
+.hchart-latest-v{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
+  font-size:1.25rem;color:var(--ink);font-variant-numeric:lining-nums}
+.hchart-latest-when{font-size:.7rem;color:var(--muted);letter-spacing:.01em}
+.hchart{width:100%;height:auto;display:block;margin:2px 0 6px;touch-action:pan-y;cursor:crosshair}
+/* single-reading band gauge — a static where-you-sit read, no scrubbing */
+.hgauge{cursor:default}
+.hgauge-track{stroke:var(--line-2);stroke-width:2;stroke-linecap:round}
+.hchart-band{fill:color-mix(in srgb,var(--sage) 14%,transparent)}
+/* line, dots and zone bar are toned here, never by a colour in TS (CairnUiChart) */
+.hchart-line{stroke:var(--ink)}
+.hchart-dot-ok{fill:var(--sage)}
+.hchart-dot-watch{fill:var(--warn)}
+.zonebar{display:block}
+.zonebar-seg{opacity:.22}
+.zonebar-seg.is-optimal{opacity:.55}
+.zonebar-seg-ok{fill:var(--sage)}
+.zonebar-seg-watch{fill:var(--gold)}
+.zonebar-seg-warn{fill:var(--warn)}
+.zonebar-seg-info{fill:var(--muted)}
+.zonebar-optimal{font-size:9px;font-weight:600;fill:var(--sage-text)}
+.zonebar-pace{stroke:var(--ink);stroke-width:1.2;stroke-dasharray:3 3;opacity:.55}
+.zonebar-ahead{fill:var(--card);stroke:var(--ink);stroke-width:1.4;stroke-dasharray:2 2}
+.zonebar-now{fill:var(--ink)}
+.hchart-txt{font-family:var(--font-ui);font-size:9px;letter-spacing:.08em;fill:var(--muted)}
+.hchart-cap{margin:0 0 12px;color:var(--muted);letter-spacing:.01em;font-size:.72rem;line-height:1.4}
+/* scrub overlay (hover/drag a marker chart to read past values) — hidden until active */
+.hchart-guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3;opacity:0;pointer-events:none;transition:opacity .12s var(--ease)}
+.hchart-cursor{fill:var(--accent);stroke:var(--card);stroke-width:1.6;opacity:0;pointer-events:none;transition:opacity .12s var(--ease)}
+.hchart-tip{opacity:0;pointer-events:none;transition:opacity .12s var(--ease)}
+.hchart-tip rect{fill:var(--ink)}
+.hchart-tip text{fill:var(--paper);font-family:var(--font-ui);font-size:10px;font-weight:600;letter-spacing:.01em}
+.hchart.scrubbing .hchart-guide,.hchart.scrubbing .hchart-cursor,.hchart.scrubbing .hchart-tip{opacity:1}
+
+/* share — report/export utilities separated from the marker catalog */
+.hshare{display:grid;gap:14px}
+.hshare-grid{display:grid;gap:14px}
+.hshare-card{background:var(--card);box-shadow:var(--shadow-sm);border:1px solid var(--line);
+  border-radius:var(--radius);padding:18px;min-width:0}
+.hshare-card-main{display:grid;gap:16px}
+.hshare-kicker{margin:0 0 6px;color:var(--ink-2)}
+.hshare-title,.hshare-subtitle{font-family:var(--font-display);font-style:italic;
+  font-variation-settings:"opsz" 60;color:var(--ink);letter-spacing:0}
+.hshare-title{margin:0;font-weight:540;font-size:1.28rem;line-height:1.12}
+.hshare-subtitle{margin:0;font-weight:530;font-size:1.02rem;line-height:1.2}
+.hshare-copy{margin:8px 0 0;color:var(--muted);font-size:.86rem;line-height:1.5}
+.hshare-meta{margin-top:12px;color:var(--ink-2);font-size:.74rem;letter-spacing:.04em;text-transform:uppercase}
+.hshare-actions{display:flex;align-items:center}
+.hshare-card .logbtn,.hshare-card .ghostbtn{width:100%;min-height:42px}
+@media (prefers-reduced-motion: no-preference){
+  .hchart-line{stroke-dasharray:680;stroke-dashoffset:680}
+  .hmk.open .hchart-line{animation:sparkdraw .8s var(--ease) .1s forwards}
+  .hchart-dot,.hchart-txt,.hchart-band{opacity:0;transition:opacity var(--dur-3) var(--ease)}
+  .hmk.open .hchart-band{opacity:1;transition-delay:.1s}
+  .hmk.open .hchart-dot{opacity:1;transition-delay:.4s}
+  .hmk.open .hchart-txt{opacity:1;transition-delay:.55s}
+}
+@keyframes sparkdraw{to{stroke-dashoffset:0}}
+

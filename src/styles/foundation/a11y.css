@@ -1,0 +1,85 @@
+/* -------------------------------------------------------------------
+   38 · Accessibility — tap-target padding (WCAG 2.5.5, ~44px)
+   High-traffic controls that render smaller than 44px keep their visual
+   size but get a centered invisible ::before overlay that expands the
+   clickable region. Layout is untouched (the overlay is absolutely
+   positioned), so nothing shifts. One idiom across the app.
+   ------------------------------------------------------------------- */
+/* .sheet-x is intentionally NOT here — it's already position:absolute (pinned to the
+   sheet card's top-right corner), and listing it would override that to relative,
+   dropping the ✕ into normal flow at the top-left where it clips. Its ::before tap
+   overlay below still anchors correctly to the absolutely-positioned button.
+   .logbtn is the app-wide primary button (44×42 in the set row; other surfaces override
+   its size) and .rest-btn the rest-bar ±15/Skip — both sat under the 44 px hit floor. */
+.feel-dot,.iconbtn,.delbtn,.ex-skip,.togglebtn,.agent-detail-link,.logbtn,.rest-btn,
+.bpsheet-x,.outbox-review-close,.edset-del{position:relative}
+.feel-dot::before,.iconbtn::before,.delbtn::before,
+.ex-skip::before,.togglebtn::before,.agent-detail-link::before,.sheet-x::before,
+.logbtn::before,.rest-btn::before,
+.bpsheet-x::before,.outbox-review-close::before,.edset-del::before,
+.detail-x::before,.chat-jump::before,.qlmic::before{
+  content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  min-width:44px;min-height:44px;width:100%;height:100%;
+}
+/* Inline glyph deletes (chip ×, supplement ×) sit at the tail of a pill among
+   siblings — expand to 44px tall but only modestly wide so the overlay never
+   reaches into a neighbouring chip. */
+.chip-x,.supp-x{position:relative}
+.chip-x::before,.supp-x::before{
+  content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:calc(100% + 10px);height:44px;
+}
+/* Family colour swatches sit 9px apart in a wrapping row — same idiom, one pixel
+   tighter so two neighbouring overlays never touch. (.fam-swatch already carries
+   position:relative for its inset ring.) */
+.fam-swatch::before{
+  content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:calc(100% + 8px);height:44px;
+}
+
+/* -------------------------------------------------------------------
+   39 · High-contrast mode (prefers-contrast: more)
+   Hairlines and small status dots are deliberately soft in the Atelier
+   theme; users asking for more contrast get firmer hairlines (darken
+   --line/--line-2 toward ink) and stronger-edged dots/markers so data
+   never reads as color-on-color-only. The light values sit on :root; the
+   dark palette gets its own firmer pair below (same specificity as the dark
+   token blocks, and later, so it wins there).
+   ------------------------------------------------------------------- */
+@media (prefers-contrast: more){
+  :root{
+    --line:#c9bfa9;        /* firmer hairline */
+    --line-strong:#b3a78c; /* firmer stronger hairline (--line-2 follows) */
+    --muted:#5c5544;       /* lift tertiary text a touch for legibility */
+  }
+  :root[data-theme="dark"]{
+    --line:#46515a;
+    --line-strong:#5a666f;
+    --muted:#9aa19a;
+  }
+  /* small status / completion / level dots get a defining ring so they read
+     even where the fill is close to its surround */
+  .stat-dot,.agentdot,.sync-dot,.checkin-open-dot,.savebar-dot,
+  .offline-dot,.noticed-dot,.agent-offline-dot,.ramp-step:not(.is-current) .ramp-dot{
+    box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 55%,transparent);
+  }
+  /* the sage current-phase dot already carries a glow; firm it to a defining ring */
+  .ramp-step.is-current .ramp-dot{box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 55%,transparent)}
+  /* directive + marker chips and the marker-chart geometry firm up their edges */
+  .hb-dmarker,.prov-marker{border-color:var(--ink-2)}
+  .hchart-band{fill:color-mix(in srgb,var(--sage) 24%,transparent)}
+  .hchart-dot{stroke:var(--ink);stroke-width:.6}
+  .hm-flag.ok,.hm-flag.warn{border-color:currentColor}
+  /* calendar completion cells gain a hairline so adjacent levels are
+     distinguishable beyond color alone */
+  .cal-day.cal-has{
+    border:1px solid color-mix(in srgb,var(--ink) 35%,transparent);
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --line:#46515a;
+    --line-strong:#5a666f;
+    --muted:#9aa19a;
+  }
+}

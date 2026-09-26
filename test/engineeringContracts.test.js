@@ -1789,7 +1789,8 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(smokeHttp, /from "\.\.\/scripts\/smoke-server\.mjs"/);
   assert.match(smokeServer, /export async function startBuiltServer/);
   assert.match(smokeServer, /DATA_DIR: dir/);
-  assert.match(smokeBrowser, /CHROME_BIN/);
+  assert.match(smokeBrowser, /from "\.\/cdp-chrome\.mjs"/, "the smoke launches Chrome through the shared CDP helper");
+  assert.match(read("scripts/cdp-chrome.mjs"), /CHROME_BIN/);
   assert.match(smokeBrowser, /Runtime\.exceptionThrown/);
   assert.match(smokeBrowser, /Network\.responseReceived/);
   assert.match(smokeBrowser, /registerJobReconnector/);
@@ -1798,7 +1799,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(smokeBrowser, /CairnTodayAddExerciseController/);
   assert.match(smokeBrowser, /CairnFuelTodayController/);
   assert.match(smokeBrowser, /CairnMeMemoryController/);
-  assert.match(smokeBrowser, /freeDebugPort/);
+  assert.match(read("scripts/cdp-chrome.mjs"), /freeDebugPort/);
   assert.match(smokeBrowser, /Page\.navigate/);
   assert.match(smokeBrowser, /expectedState/);
   // v2 wave 5: the smoke walks the five-home grammar, and the v1 paths redirect.

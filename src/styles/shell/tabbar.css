@@ -1,0 +1,105 @@
+/* -------------------------------------------------------------------
+   23b · Floating unsaved-changes save bar (docks above the tab bar)
+   ------------------------------------------------------------------- */
+/* Dark stone surface so the bar reads unmistakably as a pinned action against
+   the warm-cream page — matches the toast's high-contrast voice (cream-on-ink),
+   not the old cream-on-cream pill that blended into the background. */
+.savebar{
+  position:fixed;z-index:var(--z-savebar);left:50%;
+  bottom:calc(60px + max(env(safe-area-inset-bottom),6px) + var(--vvb,0px));
+  width:min(440px,calc(100% - 28px));
+  background:var(--ink);
+  border:1px solid color-mix(in srgb,var(--on-ink) 10%,transparent);border-radius:var(--radius-pill);
+  box-shadow:var(--shadow-lg);
+  opacity:0;transform:translate(-50%,calc(100% + 84px)) scale(.97);
+  transition:transform var(--dur-2) var(--ease),opacity var(--dur-2) var(--ease),
+    background var(--dur-1) ease,border-color var(--dur-1) ease;
+  pointer-events:none;
+}
+.savebar.show{opacity:1;transform:translate(-50%,0) scale(1);pointer-events:auto}
+.savebar-row{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 18px;
+  transition:opacity var(--dur-1) ease}
+.savebar-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:0 0 auto;
+  animation:savedot 2.2s var(--ease) infinite}
+@keyframes savedot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.7);opacity:.55}}
+.savebar-msg{flex:1;min-width:0;font-family:var(--font-ui);font-size:.84rem;font-weight:600;
+  color:color-mix(in srgb,var(--on-ink) 92%,transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.savebar-discard{background:transparent;border:none;color:color-mix(in srgb,var(--on-ink) 62%,transparent);flex:0 0 auto;
+  font-size:.8rem;font-weight:600;padding:8px 10px;border-radius:var(--radius-pill);
+  transition:color var(--dur-1) ease,opacity var(--dur-1) ease}
+.savebar-save{background:var(--accent);border:none;color:var(--on-accent);flex:0 0 auto;
+  font-size:.82rem;font-weight:700;letter-spacing:.04em;
+  padding:9px 20px;border-radius:var(--radius-pill);
+  transition:background var(--dur-1) ease,opacity var(--dur-1) ease}
+.savebar-save:not(:disabled):active{background:var(--accent-deep)}
+.savebar.busy .savebar-save{opacity:.55}
+.savebar.busy .savebar-discard{opacity:.4;pointer-events:none}
+
+/* success flash: row cross-fades to a sage check drawing itself in;
+   the pill's size never changes, so nothing reflows */
+.savebar-done{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;
+  color:var(--sage);font-family:var(--font-ui);font-weight:700;font-size:.86rem;
+  opacity:0;transform:scale(.94);pointer-events:none;
+  transition:opacity var(--dur-1) ease,transform var(--dur-2) var(--ease);
+}
+.savebar-done svg{width:18px;height:18px}
+.savebar-tick{stroke-dasharray:26;stroke-dashoffset:26}
+.savebar.saved{background:var(--sage-bg);border-color:color-mix(in srgb,var(--sage) 40%,transparent)}
+.savebar.saved .savebar-row{opacity:0;pointer-events:none}
+.savebar.saved .savebar-done{opacity:1;transform:scale(1)}
+.savebar.saved .savebar-tick{animation:tickdraw var(--dur-3) var(--ease) .08s forwards}
+@keyframes tickdraw{to{stroke-dashoffset:0}}
+
+/* while the bar is up: content scrolls clear of it, the toast hops above it,
+   and an active rest timer pushes it one shelf higher */
+body.savebar-open{padding-bottom:calc(168px + var(--vvb,0px))}
+body.savebar-open .toast{bottom:calc(150px + var(--vvb,0px))}
+body.resting .savebar{bottom:calc(114px + max(env(safe-area-inset-bottom),6px) + var(--vvb,0px))}
+
+/* -------------------------------------------------------------------
+   24 · Tab bar (mobile: bottom, surface blur)
+   ------------------------------------------------------------------- */
+.tabbar{
+  position:fixed;bottom:var(--vvb,0px);left:0;right:0;z-index:var(--z-tabbar);display:flex;
+  background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-top:1px solid var(--line);
+  padding-bottom:max(env(safe-area-inset-bottom),6px);
+  transition:transform .22s ease;
+}
+.tab{
+  flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;background:transparent;border:none;color:var(--muted);
+  font-family:var(--font-ui);font-weight:500;letter-spacing:0;
+  padding:9px 2px 4px;line-height:1;transition:color var(--dur-1) var(--ease);
+}
+.tab-ico{width:22px;height:22px;display:block;flex:0 0 auto;stroke-width:1.6;
+  transition:color var(--dur-1) var(--ease)}
+.tab-lbl{font-size:.66rem;text-transform:none;letter-spacing:.01em}
+.tab::after{content:"";width:4px;height:4px;border-radius:50%;background:transparent;
+  margin-top:2px;transform:scale(0);
+  transition:background var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.tab.active{color:var(--ink)}
+.tab.active .tab-ico{color:var(--dawn)}
+/* the active dot grows in on the new tab as the old one shrinks away (a fade +
+   scale, never a jump); reduced motion snaps it via the global transition kill */
+.tab.active::after{background:var(--dawn);transform:scale(1)}
+/* non-color active affordance: the dot appears AND the label bolds, so the live
+   tab reads without relying on the terracotta tint alone (colour-blind safe). */
+.tab.active .tab-lbl{font-weight:650}
+.brand{display:none}
+
+/* -------------------------------------------------------------------
+   25 · Global hover polish
+   ------------------------------------------------------------------- */
+@media (hover:hover){
+  .daybtn:hover{border-color:var(--ink);color:var(--ink)}
+  .daybtn.active:hover{color:var(--on-ink)}
+  .segbtn:hover{color:var(--ink)}
+  .segbtn.active:hover{color:var(--on-ink)}
+  .prog-subseg .segbtn.active:hover{color:var(--ink)}
+  .rest-btn:hover{border-color:var(--ink);color:var(--ink)}
+  .savebar-discard:hover{color:var(--on-accent)}
+  .savebar-save:not(:disabled):hover{background:var(--accent-deep)}
+}
+

@@ -1,0 +1,178 @@
+/* -------------------------------------------------------------------
+   18 · Memory (Me)
+   ------------------------------------------------------------------- */
+.memadd{display:flex;gap:8px;align-items:center}
+.memadd select{flex:0 0 auto;width:auto;background:var(--card-2);border:1px solid var(--line);
+  color:var(--ink);border-radius:10px;padding:10px 9px;font-size:.84rem;
+  text-transform:capitalize;color-scheme:light}
+.memadd input{flex:1;min-width:0;background:var(--card-2);border:1px solid var(--line);
+  color:var(--ink);border-radius:10px;padding:11px 12px;font-size:.9rem}
+.memrow{display:flex;gap:11px;align-items:flex-start;border-radius:var(--radius);
+  padding:12px 14px;margin-bottom:10px}
+.memrow-main{flex:1;min-width:0}
+.memrow-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.memtag{font-family:var(--font-ui);font-size:.56rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent-deep);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);
+  border-radius:var(--radius-pill);padding:2px 8px}
+.memdate{font-size:.68rem;color:var(--muted)}
+.memcontent{font-size:.88rem;color:var(--ink-2);line-height:1.5;word-wrap:break-word}
+.memctl{display:flex;gap:4px;flex:0 0 auto}
+.memdel.armed,.hdoc-del.armed,.life-del.armed{
+  color:var(--on-accent);background:var(--warn);border-color:var(--warn);
+  font-family:var(--font-ui);font-size:.6rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.memedit-box{display:flex;gap:6px;align-items:center;margin-top:2px}
+.memedit-in{flex:1;min-width:0;background:var(--card-2);border:1px solid var(--accent);
+  color:var(--ink);border-radius:9px;padding:8px 10px;font-size:.86rem}
+.memok{color:var(--sage);border-color:var(--sage)}
+
+/* enrichment status badge */
+.enr{font-family:var(--font-ui);font-size:.56rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;border-radius:var(--radius-pill);padding:3px 9px;white-space:nowrap}
+.enr-pending{color:var(--muted);border:1px solid var(--line-2);background:var(--card-2)}
+.enr-pending::before{content:"";display:inline-block;width:7px;height:7px;margin-right:5px;
+  border-radius:50%;border:1.5px solid var(--accent);border-top-color:transparent;
+  animation:enrspin .7s linear infinite;vertical-align:-1px}
+@keyframes enrspin{to{transform:rotate(360deg)}}
+.enr-done{color:var(--sage);background:transparent;border:none;padding:3px 0;letter-spacing:.08em}
+
+/* -------------------------------------------------------------------
+   19 · Health docs (Me)
+   ------------------------------------------------------------------- */
+.hupload{border-radius:var(--radius);padding:14px 16px}
+.hupload-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.hupload-row .selflex{flex:1}
+.hupload-date{flex:0 0 auto;background:var(--card-2);border:1px solid var(--line);
+  color:var(--ink);border-radius:var(--radius-sm);padding:10px;font-size:.88rem;
+  -webkit-appearance:none;color-scheme:light}
+.hupload-file{display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;
+  background:transparent;border:1px dashed var(--line-2);border-radius:var(--radius-sm);
+  padding:15px 12px;margin-bottom:10px;font-size:.88rem;color:var(--muted);text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  transition:border-color .15s,color .15s}
+.hupload-file:hover,.hupload-file:active,.hupload-file.dragover{border-color:var(--accent);color:var(--ink)}
+.hupload-text{width:100%;min-height:96px;margin-bottom:10px;resize:vertical;text-align:left;
+  background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  color:var(--ink);padding:12px;font-family:var(--font-ui);line-height:1.35}
+.hupload-btn{width:100%;height:44px;font-family:var(--font-ui);font-weight:600;
+  letter-spacing:.08em;font-size:.82rem}
+.hupload-btn:disabled{opacity:.5;cursor:default}
+.upload-mode{display:flex;gap:7px;margin-bottom:10px}.upload-mode-btn{border:1px solid var(--line-2);border-radius:var(--radius-pill);background:transparent;color:var(--ink-2);padding:7px 11px;font:700 .7rem var(--font-ui);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}.upload-mode-btn.is-active{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+/* ---- DICOM personal-reference viewer (never diagnostic) ---- */
+.dicom-viewer{max-width:760px;margin:46px auto 28px;padding:0 16px}.dicom-disclaimer,.dicom-warning{font-size:.82rem;line-height:1.45;color:var(--ink-2);padding:9px 11px;border-left:3px solid var(--warn);background:var(--card-2)}.dicom-controls{display:flex;gap:9px;flex-wrap:wrap;align-items:end;margin:12px 0}.dicom-controls label{display:grid;gap:3px;font-size:.72rem;color:var(--muted)}.dicom-controls input,.dicom-controls select{max-width:180px}.dicom-canvas-wrap{background:#000;min-height:220px;display:grid;place-items:center;padding:8px;overflow:auto}.dicom-canvas-wrap canvas{display:block;max-width:100%;max-height:62vh;image-rendering:pixelated}.dicom-canvas-wrap [data-dicom-state]{color:#fff;text-align:center}.dicom-meta,.dicom-counter{font-size:.78rem;color:var(--muted)}.dicom-counter{font-weight:700;color:var(--ink-2)}
+.imaging-note,.imaging-verification{color:var(--muted);font-size:.8rem;line-height:1.45}.imaging-queue-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:.8rem}.imaging-queue-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.imaging-queue-row select{max-width:90px}.imaging-association{margin:9px 0;padding:10px 12px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--card-2)}.imaging-association p{margin:0 0 8px;font-size:.8rem;line-height:1.45;color:var(--ink-2)}.imaging-association select{width:100%;max-width:100%;padding:8px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--card);color:var(--ink)}.imaging-card .sess-head{align-items:center}.imaging-detail{margin-top:10px}.imaging-detail h4,.imaging-detail h5,.imaging-detail h6{font:700 .72rem var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin:14px 0 6px}.imaging-detail h5{font-size:.66rem;margin-top:10px}.imaging-detail h6{font-size:.61rem;color:var(--muted);margin:8px 0 3px}.imaging-laterality{margin-left:8px}.imaging-detail p,.imaging-detail li{font-size:.84rem;line-height:1.45}.imaging-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0}.imaging-meta div{padding:8px;background:var(--card-2);border-radius:var(--radius-sm)}.imaging-meta dt{font-size:.64rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.imaging-meta dd{margin:3px 0 0;font-size:.82rem}.imaging-group{border-left:2px solid var(--line-2);padding-left:10px;margin:9px 0}.imaging-finding{margin:7px 0}.imaging-source{display:inline-block;font:700 .62rem var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--accent-deep);margin-bottom:2px}.imaging-measurements{margin:4px 0 0;padding-left:18px;color:var(--ink-2)}.imaging-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.imaging-edit{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.imaging-edit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}.imaging-edit label{display:grid;gap:4px;font-size:.76rem;color:var(--ink-2)}.imaging-edit input,.imaging-edit textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card-2);color:var(--ink)}.imaging-edit textarea{min-height:70px;resize:vertical}.imaging-edit .imaging-json-editor{min-height:180px;font:500 .72rem/1.45 var(--font-mono,monospace)}
+@media(max-width:560px){.dicom-viewer{padding:0 10px}.dicom-controls{align-items:stretch}.dicom-controls label{flex:1 1 130px}.dicom-controls input,.dicom-controls select{width:100%;max-width:none}.imaging-queue-row{align-items:flex-start;flex-wrap:wrap}.imaging-queue-row span{flex-basis:100%}}
+.imaging-retry{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card-2);color:var(--ink-2);font-size:.8rem;line-height:1.4}.imaging-retry span{min-width:0}
+
+.hdoc-done{box-shadow:var(--shadow-sm),inset 3px 0 0 var(--sage)}
+.hdoc .hdoc-badge{flex:0 0 auto}
+/* "from import" provenance tag on a split dated panel */
+.hdoc-tag{font-family:var(--font-ui);font-size:.54rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);background:var(--card-2);border:1px solid var(--line);
+  border-radius:var(--radius-pill);padding:2px 7px;margin-left:8px;vertical-align:middle}
+
+/* card footer: date control on the left, actions on the right.
+   Divider rhythm matches the sibling section dividers (.himpacts / .mp-history). */
+.hdoc-foot{display:flex;align-items:center;justify-content:space-between;gap:10px 12px;flex-wrap:wrap;
+  margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.hdoc-date-wrap{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+/* read-only date with an explicit "change" affordance */
+.hdoc-datebtn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:none;
+  cursor:pointer;color:var(--ink-2);font:inherit;font-size:.8rem;padding:7px 4px;border-radius:8px;
+  transition:color .15s}
+.hdoc-datebtn:hover{color:var(--ink)}
+.hdoc-date-ico{color:var(--muted);font-size:.78rem}
+.hdoc-date-val{font-variant-numeric:lining-nums}
+.hdoc-date-edit{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap}
+/* the hidden attribute must beat the class display rules (specificity) */
+.hdoc-datebtn[hidden],.hdoc-date-edit[hidden]{display:none}
+.hdoc-date{width:148px;background:var(--card-2);border:1px solid var(--line);
+  color:var(--ink);border-radius:var(--radius-sm);padding:8px 9px;font-size:.78rem;
+  -webkit-appearance:none;color-scheme:light}
+.hdoc-date-save,.hdoc-date-cancel{font-family:var(--font-ui);font-size:.72rem;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;border-radius:var(--radius-pill);padding:8px 14px;cursor:pointer;
+  border:1px solid var(--line-2);background:transparent;transition:border-color .15s,color .15s,background .15s}
+.hdoc-date-save{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.hdoc-date-save:disabled{opacity:.55;cursor:default}
+.hdoc-date-cancel{color:var(--ink-2)}
+.hdoc-date-cancel:hover{border-color:var(--ink);color:var(--ink)}
+.hdoc-date-flash{font-family:var(--font-ui);font-size:.66rem;font-weight:700;letter-spacing:.06em;
+  color:var(--sage)}
+.hdoc-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+/* footer pills sized to the canonical action-pill family (.pillbtn / .ghostbtn) */
+.hdoc-link{display:inline-flex;align-items:center;font-family:var(--font-ui);font-size:.72rem;
+  font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-deep);
+  text-decoration:none;cursor:pointer;border:1px solid var(--line-2);border-radius:var(--radius-pill);
+  padding:8px 14px;background:transparent;transition:border-color .15s,color .15s}
+.hdoc-link:active,.hdoc-link:hover{color:var(--accent);border-color:var(--accent)}
+.hdoc-rescan:disabled{opacity:.5;cursor:default}
+/* the × delete sits at the same height as the pills for a clean baseline */
+.hdoc-del{flex:0 0 auto;height:34px;min-width:34px}
+
+/* Records list — breathing room from the upload form, and collapsible cards so a
+   continuously-growing history stays scannable. Newest opens; older collapse to a
+   one-line teaser (marker + flagged counts); tap the header/teaser to expand. */
+#hlist{margin-top:16px}
+.hdoc-head{cursor:pointer;user-select:none}
+.hdoc-headright{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.hdoc-chev{color:var(--muted);font-size:.7rem;transition:transform var(--dur-1) var(--ease)}
+.hdoc-collapsed .hdoc-chev{transform:rotate(-90deg)}
+.hdoc-teaser{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  background:transparent;border:none;cursor:pointer;text-align:left;margin:0;padding:9px 0 3px;
+  font-family:var(--font-ui);font-size:.85rem;color:var(--ink-2);
+}
+.hdoc-teaser-more{
+  font-family:var(--font-ui);font-size:.6rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent);flex:0 0 auto;
+}
+.hdoc:not(.hdoc-collapsed) .hdoc-teaser{display:none}
+.hdoc-collapsed .hdoc-detail,
+.hdoc-collapsed .hdoc-foot{display:none}
+.hdoc-collapsed .imaging-detail{display:none}
+
+/* markers table */
+.hmarkers{width:100%;border-collapse:collapse;margin-top:10px;font-size:.82rem}
+.hmarkers td{padding:6px;border-top:1px solid var(--line);vertical-align:top}
+.hmarkers tr:first-child td{border-top:none}
+.hm-name{color:var(--ink-2)}
+.hm-val{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:540;
+  color:var(--ink);white-space:nowrap;text-align:right;font-variant-numeric:lining-nums}
+.hm-fl{text-align:right;white-space:nowrap;width:1%}
+.hm-flag{font-family:var(--font-ui);font-size:.56rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;border-radius:var(--radius-pill);padding:2px 8px}
+.hm-flag.ok{color:var(--sage);background:var(--sage-bg);border:1px solid transparent}
+.hm-flag.warn{color:var(--warn);background:var(--warn-bg);border:1px solid transparent}
+
+/* -------------------------------------------------------------------
+   20 · Life timeline (Me)
+   ------------------------------------------------------------------- */
+.lifeadd{border-radius:var(--radius);padding:14px 16px}
+.lifeadd .field:last-of-type{margin-bottom:12px}
+.life-ico{display:inline-block;margin-right:5px}
+.life-ev .sess-date{display:inline-flex;align-items:center}
+.life-past{opacity:.55;filter:saturate(.7)}
+.life-edit input{margin-bottom:6px}
+.life-edit .ob-grid{margin-bottom:0}
+.life-edit .ob-grid input{margin-bottom:0}
+.life-edit input,.life-edit select{color-scheme:light}
+.life-edit-ctl{display:flex;gap:6px;margin-top:9px}
+.le-save{color:var(--sage);border-color:var(--sage)}
+
+/* structured injury → exercise links + calm swap ideas (F3). A quiet inset under
+   an active injury card — pull, not push: it reads as a note, never a control. */
+.linj{margin:11px 0 4px;padding:11px 13px;background:var(--card-2);
+  border:1px solid var(--line);border-radius:var(--radius-sm)}
+.linj-lead{font-size:.78rem;color:var(--muted);margin-bottom:9px}
+.linj-ex{padding:8px 0;border-top:1px solid var(--line)}
+.linj-ex:first-of-type{border-top:none;padding-top:2px}
+.linj-exhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.linj-exname{font-weight:560;color:var(--ink);font-size:.9rem}
+.linj-exwhere{font-size:.72rem;color:var(--muted);white-space:nowrap}
+.linj-note{font-size:.76rem;color:var(--ink-2);margin-top:3px;font-style:italic}
+.linj-swaps{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:7px}
+.linj-swaps-lbl{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:1px}
+.linj-swap{font-size:.76rem;color:var(--ink-2);background:var(--card);
+  border:1px solid var(--line-2);border-radius:var(--radius-pill);padding:3px 10px}
+

@@ -1,0 +1,74 @@
+/* -------------------------------------------------------------------
+   04 · Motion
+   ------------------------------------------------------------------- */
+@keyframes rise{from{opacity:0;transform:translateY(var(--rise))}to{opacity:1;transform:translateY(0)}}
+.reveal{
+  animation:rise var(--dur-in) var(--ease) both;
+  animation-delay:calc(min(var(--i,0),12) * 45ms);
+}
+/* A soft (background stale-while-revalidate) Today repaint mounts the same cards
+   but must feel silent — suppress the entrance stagger so a "nothing changed"
+   refresh never re-flashes the whole screen (mirrors Stand's quietPaint). */
+.today-soft .reveal{animation:none;transform:none}
+@keyframes chipin{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.chip-in{animation:chipin .22s var(--ease)}
+
+/* A quieter sibling of `rise` for cards that arrive ASYNCHRONOUSLY into a slot
+   after the page has already settled (the opportunistic insight card, the
+   nutrition check-in result). A smaller 6px lift + soft fade so it eases into
+   place instead of jumping the layout below it. */
+@keyframes settlein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.settle-in{animation:settlein var(--dur-3) var(--ease) both}
+
+/* hairline bars grow to their inline width on first paint */
+@keyframes bargrow{from{width:0}}
+.barfill{animation:bargrow var(--dur-3) var(--ease) both;animation-delay:120ms}
+
+/* the v2 content entrance: `in` — a .35s fade with an 8px rise. Use .anim-in on a
+   block that arrives with its screen; .reveal is the staggered sibling for lists. */
+@keyframes in{from{opacity:0;transform:translateY(var(--rise))}to{opacity:1;transform:none}}
+.anim-in{animation:in var(--dur-in) var(--ease) both}
+
+/* the live ping — a dawn dot breathing outward (.ping, §05b) */
+@keyframes ping{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--dawn) 60%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
+
+/* a stone's slow drift (.stone-drift, §04e); reduced motion stills it */
+@keyframes stone-drift{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.6px)}}
+/* a ghost stone breathing while its read loads */
+@keyframes stone-breathe{0%,100%{opacity:.55}50%{opacity:.85}}
+
+/* slow idle float for detail-view art */
+@keyframes drift{from{transform:translateY(0)}to{transform:translateY(-6px)}}
+
+/* springy press for tappable entry cards (buttons already compress) */
+.tappable{cursor:pointer}
+.tappable:active{transform:var(--press-lg)}
+
+/* Card stacks own the space BETWEEN cards. Individual cards own only their
+   internal layout, so mixed and asynchronously hydrated card families cannot
+   accidentally touch or double their margins. Empty async slots collapse. */
+.card-stack{display:flex;flex-direction:column;gap:var(--space-card)}
+.card-stack>.card-stack-item{margin-block:0}
+.card-stack>.card-stack-item:empty{display:none}
+.card-stack>.card-stack-item>:first-child{margin-top:0}
+.card-stack>.card-stack-item>:last-child{margin-bottom:0}
+
+/* view transitions: same easing family, no slow crossfades */
+::view-transition-old(root),::view-transition-new(root){animation-duration:var(--dur-2)}
+/* a tab switch is one quick, quiet crossfade (tabSwap marks <html data-vt="tab">
+   for the transition's lifetime). The tab bar steps out of the root crossfade and
+   renders live, so its own dot/label transition carries the active-tab change
+   instead of a ghosted double of the old bar. Scoped to tab switches only: a named
+   element paints above overlays while any transition runs. */
+:root[data-vt="tab"]::view-transition-old(root),:root[data-vt="tab"]::view-transition-new(root){
+  animation-duration:var(--dur-1);animation-timing-function:var(--ease)}
+:root[data-vt="tab"] .tabbar{view-transition-name:tabbar}
+::view-transition-old(tabbar){display:none}
+::view-transition-new(tabbar){animation:none}
+::view-transition-group(detail-art){animation-duration:var(--dur-3);animation-timing-function:var(--ease)}
+::view-transition-group(seg-thumb),::view-transition-group(prog-subseg-thumb){animation-duration:var(--dur-2);animation-timing-function:var(--ease)}
+/* the Brief hero morphs (not crossfades) when an override chip reshapes the read */
+::view-transition-group(brief-hero){animation-duration:var(--dur-3);animation-timing-function:var(--ease)}
+::view-transition-old(brief-hero),::view-transition-new(brief-hero){
+  animation-duration:var(--dur-3);animation-timing-function:var(--ease);height:100%}
+

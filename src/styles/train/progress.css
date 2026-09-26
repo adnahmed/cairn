@@ -1,0 +1,95 @@
+/* -------------------------------------------------------------------
+   14 · Progress: chart, volume, calendar
+   ------------------------------------------------------------------- */
+.field{margin-bottom:15px}
+.field label,.field .field-label{
+  display:block;font-family:var(--font-ui);font-size:.62rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.18em;color:var(--muted);margin-bottom:7px;
+}
+.field input,.field select,.field textarea,
+.form-input,.form-textarea{
+  width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--radius-sm);padding:11px 12px;font-size:.92rem;color-scheme:light;
+}
+/* the shared inline form-field class (replaces a ~20× repeated style string across
+   Life / Family / Profile / edit forms) — same look as a .field input, on its own
+   so it can be used without the .field label wrapper. */
+.form-input{padding:10px 12px}
+.form-textarea{padding:10px 12px;font-size:.9rem;resize:vertical}
+.field select{appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%238c8475' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 13px center;padding-right:34px}
+
+/* Me › Profile — grouped sections (You / Body & goal / Training / Diet), a shared
+   unit toggle, and unit-suffixed number inputs. Calm hairline-divided groups. */
+.prof-section{padding-top:20px;border-top:1px solid var(--line);margin-top:20px}
+.prof-section:first-child{padding-top:0;border-top:0;margin-top:0}
+.prof-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.prof-section-head .lbl{margin:0}
+.prof-unit-toggle{display:flex;gap:4px;flex:0 0 auto}
+.prof-unit-btn{padding:3px 11px;font-family:var(--font-ui);font-size:.68rem;font-weight:600;
+  letter-spacing:.02em;background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-pill);
+  color:var(--muted);cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}
+.prof-unit-btn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.prof-unit-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.prof-unit-row{display:flex;gap:10px}
+.prof-unit-in{position:relative;display:flex;align-items:center;flex:1 1 auto}
+.prof-unit-in input{padding-right:42px}
+.prof-unit-suf{position:absolute;right:12px;font-family:var(--font-ui);font-size:.7rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.1em;color:var(--muted);pointer-events:none}
+
+/* Stand › Age — the in-place "sharpen your read" clinical inputs (relocated from
+   Profile), sitting beside the cardiovascular-risk card they inform. */
+.prof-clinical{margin-top:12px}
+.prof-clin-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;padding:9px 0;border-top:1px solid var(--line)}
+.prof-clin-row:first-of-type{margin-top:6px}
+.prof-clin-q{font-size:.9rem;color:var(--ink)}
+
+#chart{width:100%;height:230px;background:var(--card);border:none;box-shadow:var(--shadow-sm);
+  border-radius:var(--radius);margin-top:4px;touch-action:pan-y;cursor:crosshair}
+.empty{
+  color:var(--muted);text-align:center;padding:44px 12px;
+  font-family:var(--font-display);font-style:italic;font-size:1rem;
+  font-variation-settings:"opsz" 28;
+}
+
+/* goal-pace chart (Progress → Weight) — trend vs. needed pace toward the goal date */
+.gpace-mount{display:block}
+.gpace{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:14px 14px 12px;margin-bottom:var(--space-card)}
+.gpace-head{display:block;margin:0 2px 8px}
+.gpace-chart{width:100%;height:auto;display:block;touch-action:pan-y}
+.gpace-grid{stroke:var(--line)}
+.gpace-ylbl,.gpace-xlbl{fill:var(--muted);font-family:var(--font-ui);letter-spacing:.04em}
+.gpace-series{stroke:var(--faint)}
+.gpace-dot{fill:var(--stone-taupe)}
+.gpace-trend{stroke:var(--accent)}
+.gpace-trend-dot{fill:var(--accent)}
+.gpace-needed{stroke:var(--sage)}
+.gpace-goal-ring{stroke:var(--sage);fill:var(--card)}
+.gpace-goal-dot{fill:var(--sage)}
+.gpace-goal-lbl{fill:var(--sage-text);font-family:var(--font-ui)}
+.gpace-read{margin:8px 2px 0;color:var(--ink-2);font-size:.85rem;line-height:1.45}
+.gpace-read-on{color:var(--sage-text)}
+.gpace-read-behind{color:var(--ink-2)}
+
+/* volume by muscle group */
+.vol-total{
+  font-family:var(--font-display);font-weight:600;font-variation-settings:"opsz" 144;
+  font-size:2.1rem;color:var(--ink);line-height:1.05;margin-top:4px;
+  font-variant-numeric:lining-nums;letter-spacing:-.01em;
+}
+.vol-total span{font-family:var(--font-ui);font-size:.78rem;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.14em}
+.volrow{margin-bottom:14px}
+.volrow-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px}
+.volrow-name{font-size:.9rem;font-weight:600;color:var(--ink)}
+.volrow-meta{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:.82rem;
+  color:var(--muted);white-space:nowrap;font-variant-numeric:lining-nums}
+.volbar{background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-pill);height:8px;overflow:hidden}
+.volbar-fill{height:100%;background:var(--sage);border-radius:var(--radius-pill);transition:width .4s var(--ease)}
+.volrow-meta b{font-family:var(--font-display);font-variation-settings:"opsz" 60;font-weight:600;
+  font-size:.95rem;color:var(--ink)}
+.vol-kicker{display:block;margin:0 2px 12px}
+
+

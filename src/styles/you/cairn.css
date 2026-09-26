@@ -1,0 +1,71 @@
+/* =====================================================================
+   Cairn stack + stone detail (v2 wave 5 stream B): the You home leads with
+   the whole cairn (.cairn-stack-*) — six stones drawn by CairnStone (§04e),
+   piled top to bottom, the base widest so Heart carries the rest, each in its
+   OWN hue (a "watch" read adds only the stone's dawn dot, never a fill) — and
+   one row per stone: a hued dot, the name, the server's word in the stone's
+   deep hue, its line in muted prose. A stone opens its detail
+   (.stone-detail-*): the one stone large, its read, then "Where it lives".
+   Entrance: the pile settles once, base stone first (--dur-3, --ease); the
+   stones then drift; reduced motion shows them standing still.
+   ===================================================================== */
+.you-cairn{margin:0 0 var(--space-10)}
+.you-cairn:empty{display:none}
+.cairn-stack-pile{display:flex;justify-content:center;padding:var(--space-2) 0 var(--space-6);position:relative}
+.cairn-stack-pile .stone-cairn{width:min(180px,52%);height:auto}
+.cairn-stack-rock{-webkit-tap-highlight-color:transparent}
+.cairn-stack-skel .stone-ghost .stone-rock{fill:var(--surface2);stroke:var(--line)}
+.cairn-stack-skel .stone-ghost .stone-sheen,.cairn-stack-skel .stone-ghost .stone-under{display:none}
+.cairn-stack-skel .stone-cairn{animation:stone-breathe 2.4s ease-in-out infinite}
+.cairn-stack-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;
+  border-top:1px solid var(--line)}
+.cairn-stack-item{display:flex;min-width:0;border-bottom:1px solid var(--line)}
+.cairn-stack-row{flex:1;min-width:0;min-height:52px;display:flex;align-items:flex-start;gap:var(--space-4);
+  padding:var(--space-4) var(--space-8) var(--space-4) var(--space-1);position:relative;color:inherit;
+  text-decoration:none;-webkit-tap-highlight-color:transparent;
+  transition:background-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+@media (hover:hover){a.cairn-stack-row:hover{background:var(--card-2)}}
+a.cairn-stack-row:active{transform:var(--press-lg)}
+.cairn-stack-mark{flex:none;width:12px;height:12px;margin-top:5px;border-radius:50%;background:var(--c,var(--surface2))}
+/* "worth a look": a dawn ring around the stone's own dot — the dot keeps its hue */
+.cairn-stack-watch .cairn-stack-mark{box-shadow:0 0 0 2px var(--ground),0 0 0 3.5px var(--dawn)}
+.cairn-stack-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cairn-stack-top{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-4)}
+.cairn-stack-label{font-weight:600;font-size:var(--text-md);color:var(--ink)}
+.cairn-stack-word{font-family:var(--font-display);font-weight:400;font-size:var(--text-md);color:var(--cd,var(--ink2));
+  text-align:right;overflow-wrap:anywhere}
+.cairn-stack-line{font-size:var(--text-sm);line-height:1.45;color:var(--muted);max-width:60ch}
+.cairn-stack-arw{position:absolute;right:var(--space-3);top:50%;transform:translateY(-50%);color:var(--muted);
+  font-size:.9rem}
+.cairn-stack-ghost{display:block;width:60%;height:var(--space-4);margin:var(--space-1) 0}
+@keyframes cairn-stack-settle{
+  0%{opacity:0;translate:0 -12px;rotate:-4deg}
+  60%{opacity:1;translate:0 1px;rotate:1deg}
+  100%{opacity:1;translate:none;rotate:none}
+}
+/* The base stone lands first, then each one above it: the cairn is built, not dropped.
+   An SVG <g> rotates about the viewBox origin unless told otherwise; pin the settle
+   to each stone's own centre so it tips in place instead of sliding sideways. */
+.cairn-stack-rock{transform-box:fill-box;transform-origin:center}
+.cairn-stack.is-entering .cairn-stack-rock{animation:cairn-stack-settle var(--dur-3) var(--ease) both;
+  animation-delay:calc((var(--n,6) - 1 - var(--i,0)) * 70ms)}
+.cairn-stack.is-entering .cairn-stack-item{animation:settlein var(--dur-3) var(--ease) both;
+  animation-delay:calc(min(var(--i,0),12) * 40ms + 200ms)}
+
+.stone-detail-hero{display:flex;align-items:center;gap:var(--space-6);margin:var(--space-4) 0 var(--space-8)}
+.stone-detail-rock{flex:none;display:block;width:96px;height:60px}
+.stone-detail-rock .stone-svg{width:100%;height:100%}
+.stone-detail-read{min-width:0;display:flex;flex-direction:column;gap:var(--space-1)}
+.stone-detail-h{font-family:var(--font-display);font-weight:400;font-size:var(--text-2xl);letter-spacing:-.01em;margin:0;
+  color:var(--ink)}
+.stone-detail-word{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);color:var(--cd,var(--ink2))}
+.stone-detail-line{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--muted);max-width:60ch}
+.stone-detail-ghost{display:inline-block;width:96px;height:var(--space-4)}
+.stone-detail-sub{margin:0 0 var(--space-5)}
+a.stone-detail-link{color:inherit;text-decoration:none}
+.stone-detail.is-entering .stone-detail-rock{animation:cairn-stack-settle var(--dur-3) var(--ease) both}
+@media (prefers-reduced-motion:reduce){
+  .cairn-stack.is-entering .cairn-stack-rock,.cairn-stack.is-entering .cairn-stack-item,
+  .stone-detail.is-entering .stone-detail-rock{animation:none}
+}
+

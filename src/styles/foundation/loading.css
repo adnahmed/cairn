@@ -1,0 +1,65 @@
+/* -------------------------------------------------------------------
+   atelier loading — one calm vocabulary for "an agent is thinking",
+   used app-wide. A terracotta→gold filament sweeps a surface that's
+   being (re)generated; a quiet ring stands in for a tapped button's
+   label; breathing dots carry the chat reply. Motion is slow and warm,
+   never frantic, and every piece stays legible under reduced-motion.
+   ------------------------------------------------------------------- */
+/* calm spinner ring — size via --asz (default 16px) */
+.aspin{width:var(--asz,16px);height:var(--asz,16px);border-radius:50%;box-sizing:border-box;
+  border:2px solid var(--line-2);border-top-color:var(--accent);flex:0 0 auto;
+  display:inline-block;vertical-align:-2px;animation:sugspin .8s linear infinite}
+@keyframes sugspin{to{transform:rotate(360deg)}}
+.aspin-sm{--asz:13px}
+.aspin-xs{--asz:11px;border-width:1.5px}
+.aspin-ghost{border-color:color-mix(in srgb,var(--on-accent) 45%,transparent);border-top-color:var(--on-accent)}
+
+/* indeterminate filament — a thin sweep of warm light along the top edge of a
+   surface mid-generation (ideally overflow-clipped) */
+.is-thinking{position:relative}
+.is-thinking::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;z-index:4;
+  pointer-events:none;border-radius:2px;
+  background:linear-gradient(90deg,transparent 0,var(--accent) 42%,var(--gold) 58%,transparent 100%);
+  background-size:42% 100%;background-repeat:no-repeat;
+  filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 22%,transparent));
+  animation:atelier-filament 1.25s var(--ease) infinite}
+@keyframes atelier-filament{0%{background-position:-45% 0}100%{background-position:140% 0}}
+
+/* determinate filament — the same gradient/glow family as the indeterminate
+   sweep, but a left-anchored progress fill driven by --frac (0..1). The job runner
+   sets --frac from real phase fractions (meal-plan day k/7, recipe draft→verify).
+   --determinate overrides the indeterminate ::after when both classes are present. */
+.is-thinking--determinate::after{
+  right:auto;width:calc(var(--frac,0) * 100%);
+  background:linear-gradient(90deg,var(--accent) 0,var(--gold) 100%);
+  background-size:100% 100%;
+  animation:none;
+  transition:width var(--dur-2) var(--ease)}
+
+/* swr-refreshing — the calm "we already have your data, just checking" hairline:
+   a single low-opacity, slow filament at the very top of the page (under the
+   header), distinct from the .offline-bar warn band. It rides while a stale-while-
+   revalidate paint is reconfirming in the background; nothing else moves. */
+body.swr-busy::after{
+  content:"";position:fixed;top:0;left:0;right:0;height:2px;z-index:var(--z-savebar);pointer-events:none;
+  background:linear-gradient(90deg,transparent 0,var(--accent) 42%,var(--gold) 58%,transparent 100%);
+  background-size:42% 100%;background-repeat:no-repeat;opacity:.5;
+  animation:atelier-filament 2.4s var(--ease) infinite}
+
+/* a button mid-request: btnBusy() swaps the label for a ring + working text and
+   pins min-width so the footprint never jumps */
+.btn-busy{cursor:progress!important}
+.btn-working{display:inline-flex;align-items:center;justify-content:center;gap:8px;line-height:1}
+
+/* chat "thinking" — three dots breathing in sequence */
+.typing{display:inline-flex;align-items:center;gap:5px;padding:3px 1px}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;
+  animation:typingdot 1.3s var(--ease) infinite}
+.typing i:nth-child(2){animation-delay:.16s}
+.typing i:nth-child(3){animation-delay:.32s}
+@keyframes typingdot{0%,62%,100%{opacity:.3;transform:translateY(0)}31%{opacity:.85;transform:translateY(-3px)}}
+
+/* a quiet inline status line under a thinking surface (Brief reshape etc.) */
+.athinking-note{display:flex;align-items:center;gap:9px;margin-top:11px;
+  font-size:.84rem;color:var(--ink-2);letter-spacing:.01em}
+

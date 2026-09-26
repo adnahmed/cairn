@@ -16,6 +16,7 @@
 
 !scripts/
 !scripts/build-client.mjs
+!scripts/build-styles.mjs
 !scripts/docker-entrypoint.sh
 !scripts/install-agent-cli.mjs
 !scripts/update-agent-clis.sh
@@ -33,6 +34,8 @@
 !public/icons/**
 !public/vendor/
 !public/vendor/**
+!public/fonts/
+!public/fonts/**
 !public/js/
 !public/js/10-boot.js
 

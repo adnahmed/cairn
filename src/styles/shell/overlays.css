@@ -1,0 +1,199 @@
+/* -------------------------------------------------------------------
+   21 · Modals — bottom sheet (mobile) / dialog (desktop)
+   ------------------------------------------------------------------- */
+.modal{position:fixed;inset:0;z-index:var(--z-modal);background:rgba(33,29,23,.45);background:color-mix(in srgb,var(--ink) 45%,transparent);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  display:flex;align-items:flex-end;justify-content:center;padding:0}
+.modal-card{
+  background:var(--card);border:none;border-radius:22px 22px 0 0;width:100%;max-width:680px;
+  padding:22px 18px calc(28px + env(safe-area-inset-bottom));max-height:86vh;overflow-y:auto;
+  position:relative;box-shadow:var(--shadow-md);
+  animation:sheetup .3s var(--ease);
+}
+@keyframes sheetup{from{transform:translateY(24px);opacity:.5}to{transform:translateY(0);opacity:1}}
+.modal-x{position:absolute;top:15px;right:15px;background:var(--card-2);border:1px solid var(--line);
+  color:var(--muted);border-radius:var(--radius-pill);width:32px;height:32px;font-size:.9rem}
+.modal-x:hover{color:var(--ink)}
+/* Expand the hit area to ~44px without growing the visual size (a centered
+   invisible overlay). One idiom for every sub-44px tap target — see §38
+   "Accessibility — tap-target padding", which carries the shared group. */
+.modal-x::before{content:"";position:absolute;inset:-7px;border-radius:inherit}
+.modal-title{
+  font-family:var(--font-display);font-weight:580;font-variation-settings:"opsz" 60;
+  font-size:1.55rem;line-height:1.15;letter-spacing:-.01em;padding-right:44px;
+}
+.modal-sub{font-family:var(--font-ui);color:var(--accent);font-weight:700;font-size:.64rem;
+  letter-spacing:.16em;text-transform:uppercase;margin-top:5px}
+.modal-section{margin-top:16px}
+.modal-h{font-family:var(--font-ui);text-transform:uppercase;letter-spacing:.18em;
+  font-size:.6rem;font-weight:600;color:var(--muted);margin-bottom:6px}
+.modal-body{font-size:.9rem;color:var(--ink-2);line-height:1.55}
+.modal .draftbtn{margin-top:18px}
+/* The shared overlay primitive (CairnUiSheet, ui-sheet.ts): a bottom sheet on
+   phones, a centred dialog from 640px. Existing overlays keep their own classes;
+   a new surface takes these. The primitive marks the page behind it inert. */
+.ui-sheet-ov{position:fixed;inset:0;z-index:var(--z-dialog);display:flex;align-items:flex-end;justify-content:center;
+  padding:var(--space-9) var(--space-7) max(env(safe-area-inset-bottom),var(--space-7));
+  background:color-mix(in srgb,var(--ink) 45%,transparent);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+  animation:uiSheetFade var(--dur-2) var(--ease) both}
+.ui-sheet{width:min(560px,100%);max-height:min(86vh,720px);overflow-y:auto;overscroll-behavior:contain;
+  padding:var(--space-10) var(--space-9) var(--space-9);background:var(--card);color:var(--ink);
+  border-radius:var(--radius);box-shadow:var(--shadow-lg);animation:sheetup var(--dur-2) var(--ease) both}
+.ui-sheet:focus{outline:none}
+@keyframes uiSheetFade{from{opacity:0}to{opacity:1}}
+@media (min-width:640px){ .ui-sheet-ov{align-items:center} }
+
+/* -------------------------------------------------------------------
+   22 · Onboarding
+   ------------------------------------------------------------------- */
+.ob-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ob-in{width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--radius-sm);padding:11px;font-size:.92rem;color-scheme:light}
+.ob-in::placeholder{font-size:.8rem;letter-spacing:.02em}
+.modal-card .ob-grid .field{margin-bottom:0}
+.ob-intro{width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--radius-sm);padding:13px 14px;font:inherit;font-size:.95rem;line-height:1.5;
+  resize:vertical;min-height:64px;color-scheme:light}
+.ob-intro::placeholder{font-size:.84rem;line-height:1.5;color:var(--muted);opacity:.8}
+/* Onboarding lead: a calm sentence-case welcome line — NOT the all-caps .modal-sub
+   kicker, which turns a full sentence into a shouty wall of tracked caps. */
+.ob-lead{font-family:var(--font-ui);color:var(--muted);font-size:.92rem;line-height:1.5;margin:7px 0 17px}
+.ob-opt{text-transform:none;letter-spacing:.01em;font-weight:500;opacity:.7}
+
+/* -------------------------------------------------------------------
+   23 · Toast
+   ------------------------------------------------------------------- */
+.toast{
+  position:fixed;bottom:calc(84px + var(--vvb,0px));left:50%;
+  transform:translate(-50%,14px) scale(.97);
+  background:var(--ink);color:var(--paper);font-family:var(--font-ui);font-weight:600;
+  padding:10px 18px;border-radius:var(--radius-pill);font-size:.84rem;box-shadow:var(--shadow-md);
+  opacity:0;transition:opacity var(--dur-1) ease,transform var(--dur-2) var(--ease);
+  pointer-events:none;z-index:var(--z-toast);
+}
+.toast.show{opacity:1;transform:translate(-50%,0) scale(1)}
+/* actionable toast (UNDO) — accepts the one tap, lingers a little longer */
+.toast.toast-actionable{pointer-events:auto;display:flex;align-items:center;gap:14px;padding-right:14px}
+.toast-act{
+  background:none;border:none;color:var(--gold);font-family:var(--font-ui);font-weight:700;
+  font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;padding:4px 2px;line-height:1;
+}
+.toast-act:active{transform:var(--press-sm)}
+
+/* offline hairline — a calm, non-alarming line under the header when a request
+   fails / the browser is offline. Information, never an alarm: one thin warm
+   band that retracts the instant any request lands. */
+.offline-bar{
+  position:fixed;top:0;left:0;right:0;z-index:var(--z-offline);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:calc(env(safe-area-inset-top,0px) + 6px) 14px 6px;
+  background:var(--warn-bg);color:var(--warn);
+  font-family:var(--font-ui);font-weight:600;font-size:.74rem;letter-spacing:.01em;
+  border-bottom:1px solid var(--line-2);
+  transform:translateY(-100%);transition:transform var(--dur-2) var(--ease);
+  pointer-events:none;
+}
+.offline-bar.show{transform:translateY(0)}
+.offline-dot{width:6px;height:6px;border-radius:50%;background:var(--warn);
+  flex:0 0 auto;animation:offlinepulse 1.8s var(--ease) infinite}
+@keyframes offlinepulse{0%,100%{opacity:.4}50%{opacity:1}}
+/* Offline placement nicety — the banner is fixed at top:0 above the sticky header
+   (z 48 > 30) with pointer-events:none, so taps pass through and it never blocks the
+   header control. Give it a soft hairline shadow so it reads as a clean band floating
+   over the page rather than crashing into the header edge. Information, never alarm. */
+.offline-bar{box-shadow:0 2px 10px rgba(72,58,35,.10)}
+
+/* offline outbox — a calm "N to sync" line while the queue replays failed
+   captures / set-logs back to the server once Cairn is reachable again. A sage
+   "work in progress" voice, deliberately distinct from the .offline-bar warn
+   band: it means your logs are held and syncing, never an alarm. Persistent
+   while anything is pending. Permanent failures become a real review action. */
+.outbox-bar{
+  appearance:none;
+  position:fixed;left:50%;bottom:calc(118px + var(--vvb,0px));
+  transform:translate(-50%,10px);opacity:0;
+  display:flex;align-items:center;gap:8px;
+  padding:8px 15px;border-radius:var(--radius-pill);
+  background:var(--sage-bg);color:var(--ink-2);
+  border:1px solid var(--line-2);
+  font-family:var(--font-ui);font-weight:600;font-size:.74rem;letter-spacing:.01em;
+  box-shadow:var(--shadow-sm);
+  transition:opacity var(--dur-2) var(--ease),transform var(--dur-2) var(--ease);
+  pointer-events:none;z-index:var(--z-outbox);
+}
+.outbox-bar.show{opacity:1;transform:translate(-50%,0)}
+.outbox-bar.outbox-actionable{pointer-events:auto;cursor:pointer;background:var(--warn-bg);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 24%,var(--line-2))}
+.outbox-bar.outbox-actionable:hover{transform:translate(-50%,-1px)}
+.outbox-bar.outbox-actionable:focus-visible{outline:2px solid var(--warn);outline-offset:3px}
+.outbox-dot{width:6px;height:6px;border-radius:50%;background:var(--sage);
+  flex:0 0 auto;animation:offlinepulse 1.8s var(--ease) infinite}
+.outbox-actionable .outbox-dot{background:var(--warn)}
+@media (min-width:960px){ .outbox-bar{left:calc(50% + 124px)} }
+
+.outbox-review-ov{
+  position:fixed;inset:0;z-index:var(--z-review);display:flex;align-items:flex-end;justify-content:center;
+  padding:max(env(safe-area-inset-top),18px) 14px max(env(safe-area-inset-bottom),14px);
+  background:rgba(33,29,23,.48);background:color-mix(in srgb,var(--ink) 48%,transparent);backdrop-filter:saturate(1.05) blur(2px);
+  animation:outboxReviewFade var(--dur-1) var(--ease) both;
+}
+@keyframes outboxReviewFade{from{opacity:0}to{opacity:1}}
+.outbox-review{
+  width:min(560px,100%);max-height:min(78vh,720px);overflow:auto;
+  padding:20px;background:var(--card);color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-lg);
+}
+.outbox-review-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.outbox-review-head .eyebrow{margin:0 0 4px;color:var(--accent);font-size:.69rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.outbox-review-head h2{margin:0;font-family:var(--font-display);font-size:1.4rem;line-height:1.15}
+.outbox-review-close{
+  appearance:none;display:grid;place-items:center;flex:0 0 auto;width:36px;height:36px;
+  padding:0;border:1px solid var(--line-2);border-radius:50%;background:var(--card-2);color:var(--ink-2);
+  font:400 1.35rem/1 var(--font-ui);cursor:pointer;
+}
+.outbox-review-close:hover{color:var(--ink);border-color:var(--ink-2)}
+.outbox-review-close:focus-visible,.outbox-review-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.outbox-review-intro{margin:12px 0 16px;color:var(--ink-2);font-size:.86rem;line-height:1.5}
+.outbox-review-list{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.outbox-review-item{display:grid;gap:12px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card-2)}
+.outbox-review-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.outbox-review-meta strong{font-size:.84rem;color:var(--ink)}
+.outbox-review-meta time{font-size:.7rem;color:var(--muted);text-align:right}
+.outbox-review-copy p{margin:6px 0 3px;color:var(--ink-2);font-size:.84rem;line-height:1.4;overflow-wrap:anywhere}
+.outbox-review-copy small{display:block;color:var(--warn);font-size:.72rem;line-height:1.35}
+.outbox-review-actions{display:flex;justify-content:flex-end;gap:8px}
+.outbox-review-actions button{appearance:none;margin:0;padding:8px 14px;border:1px solid var(--accent);border-radius:var(--radius-pill);background:var(--accent);color:var(--on-accent);font-size:.76rem;font-weight:700;letter-spacing:.02em}
+.outbox-review-actions button:disabled{opacity:.55;cursor:wait}
+.outbox-review-actions .outbox-discard{background:transparent;border-color:var(--line-2);color:var(--warn)}
+@media (min-width:640px){
+  .outbox-review-ov{align-items:center}
+  .outbox-review-item{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+}
+
+/* access-token sheet (token-sheet.ts) — the entry sheet for the optional shared
+   token, on CairnUiSheet. Deliberately not dismissible, and above everything:
+   the app is unusable until a token is saved. */
+.token-sheet-ov{position:fixed;inset:0;z-index:var(--z-token);display:flex;align-items:center;justify-content:center;
+  padding:max(env(safe-area-inset-top),18px) 16px max(env(safe-area-inset-bottom),18px);
+  background:rgba(33,29,23,.5);background:color-mix(in srgb,var(--ink) 50%,transparent);
+  backdrop-filter:saturate(1.1) blur(2px);animation:tokenSheetFade var(--dur-1) var(--ease) both}
+@keyframes tokenSheetFade{from{opacity:0}to{opacity:1}}
+.token-sheet{width:min(420px,100%);background:var(--card);color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-md);
+  padding:22px 20px 18px;font-family:var(--font-ui)}
+.token-sheet-h{margin:0 0 6px;font-family:var(--font-display);font-size:1.35rem;font-weight:600;line-height:1.15}
+.token-sheet-p{margin:0 0 14px;font-size:.86rem;line-height:1.5;color:var(--ink-2)}
+.token-sheet-in{width:100%;box-sizing:border-box;font-family:var(--font-ui);font-size:1rem;
+  padding:11px 13px;border-radius:var(--radius-sm);border:1px solid var(--line-2);
+  background:var(--card-2);color:var(--ink)}
+.token-sheet-in:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.token-sheet-err{margin-top:8px;font-size:.8rem;color:var(--warn);font-weight:600}
+.token-sheet-ft{display:flex;justify-content:flex-end;margin-top:16px}
+.token-sheet-btn{appearance:none;font-family:inherit;font-size:.92rem;font-weight:600;cursor:pointer;
+  padding:10px 20px;border-radius:var(--radius-pill);border:0;background:var(--accent);color:var(--card);
+  transition:transform var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
+.token-sheet-btn:hover{background:var(--accent-deep)}
+.token-sheet-btn:active{transform:var(--press)}
+.token-sheet-btn:focus-visible{outline:2px solid var(--accent-deep);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.token-sheet-ov{animation:none}.token-sheet-btn:active{transform:none}}
+@media (prefers-reduced-motion:reduce){.outbox-review-ov{animation:none}.outbox-bar.outbox-actionable:hover{transform:translate(-50%,0)}}
+

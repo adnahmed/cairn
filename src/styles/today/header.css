@@ -1,0 +1,234 @@
+/* -------------------------------------------------------------------
+   06 · Stat strip (Today)
+   ------------------------------------------------------------------- */
+.statstrip{display:flex;gap:7px;margin:4px 0 14px}
+.stat{flex:1;min-width:0;border-radius:var(--radius-sm);padding:11px 4px 9px;text-align:center}
+.stat-n{
+  font-family:var(--font-display);font-weight:600;font-variation-settings:"opsz" 144;
+  font-size:1.32rem;line-height:1.05;color:var(--ink);font-variant-numeric:lining-nums;
+  white-space:nowrap;
+}
+.stat-l{display:block;font-family:var(--font-ui);font-size:.54rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-top:4px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* compass strip: adherence + pace + weight (replaces the vanity counters) */
+.statstrip-compass .stat{padding:12px 6px 10px}
+.stat-frac{font-size:.82em;color:var(--muted);font-weight:500}
+.stat-dots{display:flex;justify-content:center;gap:4px;margin-top:6px}
+.stat-dot{width:6px;height:6px;border-radius:50%;background:var(--line-2)}
+.stat-dot.on{background:var(--sage)}
+.stat-sub{font-family:var(--font-ui);font-size:.62rem;font-weight:600;color:var(--muted);
+  margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-dim{color:var(--muted)}
+.stat-pace.pace-on .stat-n,.stat-pace.pace-on .stat-sub{color:var(--sage)}
+.stat-pace.pace-behind .stat-n,.stat-pace.pace-behind .stat-sub{color:var(--accent)}
+.stat-pace.pace-fast .stat-n,.stat-pace.pace-fast .stat-sub{color:var(--warn)}
+
+/* "Table" hint: one-line shortcut from Today to Plan → Meals */
+.tablehint{display:flex;align-items:baseline;gap:8px;width:100%;margin:2px 0 12px;padding:8px 14px;
+  border:0;border-radius:var(--radius-sm);background:transparent;cursor:pointer;
+  font-family:var(--font-ui);font-size:.82rem;color:var(--ink-2);text-align:left;
+  white-space:nowrap;overflow:hidden}
+.tablehint .lbl{flex:0 0 auto}
+.tablehint-more{color:var(--muted)}
+.tablehint-go{margin-left:auto;color:var(--accent);flex:0 0 auto}
+.tablehint:active{transform:var(--press-lg)}
+
+/* bodyweight quick-add tile lives inside the collapsed week trajectory */
+.stat-wt{cursor:pointer;font:inherit}
+.stat-wt .stat-n{display:inline-flex;align-items:baseline;justify-content:center;gap:3px}
+.stat-plus{font-size:.85rem;color:var(--accent);font-weight:700;line-height:1;font-family:var(--font-ui)}
+.stat-wt:active{transform:var(--press)}
+
+/* -------------------------------------------------------------------
+   07 · Today: day switch, date, context banner, quick-log
+   ------------------------------------------------------------------- */
+.day-switch{display:flex;gap:7px;overflow-x:auto;padding:6px 0 16px;scrollbar-width:none}
+.day-switch::-webkit-scrollbar{display:none}
+.daybtn{
+  flex:0 0 auto;font-family:var(--font-ui);font-weight:600;font-size:.78rem;
+  letter-spacing:.04em;color:var(--ink-2);background:transparent;
+  border:1px solid var(--line-2);padding:8px 14px;border-radius:var(--radius-pill);
+  transition:background .15s,color .15s,border-color .15s;
+}
+.daybtn.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+/* A day whose work is mostly still recovering says so before it is tapped. A hint,
+   never a lock: the pill keeps every affordance it had. */
+.daybtn.recovering{opacity:.7}
+.daybtn.recovering.active{opacity:1}
+.daybtn-cap{
+  display:block;margin-top:2px;font-size:.6rem;font-weight:500;
+  letter-spacing:.06em;text-transform:none;color:inherit;opacity:.75;
+}
+
+.logdate{display:flex;align-items:center;gap:9px;margin:0 0 12px}
+.logdate-lbl{flex:0 0 auto}
+.logdate-lbl,.ql-recent-h{
+  font-family:var(--font-ui);text-transform:uppercase;letter-spacing:.18em;
+  font-size:.6rem;font-weight:600;color:var(--muted);
+}
+.logdate input[type="date"]{
+  flex:1;min-width:0;background:var(--card-2);border:1px solid var(--line);
+  color:var(--ink);border-radius:var(--radius-sm);padding:9px 11px;
+  font-family:var(--font-ui);font-size:.88rem;-webkit-appearance:none;color-scheme:light;
+}
+.logdate-today{margin-top:0;flex:0 0 auto;padding:9px 13px;border-style:solid;
+  border-color:var(--accent);color:var(--accent)}
+
+/* active life-context banner */
+.ctxbanner{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  background:var(--card);border:none;box-shadow:var(--shadow-sm);
+  border-left:3px solid var(--gold);
+  border-radius:var(--radius-sm);padding:10px 14px;margin:2px 0 12px;
+  font-size:.84rem;color:var(--ink-2);line-height:1.45;
+}
+.ctxbanner-sep{color:var(--line-2)}
+
+/* near-term goal anchor under the Brief — calm, score-free; taps into Progress.
+   The nearer-term arc (recomp by the goal date) Today should keep in view. */
+.goalline{
+  display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  background:transparent;border:none;border-left:2px solid var(--sage);
+  border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+  margin:-4px 0 14px;padding:8px 12px;cursor:pointer;
+  color:var(--ink-2);font-size:.84rem;line-height:1.4;
+  transition:background var(--dur-1) var(--ease);
+}
+.goalline:hover{background:var(--card-2)}
+.goalline:active{transform:var(--press-lg)}
+.goalline-ico{flex:0 0 auto;color:var(--sage);font-size:.82rem}
+.goalline-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.goalline-txt b{color:var(--ink);font-weight:600}
+.goalline-from{color:var(--muted)}
+.goalline-go{margin-left:auto;flex:0 0 auto;color:var(--sage);font-weight:600}
+
+/* react-to-agent: a quiet "a plan change is waiting" card (a scheduler or chat
+   draft proposal). Pull, never push — clears the moment it's applied/discarded. */
+.draft-slot:empty{display:none}
+.draft-card{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  background:var(--card);border:none;box-shadow:var(--shadow-sm);
+  border-left:3px solid var(--gold);border-radius:var(--radius-sm);
+  padding:11px 14px;margin:2px 0 14px;cursor:pointer;
+  transition:background var(--dur-1) var(--ease),transform var(--dur-1) var(--ease);
+}
+.draft-card:hover{background:var(--card-2)}
+.draft-card:active{transform:var(--press-lg)}
+.draft-ico{flex:0 0 auto;color:var(--gold)}
+.draft-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+.draft-h{font-size:.88rem;color:var(--ink);font-weight:600}
+.draft-go{margin-left:auto;flex:0 0 auto;color:var(--gold);font-weight:600}
+
+/* Lately feed, now its own top-level slot (was nested in the capture row) */
+.lately-slot:empty{display:none}
+
+/* The week ahead — a calm forward sketch (lift / run / mixed / rest). A suggestion
+   to reshape, never a schedule; each kind a quiet colored glyph. */
+.weekahead-slot:empty{display:none}
+.weekahead{background:var(--card);border-left:3px solid var(--sage);box-shadow:var(--shadow-sm);
+  border-radius:var(--radius-sm);padding:13px 15px;margin:2px 0 14px}
+.weekahead-h{margin-bottom:9px}
+.weekahead-race{margin-bottom:9px;font-size:.82rem;color:var(--muted)}
+.weekahead-days{display:flex;flex-direction:column}
+.wa-row{display:flex;align-items:baseline;gap:9px;padding:6px 0;
+  border-bottom:1px solid rgba(45,40,32,.06)}
+.wa-row:last-child{border-bottom:none}
+.wa-glyph{flex:0 0 auto;font-size:.7rem;width:14px;text-align:center;color:var(--muted)}
+.wa-lift .wa-glyph{color:var(--accent)}
+.wa-run .wa-glyph{color:var(--sage)}
+.wa-mixed .wa-glyph{color:var(--gold)}
+.wa-rest .wa-glyph{color:var(--line-2)}
+.wa-day{flex:0 0 auto;min-width:38px}
+.wa-label{flex:0 0 auto;font-size:.9rem;color:var(--ink)}
+.wa-note{flex:1;min-width:0;font-size:.78rem;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.weekahead-sum{margin-top:10px;font-size:.84rem;line-height:1.5;color:var(--ink-2)}
+
+/* connected-brain provenance — the quiet causal line on a meal/session card when
+   a flagged lab shaped it ("tilted toward fish — ApoB came back high · why"). A
+   soft gold-edged whisper, the whole row a deep-link into Me → Health → Brain.
+   Information, never a verdict — it never raises its voice. */
+.prov-slot:empty{display:none}
+.prov-line{
+  display:flex;align-items:baseline;gap:7px;width:100%;text-align:left;
+  margin:12px 0 0;padding:8px 11px;
+  background:transparent;border:none;border-left:2px solid var(--gold);
+  border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+  color:var(--ink-2);font-family:var(--font-ui);font-size:.8rem;line-height:1.4;
+  cursor:pointer;transition:background var(--dur-1) var(--ease);
+}
+.prov-line:hover{background:var(--card-2)}
+.prov-line:active{transform:var(--press-lg)}
+.prov-glyph{color:var(--gold);font-size:.74rem;flex:0 0 auto;line-height:1.4}
+.prov-text{flex:1;min-width:0;overflow-wrap:anywhere}
+.prov-marker{font-weight:600;color:var(--ink)}
+.prov-soft{color:var(--muted);font-style:italic}
+.prov-why{flex:0 0 auto;font-size:.62rem;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);align-self:center}
+.prov-line:hover .prov-why{color:var(--accent)}
+
+/* recent activity entries */
+.ql-recent{margin:2px 0 14px}
+.ql-recent-h{margin:8px 0 7px}
+.qlent{
+  display:flex;align-items:center;gap:11px;
+  border-radius:var(--radius-sm);padding:9px 13px;margin-bottom:8px;
+  animation:chipin .22s var(--ease);
+}
+.qlent-line{flex:1;font-size:.86rem;color:var(--ink-2);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qlent-badge{flex:0 0 auto}
+.qlent-done{box-shadow:var(--shadow-sm),inset 3px 0 0 var(--sage)}
+
+/* Lately — the unified Today feed (finished strength sessions + cardio merged).
+   Replaces the old activities-only "Recent" strip. A Garmin-enriched row taps open
+   to its body-reaction (HR zones / effort / VO2 / temp), reusing the garmin-card
+   vocabulary (.garmin-tiles / .gz-bar). A strength row carries a sage inset cue. */
+.lately-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:8px 0 7px}
+.lately-all{background:none;border:none;cursor:pointer;color:var(--accent);
+  font-family:var(--font-ui);text-transform:uppercase;letter-spacing:.1em;
+  font-size:.58rem;font-weight:600;padding:2px 0}
+@media (hover:hover){.lately-all:hover{opacity:.7}}
+.lately-row{background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
+  margin-bottom:8px;overflow:hidden;animation:chipin .22s var(--ease);
+  transition:box-shadow .25s ease,transform .25s ease}
+@media (hover:hover){.lately-row:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}}
+.lately-strength{box-shadow:var(--shadow-sm),inset 3px 0 0 var(--sage)}
+@media (hover:hover){.lately-strength:hover{box-shadow:var(--shadow-md),inset 3px 0 0 var(--sage)}}
+.lately-head{display:flex;align-items:center;gap:11px;padding:9px 13px}
+.lately-head[role="button"]{cursor:pointer}
+.lately-main{flex:1;min-width:0}
+.lately-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.lately-title{font-size:.9rem;color:var(--ink);font-weight:600;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lately-when{flex:0 0 auto;color:var(--muted)}
+.lately-stats{font-size:.82rem;color:var(--ink-2);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lately-note{font-size:.76rem;color:var(--accent);margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lately-chev{flex:0 0 auto;color:var(--muted);font-size:.7rem;transition:transform var(--dur-1) ease}
+.lately-open .lately-chev{transform:rotate(180deg)}
+.lately-detail{padding:10px 13px 12px;border-top:1px solid var(--line)}
+.lately-detail .garmin-tiles{margin-bottom:6px}
+.lately-detail .gz-bar{margin-bottom:4px}
+.lately-moves{display:flex;flex-direction:column}
+.lately-moves:not(:last-child){margin-bottom:8px}
+.lately-mv{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:5px 0;border-bottom:1px solid var(--line)}
+.lately-mv:last-child{border-bottom:none}
+.lately-mv-name{font-size:.84rem;color:var(--ink);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lately-mv-best{flex:0 0 auto;font-size:.84rem;color:var(--ink-2)}
+.lately-mv-sets{color:var(--muted)}
+
+/* inline bodyweight add */
+.wt-inline{display:flex;gap:8px;align-items:center;margin:0 0 10px}
+.wt-inline[hidden]{display:none}
+.wt-inline input{
+  flex:1;min-width:0;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--radius-sm);padding:10px 13px;
+  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-size:1rem;
+}
+

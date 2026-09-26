@@ -1,86 +1,176 @@
-# Cairn Design System — "Atelier"
+# Cairn Design System — "Atelier v2"
 
-The visual language of the Cairn PWA. Warm-gallery / studio-catalog aesthetic: training and
-nutrition presented like a beautifully printed museum catalog — warm paper, ink typography,
-studio-lit illustration plates, generous whitespace, soft layered shadows, quiet motion.
+The visual language of the Cairn PWA: calm stones on warm ground. Six muted stones carry the
+athlete's picture, one dawn accent marks what is live or worth a look, Young Serif speaks, Hanken
+Grotesk does the work, and Martian Mono labels things. Phone-first and dense without crowding:
+nothing oversized, secondary information small and muted, motion slow and rare.
 
-This document is the **frozen contract** between `public/styles.css` (design system),
-`public/art.js` (illustration library), and the view modules in `public/js/` (formerly
-the single `app.js`). Class names and APIs
-listed here are load-bearing — change them in all three places or not at all.
-The view modules are generated from `src/client/**`. How those modules are structured (component
-contract, state, data loading, tokens, motion, states, accessibility, testing, inventory) is covered in
-**Component architecture** at the end of this file.
+This document is the **contract** between the stylesheet (authored as partials under
+`src/styles/`, concatenated into `public/styles.css`), `public/art.js` (illustration library), the
+stone renderer (`src/client/ui-stone*.ts`), and the view modules generated into `public/js/` from
+`src/client/**`. Class names and APIs listed here are load-bearing: change them everywhere or not
+at all. How the client modules are structured is covered in **Component architecture** at the end.
 
-## Palette (CSS variables in `:root`)
+## Tokens (`src/styles/foundation/tokens.css`)
 
-```css
---paper:   #f4efe7;  /* page background, warm cream */
---card:    #fffdf8;  /* card surface */
---card-2:  #f8f3ea;  /* inset surfaces: inputs, wells, chips */
---ink:     #211d17;  /* primary text, near-black warm ink */
---ink-2:   #57503f;  /* secondary text */
---muted:   #746c5c;  /* tertiary text, labels — darkened from #8c8475 to clear WCAG AA on --card-2 */
---line:    #e7dfd2;  /* hairlines */
---line-2:  #d8cfbd;  /* stronger hairlines */
---faint:   #c0b6a0;  /* faint taupe — dismiss/× glyphs, ghosted marks */
---accent:  #b4552d;  /* terracotta — primary actions, highlights */
---accent-deep: #93421f;
---accent-wash: rgba(180,85,45,.1); /* terracotta @ ~10% — chip / hover tint fill */
---on-accent: #fffdf8; /* cream ink/glyph ON a saturated fill (accent/sage/warn/ink/gold) — NOT a surface */
---sage:    #6e7f5c;  /* success, completion, "done" states — borders/marks; ~4:1 on card, NOT for small text */
---sage-text: #5f6e4f; /* sage for small TEXT on card/cream — clears WCAG AA 4.5:1 */
---sage-deep: #5a6a4a; /* darker sage — hover/pressed state for sage text actions */
---sage-bg: #eef0e6;
---warn:    #b3402e;  /* warnings, destructive */
---warn-bg: #f6e8e2;
---gold:    #c9a86a;  /* PR moments, streaks, small celebrations — fills/marks, too light for text */
---gold-deep: #8a6d2e; /* readable amber for "watch" TEXT (a marker value off its optimal band) — AA on card */
---rust:    #965138;  /* muted terracotta — provider sign-in / auth state (agent dot, auth log chip) */
---stone-deep:  #2c2620;  /* stone, warm neutrals from the mark — charcoal stack, dark surfaces */
---stone:       #473f36;  /* stone — flat mark, small sizes */
---stone-taupe: #7d6a56;  /* stone — capstone, quiet secondary */
---shadow-sm: 0 1px 2px rgba(72,58,35,.07), 0 4px 14px rgba(72,58,35,.07);
---shadow-md: 0 2px 4px rgba(72,58,35,.08), 0 14px 36px rgba(72,58,35,.11);
---radius: 18px;
---radius-sm: 12px;
---space-card: 10px; /* standard vertical gap between sibling cards */
-```
+The palette is named for what it is. The v1 names every older section reads (`--paper`, `--card`,
+`--card-2`, `--ink-2`, `--line-2`, `--faint`, `--accent*`, `--sage*`, `--warn*`, `--gold*`, `--rust`,
+`--stone*`) are **aliases** onto it, so nothing ripples; new CSS uses the v2 names.
 
-Theme-color / manifest background: `#f4efe7`. Color-scheme: light. Status bar: `default`.
+| Token | Light | Dark | Role |
+|---|---|---|---|
+| `--ground` | `#ebe7de` | `#121619` | the page (`--paper`) |
+| `--surface` | `#f7f4ee` | `#1a2024` | cards, sheets, the tab bar (`--card`) |
+| `--surface2` | `#ece7dd` | `#21282d` | wells, tracks, quiet chips (`--card-2`) |
+| `--line` / `--line-strong` | `#d5cec0` / `#c3bbab` | `#2e373d` / `#3d474e` | hairlines / a firmer one (`--line-2`) |
+| `--ink` / `--ink2` / `--muted` | `#191d20` / `#454b50` / `#626762` | `#ece6da` / `#b0b3ad` / `#80877f` | text, primary → tertiary |
+| `--on-ink` | `= --ground` | `= --ground` | text on a solid ink fill |
+| `--dawn` / `--dawn-deep` / `--dawn-wash` | `#b8611a` / `#95490c` / 12% | `#f0aa62` / `#f6c28e` / 13% | the ONE accent (`--accent*`) |
+| `--on-accent` | `#fbf8f2` | `#12161a` | glyph on a saturated fill |
 
-## Typography
+`--muted` is the brief's `#6c716c` nudged to `#626762` so small text clears WCAG AA (4.5:1) on
+`--ground`.
 
-- **Display:** system serif stack (`ui-serif`, Iowan Old Style, Georgia, Times New Roman).
-  Headings, day names, big numerals (calories, weights, stat strip), section titles.
-  Big numerals use `font-variation-settings:"opsz" 144` and weight 560–620.
-- **Body/UI:** system sans stack (`ui-sans-serif`, system-ui, -apple-system, Segoe UI) — token
-  `--font-ui`. All body copy, inputs, buttons.
-- **Mono:** system mono stack (`ui-monospace`, SFMono-Regular, Menlo, Consolas) — token
-  `--font-mono`. Code/token/URL readouts only. Reference the token, never re-inline the stack.
-- **Labels:** system sans uppercase, `letter-spacing:.18em`, `font-size:.62rem`,
-  color `var(--muted)` — the "PROTEIN ───" caps style. Class: `.lbl`.
-- The main PWA does not load third-party fonts. Keep typography on local/system stacks unless a
-  future slice deliberately self-hosts font files under `public/`.
+**The six stones.** Each has a muted hue (`--s-*`, a fill) and a deep text variant (`--d-*`, a
+word). A stone's hue is its identity and never changes with its state.
 
-## Texture & atmosphere
+| Stone | `--s-*` light / dark | `--d-*` light / dark |
+|---|---|---|
+| strength | `#a2b2bf` / `#8fa1b0` | `#4f6577` / `#a9bccb` |
+| endurance | `#97b89f` / `#80a68c` | `#46735a` / `#9cc4a8` |
+| recovery | `#aca4cf` / `#9990c3` | `#655c96` / `#b7aee0` |
+| fuel | `#dbb882` / `#d1a86d` | `#8e6424` / `#e6c08a` |
+| body | `#cfa18b` / `#c3907a` | `#8d5238` / `#dcab94` |
+| heart | `#dc877b` / `#d4756a` | `#a53d35` / `#ee9184` |
 
-- Subtle paper grain over `--paper`: inline SVG `feTurbulence` noise data-URI, ~3% opacity,
-  on `body::before` (fixed, pointer-events none).
-- Cards: `--card` + `--shadow-sm`, hover/active lift to `--shadow-md` on devices with hover.
-- No borders on primary cards; hairlines only inside (dividers) and on inset wells.
+Stone drawing tokens: `--shadow` (the contact shadow), `--sheen-hi` / `--sheen-lo`, `--stone-rim`,
+`--on-stone`. Radii: `--radius-lg` 22, `--radius` 18, `--radius-md` 14, `--radius-sm` 12,
+`--radius-xs` 10, `--radius-pill` 999. Shadows (`--shadow-sm/md/lg`) exist for floating things
+(sheets, menus, toasts); cards do not use them. The page gutter is `--gutter` (16px).
+
+**Dark.** The dark palette is defined twice, identically: under
+`@media (prefers-color-scheme: dark)` guarded by `:root:not([data-theme="light"])`, and under
+`:root[data-theme="dark"]`. The app has no theme toggle today; it follows the system, and
+`index.html` declares `<meta name="color-scheme" content="light dark">`. An alias follows its
+target for free; a raw `rgba()` literal does not, so a scrim or tint is written as
+`color-mix(in srgb,var(--ground) 88%,transparent)`, never as a light-only rgba. The installed-app
+`theme-color` (`#f4efe7`, manifest + meta, pinned by `test/pwaInstallIdentity.test.js`) is still the
+v1 cream; moving it goes through `node scripts/bump-icons.mjs --theme-color`, which also bumps the
+icon version.
+
+## Type
+
+- **Young Serif** (`--font-display`, weight 400 only): page titles (`h1`), the voice line, big
+  numbers, a stone's word. Never faked bold: `body` sets `font-synthesis:style`.
+- **Hanken Grotesk** (`--font-ui`, variable 100–900): all UI. Body is 15px (`--text-body`).
+- **Martian Mono** (`--font-mono`, 400 / 500): eyebrows, labels, dates — small, uppercase,
+  `letter-spacing:var(--tracking-mono)` (.09em). Classes: `.lbl` (v1 name) and `.eyebrow`.
+- **Scale** (`--text-*`): `2xs` .62rem (mono labels) · `xs` .74 · `sm` .8 · `md` .88 · `base`
+  .94 (≈15px) · `lg` 1.15 · `xl` 1.4 · `2xl` 1.72 (h1, `.voice`) · `3xl` 2.4. Secondary copy lives in
+  `xs`–`md`. Inputs on touch devices stay at 16px so iOS never zooms.
+- The faces are **self-hosted**: latin-subset woff2 under `public/fonts/` (from the `@fontsource`
+  tarballs, OFL texts beside them), declared in `src/styles/foundation/fonts.css` with
+  `font-display:swap`, precached in `public/sw.js` `CORE_ASSETS`, and `index.html` preloads only
+  Hanken Grotesk and Young Serif. The app does not load third-party fonts, and no font is ever
+  fetched from a CDN.
+
+## Stones
+
+One renderer draws every stone: `CairnStoneModel` (`src/client/ui-stone-model.ts`, pure geometry)
+and `CairnStone` (`src/client/ui-stone.ts`, SVG strings), CSS in `src/styles/foundation/stones.css`.
+
+- **Shape.** `stonePath(cx, cy, rx, ry, seed)`: 16 points on a superellipse (exponent 2.7), each
+  scaled by a seeded ±5% jitter (Park–Miller), the lower half flattened to .84, closed with a
+  Catmull-Rom → Bézier pass. A stone's seed is its place in the six (`seedFor(key)`), so Heart is
+  always Heart's shape, on every paint and device.
+- **Marks, back to front:** a contact-shadow ellipse (`.stone-contact`), the rock in its own hue
+  (`.stone-rock`, `fill:var(--c)` from the `stone-<key>` class), a vertical sheen
+  (`.stone-sheen`, white .34 → clear at .55 → black .16, stops are classes), a faint under-curve
+  (`.stone-under`), and optionally `.stone-flag` — a small dawn dot.
+- **State is words, never a fill.** A reading tone (`ok` / `watch` / `quiet`) rides as a class for
+  hooks but never recolours a stone. The word beside it is set in the stone's deep hue
+  (`.stone-word`, `color:var(--cd)`), and "worth a look" adds only the dawn dot (or, on a list
+  row's dot, a dawn ring).
+- **Layouts.** `cairnSvg(stones, {idPrefix, drift})`: top first, base widest, each stone resting on
+  the one below with gentle x-offsets. `pebbleSvg(key, {idPrefix, flag})`: the same stone laid flat
+  (the Today pebble strip, the stone detail). Each `<svg>` owns one sheen gradient; `idPrefix` keeps
+  its id unique per surface.
+- **Drift.** `.stone-drift`: 1.6px over `--dur-drift` (7s), phase-offset by `--i`; reduced motion
+  stills it.
+- No markup here carries a colour literal (tests hold this); stones are `aria-hidden` pictures and
+  the words beside them are the accessible content.
+
+## Components (`src/styles/foundation/components.css`)
+
+- **Voice:** `.voice` (Young Serif, `--text-2xl`, balanced), `.voice-sm`, `.why` (ink2 prose).
+- **Cards, sparingly:** `.card` — surface, 1px `--line`, `--radius`, 14px padding, no shadow. The
+  v1 card families (`.ex`, `.sess`, `.pday`, …) take the same look.
+- **Hairline lists:** `.list > .li` — a grid of dot, title (`.li-t`), muted meta (`.li-m`) and an
+  optional `.chev`, rows divided by a 1px `--line`, the first undivided.
+- **Marks:** `.dot` (9px, `--c`), `.pill` (fully rounded, tinted by `--c`), `.ping` (the live dawn
+  dot), `.num` (tabular figures).
+- **Buttons:** small, rounded 999, `.84rem`. `.btn` (surface + line), `.btn-solid` (ink with ground
+  text — the solid one is ink), `.btn-dawn`. The v1 families keep their names and take the v2 look:
+  `.logbtn` (the primary solid), `.pillbtn` (+ `.pill-accent` solid ink, `.pill-warn`, `.pill-sm`),
+  `.ghostbtn` (outline), `.draftbtn` (full-width call to action; `.applied` is sage and inert),
+  `.iconbtn` / `.delbtn` / `.ordbtn`.
+- **Segments:** `.seg` is a surface pill track; the selected `.segbtn` (or the sliding
+  `.seg-thumb`) is ink with ground text. The Progress leaf bar (`.prog-subseg`) is mono text tabs.
+- **Inputs:** `.input` (`.input-pill`): surface, 1px line, dawn border on focus.
+- **Tab bar:** surface blur, 1px top line, sentence-case .66rem labels; the live tab is ink with a
+  dawn icon and dot.
+- **Page header:** `h1` in Young Serif 400 at `--text-2xl`, 16px gutters.
 
 ## Motion
 
-- View enter: cards stagger in — `.reveal` class + inline `style="--i:0..n"`;
-  `animation: rise .5s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--i)*45ms)`.
-  `rise` = translateY(14px) + fade. Cap `--i` at ~12.
-- Chips/log entries pop in with a soft scale-fade.
-- Buttons compress slightly on press (`transform: scale(.97)`).
-- Rest bar slides up; fill animates linearly. When the countdown lands the bar stays put and flips
-  to `.rest.rested` — a quiet count-UP of the rest actually taken ("Rested 2:40"), fill settled
-  full-width in the hairline tone, ±15 retired, Skip reading "Done".
-- All motion wrapped in `@media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }`.
+- Ease `--ease` = `cubic-bezier(.22,1,.36,1)`, always.
+- **Entrance `in`:** `.anim-in` — .35s (`--dur-in`), fade with an 8px rise (`--rise`). `.reveal`
+  is the staggered list sibling on the same timing.
+- **Press:** `--press` = scale(.96) (with `--press-lg/-sm/-xs` by target size).
+- **Ping:** `.ping`, a dawn dot breathing outward over `--dur-ping` — only for something live.
+- **Drift:** stones only.
+- Reduced motion silences every entrance, loop and drift (§30, `foundation/reduced-motion.css`)
+  and keeps only the press and the curated functional transitions.
+
+## Density
+
+Phone-first: 16px gutters, 8–18px vertical rhythm, UI body 15px, secondary .76–.9rem and muted.
+No giant inputs, no giant totals, no metric walls. Cards are the exception; a hairline list is the
+default way to show several things.
+
+## Stylesheet ownership
+
+`public/styles.css` is **generated** — `scripts/build-styles.mjs` concatenates `src/styles/**` in
+the fixed cascade order of its `STYLE_PARTIALS` list (a later partial wins a same-specificity tie),
+`npm run build` runs it, and `npm run verify` fails when the committed file drifts
+(`build-styles.mjs --check`) or a partial is unlisted. Edit the partials, never the output. The file
+stays committed because the Docker runtime stage and the tests read it from the checkout.
+
+| Directory | Owner | Holds |
+|---|---|---|
+| `foundation/` | the foundation stream | tokens, fonts, base + type, motion, primitives, stones, cards, components, segments, loading, reduced motion, a11y |
+| `shell/` | shell | overlays, sheets, toast, save bar, tab bar, desktop nav, detail overlay, responsive, identity, five-home nav |
+| `today/` | Today | header strip, date control, Garmin strip, the Brief, pebble strip |
+| `session/` | Session | exercise cards, rest timer, the Session destination |
+| `fuel/` | Fuel | meal plans, planner, meal sheet, meal card, Fuel today |
+| `ask/` | Ask | chat, capture, changes feed, ask cards, what-if |
+| `train/` | Train | plan editor, progress, editorial progress, endurance, program, strength, overview |
+| `horizon/` | Horizon | race view, the horizon |
+| `you/` | You | records/memory/life, profile/family/brain, the cairn stack + stone detail |
+| `health/` | Health | health read/markers, Stand, records search, doctor packet |
+| `settings/` | Settings | settings, settings groups |
+
+A screen stream restyles only its own directory. A shared family (buttons, segments, lists, stones)
+changes in `foundation/`, never re-declared in a surface.
+
+## Screenshot harness
+
+`npm run screens -- [--port 8810] [--width 390] [--dpr 3] [--out <dir>] [--only today,ask]` boots
+the built server on a throwaway `DATA_DIR` with the demo seed and an offline agents table (no CLI
+ever spawns), drives headless Chrome over CDP (`scripts/cdp-chrome.mjs`, shared with the browser
+smoke) in light and dark, captures each home and its key sub-views full-page, and builds
+`contact-sheet.png` with ImageMagick. `--reference <file.html>` renders a design-reference page's
+`.phone` elements instead. It is a review tool, not part of `npm test`.
 
 ## Illustration library — `public/art.js`
 
@@ -111,7 +201,7 @@ CairnArt.activity(type)    // → SVG string for cardio/activity types (run, rid
 Shared layout: header is just `#header-title` (on Today it's the tappable date
 control; it pins to the top of the scroll and condenses to a slim blurred band —
 see `body[data-tab="today"] header.condensed` in styles.css).
-Tab bar `.tabbar` / `.tab` / `.tab.active`: cream blur bar, ink icons, terracotta active with a
+Tab bar `.tabbar` / `.tab` / `.tab.active`: surface blur bar, muted icons, ink label + dawn icon when active, with a
 small dot indicator; desktop ≥960px → left sidebar with the brand block leading. Five buttons, one
 per HOME, in this order: Today (calendar-check), Train (trend line), Horizon (a half-sun rising over
 a horizon line), Ask (speech bubble), You (a three-stone cairn). `data-tab` on a button is the home
@@ -211,8 +301,8 @@ New/changed components (CSS must implement, the client JS must emit):
   as `.ex-remove` (a remove ✕ before any set lands).
 - Macro bars `.macrobar`: hairline track, ink fill, label left + value right (screenshot style).
 - Activity entries `.qlent`: small `.qlent-art` (CairnArt.activity) + text + enrichment badge.
-- Buttons: `.logbtn` terracotta ink-on-cream → solid terracotta circle/pill, cream glyph;
-  `.ghostbtn` hairline pill; `.draftbtn` hairline terracotta text pill.
+- Buttons: `.logbtn` solid ink circle/pill, ground glyph; `.ghostbtn` hairline pill; `.draftbtn`
+  full-width solid ink pill (see **Components**).
 - **Interaction primitives live in `styles.css` §04c**, at the TOP of the file (above every
   component) so a component can safely layer its own delta on top. Reuse them; a new surface
   should never re-declare an accent link, a spined well, or a × glyph. Each consumer keeps its
@@ -228,7 +318,7 @@ New/changed components (CSS must implement, the client JS must emit):
     distinct, not migrated:* `.lately-all` (uppercase micro-eyebrow) and the `.brief-steer-opt`
     steer widget (ink-2 options with dot separators — its own cohesive affordance).
   - **Spined wells — `.well-accent` / `.well-accent-sm` / `.well-accent-sage`.** The "one lever /
-    one change" callout: `.well-accent` = card + 3px terracotta spine + `--radius` + `--shadow-sm`;
+    one change" callout: `.well-accent` = card + 3px dawn spine + `--radius` + `--shadow-sm`;
     `.well-accent-sm` = 2px spine + `--radius-sm` inline mini-well (no card bg/shadow — the site
     adds its own); `.well-accent-sage` = the sage-spine modifier (calm / done / weekly). Each site
     adds only its padding (+ optional tint bg). Used by `.hsyn-onechange`, `.hstand-lever`,
@@ -250,7 +340,7 @@ New/changed components (CSS must implement, the client JS must emit):
     the toast expires, and use the same press/motion/reduced-motion tokens as existing actions.
 - Chat `.bubble.user` = ink on `--ink` (cream text); `.bubble.assistant` = card.
 - Health **Standing** (Stand, the hero read): `.hstand*` — the momentum-led capacity read
-  (three-age strip, `.hstand-bc-*` live body-composition, `.hstand-lever` terracotta well = the one
+  (three-age strip, `.hstand-bc-*` live body-composition, `.hstand-lever` dawn well = the one
   health lever, momentum chips, level-ladder comparisons — strong / solid / building, never a
   printed population percentile). Blood-pressure **capture** lives in a sheet
   (`.bpsheet*`), never inline in the read. Connected-brain rail: `.hb-section` cards (directives,
@@ -270,10 +360,10 @@ New/changed components (CSS must implement, the client JS must emit):
 - **Performance** read (Train → Program, the athletic counterpart to Standing): `.pperf*` — the
   "where you stand" capacity benchmark. `.pperf-hero` (sage left-spine, headline + sub + `.pperf-chip`
   momentum chips); `.pperf-caps` of `.pcap` rows (movement label + shared `.level-chip` with the
-  beginner→elite ladder word, never a percentile number, bar, or mark); `.pperf-lever` terracotta
+  beginner→elite ladder word, never a percentile number, bar, or mark); `.pperf-lever` dawn
   well = the one training lever; `.pperf-block` for imbalances / re-tests; `.pperf-variety`;
   `.pperf-aero` aerobic line; `.pperf-balance` italic holistic note. Tone classes `-strong` (sage) /
-  `-watch` (terracotta) / `-steady` (gold). Level-ladder words only; population-percentile numbers
+  `-watch` (dawn) / `-steady` (gold). Level-ladder words only; population-percentile numbers
   never print (constitution). Clinical risk % and vascular age stay the `.hrisk*` exemption.
 - Keep ALL other existing class names working (`.sess`, `.modal*`, `.vol*`, `.mem*`,
   `.hdoc*`, `.life*`, `.enr*`, `.seg*`, `.daybtn`, `.logrow`, `.field`, `.toast`, `.rest*`,
@@ -300,14 +390,14 @@ reduced-motion discipline); where a consumer makes one tappable it layers the pr
 - **`.read-band` — personal-baseline band.** A horizontal track (`.read-band-track`) carrying a soft
   sage range region (`.read-band-range` = the athlete's OWN rolling range, positioned by inline
   `left`/`width` percentages), a positioned dot for today (`.read-band-dot`, ink; the `.hot` modifier
-  on `.read-band` retints the dot terracotta when today's value is a lever), an optional `.lbl`
+  on `.read-band` retints the dot dawn when today's value is a lever), an optional `.lbl`
   `.read-band-label`, and a plain-language `.read-band-phrase` slot. Fluid — reads at card width and in
   a narrow inline slot; the `.read-band-inline` modifier lays label · track · phrase out on one row.
   Renderer `baselineBandHtml({label, position, rangeStart, rangeEnd, phrase, hot})` clamps positions to
   `[0,1]` and, when range data is missing, **degrades to just the phrase** — the band is never drawn
   empty. The band region is the athlete's own range; there is no axis, no tick, no number.
 - **`.read-contribs` / `.read-contrib` — contributor rows.** One row per contributor: a small state pip
-  (`.read-contrib-pip` with `.ok` sage / `.watch` terracotta = attention or a lever / `.quiet`
+  (`.read-contrib-pip` with `.ok` sage / `.watch` dawn = attention or a lever / `.quiet`
   neutral-outline = thin data, "the read is looser"), a `.read-contrib-label`, and a qualitative
   `.read-contrib-state` line (words, not a value). Renderer `contributorRowsHtml(rows)` takes
   `{label, state, tone: 'ok'|'watch'|'quiet'}`, clamps tone to the allowlist (unknown → `quiet`), drops
@@ -317,7 +407,7 @@ reduced-motion discipline); where a consumer makes one tappable it layers the pr
   reference read, never a graded score. Renderer `levelChipHtml({label, detail?})`. (Text uses
   `--sage-text` — the AA-clearing sage for small type.)
 - **`.trend-lead` — trend-first headline row.** A serif `.trend-lead-name` beside a directional
-  `.trend-lead-phrase` — `.toward` sage (moving toward optimal), `.away` terracotta (away and
+  `.trend-lead-phrase` — `.toward` sage (moving toward optimal), `.away` dawn (away and
   actionable), `.stable` muted. Renderer `trendLeadHtml({name, phrase, tone})` clamps tone to the
   allowlist (unknown → `stable`). The direction is words, never an arrow on a score.
 - **`.strength-line` — today's lift.** The server's one line (`GET /api/today-strength-line`, and the
@@ -335,7 +425,8 @@ reduced-motion discipline); where a consumer makes one tappable it layers the pr
 - Don't break behavior: every element id, `data-*` attribute, and event-wiring pattern in
   the client JS is functional. Polling (`pollToken`), rest timer, day switcher, editor, onboarding —
   all must keep working.
-- Light theme only. `color-scheme: light` (date inputs etc. follow).
+- Light and dark follow the system (`color-scheme: light dark`); every colour is a token, so a new
+  surface works in both without a second rule.
 - **Dates read human, never raw.** Don't surface bare `YYYY-MM-DD` in UI copy. Three date helpers,
   one per context:
   - `humanDate(iso)` → "today" / "yesterday" / "3 days ago" / "2 weeks ago" / "Apr 2024" (relative
@@ -349,20 +440,13 @@ reduced-motion discipline); where a consumer makes one tappable it layers the pr
   Coach/review prose runs through `humanizeReviewText(text, latestISO)`, which strips the
   most-recent panel date (shown once as the `.hpic-asof` "As of …" caption) so it isn't restated
   on every line, and humanizes any remaining ISO dates. Status timestamps stay on `relTime()`.
-- **Action pills — reuse the family, don't re-roll.** The real sizes today: `.pillbtn`
-  (`11px 22px`/`.82rem`/~40px, the flagship) with `.pill-sm` (`8px 15px`/`.76rem`/~32px),
-  `.pill-warn`/`.pill-accent` modifiers; `.ghostbtn` and `.draftbtn` (`~9px 13–15px`/`.76rem`/~34px);
-  `.iconbtn`/`.delbtn` (30–32px). Pair a pill row with a height-matched icon/delete so it sits on one
-  baseline. Divider-separated sections (`.hdoc-foot`, `.himpacts`, `.mp-history`) use
-  `margin-top:~16px; padding-top:14px`. Don't hand-roll a one-off pill — reuse a family class.
-  There are **two intentional pill scales**, not one: the larger sentence-case **flagship**
-  `.pillbtn` (~40px, hero detail-action rows) and the compact **uppercase** `.ghostbtn`/`.draftbtn`
-  (~34px, inline actions). They share radius, weight, transition, and the global `:active` press —
-  differing only in size + case by role. Don't force them to one height; pick the scale that fits
-  the context.
+- **Action pills — reuse the family, don't re-roll.** `.pillbtn` (+ `.pill-sm`, `.pill-accent`,
+  `.pill-warn`), `.ghostbtn`, `.draftbtn`, `.btn`/`.btn-solid`, and `.iconbtn`/`.delbtn` for the
+  small square ones — all defined once in `src/styles/foundation/components.css` (see
+  **Components**). Sentence case, rounded 999, `.8–.84rem`. Don't hand-roll a one-off pill.
 - **Segmented / toggle "active" fill is `--ink`.** Every mutually-exclusive switch — `.segbtn`,
   the sliding `.seg-thumb`, `.disc-seg`/`.goalmode-seg`, the plan-editor `.pi-kindbtn`, `.hread-chip`
-  — fills `--ink` (cream text) when active. Don't use `--accent` for a segment's active state
+  — fills `--ink` (ground text) when active. Don't use `--accent` for a segment's active state
   (`--accent` is for actions, not "which of these is selected").
 
 ## Motion tokens
@@ -447,12 +531,12 @@ the same warm way. Defined in `styles.css` + the client JS helpers; never hand-r
 one-off spinner. Motion is slow and legible under `prefers-reduced-motion`.
 
 - **`.aspin`** — the calm spinner ring; size via `--asz` or `.aspin-sm` / `.aspin-xs`,
-  and `.aspin-ghost` on a dark/terracotta button. The single in-flight glyph.
+  and `.aspin-ghost` on a dark/dawn button. The single in-flight glyph.
 - **`btnBusy(btn, label, {ghost})`** — swaps a tapped button's label for an `.aspin`
   ring + working text (footprint pinned so nothing jumps); returns a `restore()`.
   The default for any button that kicks off an agent op (session-suggest, meal
   draft, nutrition check-in, recipe, health refresh).
-- **`.is-thinking`** — an indeterminate terracotta→gold filament that sweeps a
+- **`.is-thinking`** — an indeterminate dawn→gold filament that sweeps a
   surface being (re)generated (e.g. the Brief reshaping on an override chip).
 - **`.typing`** — three breathing dots for the chat reply; the pending assistant
   bubble renders an optional caption + `.typing`.
@@ -537,7 +621,7 @@ tapped tile (`openDetailFrom(tile, build)`) and closed by ✕ / Escape / backdro
   ├ .detail-title      display serif ~1.8rem
   ├ .detail-ctx .lbl   tracked caps context ("19% of the day · 20:01" / muscle group)
   ├ .detail-kcal       .detail-num count-up numeral + .detail-unit label
-  ├ .detail-spark      tiny terracotta sparkline (est-1RM trend / durations)
+  ├ .detail-spark      tiny dawn sparkline (est-1RM trend / durations)
   ├ .detail-macros     .macrobar rows, hairline .barfill bars animating to width
   ├ .detail-section    .lbl heading + .detail-body copy / .detail-setline rows
   └ .detail-actions    .pillbtn row (.pill-warn destructive, .pill-accent primary)
@@ -829,8 +913,8 @@ the new JSON: a budget diff is a review signal. `--report` lists each bundle's l
 
 ### Tokens
 
-- Every color, shadow, radius, font, duration, easing and press depth is defined in `styles.css`
-  §01 `:root`. **TypeScript never writes a hex color or a duration literal.** SVG built in TS styles
+- Every color, shadow, radius, font, duration, easing and press depth is defined in
+  `src/styles/foundation/tokens.css` `:root`. **TypeScript never writes a hex color or a duration literal.** SVG built in TS styles
   itself through classes or `var(--token)`. The only exceptions are the authored illustration
   libraries (`art.js`, `cairn-body-figure.ts`). Hex literals today: `body-metrics-client.ts` 118,
   `agent-login-modal-client.ts` 29, `progress-overview-client.ts` 20, `progress-screen.ts` 13,
@@ -842,9 +926,9 @@ the new JSON: a budget diff is a review signal. `--report` lists each bundle's l
   `rem` sizes), z-index (about 15 raw values between 1 and 90), and a pill radius (`999px` appears
   127 times). The v2 foundation adds `--space-*`, a short `--text-*` scale, named `--z-*` layers and
   `--radius-pill`, and new CSS uses only those.
-- **New component CSS** goes in its own numbered `styles.css` section under the component's prefix.
-  The section numbers are out of order today (04c/04d come before 04b, 29b comes after 35, and §31
-  appears twice); renumber them when the file is next reorganized.
+- **New component CSS** goes in the partial of the surface that owns it (**Stylesheet ownership**),
+  under the component's prefix; a new partial is added to `STYLE_PARTIALS` in
+  `scripts/build-styles.mjs` at the point in the cascade where it belongs.
 
 ### Motion system
 

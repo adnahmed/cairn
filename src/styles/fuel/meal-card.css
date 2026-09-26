@@ -1,0 +1,61 @@
+/* -------------------------------------------------------------------
+   42 · Meal card — a logged meal as editable rows (.meal-card-*)
+   ------------------------------------------------------------------- */
+/* One row per item: name + its own estimate, grams in a decimal field, remove.
+   Every control is a 44px target; rows open and close through expandEl/collapseEl. */
+.meal-card{display:flex;flex-direction:column;gap:var(--space-4);text-align:left}
+.meal-card-head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:var(--space-4)}
+.meal-card-prov{font-size:var(--text-xs);color:var(--muted);line-height:1.45}
+.meal-card-rows{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.meal-card-row{display:grid;grid-template-columns:minmax(0,1fr) auto 44px;align-items:center;
+  gap:var(--space-4);padding:var(--space-3) 0;border-bottom:1px solid var(--line)}
+.meal-card-main{min-width:0;display:flex;flex-direction:column;gap:var(--space-1)}
+.meal-card-item{font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.meal-card-name{width:100%;min-height:44px;font:inherit;font-weight:600;color:var(--ink);
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:0 var(--space-4)}
+.meal-card-nutri,.meal-card-amount,.meal-card-basis{font-size:var(--text-xs);color:var(--muted);line-height:1.4}
+.meal-card-grams{display:inline-flex;align-items:center;gap:var(--space-2);min-height:44px}
+.meal-card-grams-input{width:4.5em;min-height:44px;font:inherit;font-size:var(--text-base);text-align:right;
+  font-variant-numeric:tabular-nums;color:var(--ink);background:var(--card);
+  border:1px solid var(--line);border-radius:var(--radius-sm);padding:0 var(--space-4)}
+.meal-card-grams-input[aria-invalid]{border-color:var(--gold-deep)}
+.meal-card-unit{font-size:var(--text-sm);color:var(--muted)}
+.meal-card-remove{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;
+  background:none;border:none;border-radius:var(--radius-pill);color:var(--muted);font-size:var(--text-lg);
+  cursor:pointer;transition:color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+.meal-card-remove:hover{color:var(--ink)}
+.meal-card-remove:active{transform:var(--press-xs)}
+.meal-card-rows.is-single .meal-card-remove{visibility:hidden}
+.meal-card-add{align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
+.meal-card-totals{margin:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);
+  font-size:var(--text-md);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;
+  transition:color var(--dur-1) var(--ease)}
+/* Unsaved totals are a quiet preview until the server's numbers land. */
+.meal-card-totals.is-unsaved{color:var(--ink-2)}
+@keyframes meal-card-settle{from{background:var(--accent-wash)}to{background:transparent}}
+.meal-card-totals.is-settled{animation:meal-card-settle var(--dur-3) var(--ease) 1}
+.meal-card-foot{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-5)}
+.meal-card-status{margin:0;flex:1;min-width:0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
+.meal-card-save{min-height:44px}
+.meal-card-save:disabled{opacity:.55;cursor:default}
+.meal-card-save[aria-busy="true"]{cursor:wait}
+/* The food detail sheet around it: the hero follows the card's totals. */
+.detail-kcal[hidden],.detail-ctx[hidden],.detail-macros[hidden]{display:none}
+.fdet-meal{text-align:left}
+.fdet-note{color:var(--muted)}
+/* Approximate by default: the card opens READ-ONLY — one line per item, its portion
+   in words and a muted ~kcal — and the gram fields, remove and add appear only after
+   an explicit Edit. */
+.meal-card-edit{order:2;min-height:44px;margin:-12px 0;display:inline-flex;align-items:center;font-size:var(--text-sm);margin-left:auto}
+.meal-card.is-read .meal-card-prov{order:3;flex:1 1 100%}
+.meal-card.is-read .meal-card-head{row-gap:var(--space-1)}
+.meal-card-rows.is-read{border-top:none}
+.meal-card-row.is-read{display:flex;align-items:baseline;gap:var(--space-2);min-height:0;
+  padding:var(--space-2) 0;border-bottom:none;font-size:var(--text-sm)}
+.meal-card-row.is-read .meal-card-item{flex:0 1 auto;min-width:0;font-weight:500}
+.meal-card-row.is-read .meal-card-amount{flex:0 1 auto;min-width:0}
+.meal-card-row.is-read .meal-card-amount::before{content:"· "}
+.meal-card-row.is-read .meal-card-nutri{flex:0 0 auto;margin-left:auto;white-space:nowrap;
+  font-variant-numeric:lining-nums tabular-nums}
+.meal-card-done{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
+

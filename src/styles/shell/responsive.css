@@ -1,0 +1,92 @@
+/* -------------------------------------------------------------------
+   36 · Responsive layout — tablet 2-up grids + real desktop two-column
+   ------------------------------------------------------------------- */
+/* The app is mobile-first; below ≤680px NOTHING in this section applies, so the
+   phone layout is exactly as before. Above that we use the room with structure:
+   data-dense lists become card grids, and on wide screens Today / Me→Read split
+   into a primary column + a secondary rail. Every grid child gets min-width:0 so
+   long content never blows the track out. Safe-area insets + reduced-motion rules
+   from earlier sections are untouched. */
+
+/* ---- Tablet band (≈681–1099px): 2-up card grids, still one main column ---- */
+@media (min-width:681px) and (max-width:1099px){
+  /* Progress history, Me family / records / memory: two cards across. The
+     containers already exist; we only switch them to a grid here. */
+  .sess-grid,
+  #flist,#hlist,#memlist{
+    display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;
+  }
+  .sess-grid>*,#flist>*,#hlist>*,#memlist>*{margin-bottom:0;min-width:0}
+  /* the calm empty-state line should never be squeezed into one half-column */
+  #flist>.empty,#hlist>.empty,#memlist>.empty,.sess-grid>.empty{grid-column:1/-1}
+}
+
+/* ---- Wide screen (≥1100px): genuine multi-column editorial layout ---- */
+@media (min-width:1100px){
+  /* TODAY — primary content column + secondary right rail. The main column holds
+     the Brief, capture, and the logging surface; the rail holds the week-ahead,
+     weekly read, connection insight, garmin reconcile, and "lately". Two real
+     wrappers → each column packs to the top independently (no row coupling). */
+  .today-wrap{
+    display:grid;grid-template-columns:minmax(0,1.6fr) minmax(290px,1fr);
+    column-gap:28px;align-items:start;
+  }
+  .today-main,.today-rail{min-width:0}
+  .today-rail>*:empty{display:none}            /* an empty slot adds no gap */
+
+  /* PROGRESS — history sessions as a two/three-up card grid under the hero */
+  .sess-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+  .sess-grid>*{margin-bottom:0;min-width:0}
+  .sess-grid>.empty{grid-column:1/-1}
+
+  /* ME → Family / Records / Memory — multi-column card grids */
+  #flist,#memlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+  #flist>*,#memlist>*{margin-bottom:0;min-width:0}
+  #flist>.empty,#memlist>.empty{grid-column:1/-1}
+  /* health records can run a little wider per card (markers tables) — keep 2-up */
+  #hlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+  #hlist>*{margin-bottom:0;min-width:0}
+  #hlist>.empty{grid-column:1/-1}
+
+  /* ME → Health → Read — one editorial column, capped + left-aligned (like Profile)
+     so the synthesis story and connected-brain cards keep a comfortable reading width
+     instead of stretching across the full pane. Single column = no empty-gutter break. */
+  .hread{max-width:880px}
+
+  /* ME → Health → Standing — comparisons + BP log side-by-side, dimensions below */
+  .hstand-hero{grid-template-columns:minmax(0,1fr) minmax(250px,.46fr);align-items:end}
+  .hstand-grid{grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);align-items:start}
+  .hstand-dims{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+  /* ME → Markers — the grouped catalog flows two columns of group cards */
+  .hmk-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:18px 22px;align-items:start}
+  .hmk-groups>.hmk-section{min-width:0}
+
+  /* ME → Health → Share — one lead report card, then secondary utilities */
+  .hshare-card-main{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .hshare-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hshare-card .logbtn,.hshare-card .ghostbtn{width:auto;min-width:178px}
+
+  /* ME → Profile — the lean identity form would stretch single inputs across the
+     full wide column and read unfinished. Cap it and flow the short fields two-up,
+     so the form looks intentional; full-width items (about_me, the sport seg, the
+     capture note) span both columns. */
+  #profFields{max-width:680px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    column-gap:16px;align-items:start}
+  #profFields>.field{margin-bottom:9px}
+  #profFields>.aboutme,#profFields>#endSportField{grid-column:1/-1}
+  #profFields>.field:has(#discSeg),#profFields>.field:has(#allergies),
+  #profFields>.field:has(#dietary_restrictions){grid-column:1/-1}
+
+  /* PLAN → Endurance — the Plan view gets no two-column grid, so cap the running
+     plan to an editorial column instead of stretching the ramp/run-rows/composer
+     across the full wide canvas (same reason + cap as #profFields). */
+  #endPlanBody{max-width:680px}
+}
+
+/* ---- Extra-wide (≥1500px): Progress / Family / Records gain a third column ---- */
+@media (min-width:1500px){
+  .sess-grid,#flist,#hlist,#memlist{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+

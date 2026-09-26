@@ -1,0 +1,26 @@
+/* =====================================================================
+   Installed-app identity (Wave 6 stream P): app-readd (.app-readd-*), the
+   one-time optional note an iOS home-screen install gets when the icon or
+   name changes, and app-id (.app-id-*), Settings -> Data's "This app"
+   block — the server build, this app's shell and Copy token. Quiet cards,
+   no motion of their own.
+   ===================================================================== */
+.app-readd-slot:empty{display:none}
+.app-readd{margin:var(--space-7) 0 var(--space-2)}
+.app-readd .app-readd-sub{margin-top:var(--space-2);color:var(--muted)}
+.app-readd-actions{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:center;margin-top:var(--space-5)}
+.app-readd-actions .ghostbtn{min-height:44px}
+.app-id-card{margin-top:var(--space-6)}
+.app-id-rows{margin:0;display:grid;gap:var(--space-4)}
+.app-id-row{display:grid;gap:var(--space-1)}
+.app-id-row dt{font-size:var(--text-2xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.app-id-row dd{margin:0;display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:baseline;font-size:var(--text-sm)}
+.app-id-code{font-size:var(--text-xs);overflow-wrap:anywhere;word-break:break-word}
+.app-id-shell-line{color:var(--muted)}
+.app-id[data-appid-shell-state="behind"] .app-id-shell-line{color:var(--accent-deep)}
+.app-id-token{display:flex;flex-wrap:wrap;gap:var(--space-3) var(--space-5);align-items:center;margin-top:var(--space-6)}
+.app-id-copy{min-height:44px}
+.app-id-note{font-size:var(--text-xs);color:var(--muted)}
+.app-id-token-field{flex:1 1 100%;min-height:44px;font-family:var(--font-ui);font-size:var(--text-sm);
+  padding:0 var(--space-5);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card-2);color:var(--ink)}
+

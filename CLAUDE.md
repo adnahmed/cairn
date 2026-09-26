@@ -85,7 +85,9 @@ still precached. So an eager bundle may reference a lazy bundle's globals ONLY f
 function that runs after that navigation, never at top level.
 
 **`public/js/*.js` is generated** from `src/client/**/*.ts` by `npm run client:build`; the only
-hand-written file there is the `10-boot.js` shim. Never hand-edit generated output. The client
+hand-written file there is the `10-boot.js` shim. Never hand-edit generated output. `public/styles.css` is
+generated too (committed): edit the per-surface partials under `src/styles/`, whose cascade order is
+`STYLE_PARTIALS` in `scripts/build-styles.mjs` (ownership map: `docs/DESIGN.md`). The client
 modules share ONE global scope in load order, so a top-level eager cross-module reference must use a
 lazy `() => fn()` thunk — function hoisting does not cross `<script>` boundaries.
 
@@ -516,7 +518,7 @@ one-off `docker compose exec` commands that must persist a CLI login need `-u ap
 | `docs/VISION.md` | The constitution. Read before shaping product behavior. |
 | `docs/ARCHITECTURE.md` | Subsystem depth: repo layer, prompts, chat/streaming, art, scheduler, enrichment, PWA surfaces. |
 | `docs/API.md` · `docs/MCP-TOOLS.md` | Generated, authoritative endpoint and tool inventories. |
-| `docs/DESIGN.md` | The "Atelier" visual contract — palette, class names, motion, and the client component architecture. Read before touching `styles.css` or view markup. |
+| `docs/DESIGN.md` | The "Atelier v2" visual contract — tokens (light + dark), type, stones, components, motion, stylesheet ownership, and the client component architecture. Read before touching `src/styles/` or view markup. |
 | `docs/V2-PLAN.md` | The in-flight v2 roadmap (waves, streams, acceptance). Deleted when v2.0.0 ships. |
 | `docs/OPERATIONS.md` | Deploy, migrate, backup, restore, tooling notes. |
 | `docs/ELITE-BRAIN-IMPLEMENTATION.md` | The decision ledger, evaluators, autonomy tiers. |

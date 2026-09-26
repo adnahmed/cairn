@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
 import ts from "typescript";
+import { buildStyles } from "./build-styles.mjs";
 
 const currentFile = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(currentFile), "..");
@@ -17,6 +18,8 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/markdown-client.ts", output: "public/js/markdown-client.js" },
   { source: "src/client/ui-components.ts", output: "public/js/ui-components.js" },
   { source: "src/client/ui-reads.ts", output: "public/js/ui-reads.js" },
+  { source: "src/client/ui-stone-model.ts", output: "public/js/ui-stone-model.js" },
+  { source: "src/client/ui-stone.ts", output: "public/js/ui-stone.js" },
   { source: "src/client/ui-feedback-client.ts", output: "public/js/ui-feedback-client.js" },
   { source: "src/client/ui-actions-client.ts", output: "public/js/ui-actions-client.js" },
   { source: "src/client/ui-sheet.ts", output: "public/js/ui-sheet.js" },
@@ -418,6 +421,9 @@ export const BUNDLES = [
       "public/js/today-rail-loaders-client.js",
       "public/js/changes-line-client.js",
       "public/js/changes-line-controller.js",
+      // The stone renderer: its only callers (pebble strip, cairn stack, stone detail) live here.
+      "public/js/ui-stone-model.js",
+      "public/js/ui-stone.js",
       "public/js/pebble-strip-model.js",
       "public/js/pebble-strip-client.js",
       "public/js/pebble-strip-controller.js",
@@ -799,6 +805,7 @@ export function buildClient() {
   buildBundles();
   pruneOrphanedOutputs();
   pruneBundleIntermediates();
+  buildStyles();
   precompressAssets();
 }
 
@@ -862,8 +869,9 @@ export function pruneBundleIntermediates() {
 
 /**
  * Assets index.html loads, each of which gets a `.br` and `.gz` sibling.
- * public/index.html, public/styles.css and public/art.js are hand-authored (not
- * emitted by this script) but are still part of the shell, so they are compressed
+ * public/index.html and public/art.js are hand-authored and public/styles.css is
+ * concatenated from src/styles/ by scripts/build-styles.mjs (not emitted by the
+ * transpile step), but they are still part of the shell, so they are compressed
  * here too — this is the one place that knows what a deploy actually serves.
  */
 const PRECOMPRESS_EXTRA = ["public/index.html", "public/styles.css", "public/art.js", "public/cairn-body-figure.js"];

@@ -1,0 +1,74 @@
+/* -------------------------------------------------------------------
+   26 · Responsive — tablet
+   ------------------------------------------------------------------- */
+@media (min-width:680px){
+  header,main{max-width:720px}
+  .statstrip .stat-n{font-size:1.6rem}
+  h1{font-size:2.3rem}
+}
+
+/* -------------------------------------------------------------------
+   27 · Responsive — desktop: tab bar becomes left sidebar
+   ------------------------------------------------------------------- */
+@media (min-width:960px){
+  body{padding-bottom:0;padding-left:248px}
+  header{max-width:820px;margin:0 auto;padding:38px 48px 16px}
+  main{max-width:820px;margin:0 auto;padding:0 48px}
+
+  .tabbar{
+    flex-direction:column;align-items:stretch;gap:2px;
+    top:0;bottom:0;right:auto;width:248px;
+    border-top:none;border-right:1px solid var(--line);
+    padding:16px 14px calc(16px + env(safe-area-inset-bottom));
+    background:color-mix(in srgb,var(--surface) 97%,transparent);backdrop-filter:blur(16px);
+    overflow-y:auto;
+  }
+  .brand{
+    display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink);
+    padding:6px 10px 18px;margin-bottom:8px;border-bottom:1px solid var(--line);
+  }
+  .brand-mark{border-radius:10px;flex:0 0 auto}
+  .brand-text{display:flex;flex-direction:column;line-height:1.05}
+  .brand-text b{font-family:var(--font-display);font-weight:400;letter-spacing:0;font-size:1.3rem}
+  .brand-text small{color:var(--dawn);font-family:var(--font-mono);font-size:.56rem;letter-spacing:.14em;
+    text-transform:uppercase;margin-top:4px;font-weight:400}
+
+  .tab{
+    flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:13px;
+    padding:11px 14px;border-radius:var(--radius-sm);font-size:.92rem;letter-spacing:.01em;
+    color:var(--ink-2);transition:background .15s,color .15s,box-shadow .15s;
+  }
+  .tab::after{display:none}
+  .tab-ico{width:20px;height:20px}
+  .tab-lbl{font-size:.9rem;text-transform:none;letter-spacing:.01em;font-weight:500}
+  .tab:hover{background:var(--surface2);color:var(--ink)}
+  .tab.active{background:var(--ground);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+  .tab.active .tab-lbl{font-weight:650}
+
+  /* floating elements respect the sidebar */
+  .rest{left:248px}
+  .toast{left:calc(50% + 124px);bottom:30px}
+  .savebar{left:calc(50% + 124px);bottom:24px}
+  body.savebar-open{padding-bottom:110px}
+  body.savebar-open .toast{bottom:104px}
+
+  /* bottom sheets become centred dialogs */
+  .modal{align-items:center;padding:24px}
+  .modal-card{border-radius:22px;max-width:540px;max-height:88vh;animation:dlgin .22s var(--ease)}
+}
+@keyframes dlgin{from{transform:scale(.97);opacity:.4}to{transform:scale(1);opacity:1}}
+
+/* Wide-screen canvas: the column grows so two-column Today / Me-Read and the
+   multi-column card grids (section 36) have real room — not a stretched mobile
+   strip in a void. The header tracks main so the date control + titles stay
+   aligned to the content. */
+@media (min-width:1100px){
+  header,main{max-width:1040px}
+}
+@media (min-width:1440px){
+  header,main{max-width:1180px}
+}
+@media (min-width:1800px){
+  header,main{max-width:1280px}
+}
+

@@ -18,6 +18,10 @@ const CORE_ASSETS = [
   "/", "/index.html", "/styles.css",
   "/js/bundle-01-core.js", "/js/bundle-02-today.js", "/js/bundle-03-capture-progress.js", "/js/bundle-04-coach-meals.js", "/js/bundle-05-me-health.js", "/js/bundle-06-chat-plan.js", "/js/bundle-07-settings-boot.js",
   "/art.js", "/cairn-body-figure.js", "/manifest.json",
+  // Self-hosted Atelier v2 faces (src/styles/foundation/fonts.css). Core, not
+  // optional: an installed app offline must still set its own type.
+  "/fonts/young-serif-latin-400.woff2", "/fonts/hanken-grotesk-latin-wght.woff2",
+  "/fonts/martian-mono-latin-400.woff2", "/fonts/martian-mono-latin-500.woff2",
 ];
 const OPTIONAL_ASSETS = [
   // Vendored xterm.js for the in-app agent-login terminal (lazy-loaded by the

@@ -1,0 +1,71 @@
+/* -------------------------------------------------------------------
+   34 · Progress — premium editorial
+   ------------------------------------------------------------------- */
+/* The reading-grammar lead sentence ahead of a Progress hero/chart (1RM trend,
+   Volume) — plain words before the numbers, matching Energy/Intake's pattern.
+   Empty (no text) collapses invisibly via :empty. */
+.progress-read{font-size:.92rem;color:var(--ink-2);line-height:1.5;margin:4px 2px 2px;max-width:52ch}
+.progress-read:empty{margin:0}
+.phero{padding:4px 2px 18px}
+.phero-title{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 80;
+  font-size:1.55rem;line-height:1.1;letter-spacing:-.01em;color:var(--ink)}
+.phero-stats{display:flex;gap:28px;margin-top:13px;flex-wrap:wrap}
+.phero-stat{display:flex;flex-direction:column;gap:5px;min-width:0}
+.phero-n{font-size:1.7rem;font-weight:600;letter-spacing:-.01em}
+.phero-n-sm{font-size:1.25rem;line-height:1.45;text-transform:capitalize}
+.chart-foot{display:block;margin:10px 4px 0;text-align:center;letter-spacing:.14em}
+
+.empty-state{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:38px 22px;text-align:center}
+.empty-state .artile{margin:0 auto 14px}
+.empty-state-line{font-family:var(--font-display);font-style:italic;font-weight:480;
+  font-variation-settings:"opsz" 40;font-size:1.05rem;color:var(--ink-2)}
+
+/* history cards */
+.hist-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.hist-kicker{letter-spacing:.16em}
+.hist-day{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 60;
+  font-size:1.35rem;line-height:1.12;margin-top:2px;color:var(--ink)}
+.hist-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;padding-top:3px}
+.hist-chip{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
+  font-size:.76rem;background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-pill);
+  padding:3px 10px;white-space:nowrap;font-variant-numeric:lining-nums;color:var(--ink-2)}
+.hist-line{display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+  padding:7px 0;border-top:1px solid var(--line);font-size:.84rem}
+.hist .hist-line:first-of-type{border-top:none;margin-top:11px}
+.hist-ex{color:var(--ink);font-weight:500;min-width:0}
+.hist-sets{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:500;
+  color:var(--ink-2);text-align:right;font-variant-numeric:lining-nums;font-size:.84rem}
+.hist-sep{color:var(--line-2);margin:0 5px}
+.hist-best{font-weight:680;color:var(--ink);font-size:.94rem}
+.hist-notes{margin-top:10px;font-family:var(--font-display);font-style:italic;
+  font-variation-settings:"opsz" 28;color:var(--muted);font-size:.88rem}
+
+/* calendar month grids — terracotta intensity by sets logged */
+.cal-month{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:15px 16px;margin-bottom:14px}
+.cal-name{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 60;
+  font-size:1.2rem;margin-bottom:10px;color:var(--ink)}
+.cal-dows{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;text-align:center}
+.cal-dows .lbl{letter-spacing:0;font-size:.58rem}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-day{aspect-ratio:1;display:grid;place-items:center;border-radius:9px;
+  font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:520;
+  font-size:.8rem;color:var(--ink-2);font-variant-numeric:lining-nums;
+  transition:transform var(--dur-1) var(--ease)}
+.cal-pad,.cal-out{background:transparent}
+.cal-out{color:#c9c0ad}
+.cl0{background:var(--card-2)}
+.cl1{background:#f4e2d5}
+.cl2{background:#eac3a7}
+.cl3{background:#d49270;color:var(--on-accent)}
+.cl4{background:var(--accent);color:var(--on-accent)}
+.cal-today{outline:2px solid var(--accent);outline-offset:1.5px}
+.cal-has{cursor:pointer}
+.cal-has:active{transform:var(--press-xs)}
+.cal-legend{display:flex;align-items:center;justify-content:center;gap:5px;margin:2px 0 10px;
+  font-family:var(--font-ui);font-size:.6rem;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted)}
+.cal-legend i{width:12px;height:12px;border-radius:4px;display:inline-block}
+.cal-consistency{margin:0 2px 10px;font-size:.85rem;color:var(--muted)}
+

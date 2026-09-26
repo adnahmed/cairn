@@ -64,6 +64,7 @@ failing requests.
 ```bash
 # Local (no Docker)
 npm run dev          # build browser JS from src/client, then tsx watch; http://localhost:8787
+npm run styles:watch # rebuild public/styles.css on every src/styles/ save (run beside dev)
 
 # Override DB location for testing
 DB_PATH=/tmp/test.db npm run dev

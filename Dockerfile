@@ -12,6 +12,7 @@ COPY package*.json tsconfig.json tsconfig.client.build.json ./
 # BuildKit cache mount keeps ~/.npm warm across rebuilds (big win on the Pi).
 RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci
 COPY scripts/build-client.mjs ./scripts/build-client.mjs
+COPY scripts/build-styles.mjs ./scripts/build-styles.mjs
 COPY src ./src
 # The bundling step concatenates every generated client output PLUS the one
 # hand-written classic shim, public/js/10-boot.js (everything else in public/js is
@@ -72,6 +73,7 @@ COPY --from=builder /app/dist ./dist
 COPY public/art.js public/favicon.ico public/index.html public/manifest.json public/styles.css public/sw.js ./public/
 COPY public/icons ./public/icons
 COPY public/vendor ./public/vendor
+COPY public/fonts ./public/fonts
 COPY --from=builder /app/public/cairn-body-figure.js ./public/cairn-body-figure.js
 COPY --from=builder /app/public/js ./public/js
 # Precompressed siblings of the shell files copied from git above. public/js's own

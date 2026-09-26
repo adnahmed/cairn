@@ -1,0 +1,120 @@
+/* -------------------------------------------------------------------
+   The focused Session destination (its own /app/session route)
+   A calm, distraction-free logging surface, lifted OUT of the Today
+   re-render cycle so the "brain" can never rebuild it under your
+   fingers. No global header / tab-bar chrome — just its own quiet
+   sticky top bar over the exercise cards + finish.
+   ------------------------------------------------------------------- */
+body[data-tab="session"] header{display:none}
+body[data-tab="session"] .tabbar{display:none}
+
+.sess-dest{max-width:600px;margin:0 auto}
+
+.sess-topbar{
+  position:sticky;top:0;z-index:var(--z-session-bar);isolation:isolate;
+  display:flex;align-items:center;gap:12px;
+  padding:calc(env(safe-area-inset-top) + 14px) 0 12px;
+  background:var(--paper);
+  box-shadow:0 1px 0 var(--line), 0 10px 16px -12px rgba(72,58,35,.16);
+}
+.sess-close{
+  flex:0 0 auto;width:38px;height:38px;border-radius:50%;
+  display:grid;place-items:center;
+  background:var(--card);border:1px solid var(--line);color:var(--ink);
+  font-size:1.2rem;line-height:1;box-shadow:var(--shadow-sm);
+  transition:transform var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease);
+}
+.sess-close:active{transform:var(--press-sm)}
+.sess-topbar-mid{min-width:0;flex:1}
+.sess-topbar-mid .sess-kicker{margin-bottom:3px}
+.sess-dayname{
+  font-family:var(--font-display);font-weight:560;font-size:1.32rem;
+  line-height:1.15;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.sess-focus{color:var(--muted);font-weight:500;font-size:.95rem}
+.sess-topbar-side{flex:0 0 auto;text-align:right}
+.sess-prog{font-family:var(--font-ui);color:var(--muted);font-size:.82rem;letter-spacing:.02em;white-space:nowrap}
+.sess-prog b{font-family:var(--font-display);color:var(--ink);font-size:1.1rem;font-weight:600}
+.sess-prog-sep{opacity:.55}
+
+.sess-dots{display:flex;gap:6px;padding:0 2px 12px}
+.sess-dot{width:8px;height:8px;border-radius:50%;background:var(--line-2);
+  transition:background var(--dur-2) var(--ease)}
+.sess-dot.on{background:var(--sage)}
+
+.sess-body{padding-bottom:calc(env(safe-area-inset-bottom) + 44px)}
+.sess-dest .plansurface{margin-top:2px}
+.sess-dest .day-switch{padding-top:2px}
+
+/* The pre-session primer — "a coach was already here". A calm editorial card:
+   a lead sentence, three reading-grammar sections (.read-contribs), an approach
+   footnote. Collapses to a one-line strip once the session has logged sets. */
+.sess-primer-slot:empty{display:none}
+.sess-orig{margin-top:4px}
+.sess-line-start{margin-top:8px}
+.sess-primer{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;margin-bottom:12px}
+.sess-primer-head{display:flex;align-items:baseline;gap:10px;width:100%;background:none;border:0;
+  padding:0;text-align:left;cursor:pointer;color:inherit}
+.sess-primer-head-text{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.sess-primer-kicker{color:var(--muted)}
+.sess-primer-why{color:var(--ink);font-size:.95rem;line-height:1.4}
+.sess-primer-chev{flex:0 0 auto;color:var(--muted);font-size:.7rem;transition:transform var(--dur-1) ease;margin-top:2px}
+.sess-primer.collapsed .sess-primer-chev{transform:rotate(-90deg)}
+.sess-primer.collapsed .sess-primer-why{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess-primer-body{display:flex;flex-direction:column;gap:14px;margin-top:13px}
+.sess-primer-lead{margin:0;color:var(--ink-2);font-size:.88rem;line-height:1.45}
+.sess-primer.collapsed .sess-primer-body{display:none}
+.sess-primer-sec{display:flex;flex-direction:column;gap:7px}
+.sess-primer-sec-t{color:var(--muted)}
+.sess-primer-approach{color:var(--ink-2);font-size:.85rem;line-height:1.45;font-style:italic;
+  border-top:1px solid var(--line);padding-top:11px}
+
+/* "new this week" chip — lives in .ex-meta beside the set-progress line (never
+   .ex-top, which overflowed the card on a long exercise name), and on the primer
+   card itself. */
+.sess-fresh-chip{flex:0 0 auto;font-size:.6rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--sage-text);background:var(--sage-bg);border:0;border-radius:99px;padding:3px 9px;cursor:pointer;
+  align-self:center}
+/* "Pair" — a superset partner, beside the set count in .ex-meta. Quieter than the
+   sage "new this week" chip: an outline, never a fill. */
+.ex-pair-chip{flex:0 0 auto;font-size:.6rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 8px;align-self:center}
+.sess-fresh-why{color:var(--ink-2);font-size:.8rem;line-height:1.45;margin-top:6px}
+.feedback-prompt{margin-bottom:2px}
+/* The Session destination is deliberately still — no entrance stagger. Beyond
+   being calmer, it keeps the cards off their own GPU layers so the sticky top
+   bar paints above them (a transformed .reveal card would composite over it). */
+.sess-dest .reveal{animation:none;transform:none}
+
+@media (min-width:960px){
+  body[data-tab="session"] main{max-width:600px;padding:0 24px}
+  body[data-tab="session"] .rest{left:0}
+  body[data-tab="session"] .toast{left:50%}
+}
+
+/* The Today "lead entry" — one calm tap-card that opens the Session destination. */
+.sess-launch{
+  width:100%;display:flex;align-items:center;gap:16px;text-align:left;
+  margin-top:16px;padding:19px 22px;
+  background:var(--card);border:none;border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);cursor:pointer;
+  transition:transform var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease);
+}
+.sess-launch:active{transform:var(--press-lg)}
+@media (hover:hover){.sess-launch:hover{box-shadow:var(--shadow-md)}}
+.sess-launch-body{flex:1;min-width:0}
+.sess-launch-kicker{margin-bottom:6px}
+.sess-launch-title{font-family:var(--font-display);font-weight:560;font-size:1.34rem;
+  line-height:1.15;color:var(--ink)}
+.sess-launch-focus{color:var(--muted);font-weight:500;font-size:1rem}
+.sess-launch-meta{margin-top:6px;color:var(--ink-2);font-size:.85rem}
+.sess-launch-cta{
+  flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;
+  padding:11px 18px;border-radius:var(--radius-pill);background:var(--accent);color:#fff;
+  font-family:var(--font-ui);font-weight:600;font-size:.9rem;letter-spacing:.01em;
+}
+.sess-launch-arrow{transition:transform var(--dur-1) var(--ease)}
+@media (hover:hover){.sess-launch:hover .sess-launch-arrow{transform:translateX(3px)}}
+
