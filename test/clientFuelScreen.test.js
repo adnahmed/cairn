@@ -11,10 +11,17 @@ import { createHost, flush, loadClientModule } from "./_dom.mjs";
 
 const TODAY = "2026-04-25";
 
-function load({ logDate = "" } = {}) {
+function load({ logDate = "", firstPaint = () => null } = {}) {
   const mounts = {};
   const events = [];
   const fakeController = (name, extra = {}) => ({
+    // The read keys Fuel primes on a cold open (the real controllers' own spelling).
+    dayKey: (date) => `food:day:${date}`,
+    bandKey: (date) => `fuel:band:${date}`,
+    dayPath: (date) => `/nutrition/day?date=${date}`,
+    bandPath: (date) => `/nutrition/intake-band?date=${date}`,
+    key: (date) => `fuel:ideas:${date}`,
+    path: (date, hour) => `/fuel/ideas?date=${date}&hour=${hour}`,
     mount: (host, deps) => {
       mounts[name] = { host, deps };
       const handle = () => events.push(`${name}:teardown`);
@@ -60,7 +67,10 @@ function load({ logDate = "" } = {}) {
       meals: (date, today, _token, onChanged) => ({ date, today, onChanged }),
       log: (onLogged) => ({ onLogged }),
       ideas: (date, onStart) => ({ date, onStart }),
+      // Warm by default (null: paint at once); a test hands in a pending first paint.
+      firstPaint: (date, isToday) => firstPaint(date, isToday),
     },
+    CairnFuelToday: { skeletonHtml: () => `<div class="fuel-today-skel"></div>` },
     CairnFuelTodayController: fakeController("today"),
     CairnFuelMealsController: fakeController("meals"),
     CairnFuelLogController: fakeController("log", {
@@ -96,6 +106,41 @@ test("Fuel paints its shell under Today and mounts every component into its slot
   assert.equal(mounts.ideas.host, view.querySelector("#fuelIdeasSlot"));
   assert.equal(mounts.today.deps.date, TODAY);
   assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), false, "history stays folded");
+});
+
+test("a cold open holds the day card's skeleton and writes the surface once the slots' reads answer", async () => {
+  let answer;
+  const asked = [];
+  const { win, view, mounts, state } = load({
+    firstPaint: (date, isToday) => {
+      asked.push([date, isToday]);
+      return new Promise((resolve) => (answer = resolve));
+    },
+  });
+  const painted = win.renderFoodJournal();
+  // The day card's own skeleton holds the top; no slot is mounted yet, so nothing
+  // can fill in and push the others down one by one.
+  assert.ok(view.querySelector(".fuel-today-skel"));
+  assert.equal(view.querySelector("#dayFuelSlot"), null);
+  assert.equal(mounts.today, undefined);
+  assert.deepEqual(asked, [[TODAY, true]]);
+  answer();
+  await painted;
+  assert.equal(state.planSeg, "food");
+  assert.equal(mounts.today.host, view.querySelector("#dayFuelSlot"));
+  assert.equal(mounts.ideas.host, view.querySelector("#fuelIdeasSlot"));
+  assert.equal(view.querySelector(".fuel-today-skel"), null);
+});
+
+test("a cold open whose person has left writes nothing when the reads answer", async () => {
+  let answer;
+  const { win, view, mounts, state } = load({ firstPaint: () => new Promise((resolve) => (answer = resolve)) });
+  const painted = win.renderFoodJournal();
+  state.tab = "today";
+  answer();
+  await painted;
+  assert.equal(mounts.today, undefined);
+  assert.equal(view.querySelector("#dayFuelSlot"), null);
 });
 
 test("a meal logged from the composer refreshes every slot that reads the day", () => {

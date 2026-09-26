@@ -43,6 +43,8 @@ type PrimerHydrateOpts = {
   // Re-checked after the async fetch, right before the DOM write — so a primer
   // resolving after the athlete left this session/date never lands on a new render.
   guard?: () => boolean;
+  // The same read, already in flight (or answered), from a caller that asked it early.
+  pending?: Promise<unknown>;
 };
 
 (() => {
@@ -230,7 +232,9 @@ type PrimerHydrateOpts = {
       if (opts.dayNumber != null && Number.isFinite(Number(opts.dayNumber))) params.push(`day=${encodeURIComponent(String(opts.dayNumber))}`);
       // The literal "?" keeps this a query, not a path param, for both the router
       // and the client-API coverage contract (a bare trailing "?" is harmless).
-      primer = (await api(`/session-primer?${params.join("&")}`)) as SessionPrimerData;
+      // A caller that already asked this exact read (the session render, so the
+      // primer lands in the same frame as the list) hands the answer over.
+      primer = (await (opts.pending ?? api(`/session-primer?${params.join("&")}`))) as SessionPrimerData;
     } catch {
       primer = null;
     }

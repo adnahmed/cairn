@@ -33,6 +33,18 @@ function jpPhaseLabel(kind: unknown): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "Journey";
 }
 
+// Muscle and fuel, in words. A state the server could not read yet ("unknown") is
+// said as that ("fuel not read yet"), never printed as the raw machine word.
+function jpMuscleFuelLine(muscle: unknown, fuel: unknown): string {
+  const said = (area: string, state: unknown): string => {
+    const word = jpText(state).replace(/_/g, " ").toLowerCase();
+    return word && word !== "unknown" ? `${area} ${word}` : `${area} not read yet`;
+  };
+  const line = `${said("muscle", muscle)} · ${said("fuel", fuel)}`;
+  if (line === "muscle not read yet · fuel not read yet") return "Not enough logged yet to read muscle or fuel.";
+  return line.charAt(0).toUpperCase() + line.slice(1);
+}
+
 function jpDate(iso: unknown): string {
   if (typeof fmtShortDate === "function") return fmtShortDate(iso);
   return jpText(iso);
@@ -144,8 +156,7 @@ function jpStrategyHtml(read: JourneyProgressRead | null | undefined): string {
   const timelineLine = timeline
     ? `Likely path: about ${timeline.earliest_weeks}–${timeline.latest_weeks} weeks${timeline.includes_stabilization ? ", including room to stabilize" : ""}.`
     : "";
-  const muscleLabel = jpPhaseLabel(strategy.muscle?.state || "unknown");
-  const fuelLabel = jpPhaseLabel(strategy.fuel?.state || "unknown");
+  const muscleFuel = jpMuscleFuelLine(strategy.muscle?.state, strategy.fuel?.state);
   const actionLabel = jpText(strategy.action?.label)
     || (strategy.action?.status === "recommended" || strategy.action?.kind === "protect_fuel"
       ? "Next protective adjustment"
@@ -157,7 +168,7 @@ function jpStrategyHtml(read: JourneyProgressRead | null | undefined): string {
     ${timelineLine ? `<div class="jprog-sug-meta">${escHtml(timelineLine)}</div>` : ""}
     <div class="jprog-suggestion">
       <div><div class="lbl">What the scale says</div><div class="jprog-sug-reason">${escHtml(strategy.scale?.line || "The trend is still settling.")}</div></div>
-      <div><div class="lbl">Muscle / fuel</div><div class="jprog-sug-reason">${escHtml(`${muscleLabel} · ${fuelLabel}`)}</div></div>
+      <div><div class="lbl">Muscle / fuel</div><div class="jprog-sug-reason">${escHtml(muscleFuel)}</div></div>
     </div>
     <div class="jprog-moment">
       <div class="jprog-moment-mark" aria-hidden="true"></div>

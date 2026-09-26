@@ -32,12 +32,15 @@
       .join("")}</ul></nav>`;
   }
 
-  /** Cold load: six ghost stones in the strip's own shape, nothing said. */
+  /** Cold load: six ghost stones in the strip's own shape and height, nothing said. */
   function skeletonHtml(): string {
     const items = Array.from(
       { length: 6 },
       () =>
-        `<li class="pebble-strip-item"><span class="pebble-strip-pebble"><span class="pebble-strip-stone hshimmer"></span><span class="pebble-strip-ghost hshimmer hshimmer-sm"></span></span></li>`
+        // The ghost label and word lines carry the real lines' type metrics, so the ghost
+        // row is exactly the real row's height and the Brief below never moves when the
+        // stones land.
+        `<li class="pebble-strip-item"><span class="pebble-strip-pebble"><span class="pebble-strip-stone hshimmer"></span><span class="pebble-strip-ghost-line pebble-strip-ghost-label">&nbsp;</span><span class="pebble-strip-ghost-line pebble-strip-ghost-word">&nbsp;</span></span></li>`
     ).join("");
     return `<div class="pebble-strip pebble-strip-skel" aria-busy="true" aria-label="Today's stones"><ul class="pebble-strip-list">${items}</ul></div>`;
   }

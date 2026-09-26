@@ -90,6 +90,8 @@
       else questionsSlot.setAttribute("hidden", "");
       if (on && !questionsTeardown && deps.mountQuestions)
         questionsTeardown = deps.mountQuestions(questionsSlot, onQuestions);
+      // No questions component to mount: the held box has nothing coming to fill it.
+      else if (!questionsTeardown && questionsSlot.querySelector(".vq-skel")) questionsSlot.innerHTML = "";
     }
 
     function apply(report: unknown, qs: string): void {
@@ -126,6 +128,8 @@
       if (preview) preview.innerHTML = V.previewErrorHtml(unreachable);
       if (status) status.textContent = "";
       if (toggles && !options.length) toggles.innerHTML = "";
+      // Nothing loaded, so the questions' held box has nothing coming to fill it.
+      if (questionsSlot && !options.length && !questionsTeardown) questionsSlot.innerHTML = "";
     }
 
     function load(): void {

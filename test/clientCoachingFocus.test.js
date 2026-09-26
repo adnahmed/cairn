@@ -578,3 +578,18 @@ test("the block objective is said once: a card that renders the lead title drops
   const hero = focus.coachingFocusHtml({ ...payload, available: false }, { variant: "hero" });
   assert.match(hero, /This block: Break &lt;plateau&gt;/);
 });
+
+test("Program's card says 'Where to focus' once: Train owns the headline, Program links back", () => {
+  const { focus } = loadCoachingFocus();
+  const program = focus.coachingFocusCardHtml(richFocus, { blockLine: false, actions: true, headline: false });
+  assert.doesNotMatch(program, /Where to focus<\/span>/, "no second masthead");
+  assert.doesNotMatch(program, /class="cfocus-headline"/, "the headline sentence is not repeated");
+  assert.match(program, /The focus plan/);
+  assert.match(program, /data-cfocus-go="train">Where to focus ›<\/button>/);
+  // The plan beneath the headline stays whole here: alongside and the next check-in.
+  assert.match(program, /Alongside/);
+  assert.match(program, /Next check-in/);
+  // Every other surface is untouched.
+  assert.match(focus.coachingFocusCardHtml(richFocus), /class="cfocus-headline"/);
+  assert.match(focus.coachingFocusHtml(richFocus, { variant: "overview" }), /Where to focus/);
+});

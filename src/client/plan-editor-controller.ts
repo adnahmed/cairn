@@ -80,157 +80,6 @@ function planEditorRoot(): HTMLElement | null {
   return $("#planedit");
 }
 
-// The recovery-week banner — a reshaped week announces itself instead of arriving
-// silently. Three states from /plan/recovery-status: review-only DRAFT, an UPCOMING
-// lead-mode week that lands automatically, or the APPLIED lighter week (heads-up +
-// the coach's own summary of what changed + when building resumes). Painted
-// asynchronously into its slot; a null status leaves the plan untouched.
-function planRecoveryBannerHtml(rs: import("../contracts/client.js").ClientRecoveryWeekStatus): string {
-  if (!rs || (rs.state !== "drafted" && rs.state !== "upcoming" && rs.state !== "applied")) return "";
-  if (rs.state === "drafted") {
-    return `<div class="plan-recovery-banner reveal">
-      <span class="lbl plan-recovery-mast">YOUR RECOVERY WEEK</span>
-      <p class="plan-recovery-line">Drafted and waiting — nothing changes until you review and apply it.</p>
-      ${rs.summary ? `<p class="plan-recovery-summary">${escHtml(rs.summary)}</p>` : ""}
-      <button class="draftbtn plan-recovery-review" id="planRecoveryReview" type="button">Review and apply it →</button>
-    </div>`;
-  }
-  if (rs.state === "upcoming") {
-    const when = upcomingWhenLabel(rs.effective_date);
-    return `<div class="plan-recovery-banner reveal">
-      <span class="lbl plan-recovery-mast">YOUR RECOVERY WEEK</span>
-      <p class="plan-recovery-line">Set for ${escHtml(when || rs.effective_date)} — it lands automatically at the week boundary, with no Apply step.</p>
-      ${rs.summary ? `<p class="plan-recovery-summary">${escHtml(rs.summary)}</p>` : ""}
-      <p class="plan-recovery-until">Hold it before then or Undo after it lands; your word always wins.</p>
-    </div>`;
-  }
-  const until = fmtDate(rs.until);
-  return `<div class="plan-recovery-banner plan-recovery-on reveal">
-    <span class="lbl plan-recovery-mast">RECOVERY WEEK</span>
-    <p class="plan-recovery-line">Heads up — this week is deliberately lighter: about half the working volume, same movements, crisp easy efforts. Don't chase PRs; this is where the adaptation lands.</p>
-    ${rs.summary ? `<p class="plan-recovery-summary">${escHtml(rs.summary)}</p>` : ""}
-    ${until ? `<p class="plan-recovery-until">Back to building around ${escHtml(until)}.</p>` : ""}
-  </div>`;
-}
-
-// A local date-label helper (rs.until is a plain YYYY-MM-DD local day).
-function fmtDate(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? ""));
-  if (!m) return "";
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-}
-
-// "lands Monday" for something inside the week, else "Mon, Jul 21" further out —
-// a plain YYYY-MM-DD local day (the decision's effective_date).
-function upcomingWhenLabel(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? ""));
-  if (!m) return "";
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Math.round((d.getTime() - today.getTime()) / 86400000);
-  if (days >= 0 && days <= 6) return d.toLocaleDateString(undefined, { weekday: "long" });
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-}
-
-// The calm forward look: queued training/recovery changes the brain will land
-// soon, one quiet line each. Pull-never-push — a heads-up that a reshaped week is
-// coming, never a retrospective "what your team did" feed. Capped at 2.
-function planUpcomingRowsHtml(items: import("../contracts/client.js").ClientPlanUpcomingItem[]): string {
-  return items
-    .map((it) => {
-      const summary = String(it?.summary ?? "").trim();
-      if (!summary) return "";
-      const when = upcomingWhenLabel(String(it?.effective_date ?? ""));
-      const explanation = String(it?.explanation ?? "").trim();
-      return `<div class="plan-upcoming-item">
-        <p class="plan-upcoming-line">${when ? `<span class="plan-upcoming-when">${escHtml(when)}</span> — ` : ""}${escHtml(summary)}</p>
-        ${explanation ? `<p class="plan-upcoming-why">${escHtml(explanation)}</p>` : ""}
-      </div>`;
-    })
-    .join("");
-}
-
-// Items a section actually renders (non-empty summary) — the same filter
-// planUpcomingRowsHtml applies, kept in sync so the collapsed strip's counts
-// always match what's behind the disclosure.
-function planUpcomingCount(items: import("../contracts/client.js").ClientPlanUpcomingItem[]): number {
-  return items.filter((it) => String(it?.summary ?? "").trim()).length;
-}
-
-function planUpcomingNoteHtml(note: import("../contracts/client.js").ClientPlanUpcomingNote): string {
-  const comingItems = note && Array.isArray(note.items) ? note.items.slice(0, 2) : [];
-  // What already landed, and why — the half that used to vanish the moment a change
-  // took effect, leaving a reshaped week with nothing to explain it.
-  const landedItems = note && Array.isArray(note.landed) ? note.landed.slice(0, 2) : [];
-  // Still waiting on the athlete — shown first, because it is the only one of the
-  // three that is an open question rather than a report. A `for_clinician` row is not
-  // theirs to answer alone: it is for them and their doctor, under its own mast.
-  const awaitingAll = note && Array.isArray(note.awaiting) ? note.awaiting : [];
-  const awaitingItems = awaitingAll.filter((it) => !it?.for_clinician).slice(0, 2);
-  const clinicianItems = awaitingAll.filter((it) => !!it?.for_clinician).slice(0, 2);
-  const rows = planUpcomingRowsHtml(comingItems);
-  const landedRows = planUpcomingRowsHtml(landedItems);
-  const awaitingRows = planUpcomingRowsHtml(awaitingItems);
-  const clinicianRows = planUpcomingRowsHtml(clinicianItems);
-  if (!rows.trim() && !landedRows.trim() && !awaitingRows.trim() && !clinicianRows.trim()) return "";
-  // Collapsed by default: a single footnote-weight strip naming only the sections
-  // that have items, so "Waiting on you" stays discoverable without reprinting the
-  // full rationale paragraphs every time the plan opens. One tap expands to the
-  // full content below; the plan itself never has to scroll past this to be seen.
-  const strip = [
-    awaitingRows.trim() ? `Waiting on you (${planUpcomingCount(awaitingItems)})` : "",
-    clinicianRows.trim() ? `For you and your doctor (${planUpcomingCount(clinicianItems)})` : "",
-    rows.trim() ? `Coming up (${planUpcomingCount(comingItems)})` : "",
-    landedRows.trim() ? `Where this came from (${planUpcomingCount(landedItems)})` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return `<details class="plan-upcoming reveal">
-    <summary><span class="lbl plan-upcoming-strip">${escHtml(strip)}</span></summary>
-    <div class="plan-upcoming-body">
-      ${awaitingRows.trim() ? `<span class="lbl plan-upcoming-mast">Waiting on you</span>${awaitingRows}` : ""}
-      ${clinicianRows.trim() ? `<span class="lbl plan-upcoming-mast">For you and your doctor</span>${clinicianRows}` : ""}
-      ${rows.trim() ? `<span class="lbl plan-upcoming-mast">Coming up</span>${rows}` : ""}
-      ${landedRows.trim() ? `<span class="lbl plan-upcoming-mast">Where this came from</span>${landedRows}` : ""}
-    </div>
-  </details>`;
-}
-
-// Shared by the Plan edit segment and the endurance segment (both under the
-// "plan" tab) — paints into whichever slot the caller owns.
-function loadPlanUpcomingNote(token: number, slotSel = "#planUpcomingSlot"): void {
-  void api("/plan/upcoming")
-    .then((note) => {
-      if (token !== pollToken || state.tab !== "plan") return;
-      const slot = $(slotSel);
-      if (!slot) return;
-      slot.innerHTML = planUpcomingNoteHtml(note as import("../contracts/client.js").ClientPlanUpcomingNote);
-    })
-    .catch(() => {});
-}
-
-/** Connected week strip for Strength + Endurance. Returns annotations for gallery chips. */
-function loadPlanWeekStrip(
-  token: number,
-  slotSel = "#planWeekSlot",
-  onWeek?: (week: import("../contracts/client.js").ClientPlanWeek) => void
-): void {
-  void api("/plan/week")
-    .then((week) => {
-      if (token !== pollToken || state.tab !== "plan") return;
-      const slot = view.querySelector(slotSel) || $(slotSel);
-      if (slot && typeof CairnPlanWeek !== "undefined") {
-        slot.innerHTML = CairnPlanWeek.stripHtml(week);
-      }
-      if (onWeek && week && typeof week === "object") {
-        onWeek(week as import("../contracts/client.js").ClientPlanWeek);
-      }
-    })
-    .catch(() => {});
-}
-
 // ---------- redraw my week ----------
 // A training-STRUCTURE request ("build my week around my six anchors", "drop to three
 // days", "move heavy legs to Thursday") used to have exactly one door: knowing the magic
@@ -402,8 +251,8 @@ function pollPlanRedraw(token: number, tries: number): void {
 
 // Read once on render, so a reload never loses an in-flight redraw and a failed one is
 // still visible the next time the tab opens.
-function loadPlanRedraw(token: number): void {
-  void api("/plan/redraw")
+function loadPlanRedraw(token: number, pending?: Promise<unknown>): void {
+  void (pending ?? api("/plan/redraw"))
     .then((data) => {
       if (token !== pollToken || state.tab !== "plan") return;
       const status = data as PlanRedrawStatus;
@@ -438,21 +287,6 @@ function paintExerciseNameOptions(rows: unknown): void {
     .map((row) => (row && typeof row === "object" ? String((row as { name?: unknown }).name || "") : ""))
     .filter(Boolean);
   list.innerHTML = names.map((name) => `<option value="${escAttr(name)}">`).join("");
-}
-
-function loadPlanRecoveryBanner(token: number): void {
-  void api("/plan/recovery-status")
-    .then((rs) => {
-      if (token !== pollToken || state.tab !== "plan") return;
-      const slot = $("#planRecoverySlot");
-      if (!slot) return;
-      slot.innerHTML = planRecoveryBannerHtml(rs as import("../contracts/client.js").ClientRecoveryWeekStatus);
-      $("#planRecoveryReview")?.addEventListener("click", () => {
-        state.planJump = "coach";
-        activateTab("plan");
-      });
-    })
-    .catch(() => {});
 }
 
 function planEditorRecord(value: unknown): Record<string, unknown> {
@@ -554,6 +388,7 @@ async function renderPlanEditor(): Promise<void> {
   const token = ++pollToken;
   const peek = peekCached<PlanEditorControllerApiDay[]>("plan");
   if (!peek) view.innerHTML = segSkeleton("plan", PROGRESS_SEG, 3);
+  const heads = CairnPlanHead.headReads();
   const revalidate = cachedApi("/plan", {
     key: "plan",
     onUpgrade: (_data, { changed }) => {
@@ -565,6 +400,21 @@ async function renderPlanEditor(): Promise<void> {
     },
   });
   const plan = peek ? peek.data : await revalidate.catch(() => []);
+  // Lift days only. A rest day or a run-only day an older payload still carries is
+  // not edited here (runs live in Endurance; rest is the calendar), and the next save
+  // writes the strength week alone.
+  const model: PlanEditorControllerModelDay[] = strengthPlanDays(Array.isArray(plan) ? plan : []).map((day) =>
+    helpers.dayModelFromPlan(day)
+  );
+  // The redraw strip exists only over a week with work in it (see planIsBlank below),
+  // so its read waits for the plan and is never asked for a blank page.
+  const redrawRead = model.some((day) => (Array.isArray(day.items) ? day.items : []).length > 0)
+    ? CairnPlanHead.headRead("/plan/redraw")
+    : null;
+  await settledWithin(
+    [heads.week, heads.recovery, heads.upcoming, ...(redrawRead ? [redrawRead] : [])],
+    peek ? CairnPlanHead.WARM_WAIT_MS : CairnPlanHead.WAIT_MS
+  );
   if (token !== pollToken || state.tab !== "plan") return;
   if (peek && !peek.fresh) markRefreshing(true);
 
@@ -576,16 +426,10 @@ async function renderPlanEditor(): Promise<void> {
     <div id="planstatus" style="margin-top:8px;color:var(--muted);font-size:.82rem"></div>${calFooter}
     <datalist id="exerciseNames"></datalist>`;
   wireSeg(PROGRESS_LINK_HANDLERS);
-  loadPlanRecoveryBanner(token);
-  loadPlanUpcomingNote(token);
+  CairnPlanHead.loadRecoveryBanner(token, heads.recovery);
+  loadPlanUpcomingNote(token, "#planUpcomingSlot", heads.upcoming);
   loadExerciseNameOptions(token);
 
-  // Lift days only. A rest day or a run-only day an older payload still carries is
-  // not edited here (runs live in Endurance; rest is the calendar), and the next save
-  // writes the strength week alone.
-  const model: PlanEditorControllerModelDay[] = strengthPlanDays(Array.isArray(plan) ? plan : []).map((day) =>
-    helpers.dayModelFromPlan(day)
-  );
   view.querySelector<HTMLElement>("[data-plan-runs]")?.addEventListener("click", () => {
     state.planJump = state.planSeg = "endurance"; activateTab("plan"); // the race view is Horizon's
   });
@@ -609,7 +453,7 @@ async function renderPlanEditor(): Promise<void> {
     // Re-draw gallery cards with weekday/status once the week lands — skip if editing.
     if (view.querySelector(".pday") || document.querySelector(".savebar.show")) return;
     draw();
-  });
+  }, heads.week);
 
   function markDirty(): void {
     planBar?.markDirty();
@@ -840,7 +684,7 @@ async function renderPlanEditor(): Promise<void> {
 
   // A blank plan already has the compose-week entry — asking to REDRAW a week that does
   // not exist yet would be two doors to the same empty room.
-  if (!planIsBlank()) loadPlanRedraw(token);
+  if (!planIsBlank()) loadPlanRedraw(token, redrawRead ?? undefined);
 
   draw();
 }
@@ -848,20 +692,16 @@ async function renderPlanEditor(): Promise<void> {
 const CAIRN_PLAN_EDITOR_CONTROLLER = {
   render: renderPlanEditor,
   serializeDays: (model: PlanEditorControllerModelDay[]) => planForm().serializeDays(model),
-  planRecoveryBannerHtml,
+  planRecoveryBannerHtml: (rs: import("../contracts/client.js").ClientRecoveryWeekStatus) => CairnPlanHead.recoveryBannerHtml(rs),
 };
 
 Object.assign(globalThis, {
   CairnPlanEditorController: CAIRN_PLAN_EDITOR_CONTROLLER,
   renderPlanEditor,
-  loadPlanUpcomingNote,
-  loadPlanWeekStrip,
 });
 
 if (typeof window !== "undefined") {
   window.CairnPlanEditorController = CAIRN_PLAN_EDITOR_CONTROLLER;
   window.renderPlanEditor = renderPlanEditor;
-  window.loadPlanUpcomingNote = loadPlanUpcomingNote;
-  window.loadPlanWeekStrip = loadPlanWeekStrip;
 }
 })();

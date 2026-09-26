@@ -110,6 +110,8 @@
   const CAIRN_FUEL_TODAY_CONTROLLER = {
     dayKey,
     bandKey,
+    dayPath,
+    bandPath,
     mount: mountFuelToday,
   };
 

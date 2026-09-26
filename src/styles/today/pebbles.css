@@ -31,8 +31,10 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 }
 .pebble-strip.is-entering .pebble-strip-stone{animation:pebble-settle var(--dur-3) var(--ease) both;
   animation-delay:calc(min(var(--i,0),12) * 60ms)}
-.pebble-strip-skel .pebble-strip-stone.hshimmer{margin:0 0 var(--space-1);width:40px;height:20px;border-radius:50%}
-.pebble-strip-skel .pebble-strip-ghost{margin:0;width:70%;height:var(--space-4)}
+.pebble-strip-skel .pebble-strip-stone.hshimmer{margin:0 0 var(--space-1);width:40px;height:28px;border-radius:50%}
+.pebble-strip-skel .pebble-strip-ghost-line{width:62%;border-radius:6px;background:var(--card-2);color:transparent}
+.pebble-strip-ghost-label{font-size:clamp(.6rem,3cqi,.74rem);line-height:1.2}
+.pebble-strip-ghost-word{width:48%;font-family:var(--font-display);font-size:clamp(.66rem,3.3cqi,.8rem);line-height:1.2}
 @media (prefers-reduced-motion:reduce){
   .pebble-strip.is-entering .pebble-strip-stone{animation:none}
 }
@@ -123,6 +125,11 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 .tfuel-idea:active{transform:var(--press-xs)}
 .tfuel[data-attention="lead"],.tfuel-slot[data-attention="lead"] .tfuel{border-color:var(--line-strong)}
 .tfuel-skel .tfuel-meters .hshimmer{display:block;height:14px;border-radius:7px}
+.tfuel-log-ghost{visibility:hidden;cursor:default}
+/* the idea row's skeleton holds the real row's box: kicker, serif title, numbers */
+.tfuel-idea-skel{display:block;height:77px;box-sizing:border-box;overflow:hidden;cursor:default}
+.tfuel-idea-skel .hshimmer{display:block;margin:4px 0 0;height:12px}
+.tfuel-idea-skel .hshimmer+.hshimmer{margin-top:10px;height:18px;width:70%}
 @media (prefers-reduced-motion:reduce){.tfuel-bar i{animation:none}}
 
 /* =====================================================================

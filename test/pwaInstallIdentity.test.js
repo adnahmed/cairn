@@ -168,6 +168,7 @@ const PERSISTED_KEYS = {
 // a launch, so they are listed only so the sweep below knows them.
 const NOT_PERSISTED = new Set([
   "cairn.today.plan.v2",
+  "cairn.session.surface.v1", // the Session destination's instant paint (v2 wave 6C)
   "cairn.stand.v1",
   "cairn.endurance.v4",
   "cairn-art-miss", // art-memory-client: images the server just answered "not drawn yet"

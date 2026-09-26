@@ -113,11 +113,18 @@
     </section>`;
   }
 
-  /** Cold start: the card's own shape, so nothing jumps when the numbers land. */
-  function skeletonHtml(): string {
+  /**
+   * Cold start: the card's own shape, so nothing jumps when the numbers land — the
+   * idea row included unless the last-known ideas carried none (most days carry one).
+   */
+  function skeletonHtml(opts: { idea?: boolean } = {}): string {
+    const idea =
+      opts.idea === false
+        ? ""
+        : `<div class="tfuel-idea tfuel-idea-skel" aria-hidden="true"><span class="hshimmer hshimmer-sm"></span><span class="hshimmer"></span></div>`;
     return `<section class="tfuel tfuel-skel" aria-busy="true" aria-label="Fuel today">
-      <div class="tfuel-head"><span class="lbl">Fuel today</span></div>
-      <div class="tfuel-meters"><span class="hshimmer hshimmer-sm"></span><span class="hshimmer hshimmer-sm"></span></div>
+      <div class="tfuel-head"><span class="lbl">Fuel today</span><span class="tfuel-log tfuel-log-ghost" aria-hidden="true">Log a meal</span></div>
+      <div class="tfuel-meters"><span class="hshimmer hshimmer-sm"></span><span class="hshimmer hshimmer-sm"></span></div>${idea}
     </section>`;
   }
 
@@ -149,11 +156,16 @@
     const warmDay = deps.peek<unknown>(dayKey(deps.date));
     const warmIdeas = deps.peek<unknown>(ideasKey(deps.date));
     if (warmIdeas && isIdeas(warmIdeas.data)) ideas = warmIdeas.data;
+    // Cold: the card paints once BOTH reads have answered (the idea row lives under
+    // the meters, and landing second it grew the card under the reader's eye).
+    let ideasSettled = !!warmIdeas;
     if (warmDay && isDay(warmDay.data)) {
       day = warmDay.data;
       paint();
     } else {
-      host.innerHTML = skeletonHtml();
+      const lastHadIdea =
+        !!warmIdeas && isIdeas(warmIdeas.data) && !!warmIdeas.data.ideas?.some((idea) => idea && typeof idea.title === "string" && idea.title.trim());
+      host.innerHTML = skeletonHtml({ idea: warmIdeas ? lastHadIdea : true });
     }
 
     const onClick = (event: Event): void => {
@@ -165,17 +177,19 @@
     deps
       .load<unknown>(ideasPath(deps.date), { key: ideasKey(deps.date) })
       .then((data) => {
-        if (!isIdeas(data)) return;
-        ideas = data;
-        if (isDay(day)) paint();
+        if (isIdeas(data)) ideas = data;
       })
-      .catch(() => {});
+      .catch(() => {})
+      .then(() => {
+        ideasSettled = true;
+        if (isDay(day)) paint();
+      });
     deps
       .load<unknown>(dayPath(deps.date), { key: dayKey(deps.date) })
       .then((data) => {
         if (!isDay(data)) return;
         day = data;
-        paint();
+        if (ideasSettled || painted) paint();
       })
       .catch(() => {
         // No read to speak from: the slot leaves the page rather than shimmering on,

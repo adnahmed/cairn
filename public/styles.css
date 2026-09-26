@@ -3400,11 +3400,17 @@ body.sheet-open{overflow:hidden}
 .phero-line{font-family:var(--font-display);font-weight:400;font-size:1.62rem;line-height:1.14;
   letter-spacing:-.005em;color:var(--ink);margin:0;text-wrap:balance;max-width:24ch}
 .phero-fact{display:block;margin-top:10px;color:var(--muted)}
+.phero-meta{display:block;margin-top:4px;color:var(--muted);opacity:.8;text-align:left}
 
 /* ---- Train's one-level nav ----
    A deeper leaf wears one quiet step back to its landing (the .home-back look);
    a landing lists its deeper leaves as hairline rows: name, one muted line, chevron. */
 .train-crumb{display:inline-block;margin:0 0 10px}
+/* the Fuel trends' one quiet way to logging (Fuel owns it): a text link, never a card */
+.train-fuel-link{display:inline-block;margin:0 0 14px;font-size:var(--text-sm);color:var(--ink2);
+  text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.train-crumb+.train-fuel-link{margin-left:14px}
+.train-fuel-link:hover{color:var(--ink);text-decoration-color:var(--ink)}
 .train-deeper{margin:24px 0 8px}
 .train-deeper-kick{display:block;margin:0 0 2px}
 .train-deeper-row{width:100%;display:flex;align-items:center;gap:12px;text-align:left;color:inherit;font:inherit;
@@ -4350,6 +4356,12 @@ body.swr-busy::after{
 .nprog-read h1{font-family:var(--font-display);font-size:1.42rem;font-weight:520;line-height:1.28;
   max-width:28ch;margin:8px 0;color:var(--ink)}
 .nprog-read>p{max-width:62ch;margin:0;color:var(--ink-2);font-size:.88rem;line-height:1.55}
+.nprog-more{margin-top:4px}
+.nprog-more>summary{cursor:pointer;list-style:none;display:inline-block;font-size:var(--text-sm);color:var(--ink-2);
+  text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong);padding:4px 0}
+.nprog-more>summary::-webkit-details-marker{display:none}
+.nprog-more>p{max-width:62ch;margin:8px 0 0;color:var(--ink-2);font-size:.88rem;line-height:1.55}
+.nprog-more>.nprog-more-read{color:var(--ink)}
 .nprog-next{margin-top:14px;padding:10px 13px;color:var(--ink-2);font-size:.88rem;line-height:1.45}
 .nprog-next .lbl{display:block;margin-bottom:4px;color:var(--accent-deep)}
 .nprog-picks{gap:7px;padding:2px 1px 4px} /* scroller + edge fade: .rail */
@@ -6993,6 +7005,10 @@ button.prow-name:hover{color:var(--accent)}
   transition:transform .15s ease,color .15s ease}
 .cfocus-full-link:hover{transform:translateX(2px);color:var(--sage-deep)}
 .cfocus-full-link:active{transform:var(--press-sm)}
+/* Program's card under Train's headline: its own mast, and the way back beside it */
+.cfocus-plan-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:8px}
+.cfocus-plan-head .cfocus-mast{margin-bottom:0}
+.cfocus-plan-head .cfocus-full-link{padding:0;flex:none}
 
 /* domain tag — a quiet reused label, no new glyph vocabulary */
 .cfocus-dom{flex:0 0 auto;color:var(--muted);letter-spacing:.1em}
@@ -7845,6 +7861,14 @@ ul.packet-rows{list-style:none;padding-left:0}
 .packet-disclaimer{margin:0;font-size:var(--text-xs);color:var(--muted);line-height:1.45}
 .packet-empty+.packet-disclaimer{margin-top:var(--space-5);text-align:center}
 .packet-skel{box-shadow:none;margin:0}
+/* Skeletons in the final shape: six toggle rows, then the questions' box, so the
+   real list lands where the shimmer was and the actions below never jump. */
+.packet-toggle-skel{min-height:48px;box-sizing:border-box}
+.packet-toggle-skel .hshimmer{margin:0}
+.packet-switch-skel{width:48px;height:26px;border-radius:var(--radius-pill);flex:0 0 auto}
+.vq-skel .vq-head .hshimmer{margin:0;width:40%}
+.vq-add-skel{height:44px;border-radius:var(--radius-pill);margin:0}
+.vq-loading{min-height:14rem}
 .vq{display:grid;gap:var(--space-5)}
 .vq-list{margin:0;padding:0;list-style:none;display:grid;gap:var(--space-2)}
 .vq-item{display:flex;align-items:flex-start;gap:var(--space-5);padding:var(--space-4) 0;border-top:1px solid var(--line)}
@@ -8045,8 +8069,10 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 }
 .pebble-strip.is-entering .pebble-strip-stone{animation:pebble-settle var(--dur-3) var(--ease) both;
   animation-delay:calc(min(var(--i,0),12) * 60ms)}
-.pebble-strip-skel .pebble-strip-stone.hshimmer{margin:0 0 var(--space-1);width:40px;height:20px;border-radius:50%}
-.pebble-strip-skel .pebble-strip-ghost{margin:0;width:70%;height:var(--space-4)}
+.pebble-strip-skel .pebble-strip-stone.hshimmer{margin:0 0 var(--space-1);width:40px;height:28px;border-radius:50%}
+.pebble-strip-skel .pebble-strip-ghost-line{width:62%;border-radius:6px;background:var(--card-2);color:transparent}
+.pebble-strip-ghost-label{font-size:clamp(.6rem,3cqi,.74rem);line-height:1.2}
+.pebble-strip-ghost-word{width:48%;font-family:var(--font-display);font-size:clamp(.66rem,3.3cqi,.8rem);line-height:1.2}
 @media (prefers-reduced-motion:reduce){
   .pebble-strip.is-entering .pebble-strip-stone{animation:none}
 }
@@ -8137,6 +8163,11 @@ a.pebble-strip-pebble:active{transform:var(--press-sm)}
 .tfuel-idea:active{transform:var(--press-xs)}
 .tfuel[data-attention="lead"],.tfuel-slot[data-attention="lead"] .tfuel{border-color:var(--line-strong)}
 .tfuel-skel .tfuel-meters .hshimmer{display:block;height:14px;border-radius:7px}
+.tfuel-log-ghost{visibility:hidden;cursor:default}
+/* the idea row's skeleton holds the real row's box: kicker, serif title, numbers */
+.tfuel-idea-skel{display:block;height:77px;box-sizing:border-box;overflow:hidden;cursor:default}
+.tfuel-idea-skel .hshimmer{display:block;margin:4px 0 0;height:12px}
+.tfuel-idea-skel .hshimmer+.hshimmer{margin-top:10px;height:18px;width:70%}
 @media (prefers-reduced-motion:reduce){.tfuel-bar i{animation:none}}
 
 /* =====================================================================

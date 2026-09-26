@@ -241,6 +241,14 @@ function renderFoodJournal(options: { history?: boolean } = {}): Promise<unknown
   const date = state.logDate || today;
   // Logging and ideas are about the rest of TODAY; another day is read and corrected only.
   const isToday = date === today;
+  const primed = CairnFuelDeps.firstPaint(date, isToday); // cold: the slots' reads first, then ONE write
+  if (!primed) return paintFoodJournal(token, date, today, isToday, options);
+  view.innerHTML = `${homeBackHtml("today", "Today")}<section class="meal-energy food-journal fuel" aria-busy="true"><div class="fuel-slot">${CairnFuelToday.skeletonHtml()}</div></section>`;
+  wireHomeBack(view);
+  return primed.then(() => (token === pollToken && state.tab === "plan" && state.planSeg === "food" ? paintFoodJournal(token, date, today, isToday, options) : undefined));
+}
+
+function paintFoodJournal(token: number, date: string, today: string, isToday: boolean, options: { history?: boolean }): Promise<unknown> {
   // Fuel opens from Today (its Fuel card), so it steps back there.
   view.innerHTML =
     homeBackHtml("today", "Today") +

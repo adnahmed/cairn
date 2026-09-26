@@ -34,14 +34,15 @@ const HISTORY_LEAD = 6;
 // freshly-written DOM each call (warm peek + changed revalidate both route here).
 function paintHistoryBody(sessions: HistorySession[]) {
   const head = segBar("sessions", PROGRESS_SEG);
-  if (!sessions.length) {
+  const shown = CairnProgressHistoryModel.listed(sessions);
+  if (!shown.length) {
     view.innerHTML = head + progressHero("Training history", []) +
       emptyStateHtml(art("exercise", "barbell squat"), "No sessions logged yet — your story starts on Today.");
     wireSeg(PROGRESS_HANDLERS);
     return;
   }
   // One voice line and one fact; pounds moved lives on Volume, one tap deeper.
-  const summary = CairnProgressHistoryModel.summary(sessions);
+  const summary = CairnProgressHistoryModel.summary(shown);
   const month = summary.monthSessions;
   const hero = progressHero("Training history", [], {
     line: month
@@ -50,8 +51,8 @@ function paintHistoryBody(sessions: HistorySession[]) {
     fact: summary.sets30 ? `${summary.sets30} set${summary.sets30 === 1 ? "" : "s"} · last 30 days` : "",
   });
   // The latest sessions lead; the rest of the month folds under one line, one tap away.
-  const lead = sessions.slice(0, HISTORY_LEAD);
-  const earlier = sessions.slice(HISTORY_LEAD);
+  const lead = shown.slice(0, HISTORY_LEAD);
+  const earlier = shown.slice(HISTORY_LEAD);
   const more = earlier.length
     ? `<details class="hist-more"><summary class="hist-more-sum">${earlier.length} earlier session${earlier.length === 1 ? "" : "s"}</summary>
         <div class="sess-grid">${earlier.map((s, i) => sessionCardHtml(s, Math.min(12, i + 1))).join("")}</div></details>`
@@ -61,7 +62,7 @@ function paintHistoryBody(sessions: HistorySession[]) {
   runCountUps(view);
   // Tap a past session → edit its logged sets + notes (corrections flow into the brain).
   const openFrom = (card: Element) => {
-    const sess = sessions.find((s) => s.id === Number((card as HTMLElement).dataset.sessid));
+    const sess = shown.find((s) => s.id === Number((card as HTMLElement).dataset.sessid));
     if (sess) openSessionEdit(sess, card);
   };
   view.querySelectorAll(".hist-tap[data-sessid]").forEach((card) => {
@@ -118,6 +119,8 @@ async function openSessionEdit(sess: HistorySession, fromEl: Element) {
       swrInvalidate("history:sessions");
       swrInvalidate("stats");
       swrInvalidate("progress:volume");
+      swrInvalidate("progress:volume-balance");
+      swrInvalidate("progress:1rm:");
       if (sess.date) swrInvalidate("today:session:" + sess.date);
       closeDetail(true);
       renderHistory();

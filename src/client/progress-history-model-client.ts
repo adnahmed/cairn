@@ -73,14 +73,31 @@ function progressHistoryEditGroups(session: HistorySession): ProgressHistoryEdit
 function progressHistorySummary(sessions: HistorySession[], now: Date = new Date()): ProgressHistorySummary {
   const ym = localISO(now).slice(0, 7);
   const iso30 = localISO(new Date(now.getTime() - 30 * 864e5));
-  const monthSessions = sessions.filter((session) => progressHistoryString(session.date).slice(0, 7) === ym).length;
+  // Only days with work in them count; an empty shell is not a session trained.
+  const monthSessions = sessions.filter(
+    (session) => progressHistoryHasSets(session) && progressHistoryString(session.date).slice(0, 7) === ym
+  ).length;
   const sets30 = sessions
     .filter((session) => progressHistoryString(session.date) >= iso30)
     .reduce((total, session) => total + (session.sets || []).length, 0);
   return { monthSessions, sets30 };
 }
 
+// A session with no logged sets is not a training day in the History list: a Garmin
+// shell waiting on its reconcile, or a day opened and never used, printed as an empty
+// "No sets" card. It stays out of the headline counts, and out of the list unless it
+// carries the athlete's own notes — then it is still one tap away to read or fix.
+function progressHistoryHasSets(session: HistorySession): boolean {
+  return (session.sets || []).length > 0;
+}
+
+function progressHistoryListed(sessions: HistorySession[]): HistorySession[] {
+  return sessions.filter((session) => progressHistoryHasSets(session) || progressHistoryString(session.notes).trim() !== "");
+}
+
 const CAIRN_PROGRESS_HISTORY_MODEL = {
+  listed: progressHistoryListed,
+  hasSets: progressHistoryHasSets,
   rows: progressHistoryRows,
   string: progressHistoryString,
   number: progressHistoryNumber,

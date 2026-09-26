@@ -154,7 +154,29 @@
     };
   }
 
-  const CAIRN_FUEL_DEPS = { draft, retryStore, today, meals, log, ideas };
+  // The reads behind Fuel's top slots (the day, the intake band, the ideas). Each slot
+  // used to paint its own skeleton and fill in on its own answer, and every answer
+  // pushed the slots under it down (the meals list and the day card both grow). On a
+  // cold open they are asked together up front, through the SAME cache keys the slots
+  // read, and the surface is written once they have answered — so every slot paints
+  // from its warm peek in one frame. Bounded: a slow read fills in when it lands.
+  // Returns null when every read is already warm (paint at once).
+  const FIRST_PAINT_WAIT_MS = 1500;
+  function firstPaint(date: string, isToday: boolean): Promise<void> | null {
+    const T = CairnFuelTodayController;
+    const I = CairnIdeaCardController;
+    const reads: Array<[string, string]> = [
+      [T.dayPath(date), T.dayKey(date)],
+      [T.bandPath(date), T.bandKey(date)],
+      ...(isToday ? ([[I.path(date, hour()), I.key(date)]] as Array<[string, string]>) : []),
+    ];
+    if (reads.every(([, key]) => !!peekCached(key))) return null;
+    const pending = reads.map(([path, key]) => cachedApi(path, { key }));
+    for (const read of pending) read.catch(() => {});
+    return settledWithin(pending, FIRST_PAINT_WAIT_MS);
+  }
+
+  const CAIRN_FUEL_DEPS = { draft, retryStore, today, meals, log, ideas, firstPaint };
 
   Object.assign(globalThis, { CairnFuelDeps: CAIRN_FUEL_DEPS });
 }

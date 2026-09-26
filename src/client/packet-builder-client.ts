@@ -25,7 +25,7 @@
       <p class="hshare-copy">Choose what goes in. The preview is what your doctor sees, in clinical panel order with the lab's own flags.</p>
     </div>
     <div class="packet-toggles" data-packet-toggles>${togglesSkeletonHtml()}</div>
-    <div class="packet-questions" data-packet-questions-slot></div>
+    <div class="packet-questions" data-packet-questions-slot>${questionsSkeletonHtml()}</div>
     <div class="packet-actions">
       <button type="button" class="logbtn packet-act" data-packet-open>Open the packet</button>
       <button type="button" class="ghostbtn packet-act" data-packet-text>Download as text</button>
@@ -38,8 +38,25 @@
   </section>`;
   }
 
+  /**
+   * The server's section catalog is a fixed list (`REPORT_SECTIONS`, six rows), so the
+   * skeleton draws six toggle-shaped rows: the real list lands in the same box and
+   * nothing below it moves.
+   */
+  const SKELETON_TOGGLE_ROWS = 6;
+
   function togglesSkeletonHtml(): string {
-    return `<div class="skel-card packet-skel" aria-hidden="true"><div class="hshimmer"></div><div class="hshimmer"></div><div class="hshimmer hshimmer-sm"></div></div>`;
+    const row = `<li class="packet-toggle packet-toggle-skel"><span class="packet-toggle-label"><span class="hshimmer hshimmer-sm"></span></span><span class="hshimmer packet-switch-skel"></span></li>`;
+    return `<ul class="packet-toggle-list" aria-hidden="true">${row.repeat(SKELETON_TOGGLE_ROWS)}</ul>`;
+  }
+
+  /**
+   * The visit questions ride in by default: hold their box (a head, two question rows,
+   * the add row) until the component mounts over it. A packet that leaves them out
+   * hides the slot, which drops this with it.
+   */
+  function questionsSkeletonHtml(): string {
+    return `<div class="vq vq-skel" aria-hidden="true"><div class="vq-head"><span class="hshimmer hshimmer-sm"></span></div><div class="vq-body vq-loading"></div><div class="hshimmer vq-add-skel"></div></div>`;
   }
 
   /** One row per section: its label and an Include / Leave out segmented toggle. */

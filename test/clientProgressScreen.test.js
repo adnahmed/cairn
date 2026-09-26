@@ -34,6 +34,7 @@ function loadProgressScreen() {
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-data-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/05-progress.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-volume-route-client.js"), "utf8"), context);
   return context;
 }
 
@@ -213,6 +214,7 @@ function loadProgressScreenWithDom() {
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-data-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-components-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/05-progress.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-volume-route-client.js"), "utf8"), context);
   return { context, view };
 }
 
@@ -266,4 +268,104 @@ test("mountGoalPaceChart inserts the goal-pace card into #weightLeadMount, ahead
   // No throw, and the canvas lookup still resolves (mountGoalPaceChart hides it).
   const canvas = view.querySelector("#chart");
   assert.ok(canvas, "the canvas element is still discoverable");
+});
+
+// ---------- Volume: the balance read rides the same paint as the bars ----------
+function loadVolumeRoute({ peeks = {}, answers = {} } = {}) {
+  const slot = { innerHTML: "", isConnected: true };
+  const writes = [];
+  const view = {
+    _html: "",
+    get innerHTML() {
+      return this._html;
+    },
+    set innerHTML(value) {
+      this._html = value;
+      writes.push(value);
+      slot.innerHTML = "";
+    },
+    querySelector(selector) {
+      return selector === "#volBalanceSlot" && this._html.includes('id="volBalanceSlot"') ? slot : null;
+    },
+  };
+  const pending = {};
+  const context = {
+    Object, Math, Number, String, Array, Date, JSON, Map, Promise, isFinite, isNaN, setTimeout, clearTimeout,
+    stagger: (i) => `--i:${i}`,
+    art: () => "",
+    wireSeg: () => {},
+    runCountUps: () => {},
+    segBar: (active) => `<seg>${active}</seg>`,
+    segSkeleton: () => `<div class="skel"></div>`,
+    headerTitle: { textContent: "" },
+    markRefreshing: () => {},
+    PROGRESS_SEG: [],
+    PROGRESS_HANDLERS: {},
+    state: { tab: "progress", progressSeg: "volume" },
+    view,
+    pollToken: 0,
+    document: { createElement: () => ({}) },
+    peekCached: (key) => (key in peeks ? { data: peeks[key], fresh: true } : null),
+    cachedApi: (path) =>
+      new Promise((resolve) => {
+        pending[path] = resolve;
+        if (path in answers) resolve(answers[path]);
+      }),
+    settledWithin: (reads, ms) =>
+      new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        Promise.allSettled(reads).then(() => {
+          clearTimeout(timer);
+          resolve();
+        });
+      }),
+    // The shared SWR painter, reduced to its contract: a peek paints at once, the read
+    // paints when it answers.
+    paintSWR: async ({ path, peek, render }) => {
+      if (peek) render(peek.data, { warm: true });
+      const data = await context.cachedApi(path);
+      if (!peek) render(data, { warm: false });
+      return data;
+    },
+  };
+  context.window = context;
+  vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-data-client.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-components-client.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-volume-client.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/05-progress.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-volume-route-client.js"), "utf8"), context);
+  return { context, view, slot, writes, pending };
+}
+
+const VOLUME = { days: 30, total_tonnage: 5000, by_muscle: [{ muscle_group: "back", sets: 6, tonnage: 3000 }] };
+const BALANCE = {
+  groups: [{ group: "back", sets: 6, status: "due" }],
+  due: ["back"],
+  over: [],
+  missing: [],
+  summary: "Back is due.",
+};
+
+test("a cold Volume open waits for the balance read and paints it with the bars in one write", async () => {
+  const { context, view, slot, writes, pending } = loadVolumeRoute();
+  const painted = context.renderVolume();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  pending["/volume?days=30"](VOLUME);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.ok(!view.innerHTML.includes("volBalanceSlot"), "the bars do not paint ahead of the balance read");
+  pending["/program/balance"](BALANCE);
+  await painted;
+  assert.match(view.innerHTML, /id="volBalanceSlot"/);
+  assert.ok(slot.innerHTML.length > 0, "the balance read is in its slot in the same paint");
+  assert.equal(writes.filter((w) => w.includes("volBalanceSlot")).length, 1);
+});
+
+test("a warm Volume open paints the bars and the balance from their peeks at once", () => {
+  const { context, view, slot } = loadVolumeRoute({
+    peeks: { "progress:volume": VOLUME, "progress:volume-balance": BALANCE },
+  });
+  void context.renderVolume();
+  assert.match(view.innerHTML, /id="volBalanceSlot"/);
+  assert.ok(slot.innerHTML.length > 0);
 });

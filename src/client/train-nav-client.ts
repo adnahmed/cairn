@@ -60,16 +60,14 @@ function trainNavGroupLabel(group: string): string {
 }
 
 // The Fuel group reads the trends (Intake, Energy); logging is a same-day act that
-// lives on Today's Fuel. One quiet pointer line leads there, so the trends never
-// strand someone who came to log.
+// Today's Fuel owns. One quiet text link leads there, so the trends never strand
+// someone who came to log — a link, not a card: it must not read as a second place
+// to log. It rides in the nav row (beside the crumb or group bar) as a wayfinding
+// line, never as content of its own above the read.
 function trainNavFuelPointerHtml(): string {
   const routes = typeof routeApi === "function" ? routeApi() : null;
   const href = routes?.routeToUrl({ tab: "plan", section: "food" }) || "/app/today/fuel";
-  return `<a class="tov-jpoint" href="${escAttr(href)}" data-fuel-log-point>
-    <span class="lbl tov-jpoint-kick">Fuel</span>
-    <span class="tov-jpoint-line">Log food</span>
-    <span class="tov-jpoint-arw" aria-hidden="true">›</span>
-  </a>`;
+  return `<a class="train-fuel-link" href="${escAttr(href)}" data-fuel-log-point>Log food on Today's Fuel <span aria-hidden="true">›</span></a>`;
 }
 
 // A landing wears the group bar (its buttons carry data-proggroup) plus a hidden

@@ -54,25 +54,19 @@ function cfocusSwapButtonsHtml(item: ClientCoachingFocusItem): string {
 // ---------------------------------------------------------------------------
 // ONE "Where to focus" renderer, four display variants.
 //
-// The same /api/coaching-focus payload used to be rendered by four hand-rolled
-// copies (the Program card, the Stand compact conductor, the Stand degraded
-// hero, and the Progress-overview well). They drifted: a payload field added for
-// one surface silently missed the other three. Everything now flows through
-// `coachingFocusHtml(focus, {variant})`; a variant SPEC below says which parts
-// that surface shows and in whose class family, so each surface keeps its own
-// density and Atelier chrome without owning its own copy of the read.
+// Four hand-rolled copies of /api/coaching-focus once drifted apart; everything now
+// flows through `coachingFocusHtml(focus, {variant})`, and a variant SPEC below says
+// which parts each surface shows and in whose class family.
 //
-//   full     — Progress → Program. The whole conductor: lead + actions,
-//              Alongside, Next, connections, the retest card.
+//   full     — Progress → Program: the plan under Train's headline (headline:false)
+//              — lead + actions, Alongside, Next, connections, the retest card.
 //   compact  — the Stand overview slot. One voice (masthead, headline, calendar
-//              line, THE lead) with the full plan one tap away, so the conductor
-//              and the health synthesis below it never make rival whole-picture
-//              claims on one screen.
+//              line, THE lead) with the full plan one tap away, so the conductor and
+//              the health synthesis never make rival whole-picture claims.
 //   overview — Progress → Overview. A `.well-accent` lever: title, why, move,
 //              a one-line retest, and the read-through link.
-//   hero     — Stand's DEGRADED read. The one variant that renders when the
-//              server says the focus is not available: masthead + headline +
-//              one line, so a thin payload still says something calm.
+//   hero     — Stand's DEGRADED read: renders even when the focus is not available
+//              (masthead + headline + one line), so a thin payload says something calm.
 // ---------------------------------------------------------------------------
 
 type ClientCoachingFocusVariant = "full" | "compact" | "hero" | "overview";
@@ -85,6 +79,7 @@ type CoachingFocusRenderOptions = {
   // `full` only: render the [data-cfocus-act] buttons. Only Program wires them;
   // every navigate-only surface keeps the default so a button never renders dead.
   actions?: boolean;
+  headline?: boolean; // `full` only: false = Train says the headline; this card is the plan beneath it
   // Inline style for the wrapper (the Progress overview's reveal stagger).
   style?: string;
 };
@@ -343,8 +338,9 @@ function coachingFocusHtml(
   const style = options.style ? ` style="${escAttr(options.style)}"` : "";
 
   let html = `<div class="${spec.wrap}"${style}>`;
-  html += `<${spec.mastTag} class="${spec.mastClass}">Where to focus</${spec.mastTag}>`;
-  if (headline)
+  const saidElsewhere = spec === CFOCUS_VARIANTS.full && options.headline === false; // said once, on Train; linked back
+  html += saidElsewhere ? `<div class="cfocus-plan-head"><${spec.mastTag} class="${spec.mastClass}">The focus plan</${spec.mastTag}><button class="cfocus-full-link" type="button" data-cfocus-go="train">Where to focus ›</button></div>` : `<${spec.mastTag} class="${spec.mastClass}">Where to focus</${spec.mastTag}>`;
+  if (headline && !saidElsewhere)
     html +=
       spec.headlineTag === "h2"
         ? `<h2 class="${spec.headlineClass}">${escHtml(headline)}</h2>`
@@ -400,7 +396,7 @@ function coachingFocusHtml(
 // shape, and there is still exactly one place the read is built.
 function coachingFocusCardHtml(
   focus: ClientCoachingFocus | null | undefined,
-  options: { blockLine?: boolean; actions?: boolean } = {}
+  options: { blockLine?: boolean; actions?: boolean; headline?: boolean } = {}
 ): string {
   return coachingFocusHtml(focus, { ...options, variant: "full" });
 }
@@ -516,6 +512,9 @@ function cfocusRoute(go: unknown): void {
     case "markers":
       state.standSeg = "markers";
       activateTab("stand");
+      break;
+    case "train": // Train's overview carries the "Where to focus" read; Program links back to it
+      if (!cfocusSettleIfThere("progress", "overview")) { state.progressSeg = "overview"; activateTab("progress"); }
       break;
     case "plan-coach":
       // The waiting recovery-week draft (and any future "review it in Coach" link).

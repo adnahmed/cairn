@@ -42,8 +42,13 @@ function loadTrendWeight(overrides = {}) {
     view,
     wireSeg: (...args) => calls.push(["wireSeg", ...args]),
     $: (selector) => elements.get(selector) || null,
+    pollToken: 0,
+    peekCached: () => null,
+    setTimeout,
     ...overrides,
   };
+  // The 1RM series rides the SWR layer; in these tests it is a plain read of `api`.
+  if (!overrides.cachedApi) context.cachedApi = (path) => context.api(path);
   context.window = context;
   vm.runInNewContext(readFileSync(join(root, "public/js/date-utils.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
@@ -208,8 +213,8 @@ test("oneRmReadLine escapes an exercise name safely at the render site", () => {
   assert.match(html, /&lt;Press&gt;/);
 });
 
-test("the 1RM picker lists loaded lifts and opens on the one trained last", () => {
-  const { view, trendWeight } = loadTrendWeight();
+test("the 1RM picker lists loaded lifts and opens on the one trained last", async () => {
+  const { view, trendWeight } = loadTrendWeight({ state: { tab: "progress", progressSeg: "trend" } });
   trendWeight.paintProgressBody([
     { name: "90/90 Hip Switch", muscle_group: "mobility", last_logged: "2026-09-21" },
     { name: "Dead Bug", muscle_group: "core", last_logged: "2026-09-21" },
@@ -217,6 +222,7 @@ test("the 1RM picker lists loaded lifts and opens on the one trained last", () =
     { name: "Back Squat", muscle_group: "quads", last_logged: "2026-09-18" },
     { name: "Barbell Bench Press", muscle_group: "chest", last_logged: "2026-09-21" },
   ]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.doesNotMatch(view.html, /90\/90 Hip Switch|Dead Bug|Plank/);
   assert.match(view.html, /<option selected>Barbell Bench Press<\/option>/);
   assert.match(view.html, /<option >Back Squat<\/option>/);
@@ -245,4 +251,54 @@ test("the bodyweight line measures 'to go' in the goal's own direction", () => {
   assert.match(paint(cut, { goal_weight_lb: 153.4, goal_mode: "lose" }), /153 lb — at your goal\./);
   // Maintenance reads the distance either way, without "to go".
   assert.match(paint(cut, { goal_weight_lb: 150, goal_mode: "maintain" }), /153 lb, 3 from your goal\./);
+});
+
+test("a warm 1RM series paints the picker, hero and chart in one write; a cold one waits for the read", async () => {
+  const series = { points: [{ date: "2026-06-01", best1rm: 200 }, { date: "2026-06-10", best1rm: 210 }], unit: "lb" };
+  const exercises = [{ name: "Bench", muscle_group: "chest", last_logged: "2026-06-10" }];
+  const state = { tab: "progress", progressSeg: "trend" };
+
+  // Warm: the shell and the hero land together, before any read answers.
+  let pendingWarm = null;
+  const warm = loadTrendWeight({
+    state,
+    peekCached: (key) => (key === "progress:1rm:Bench" ? { data: series, fresh: true } : null),
+    cachedApi: () => new Promise((resolve) => (pendingWarm = resolve)),
+  });
+  const heroWarm = { innerHTML: "" };
+  warm.elements.set("#trendHero", heroWarm);
+  warm.elements.set("#chart", { isConnected: true, style: {} });
+  warm.elements.set("#pstats", { innerHTML: "" });
+  warm.trendWeight.paintProgressBody(exercises);
+  assert.match(warm.view.html, /<option selected>Bench<\/option>/);
+  assert.match(heroWarm.innerHTML, /phero-line/);
+  assert.ok(pendingWarm, "the warm series still revalidates behind");
+
+  // Cold: nothing is written until the series answers, then all of it at once.
+  let answer = null;
+  const cold = loadTrendWeight({ state, cachedApi: () => new Promise((resolve) => (answer = resolve)) });
+  const heroCold = { innerHTML: "" };
+  cold.elements.set("#trendHero", heroCold);
+  cold.elements.set("#chart", { isConnected: true, style: {} });
+  cold.elements.set("#pstats", { innerHTML: "" });
+  cold.trendWeight.paintProgressBody(exercises);
+  assert.equal(cold.view.html, "");
+  answer(series);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.match(cold.view.html, /<option selected>Bench<\/option>/);
+  assert.match(heroCold.innerHTML, /phero-line/);
+});
+
+test("the weigh-in count and goal sit under the headline as its meta, not under the chart", () => {
+  const { elements, trendWeight, view } = loadTrendWeight();
+  elements.set("#chart", { kind: "canvas" });
+  trendWeight.paintWeightBody(
+    [
+      { date: "2026-06-01", weight_lb: 202.4 },
+      { date: "2026-06-30", weight_lb: 198.1 },
+    ],
+    { goal_weight_lb: 190 },
+  );
+  assert.match(view.innerHTML, /class="phero-meta lbl">2 weigh-ins · goal 190 lb</);
+  assert.doesNotMatch(view.innerHTML, /chart-foot/);
 });

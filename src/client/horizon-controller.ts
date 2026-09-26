@@ -33,6 +33,8 @@
     function ensureWeek(): void {
       if (weekAsked) return;
       weekAsked = true;
+      const held = host.querySelector<HTMLElement>("[data-horizon-weekview]");
+      if (held && !held.firstElementChild) held.innerHTML = CairnHorizon.weekSkeletonHtml();
       void read("/plan/week").then((planWeek) => {
         if (!live || !host.isConnected) return;
         // A failed read says so, and the next tap on Week asks again.

@@ -918,7 +918,7 @@ declare global {
     hero(
       title: string,
       stats: Array<readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }]>,
-      voice?: { line?: unknown; fact?: unknown } | null
+      voice?: { line?: unknown; fact?: unknown; meta?: unknown } | null
     ): string;
     art(kind: string, label: string): string;
     runCountUps(root: ParentNode): void;
@@ -943,7 +943,7 @@ declare global {
     hero(
       title: string,
       stats: Array<readonly [unknown, unknown] | readonly [unknown, unknown, { text?: boolean; k?: boolean }]>,
-      voice?: { line?: unknown; fact?: unknown } | null
+      voice?: { line?: unknown; fact?: unknown; meta?: unknown } | null
     ): string;
     /** A count as a voice line speaks it ("Fifteen"). */
     countWord(n: unknown, lead?: boolean): string;
@@ -1580,6 +1580,51 @@ declare global {
   declare function swrInvalidate(keyOrPrefix: string): void;
   declare function swrClearAll(): void;
   declare function swrSweep(): void;
+  declare function settledWithin(reads: Promise<unknown>[], ms: number): Promise<void>;
+  declare const CairnPlanHead: {
+    WAIT_MS: number;
+    WARM_WAIT_MS: number;
+    headRead(path: string): Promise<unknown>;
+    headReads(): { week: Promise<unknown>; recovery: Promise<unknown>; upcoming: Promise<unknown> };
+    recoveryBannerHtml(rs: import("./client-api.js").ClientRecoveryWeekStatus): string;
+    loadRecoveryBanner(token: number, pending?: Promise<unknown>): void;
+  };
+  declare const CairnSessionSnapshot: {
+    KEY: string;
+    stamp(date: string, peek: (key: string) => { data: unknown } | null): string | null;
+    save(
+      store: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null,
+      date: string,
+      html: string,
+      peek: (key: string) => { data: unknown } | null
+    ): void;
+    load(
+      store: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null,
+      date: string,
+      peek: (key: string) => { data: unknown } | null
+    ): string | null;
+    storage(): Pick<Storage, "getItem" | "setItem" | "removeItem"> | null;
+    PRIMER_WAIT_MS: number;
+    primerPath(date: string, dayNumber: number | null): string;
+    markPainted(date: string): void;
+    primerCarry(root: ParentNode, date: string): string;
+    painted(root: ParentNode, date: string, carried: string): void;
+    shellHtml(
+      inner: string,
+      meta: {
+        fresh: boolean;
+        kicker: string;
+        dayName: string;
+        dayFocus: string;
+        why?: string;
+        estimate?: number | null;
+        exDone: number;
+        exTotal: number;
+        original?: string[];
+        startDay?: { dayNumber: number; label: string } | null;
+      }
+    ): string;
+  };
   declare function routeApi(): ClientRoutesApi | null;
   declare function routeKey(
     key: unknown,
@@ -1624,7 +1669,7 @@ declare global {
       | undefined
       | false
     >,
-    voice?: { line?: unknown; fact?: unknown } | null
+    voice?: { line?: unknown; fact?: unknown; meta?: unknown } | null
   ): string;
   declare function progressCountWord(n: unknown, lead?: boolean): string;
   declare function emptyStateHtml(svg: string | null | undefined, line: unknown): string;
@@ -1729,7 +1774,7 @@ declare global {
   declare function cfocusDomainTag(domain: unknown): string;
   declare function coachingFocusCardHtml(
     focus: ClientCoachingFocus | null | undefined,
-    options?: { blockLine?: boolean; actions?: boolean }
+    options?: { blockLine?: boolean; actions?: boolean; headline?: boolean }
   ): string;
   declare function coachingFocusCompactHtml(focus: ClientCoachingFocus | null | undefined): string;
   declare function loadCoachingFocus(slotSelector: string, root?: ParentNode | null): Promise<void>;
@@ -1830,11 +1875,12 @@ declare global {
   declare function strengthChangeHtml(change: unknown): string;
   declare function isOpenProposal(proposal: unknown): boolean;
   declare function renderPlanEditor(): unknown;
-  declare function loadPlanUpcomingNote(token: number, slotSel?: string): void;
+  declare function loadPlanUpcomingNote(token: number, slotSel?: string, pending?: Promise<unknown>): void;
   declare function loadPlanWeekStrip(
     token: number,
     slotSel?: string,
-    onWeek?: (week: import("./client-api.js").ClientPlanWeek) => void
+    onWeek?: (week: import("./client-api.js").ClientPlanWeek) => void,
+    pending?: Promise<unknown>
   ): void;
   declare function renderHistory(): unknown;
   declare function renderProgress(): unknown;
@@ -1849,6 +1895,7 @@ declare global {
   declare function renderEnergy(): unknown;
   declare function renderIntake(): unknown;
   declare const CairnProgressIntake: {
+    intakeVoiceLine(progress: import("./client.js").ClientNutritionProgress): string;
     intakeBodyHtml(
       progress: import("./client.js").ClientNutritionProgress,
       selected?: import("./client.js").ClientNutritionProgressNutrient
@@ -3783,6 +3830,8 @@ declare global {
       sessionCardModel(session: unknown): ProgressHistorySessionCardModel;
       editGroups(session: HistorySession): ProgressHistoryEditGroup[];
       summary(sessions: HistorySession[], now?: Date): ProgressHistorySummary;
+      listed(sessions: HistorySession[]): HistorySession[];
+      hasSets(session: HistorySession): boolean;
     };
 
     CairnProgressHistoryRender: {
@@ -3943,7 +3992,7 @@ declare global {
       cfocusDomainTag(domain: unknown): string;
       coachingFocusCardHtml(
         focus: ClientCoachingFocus | null | undefined,
-        options?: { blockLine?: boolean; actions?: boolean }
+        options?: { blockLine?: boolean; actions?: boolean; headline?: boolean }
       ): string;
       coachingFocusCompactHtml(focus: ClientCoachingFocus | null | undefined): string;
       loadCoachingFocus(slotSelector: string, root?: ParentNode | null): Promise<void>;
@@ -4587,6 +4636,7 @@ declare global {
         hasLoggedSets?: boolean;
         api?: (path: string) => Promise<unknown>;
         guard?: () => boolean;
+        pending?: Promise<unknown>;
       }): Promise<void>;
       mountToggle(slot: Element): () => void;
     };
@@ -5577,6 +5627,8 @@ declare global {
     CairnFuelTodayController: {
       dayKey(date: string): string;
       bandKey(date: string): string;
+      dayPath(date: string): string;
+      bandPath(date: string): string;
       mount(host: Element, deps: ClientFuelTodayDeps): ClientFuelRefreshHandle;
     };
     CairnFuelMeals: {
@@ -5612,6 +5664,7 @@ declare global {
       meals(date: string, today: string, token: number, onChanged: () => void): ClientFuelMealsDeps;
       log(onLogged: (logged: FoodComposerLogged) => void): ClientFuelLogDeps;
       ideas(date: string, onStart: ClientIdeaCardDeps["onStart"]): ClientIdeaCardDeps;
+      firstPaint(date: string, isToday: boolean): Promise<void> | null;
     };
     CairnIdeaCardController: {
       key(date: string): string;
@@ -6092,6 +6145,7 @@ declare global {
       laneSkeletonHtml(key: ClientHorizonLane["key"]): string;
       seasonHtml(season: ClientHorizonSeason | null): string;
       weekHtml(week: ClientHorizonWeek | null, opts?: { enter?: boolean }): string;
+      weekSkeletonHtml(): string;
       shellHtml(active?: ClientHorizonView): string;
     };
     CairnHorizonController: {

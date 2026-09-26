@@ -1357,47 +1357,6 @@ function sessionLaunchCardHtml(opts: SessionLaunchOptions): string {
     </button>`;
 }
 
-function sessionShellHtml(
-  inner: string,
-  meta: {
-    fresh: boolean;
-    kicker: string;
-    dayName: string;
-    dayFocus: string;
-    why?: string;
-    estimate?: number | null;
-    exDone: number;
-    exTotal: number;
-    /** The plan day's own list when most of today's slots moved — one tap away. */
-    original?: string[];
-    /** Offer the plan day itself when the accepted session holds no lift for it. */
-    startDay?: { dayNumber: number; label: string } | null;
-  }
-): string {
-  const capped = Math.min(meta.exTotal, 12);
-  const dots = meta.exTotal
-    ? `<div class="sess-dots" aria-hidden="true">${Array.from({ length: capped }, (_v, i) => `<span class="sess-dot${i < meta.exDone ? " on" : ""}"></span>`).join("")}</div>`
-    : "";
-  const prog = meta.exTotal
-    ? `<span class="sess-prog"><b>${meta.exDone}</b><span class="sess-prog-sep"> of </span>${meta.exTotal}</span>`
-    : "";
-  return `<div class="sess-dest${meta.fresh ? " sess-fresh" : ""}">
-    <div class="sess-topbar">
-      <button class="sess-close" id="sessClose" type="button" aria-label="Back to today">←</button>
-      <div class="sess-topbar-mid">
-        <div class="sess-kicker lbl">${escHtml(meta.kicker)}</div>
-        <div class="sess-dayname" role="heading" aria-level="1" tabindex="-1">${escHtml(meta.dayName)}${meta.dayFocus ? `<span class="sess-focus"> · ${escHtml(meta.dayFocus)}</span>` : ""}</div>
-        ${meta.why || meta.estimate ? `<div class="sess-topbar-why">${meta.why ? escHtml(meta.why) : ""}${meta.estimate ? `${meta.why ? " · " : ""}${Math.round(meta.estimate)} min` : ""}</div>` : ""}
-        ${meta.original && meta.original.length ? `<details class="strength-line-orig sess-orig"><summary>The plan's list</summary><span>${escHtml(meta.original.join(" · "))}</span></details>` : ""}
-        ${meta.startDay ? `<button type="button" class="ghostbtn sess-line-start daybtn" data-day="${escAttr(meta.startDay.dayNumber)}">${escHtml(meta.startDay.label)}</button>` : ""}
-      </div>
-      <div class="sess-topbar-side">${prog}</div>
-    </div>
-    ${dots}
-    <div class="sess-body"><div id="sessionPrimerSlot" class="sess-primer-slot"></div>${inner}</div>
-  </div>`;
-}
-
 function wireSessionDestination(): void {
   const close = view.querySelector<HTMLButtonElement>("#sessClose");
   if (close && !close.dataset.wired) {
@@ -1430,6 +1389,19 @@ async function renderSession(opts: any = {}): Promise<void> {
   sessionFreshNext = false;
   const prevY = typeof window !== "undefined" ? window.scrollY : 0;
 
+  // A bare entry repaints this date's last session at once (see the snapshot above);
+  // a soft repaint, or a surface already on screen, never does.
+  if (!opts?.soft && !hadSurface && todayState.tab === "session" && enteredDate) {
+    // See session-snapshot-client.ts: only while the reads it was drawn from stand.
+    const snap = CairnSessionSnapshot.load(CairnSessionSnapshot.storage(), enteredDate, peekCached);
+    if (snap) {
+      todayView.classList.remove("today-soft");
+      todayView.innerHTML = snap;
+      CairnSessionSnapshot.markPainted(enteredDate);
+    }
+  }
+
+
   // Today's lift, in the server's one line — requested beside the data load so the
   // header names the plan day (never a rest suggestion as its title) on first paint.
   const strengthLinePromise: Promise<import("../contracts/client-api.js").ClientTodayStrengthLine | null> =
@@ -1444,6 +1416,13 @@ async function renderSession(opts: any = {}): Promise<void> {
   const prep: any = await todayPlanSessionPreparation.preparePlanSession(
     todayDeps().planSession(session, isToday, todayData)
   );
+
+  // The primer sits ABOVE the lift list: asked once the plan day is settled, handed to
+  // the primer only if it names the same day (see the wait below).
+  const primerDayAtStart = todayState.day == null ? null : Number(todayState.day);
+  const primerPath = CairnSessionSnapshot.primerPath(todayState.logDate, primerDayAtStart);
+  const primerPending = todayApi(primerPath);
+  primerPending.catch(() => {});
 
   const profile: any = todayData.profile;
   const exercises: any[] = (todayData.exercises as any[]) || [];
@@ -1501,6 +1480,10 @@ async function renderSession(opts: any = {}): Promise<void> {
   );
 
   const strengthLine = await strengthLinePromise;
+  // A first paint waits (briefly) for the primer, or it pushes the list down on landing;
+  // a repaint of this date's surface (soft, Undo, Finish, snapshot) carries its card over.
+  const carriedPrimer = CairnSessionSnapshot.primerCarry(todayView, enteredDate);
+  if (!carriedPrimer) await settledWithin([primerPending], CairnSessionSnapshot.PRIMER_WAIT_MS);
   // The plan day's NAME is the title everywhere ("Pull"); its focus is the quiet
   // second half. The server line owns today's title when it speaks for the day this
   // session holds — or when the accepted session holds no lift at all (a rest/easy
@@ -1543,7 +1526,7 @@ async function renderSession(opts: any = {}): Promise<void> {
   // the Session destination, and this paint must never land on another tab.
   if (todayState.tab !== "session" || todayState.logDate !== enteredDate) return;
   const sessionDrafts = CairnTodaySessionSetActions.captureExDrafts(todayView);
-  todayView.innerHTML = sessionShellHtml(surface, {
+  todayView.innerHTML = CairnSessionSnapshot.shellHtml(surface, {
     fresh,
     kicker,
     dayName,
@@ -1563,6 +1546,7 @@ async function renderSession(opts: any = {}): Promise<void> {
   // surface — the brain's proposals stay on Today. (Per-lift adapted target lines
   // still render; refreshAdaptedRx is already a no-op here since tab !== "today".)
   todayView.querySelector(".sess-dest .rx-banner")?.remove();
+  CairnSessionSnapshot.painted(todayView, enteredDate, carriedPrimer);
 
   CairnTodaySessionController.wireSessionSurface(
     { session, hasLoggedSets, lastSets: prep.lastSets },
@@ -1594,14 +1578,23 @@ async function renderSession(opts: any = {}): Promise<void> {
   // the session has logged sets), decorating any fresh movement rows. A missing lib /
   // null payload / a stale render is a calm no-op. Not awaited (never blocks logging).
   const primerDay = todayState.day == null ? null : Number(todayState.day);
-  window.CairnSessionPrimer?.hydrate({
+  const primerDayNumber = primerDay != null && Number.isFinite(primerDay) ? primerDay : null;
+  const primerGuard = () => todayState.tab === "session" && todayState.logDate === enteredDate;
+  const primerHydrated = window.CairnSessionPrimer?.hydrate({
     root: todayView,
     date: todayState.logDate,
-    dayNumber: primerDay != null && Number.isFinite(primerDay) ? primerDay : null,
+    dayNumber: primerDayNumber,
     hasLoggedSets,
     api: todayApi,
-    guard: () => todayState.tab === "session" && todayState.logDate === enteredDate,
+    guard: primerGuard,
+    pending: CairnSessionSnapshot.primerPath(todayState.logDate, primerDayNumber) === primerPath ? primerPending : undefined,
   });
+  // Keep this paint (primer included) for the next bare entry's instant repaint.
+  void Promise.resolve(primerHydrated)
+    .catch(() => {})
+    .then(() => {
+      if (primerGuard() && todayView.querySelector(".sess-dest")) CairnSessionSnapshot.save(CairnSessionSnapshot.storage(), enteredDate, todayView.innerHTML, peekCached);
+    });
 
   if (fresh) {
     try {

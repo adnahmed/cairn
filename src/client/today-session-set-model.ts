@@ -130,6 +130,8 @@ type TodaySessionSetModelApi = {
     deps.invalidate("stats");
     deps.invalidate("history:sessions");
     deps.invalidate("progress:volume");
+    deps.invalidate("progress:volume-balance");
+    deps.invalidate("progress:1rm:");
     deps.invalidateTodayProgression();
   }
 

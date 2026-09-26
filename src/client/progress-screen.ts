@@ -339,102 +339,6 @@ async function renderMeasurements() {
   renderBodyMetrics(document.getElementById("bodyMetricsMount"));
 }
 
-// ---------- Progress: volume by muscle group ----------
-// SWR over /volume?days=30 (key progress:volume): the Volume seg paints the
-// per-muscle bars instantly on a warm re-entry, then revalidates.
-async function renderVolume() {
-  headerTitle.textContent = "Volume";
-  state.progressSeg = "volume";
-  const token = ++pollToken;
-  const peek = peekCached("progress:volume");
-  if (!peek) view.innerHTML = segSkeleton("volume", PROGRESS_SEG, 2); // cold: skeleton-first
-  return paintSWR({
-    key: "progress:volume",
-    path: "/volume?days=30",
-    peek: peek as never,
-    token,
-    tab: "progress",
-    render: (data: unknown) => paintVolumeBody(CairnProgressData.record(data)),
-  });
-}
-
-function paintVolumeBody(data: ProgressRecord) {
-  const groups = CairnProgressData.rows<ProgressVolumeGroup>(data.by_muscle)
-    .slice()
-    .sort((a, b) => CairnProgressData.number(b.sets) - CairnProgressData.number(a.sets));
-  const head = segBar("volume", PROGRESS_SEG);
-  if (!groups.length) {
-    view.innerHTML =
-      head +
-      progressHero("Volume", []) +
-      emptyStateHtml(
-        art("exercise", "barbell row"),
-        `Nothing logged in the last ${CairnProgressData.number(data.days, 30)} days.`
-      );
-    wireSeg(PROGRESS_HANDLERS);
-    return;
-  }
-  const totalSets = groups.reduce((t, g) => t + CairnProgressData.number(g.sets), 0);
-  const maxSets = Math.max(1, ...groups.map((g) => CairnProgressData.number(g.sets)));
-  const tonnage = CairnProgressData.number(data.total_tonnage);
-  const hero = progressHero("Volume", [], {
-    line: `${Math.round(totalSets).toLocaleString()} working set${Math.round(totalSets) === 1 ? "" : "s"} across ${progressCountWord(groups.length)} muscle group${groups.length === 1 ? "" : "s"}.`,
-    fact: tonnage > 0 ? `${tonnage >= 10000 ? `${Math.round(tonnage / 100) / 10}k` : Math.round(tonnage).toLocaleString()} lb moved` : "",
-  });
-  const rows = groups
-    .map(
-      (g, i) => `
-    <div class="volrow reveal" style="${stagger(i + 2)}">
-      <div class="volrow-top">
-        <span class="volrow-name">${escHtml(g.muscle_group)}</span>
-        <span class="volrow-meta"><b>${CairnProgressData.number(g.sets)}</b> set${CairnProgressData.number(g.sets) === 1 ? "" : "s"}${CairnProgressData.number(g.tonnage) > 0 ? ` · ${CairnProgressData.number(g.tonnage).toLocaleString()} lb` : ""}</span>
-      </div>
-      <div class="volbar"><div class="volbar-fill barfill" style="width:${Math.max(3, Math.round((CairnProgressData.number(g.sets) / maxSets) * 100))}%"></div></div>
-    </div>`
-    )
-    .join("");
-  // Words lead (Amendment 2): the voice line is the page's one focal point, and the
-  // balance read — which groups are due, which patterns are missing — sits right
-  // under it, ahead of the ranked bars.
-  view.innerHTML =
-    head +
-    hero +
-    `<div id="volBalanceSlot" class="vol-balance-slot reveal" style="${stagger(1)}"></div>` +
-    `<div class="vol-kicker lbl reveal" style="${stagger(2)}">Last ${CairnProgressData.number(data.days, 30)} days · ranked by sets</div>` +
-    rows;
-  wireSeg(PROGRESS_HANDLERS);
-  runCountUps(view);
-  // The balance read settles in above the numbers (best-effort, async) — the engine
-  // reads your volume per canonical muscle group, names what's DUE and what's
-  // running high, and flags the patterns (core / grip / mobility) that are absent.
-  loadVolumeBalance();
-}
-
-// ---------- Volume: the balance read (which groups are due / high / missing) ----------
-// Fed by GET /api/program/balance — working-set volume per CANONICAL group banded
-// against the volume landmarks, in PLAIN WORDS (never a 0–100 grade). Surfaces the
-// adherence skew (summary) + the due / high groups + the missing-pattern gaps the
-// new taxonomy made visible (core, forearms/grip). Best-effort + null-safe: the
-// SURFACE endpoint may not be wired yet (404) — guard like every optional fetch,
-// leaving the bars untouched if it's missing. Constitution: pull, never push.
-async function loadVolumeBalance() {
-  const slot = view.querySelector("#volBalanceSlot");
-  if (!slot) return;
-  let bal = null;
-  try {
-    bal = await api("/program/balance");
-  } catch {
-    bal = null;
-  }
-  if (state.tab !== "progress" || state.progressSeg !== "volume" || !slot.isConnected) return;
-  const html = volBalanceHtml(bal);
-  if (!html) {
-    slot.innerHTML = "";
-    return;
-  }
-  slot.innerHTML = html;
-}
-
 // ---------- Progress: Endurance (runner/cyclist-first read) ----------
 async function renderEndurance() {
   await CairnProgressEnduranceController.render(CairnProgressRouteDeps.endurance(() => renderEndurance()));
@@ -632,10 +536,8 @@ Object.assign(globalThis, {
   renderEndurance,
   renderProgram,
   renderProgress,
-  renderVolume,
   renderWeight,
   renderMeasurements,
   goalPaceChartHtml,
   mountGoalPaceChart,
-  paintVolumeBody,
 });

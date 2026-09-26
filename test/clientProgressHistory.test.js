@@ -113,3 +113,25 @@ test("progress history handles empty sessions and number coercion", () => {
   assert.equal(history.numOrNull("12.5"), 12.5);
   assert.equal(history.numOrNull("bad"), null);
 });
+
+test("an empty session stays out of History's counts and list unless it carries notes", () => {
+  const context = { Date, Math, Number, Object, String, localISO: (d) => d.toISOString().slice(0, 10) };
+  context.window = context;
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-history-model-client.js"), "utf8"), context);
+  const model = context.CairnProgressHistoryModel;
+  const set = { exercise: "Back Squat", reps: 5, weight: 185 };
+  const sessions = [
+    { id: 4, date: "2026-06-29", sets: [], notes: null, garmin: { type: "strength_training" } }, // a Garmin shell
+    { id: 3, date: "2026-06-28", sets: [set, set] },
+    { id: 2, date: "2026-06-27", sets: [], notes: "  " }, // opened, never used
+    { id: 1, date: "2026-06-26", sets: [], notes: "Gym closed, walked instead" },
+  ];
+  assert.deepEqual(
+    model.listed(sessions).map((s) => s.id),
+    [3, 1],
+    "the notes-carrying day stays reachable; empty shells leave the list"
+  );
+  const summary = model.summary(sessions, new Date("2026-06-30T12:00:00Z"));
+  assert.equal(summary.monthSessions, 1, "only a day with work in it counts as a session");
+  assert.equal(summary.sets30, 2);
+});

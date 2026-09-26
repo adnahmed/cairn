@@ -521,3 +521,47 @@ test("with the packet slot present and no markers, Share leaves the empty state 
   await flush();
   assert.equal(host.querySelector("#hContent").innerHTML, "");
 });
+
+test("the cold skeleton holds the final shape: six toggle rows and the questions' box; a failure lets the box go", async () => {
+  const win = load();
+  const deps = recorder();
+  const host = createHost(win.document);
+  const gate = {};
+  win.CairnPacketBuilderController.mount(host, {
+    ...deps,
+    cachedApi: (path) =>
+      path.startsWith("/health/visit-questions")
+        ? deps.cachedApi(path)
+        : new Promise((resolve, reject) => Object.assign(gate, { resolve, reject })),
+    onShare() {},
+  });
+  // One toggle-shaped row per section of the server's fixed catalog, not three lines.
+  assert.equal(host.querySelectorAll("[data-packet-toggles] .packet-toggle-skel").length, CATALOG.length);
+  assert.ok(host.querySelector("[data-packet-questions-slot] .vq-skel"), "the questions' box is held");
+  gate.reject(new Error("offline"));
+  await flush();
+  assert.equal(host.querySelector(".vq-skel"), null, "nothing is coming to fill a held box after a failure");
+  assert.equal(host.querySelector(".packet-toggle-skel"), null);
+});
+
+test("the real toggles and questions land where the skeleton stood", async () => {
+  const win = load();
+  const deps = recorder();
+  const host = createHost(win.document);
+  const mountQuestions = (slot, onChange) =>
+    win.CairnVisitQuestionsController.mount(slot, { cachedApi: deps.cachedApi, peekCached: deps.peekCached, onChange });
+  win.CairnPacketBuilderController.mount(host, { ...deps, mountQuestions, onShare() {} });
+  await flush();
+  await flush();
+  assert.equal(host.querySelectorAll(".packet-toggle-skel").length, 0);
+  assert.equal(host.querySelectorAll("[data-packet-toggles] .packet-toggle").length, CATALOG.length);
+  assert.ok(!host.querySelector(".vq-skel"), "the held box gave way to the questions");
+  assert.ok(host.querySelector("[data-packet-questions-slot] .vq"));
+
+  // With no questions component to mount, the held box does not linger.
+  const bare = createHost(win.document);
+  win.CairnPacketBuilderController.mount(bare, { ...deps, onShare() {} });
+  await flush();
+  await flush();
+  assert.ok(!bare.querySelector(".vq-skel"));
+});

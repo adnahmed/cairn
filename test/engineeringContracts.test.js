@@ -6827,7 +6827,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(progressEnergySource, /CairnUi\.jobCaptionHtml\(\{ text: "reading your trend/);
   assert.match(
     progressProgramControllerClient,
-    /coachingFocusCardHtml\(focus[^)]*\{ blockLine: false, actions: true \}\)/
+    /coachingFocusCardHtml\(focus[^)]*\{ blockLine: false, actions: true, headline: false \}\)/
   );
   assert.doesNotMatch(progress, /coachingFocusCardHtml/);
   assert.match(meals, /function renderCoach\(\)/);
