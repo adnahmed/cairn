@@ -1252,7 +1252,6 @@ declare global {
   declare const SET_SEG: readonly ClientSegment[];
   declare var MEALS_KEY: string;
   declare var MEALS_SETTINGS_KEY: string;
-  declare const MEAL_LABEL: Record<string, string>;
 
   declare function skelSwap(fn: () => void): void;
   declare function escHtml(value: unknown): string;
@@ -1766,7 +1765,7 @@ declare global {
       provenance?: Record<string, unknown>;
     }
   ): Promise<boolean>;
-  declare function renderFoodJournal(): unknown;
+  declare function renderFoodJournal(options?: { history?: boolean }): unknown;
   declare function renderMeals(): unknown;
   declare function renderCoach(): unknown;
   declare function rerenderFoodSurface(): void;
@@ -1802,7 +1801,6 @@ declare global {
   declare function verifiedBadgeHtml(verified: unknown): string;
   declare function strengthChangeHtml(change: unknown): string;
   declare function isOpenProposal(proposal: unknown): boolean;
-  declare function dayFuelHtml(day: Record<string, unknown> | null | undefined): string;
   declare function renderPlanEditor(): unknown;
   declare function loadPlanUpcomingNote(token: number, slotSel?: string): void;
   declare function loadPlanWeekStrip(
@@ -3078,36 +3076,6 @@ declare global {
       serializeDays(
         model: Array<{ day_number?: unknown; name?: unknown; focus?: unknown; items: Array<Record<string, unknown>> }>
       ): Array<Record<string, unknown>>;
-    };
-
-    CairnDayFuel: {
-      MEAL_LABEL: Record<string, string>;
-      mealLabelHtml(meal: unknown): string;
-      dayFuelHtml(day: Record<string, unknown> | null | undefined): string;
-      dayFuelDemandHtml(day: Record<string, unknown>): string;
-      dayFuelCarbsHtml(day: Record<string, unknown>): string;
-    };
-
-    CairnDayFuelController: {
-      loadDayFuel(
-        token: number,
-        options?: {
-          root?: ParentNode | null | undefined;
-          isCurrent?: (token: number) => boolean;
-          onRerender?: () => unknown;
-          onAsk?: () => unknown;
-        }
-      ): Promise<void>;
-      openFoodEdit(
-        id: number,
-        fromEl: Element,
-        options?: {
-          root?: ParentNode | null | undefined;
-          isCurrent?: (token: number) => boolean;
-          onRerender?: () => unknown;
-          onAsk?: () => unknown;
-        }
-      ): void;
     };
 
     CairnMealRows: ClientMealRowsApi;
@@ -5099,8 +5067,6 @@ declare global {
   declare const CairnPlanEditor: Window["CairnPlanEditor"];
   declare const CairnPlanEditorForm: Window["CairnPlanEditorForm"];
   declare const CairnPlanEditorController: Window["CairnPlanEditorController"];
-  declare const CairnDayFuel: Window["CairnDayFuel"];
-  declare const CairnDayFuelController: Window["CairnDayFuelController"];
   declare const CairnMealRows: Window["CairnMealRows"];
   declare const mealSlotFor: Window["mealSlotFor"];
   declare const mealRowHtml: Window["mealRowHtml"];
@@ -5432,4 +5398,156 @@ declare global {
   };
   // The mount's teardown, carrying the composer's controls.
   type FoodComposerHandle = (() => void) & FoodComposerControls;
+
+  // ---- v2 wave 2 · the Fuel surface (fuel-today-*, fuel-meals-*, fuel-log-*, idea-card-*) ----
+  type ClientFuelSwrDeps = {
+    peekCached<T = unknown>(key: string): { data: T; fresh: boolean } | null;
+    cachedApi(
+      path: string,
+      options?: { key?: string; onUpgrade?(data: unknown, meta: { changed: boolean }): void }
+    ): Promise<unknown>;
+    swrInvalidate(key: string): void;
+    reducedMotion(): boolean;
+    markRefreshing?(on: boolean): void;
+    skeleton?(): string;
+  };
+  /** "in progress" (today, food logged), "nothing logged", or no word (a past day with food). */
+  type ClientFuelDayState = "in progress" | "nothing logged" | null;
+  type ClientFuelMacro = { value: number | null; known: boolean };
+  type ClientFuelTodayModel = {
+    date: string;
+    isToday: boolean;
+    count: number;
+    pending: number;
+    state: ClientFuelDayState;
+    protein: ClientFuelMacro & { anchor: number | null; toGo: number | null };
+    energy: ClientFuelMacro;
+    fiber: ClientFuelMacro;
+    bandWords: string | null;
+    demand: import("./client.js").ClientDayFuelDemand | null;
+  };
+  type ClientFuelMealNote = { id: number; parsed: Record<string, unknown> };
+  type ClientFuelMeal = {
+    id: number;
+    title: string;
+    meta: string;
+    kcal: number | null;
+    protein_g: number | null;
+    pending: boolean;
+    editable: boolean;
+    raw: string;
+    note: ClientFuelMealNote;
+    sig: string;
+  };
+  type ClientFuelTodayDeps = ClientFuelSwrDeps & {
+    /** The day shown (YYYY-MM-DD) and the device's today. */
+    date: string;
+    today: string;
+    runCountUps?(scope: ParentNode): void;
+  };
+  type ClientFuelMealsDeps = ClientFuelSwrDeps & {
+    date: string;
+    today: string;
+    api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+    toast(message: string): void;
+    expandEl?(el: Element): void;
+    collapseEl?(el: Element, done: () => void): void;
+    armDelete?(btn: Element, onConfirm: () => unknown, options?: { label?: string }): void;
+    /** Follows a still-estimating note; resolves when it settles (or gives up). */
+    watchEnrichment?(id: number, onSettled: () => void): void;
+    /** A meal was corrected or removed: the host refreshes what reads the day. */
+    onChanged?(): void;
+  };
+  type ClientFuelLogDeps = {
+    /** CairnFoodComposer.mount, injected so the host (and a test) owns the composer. */
+    mountComposer(host: Element, deps: FoodComposerDeps): FoodComposerHandle;
+    api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+    toast(message: string): void;
+    reducedMotion(): boolean;
+    expandEl?(el: Element): void;
+    collapseEl?(el: Element, done: () => void): void;
+    hour?(): number;
+    draft?: { load(): string; save(value: string): void };
+    /** The composer followed a send to the food rows it logged. */
+    onLogged(logged: FoodComposerLogged): void;
+  };
+  type ClientFuelLogHandle = (() => void) & { open(prefill?: string | null): void; close(): void };
+  type ClientIdeaCardDeps = ClientFuelSwrDeps & {
+    date: string;
+    api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+    hour(): number;
+    /** "Start from this": fill the composer. Never logs. */
+    onStart(prefill: string, idea: import("./fuel.js").ClientFuelIdea): void;
+  };
+  type ClientFuelRefreshHandle = (() => void) & { refresh(): Promise<void> };
+  interface Window {
+    CairnFuelTodayModel: {
+      MEAL_LABEL: Record<string, string>;
+      mealLabel(meal: unknown): string;
+      mealMeta(entry: Record<string, unknown>): string;
+      dayState(count: number, isToday: boolean): ClientFuelDayState;
+      todayModel(day: unknown, band: unknown, opts: { today: string }): ClientFuelTodayModel;
+      entryNote(entry: unknown): ClientFuelMealNote;
+      mealModel(entry: unknown): ClientFuelMeal | null;
+      mealModels(day: unknown): ClientFuelMeal[];
+      mealNumsText(totals: { kcal?: unknown; protein_g?: unknown }): string;
+    };
+    CairnFuelToday: {
+      todayHtml(model: ClientFuelTodayModel, opts?: { countUp?: boolean }): string;
+      demandHtml(model: ClientFuelTodayModel): string;
+      carbsHtml(model: ClientFuelTodayModel): string;
+      skeletonHtml(): string;
+      errorHtml(): string;
+    };
+    CairnFuelTodayController: {
+      dayKey(date: string): string;
+      bandKey(date: string): string;
+      mount(host: Element, deps: ClientFuelTodayDeps): ClientFuelRefreshHandle;
+    };
+    CairnFuelMeals: {
+      listHtml(meals: readonly ClientFuelMeal[], opts?: { isToday?: boolean }): string;
+      mealHtml(meal: ClientFuelMeal, opts?: { enter?: boolean }): string;
+      headMainHtml(meal: ClientFuelMeal): string;
+      numsHtml(meal: ClientFuelMeal): string;
+      emptyHtml(isToday: boolean): string;
+      errorHtml(): string;
+    };
+    CairnFuelMealsController: {
+      mount(host: Element, deps: ClientFuelMealsDeps): ClientFuelRefreshHandle;
+    };
+    CairnFuelLog: {
+      html(): string;
+    };
+    CairnFuelLogController: {
+      mount(host: Element, deps: ClientFuelLogDeps): ClientFuelLogHandle;
+    };
+    CairnIdeaCard: {
+      ideasHtml(data: import("./fuel.js").ClientFuelIdeas, opts?: { reveal?: boolean }): string;
+      ideaCardHtml(idea: import("./fuel.js").ClientFuelIdea, opts?: { index?: number; enter?: boolean }): string;
+      numsText(idea: import("./fuel.js").ClientFuelIdea): string;
+      errorHtml(): string;
+    };
+    CairnFuelDeps: {
+      draft(): { load(): string; save(value: string): void };
+      today(date: string, today: string): ClientFuelTodayDeps;
+      meals(date: string, today: string, token: number, onChanged: () => void): ClientFuelMealsDeps;
+      log(onLogged: (logged: FoodComposerLogged) => void): ClientFuelLogDeps;
+      ideas(date: string, onStart: ClientIdeaCardDeps["onStart"]): ClientIdeaCardDeps;
+    };
+    CairnIdeaCardController: {
+      key(date: string): string;
+      path(date: string, hour: number, exclude?: readonly string[]): string;
+      mount(host: Element, deps: ClientIdeaCardDeps): ClientFuelRefreshHandle;
+    };
+  }
+  declare const CairnFuelTodayModel: Window["CairnFuelTodayModel"];
+  declare const CairnFuelToday: Window["CairnFuelToday"];
+  declare const CairnFuelTodayController: Window["CairnFuelTodayController"];
+  declare const CairnFuelMeals: Window["CairnFuelMeals"];
+  declare const CairnFuelMealsController: Window["CairnFuelMealsController"];
+  declare const CairnFuelLog: Window["CairnFuelLog"];
+  declare const CairnFuelLogController: Window["CairnFuelLogController"];
+  declare const CairnIdeaCard: Window["CairnIdeaCard"];
+  declare const CairnIdeaCardController: Window["CairnIdeaCardController"];
+  declare const CairnFuelDeps: Window["CairnFuelDeps"];
 }

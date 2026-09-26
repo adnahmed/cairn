@@ -23,7 +23,8 @@ const routes = [
   { path: "/", tab: "today" },
   { path: "/app/today", tab: "today" },
   { path: "/app/plan/food", tab: "plan", expectedState: { planSeg: "food" } },
-  { path: "/app/plan/meals", tab: "plan", expectedState: { planSeg: "meals" } },
+  // Plan → Meals redirects into Fuel (Plan → Food) with the meal-plan journal open.
+  { path: "/app/plan/meals", tab: "plan", expectedHref: "/app/plan/food", expectedState: { planSeg: "food" } },
   { path: "/app/plan/coach", tab: "plan", expectedState: { planSeg: "coach" } },
   { path: "/app/progress/energy", tab: "progress", expectedState: { progressSeg: "energy" } },
   // Program hosts the multi-anchor strength card (GET /api/strength-journeys).
@@ -62,7 +63,7 @@ const requiredGlobals = {
   CairnChatClient: "object",
   CairnChatAttachment: "object",
   CairnMealRecipeController: "object",
-  CairnDayFuelController: "object",
+  CairnFuelTodayController: "object",
   CairnSettingsAgents: "object",
   // ensureBundle is the eager half of the lazy me-health bundle contract.
   ensureBundle: "function",
@@ -962,29 +963,12 @@ async function smokePlanSegmentNavigation(cdp, base) {
   try {
     await navigateAndHydrate(cdp, base, "/app/plan/food", "plan");
     await assertGlobals(cdp);
-    await evaluate(cdp, `(() => {
-      const btn = document.querySelector('.segbtn[data-seg="meals"]');
-      if (!btn) throw new Error("missing Plan Meals segment");
-      btn.click();
-      return true;
-    })()`);
-    await waitForCondition(cdp, "Plan segment click routes to Meals", `(() => {
-      const active = document.querySelector('.segbtn.active[data-seg="meals"]');
-      const view = document.querySelector("#view");
-      return {
-        ok: Boolean(
-          active &&
-          window.state?.tab === "plan" &&
-          window.state?.planSeg === "meals" &&
-          location.pathname === "/app/plan/meals" &&
-          view &&
-          view.textContent.trim().length > 0
-        ),
-        href: location.pathname,
-        planSeg: window.state && window.state.planSeg,
-        active: active ? active.textContent.trim() : ""
-      };
-    })()`);
+    // Meals is no longer a segment: its weekly journal is history in Food's fold.
+    await waitForCondition(cdp, "Plan Food carries the meal-plan history fold and no Meals pill", `(() => {
+      const pill = document.querySelector('.segbtn[data-seg="meals"]');
+      const fold = document.querySelector("#fuelHistory");
+      return { ok: Boolean(!pill && fold), hasPill: Boolean(pill), hasFold: Boolean(fold) };
+    })()`, 15000);
 
     await evaluate(cdp, `(() => {
       const btn = document.querySelector('.segbtn[data-seg="food"]');

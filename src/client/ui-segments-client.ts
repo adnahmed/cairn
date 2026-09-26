@@ -262,6 +262,8 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
     energy: () => deps.renderEnergy(),
   };
 
+  // Food is the Fuel surface; the old Meals segment redirects into it (its weekly
+  // journal is history in Food's fold), so the bar no longer carries a Meals pill.
   // "Changes" is the /app/plan/coach route — the background-coaching change record.
   // It rides the bar as its own segment (last, after the things you edit) so the
   // screen is reachable from the bar and paints its own active pill instead of
@@ -276,13 +278,11 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
           ["edit", "Training"],
           ["endurance", "Endurance"],
           ["food", "Food"],
-          ["meals", "Meals"],
           ["coach", "Changes"],
         ]
       : [
           ["edit", "Training"],
           ["food", "Food"],
-          ["meals", "Meals"],
           ["coach", "Changes"],
         ];
   }

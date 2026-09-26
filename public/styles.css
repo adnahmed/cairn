@@ -6212,46 +6212,6 @@ button.prow-name:hover{color:var(--accent)}
 .today-more-body{padding-top:4px}
 @media (prefers-reduced-motion: reduce){ .today-more-chev{transition:none} }
 
-/* ── Meals view: today's fuel — review + quick-edit of what's logged ── */
-.dayfuel-slot:empty{display:none}
-.dayfuel{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
-  padding:16px 16px 12px;margin-bottom:16px}
-.dayfuel-head{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
-.dayfuel-count{margin-left:auto;color:var(--muted);font-size:.78rem}
-.dayfuel-totals{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:4px}
-.dayfuel-totals>span{display:flex;flex-direction:column;min-width:0}
-.dayfuel-totals small{font-size:.62rem;color:var(--muted);line-height:1.25}
-.dayfuel-unit{color:var(--muted);font-size:.78rem}
-.dayfuel-dot{color:var(--line)}
-.dayfuel-rem{margin-top:4px;color:var(--sage);font-weight:600;font-size:.9rem}
-.dayfuel-rem .numeral{font-size:1rem}
-.dayfuel-rem-done{color:var(--muted);font-weight:500}
-/* The big-day fuel note: quieter than the "remaining" line above it — it shapes the
-   day, it doesn't count anything. Present only on a day carrying the week's bigger
-   work, and never on a past day. */
-.dayfuel-demand{margin-top:6px;color:var(--ink-2);font-size:.86rem;line-height:1.45}
-.dayfuel-list{margin-top:12px;display:flex;flex-direction:column}
-.dayfuel-row{display:flex;align-items:center;gap:11px;width:100%;text-align:left;cursor:pointer;
-  background:transparent;border:none;border-top:1px solid var(--line);padding:10px 0;
-  color:var(--ink);font-family:var(--font-ui)}
-.dayfuel-row:first-child{border-top:none}
-.dayfuel-row:active{transform:var(--press)}
-.dayfuel-art{flex:0 0 auto;width:34px;height:34px;border-radius:8px;overflow:hidden;
-  display:flex;align-items:center;justify-content:center;background:var(--card-2)}
-.dayfuel-art svg{width:100%;height:100%}
-.dayfuel-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.dayfuel-name{font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dayfuel-pending{color:var(--muted);font-size:.78rem;font-style:italic}
-.dayfuel-meal{color:var(--muted)}
-.dayfuel-macros{flex:0 0 auto;color:var(--ink-2);font-size:.82rem;white-space:nowrap}
-.dayfuel-macros .numeral{font-size:.92rem}
-.dayfuel-edit{flex:0 0 auto;color:var(--muted);font-size:.82rem;margin-left:2px}
-.dayfuel-foot{margin-top:10px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:7px;align-items:center}
-.dayfuel-empty{color:var(--ink-2);font-size:.9rem;line-height:1.5}
-
-/* Food-edit detail sheet: macro inputs in a tidy 2-up grid. */
-.fed-macros{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media(max-width:420px){.dayfuel-totals{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
 /* ─── The changes line (changes-line-client.ts): "2 changes overnight" ───
    One quiet row under the Brief that opens the Changes feed. The server owns the
@@ -6859,3 +6819,93 @@ body[data-tab="session"] .tabbar{display:none}
 .capture-review-card .meal-card{gap:var(--space-3)}
 .capture-review-card .meal-card-row{gap:var(--space-3);padding:var(--space-2) 0;font-size:var(--text-sm)}
 .capture-review-card .meal-card-grams-input{width:4em;padding:0 var(--space-3)}
+
+/* -------------------------------------------------------------------
+   43 · Fuel — Plan → Food (.fuel-today-*, .fuel-log-*, .fuel-meal-*, .idea-card-*)
+   ------------------------------------------------------------------- */
+/* Today so far, protein first: numbers with units, never a score. A day still being
+   eaten reads "In progress" in sage, never a red/low tone. */
+.fuel-slot:empty{display:none}
+.fuel-today{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
+  padding:var(--space-8);margin-bottom:var(--space-card)}
+.fuel-today-skel{margin-bottom:var(--space-card)}
+.fuel-today-head{display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-4)}
+.fuel-today-title{margin:0}
+.fuel-today-state{margin-left:auto;font-size:var(--text-xs);color:var(--sage-text)}
+.fuel-today-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4);margin:0}
+.fuel-today-num{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.fuel-today-num dd{margin:0}
+.fuel-today-unit{font-size:var(--text-sm);color:var(--muted)}
+.fuel-today-sub{font-size:var(--text-xs);color:var(--muted)}
+.fuel-today-value.is-unknown{font-size:var(--text-xl);color:var(--muted)}
+.fuel-today-line{margin:var(--space-3) 0 0;font-size:var(--text-md);color:var(--ink-2);line-height:1.45}
+.fuel-today-togo{color:var(--sage-text);font-weight:600}
+.fuel-today-band,.fuel-today-pending{font-size:var(--text-sm);color:var(--muted)}
+.fuel-today-empty{margin:0;font-size:var(--text-md);color:var(--ink-2);line-height:1.5}
+.fuel-today-retry,.idea-cards-retry{min-height:44px}
+/* Log food: the shared composer opens under the button (grid-rows 0fr→1fr). */
+.fuel-log{margin-bottom:var(--space-card)}
+.fuel-log-toggle{width:100%;min-height:44px}
+.fuel-log-panel,.fuel-meal-panel{display:grid;grid-template-rows:0fr;visibility:hidden;
+  transition:grid-template-rows var(--dur-2) var(--ease),visibility var(--dur-2)}
+.fuel-log.is-open .fuel-log-panel,.fuel-meal.is-open .fuel-meal-panel{grid-template-rows:1fr;visibility:visible}
+.fuel-log-panel-in,.fuel-meal-panel-in{overflow:hidden;min-height:0}
+.fuel-log-composer{padding-top:var(--space-5)}
+.fuel-log-hint{margin:var(--space-3) 0 0;font-size:var(--text-xs);color:var(--muted)}
+/* The day's meals: a quiet row that opens into the meal card. */
+.fuel-meals{margin-bottom:var(--space-card)}
+.fuel-meals-title{margin:0 0 var(--space-3)}
+.fuel-meals-list{list-style:none;margin:0;padding:0;background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius)}
+.fuel-meal{border-top:1px solid var(--line)}
+.fuel-meal:first-child{border-top:none}
+.fuel-meal-head{display:flex;align-items:center;gap:var(--space-5);width:100%;min-height:56px;
+  padding:var(--space-5) var(--space-7);background:none;border:none;text-align:left;color:var(--ink);
+  font-family:var(--font-ui);cursor:pointer;transition:transform var(--dur-1) var(--ease)}
+.fuel-meal-head:active{transform:var(--press)}
+.fuel-meal-art{flex:0 0 auto;width:34px;height:34px;border-radius:var(--radius-sm);overflow:hidden;
+  display:flex;align-items:center;justify-content:center;background:var(--card-2)}
+.fuel-meal-art svg{width:100%;height:100%}
+.fuel-meal-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-1)}
+.fuel-meal-name{font-size:var(--text-md);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fuel-meal-meta{font-size:var(--text-xs);color:var(--muted)}
+.fuel-meal-nums{flex:0 0 auto;font-size:var(--text-sm);color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.fuel-meal-nums.is-pending{color:var(--muted);font-style:italic}
+.fuel-meal-chev{flex:0 0 auto;color:var(--muted);transition:transform var(--dur-1) var(--ease)}
+.fuel-meal.is-open .fuel-meal-chev{transform:rotate(90deg)}
+.fuel-meal-panel-in{padding:0 var(--space-7)}
+.fuel-meal.is-open .fuel-meal-panel-in{padding-bottom:var(--space-6)}
+.fuel-meal-note,.fuel-meal-raw{margin:var(--space-3) 0 0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
+.fuel-meal-actions{display:flex;justify-content:flex-end}
+.fuel-meal-remove{min-height:44px;font-size:var(--text-sm)}
+.fuel-meals-empty{margin:0 0 var(--space-card);font-size:var(--text-md);color:var(--muted)}
+/* Ideas: a dashed edge, never the logged card's solid one — an idea is not a meal eaten. */
+.idea-cards{margin-bottom:var(--space-card)}
+.idea-cards-title{margin:0 0 var(--space-2)}
+.idea-cards-words{margin:0 0 var(--space-4);font-size:var(--text-sm);color:var(--muted);line-height:1.45}
+.idea-cards-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-card)}
+.idea-card{display:flex;flex-direction:column;gap:var(--space-2);background:var(--card);
+  border:1px dashed var(--line-2);border-radius:var(--radius);padding:var(--space-7) var(--space-8)}
+.idea-card-head{display:flex;align-items:baseline;gap:var(--space-4)}
+.idea-card-portion{font-size:var(--text-xs);color:var(--muted)}
+.idea-card-title{margin:0;font-size:var(--text-base);font-weight:600;color:var(--ink)}
+.idea-card-nums{margin:0;font-size:var(--text-sm);color:var(--ink-2);font-variant-numeric:tabular-nums}
+.idea-card-why{margin:0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
+.idea-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-5);margin-top:var(--space-3)}
+.idea-card-start,.idea-card-another{min-height:44px}
+.idea-card-another[disabled]{opacity:.55;cursor:default}
+.idea-card-another[aria-busy="true"]{cursor:wait}
+.idea-card-status{margin:0;font-size:var(--text-xs);color:var(--muted)}
+.idea-card-status:empty{display:none}
+/* The meal-plan journal, kept as history at Fuel's foot (meal-plan-client.ts). */
+.fuel-history{margin-top:var(--space-8)}
+.fuel-history-h{margin:var(--space-8) 0 var(--space-3)}
+.mp-flush{margin:0}
+.mp-muted{color:var(--muted)}
+.mp-warn{color:var(--warn)}
+.mp-note{margin-top:var(--space-6);color:var(--muted)}
+.mp-upcoming-row{margin-top:var(--space-1)}
+.mp-upcoming-fold{margin:0;flex:1}
+.mp-fold-body{margin:var(--space-4) 0 0}
+.mp-why{display:inline-block;margin:0 var(--space-3)}
+.mp-hero-unit{display:block;margin-top:var(--space-1)}
+.meals-redraft-btn{width:100%;text-align:center;padding:var(--space-5)}

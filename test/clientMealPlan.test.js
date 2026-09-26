@@ -193,11 +193,11 @@ test("meal-plan helper renders planner preferences and empty state safely", () =
   assert.match(prefsHtml, /Fasted &lt;AM&gt;/);
   assert.match(prefsHtml, /data-pref="Fasted AM training"/);
   assert.doesNotMatch(prefsHtml, /Fasted <AM>/);
-  assert.match(emptyHtml, /No meal plan yet/);
+  assert.match(emptyHtml, /No week of meal ideas yet/);
   assert.match(emptyHtml, /id="mealDraftBtn"/);
   assert.match(emptyHtml, /class="pillbtn pill-accent"/);
-  assert.match(emptyHtml, /Ask team to plan this week/);
-  assert.doesNotMatch(emptyHtml, /ASK TEAM TO PLAN THIS WEEK|logbtn meals-cta/);
+  assert.match(emptyHtml, /Ask the team for a week of ideas/);
+  assert.doesNotMatch(emptyHtml, /ASK THE TEAM|logbtn meals-cta/);
   assert.match(emptyHtml, /fish &amp; rice/);
 });
 
@@ -407,8 +407,8 @@ test("meal-plan helper keeps review-required and applied states distinct", () =>
   assert.match(review, />review<\/span>/);
   assert.doesNotMatch(review, />draft<\/span>/);
   assert.match(review, /data-mkeep="review&lt;2&gt;"/);
-  assert.doesNotMatch(review, /data-meal-decision-undo|CURRENT PLAN/);
-  assert.match(applied, /CURRENT PLAN · Week/);
+  assert.doesNotMatch(review, /data-meal-decision-undo|THIS WEEK'S IDEAS/);
+  assert.match(applied, /THIS WEEK'S IDEAS · Week/);
   assert.match(applied, /RECENTLY UPDATED/);
   assert.match(applied, /<summary>Why<\/summary>/);
   assert.match(applied, /Training volume rose while protein remains anchored/);

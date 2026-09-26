@@ -2,7 +2,7 @@
   "note": "Ratchet for scripts/check-client-style.mjs. Numbers may only go down; run it with --update after one does.",
   "totals": {
     "hex": 221,
-    "style": 384,
+    "style": 354,
     "over400": 29,
     "over600": 13
   },
@@ -29,9 +29,6 @@
     },
     "src/client/chat-client.ts": {
       "lines": 506
-    },
-    "src/client/coach-meals-screen.ts": {
-      "style": 9
     },
     "src/client/coaching-focus-client.ts": {
       "lines": 599,
@@ -105,8 +102,7 @@
       "style": 40
     },
     "src/client/meal-plan-client.ts": {
-      "lines": 420,
-      "style": 20
+      "lines": 419
     },
     "src/client/outbox-queue.ts": {
       "lines": 562

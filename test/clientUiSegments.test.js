@@ -105,8 +105,8 @@ test("UI segments expose compatibility globals and Plan endurance visibility", (
   const { controller, state } = createController(context);
 
   assert.equal(context.CairnUiSegments, context.window.CairnUiSegments);
-  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "food", "meals", "coach"]);
-  assert.deepEqual(segmentLabels(controller.planSeg()), ["Training", "Food", "Meals", "Changes"]);
+  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "food", "coach"]);
+  assert.deepEqual(segmentLabels(controller.planSeg()), ["Training", "Food", "Changes"]);
   assert.equal(
     Object.hasOwn(controller.planHandlers, "coach"),
     true,
@@ -116,16 +116,16 @@ test("UI segments expose compatibility globals and Plan endurance visibility", (
   context.CairnUiSegments.setDiscipline("hybrid");
   assert.equal(context.primaryDiscipline, "hybrid");
   assert.equal(context.CairnUiSegments.isHybrid(), true);
-  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "endurance", "food", "meals", "coach"]);
+  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "endurance", "food", "coach"]);
 
   context.CairnUiSegments.setDiscipline("strength");
   context.CairnUiSegments.setEnduranceGoalSet(true);
   assert.equal(context.enduranceGoalSet, true);
-  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "endurance", "food", "meals", "coach"]);
+  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "endurance", "food", "coach"]);
 
   context.CairnUiSegments.setEnduranceGoalSet(false);
   state.planJump = "endurance";
-  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "endurance", "food", "meals", "coach"]);
+  assert.deepEqual(segmentKeys(controller.planSeg()), ["edit", "endurance", "food", "coach"]);
 
   context.primaryDiscipline = "custom";
   assert.equal(context.primaryDiscipline, "custom");
