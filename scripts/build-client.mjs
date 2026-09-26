@@ -2,7 +2,7 @@
 // Compile dependency-free browser client slices from src/client into stable
 // public/js filenames. This is intentionally explicit during migration: no
 // bundler, no runtime deps, and no surprise asset names for the service worker.
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
@@ -663,6 +663,7 @@ export function buildClient() {
 
   console.log(`✓ built client output (${CLIENT_OUTPUTS.length} file${CLIENT_OUTPUTS.length === 1 ? "" : "s"})`);
   buildBundles();
+  pruneOrphanedOutputs();
   pruneBundleIntermediates();
   precompressAssets();
 }
@@ -673,6 +674,28 @@ export function buildClient() {
 
 /** The hand-written classic shim — a bundle INPUT that lives in git, never generated. */
 const HANDWRITTEN_PUBLIC_JS = new Set(["public/js/10-boot.js"]);
+
+/**
+ * Generated output whose source is gone. Renaming or splitting a module leaves its
+ * old public/js file (and .gz/.br siblings) behind in any checkout that built before
+ * the change; the engineering-contract test then fails on it and the server still
+ * serves it. Anything in public/js that this build does not emit and git does not own
+ * is removed.
+ */
+export function pruneOrphanedOutputs() {
+  const dir = path.join(root, "public/js");
+  if (!existsSync(dir)) return;
+  const known = new Set([...CLIENT_OUTPUTS.map((item) => item.output), ...BUNDLES.map((bundle) => bundle.output)]);
+  let removed = 0;
+  for (const name of readdirSync(dir)) {
+    const file = `public/js/${name}`;
+    const base = file.replace(/\.(gz|br)$/, "");
+    if (!base.endsWith(".js") || known.has(base) || HANDWRITTEN_PUBLIC_JS.has(base)) continue;
+    rmSync(path.join(root, file));
+    removed += 1;
+  }
+  if (removed) console.log(`✓ pruned ${removed} orphaned output${removed === 1 ? "" : "s"} from public/js`);
+}
 
 /**
  * Every per-module intermediate the bundler consumed. index.html loads only the

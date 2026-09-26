@@ -499,6 +499,28 @@ B and C share no files.
 
 **Accessibility audit** against the minimums in DESIGN.md.
 
+**Installed apps update in place** (the PWA already installed on someone's phone must become v2,
+new icon and name included, without losing anything):
+
+- `manifest.json` `id`, `scope` and `start_url` never change, and neither do the `localStorage` keys
+  (`cairn_token`, `cairn.outbox.v1`, the drafts). A key whose shape changes is migrated in place,
+  never renamed. An outbox written by v1 must still drain.
+- The new icon and name ship as one change. Every icon URL moves to the next `.vN` together
+  (manifest icons and shortcuts, `index.html`'s apple-touch-icon, `OPTIONAL_ASSETS` in `sw.js`), and
+  `theme_color` changes in the manifest and the meta tag together. Chrome notices an icon change only
+  when the URL changes.
+- The worker serves `/manifest.json` network-first, so the browser's launch-time manifest check sees
+  the new one.
+- iOS home-screen apps keep the icon and name they were installed with, and a re-add starts with
+  empty storage. So a standalone iOS install shows ONE optional, dismissible note, and only when the
+  outbox is empty. The note says what re-adding refreshes and what must be re-entered. Settings gains
+  a "Copy token" action so that re-entry takes seconds.
+- Tests pin `id`/`scope`/`start_url`, every icon URL resolving and sharing one `.vN` that
+  `OPTIONAL_ASSETS` lists, manifest/meta `theme_color` agreement, the storage-key strings, a v1-shape
+  outbox draining, and the rules for when the iOS note shows.
+- Every test deploy checks that an already-installed app picked up the new shell (the build id in
+  Settings matches `/api/health`).
+
 **Marketing refresh:**
 
 - Update `README.md`, `docs/WHY-CAIRN.md`, `docs/QUICKSTART.md` and `docs/SHARING.md` for v2.
