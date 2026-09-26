@@ -925,7 +925,9 @@ export function gatherDailyDecisionSnapshot(
 
   const programState = safe(() => getProgramState(d, recoverySummary), null) as any;
   const progression =
-    selected?.day_number != null ? (safe(() => planDayProgression(selected.day_number), []) as any[]) : [];
+    selected?.day_number != null
+      ? (safe(() => planDayProgression(selected.day_number, { readDate: d }), []) as any[])
+      : [];
   const earned = safe(() => earnedLifts(d, Array.isArray(planDay?.items) ? planDay.items : [], progression), new Map());
   // This week's weekday → plan-day map, read at most once for the whole snapshot (the
   // weekly-lower read and the weekly dose both ask it). Lazy: most mornings need neither.

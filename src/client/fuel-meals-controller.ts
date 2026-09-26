@@ -213,23 +213,28 @@
       if (meal) mountCard(el, meal);
     }
 
-    function fixBody(form: Element): Record<string, unknown> | null {
+    // ONLY the fields the person changed. Summary and macros are the meal's estimate —
+    // sending one locks the note against a still-owed enrichment (repo/nutrition.ts
+    // FOOD_ESTIMATE_FIELDS) — so a slot-only fix must never carry them along unchanged.
+    function fixBody(form: Element, meal: Meal | null): Record<string, unknown> | null {
       const field = (name: string): HTMLInputElement | HTMLSelectElement | null =>
         form.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-fuel-meal-fix-field="${name}"]`);
+      const start = meal ? CairnFuelMeals.fixFormValues(meal) : {};
       const body: Record<string, unknown> = {};
       const summary = String(field("summary")?.value ?? "").trim();
-      if (summary) body.summary = summary;
+      if (summary && summary !== String(start.summary ?? "").trim()) body.summary = summary;
       const slot = String(field("meal")?.value ?? "").trim();
-      if (slot) body.meal = slot;
+      if (slot && slot !== String(start.meal ?? "")) body.meal = slot;
       for (const [key] of CairnFuelMeals.FIX_FIELDS) {
         const text = String(field(key)?.value ?? "").trim();
+        const was = String(start[key] ?? "").trim();
         if (!text) {
-          body[key] = null; // blank is unknown, never a zero
+          if (was) body[key] = null; // cleared: blank is unknown, never a zero
           continue;
         }
         const n = Number(text);
         if (!Number.isFinite(n) || n < 0) return null;
-        body[key] = n;
+        if (was === "" || Number(was) !== n) body[key] = n;
       }
       return body;
     }
@@ -239,9 +244,13 @@
       const id = Number(el?.dataset.fuelMeal);
       const form = el?.querySelector("[data-fuel-meal-fix]");
       if (!el || !id || !form || btn.hasAttribute("aria-busy")) return;
-      const body = fixBody(form);
+      const body = fixBody(form, mealFor(id));
       if (!body) {
         deps.toast("Numbers only, and none below zero");
+        return;
+      }
+      if (!Object.keys(body).length) {
+        deps.toast("Nothing changed");
         return;
       }
       btn.setAttribute("aria-busy", "true");

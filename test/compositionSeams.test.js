@@ -226,6 +226,21 @@ test("a lower day with a reduced area composes exactly as before the seams", () 
   assertGolden(deterministicComposedSession(env), GOLDEN_LOWER_REDUCED, "lower_reduced");
 });
 
+test("a snapshot computed for one date words the same whenever it runs", () => {
+  seedLowerPlan();
+  const fingerprints = [];
+  for (const clock of ["2026-09-25T12:00:00.000Z", "2026-09-26T12:00:00.000Z", "2027-02-14T12:00:00.000Z", "2031-06-29T12:00:00.000Z"]) {
+    mock.timers.enable({ apis: ["Date"], now: new Date(clock) });
+    try {
+      const snapshot = gatherDailyDecisionSnapshot(DATE);
+      fingerprints.push(buildDailySessionDecision(snapshot, { now: "2031-07-01T09:00:00.000Z" }).input_fingerprint);
+    } finally {
+      mock.timers.reset();
+    }
+  }
+  assert.deepEqual(fingerprints, Array(4).fill(GOLDEN.lower_fingerprint));
+});
+
 test("a plan snapshot of the lower day composes exactly as before the seams", () => {
   seedLowerPlan();
   assertGolden(
@@ -235,23 +250,12 @@ test("a plan snapshot of the lower day composes exactly as before the seams", ()
   );
 });
 
-// The snapshot's progression prose rotates through pickDayVariant keyed on the wall-clock
-// day, not DATE, so the fingerprint moves every calendar day unless the clock is pinned.
-// The golden was captured on this day (midday UTC stays the same local date in any
-// ordinary TZ).
-const GOLDEN_CLOCK = "2026-09-25T12:00:00.000Z";
-
 test("an ordinary morning's snapshot and envelope carry none of the seam keys", () => {
   seedLowerPlan();
-  mock.timers.enable({ apis: ["Date"], now: new Date(GOLDEN_CLOCK) });
-  let snapshot;
-  let env;
-  try {
-    snapshot = gatherDailyDecisionSnapshot(DATE);
-    env = buildDailySessionDecision(snapshot, { now: "2031-07-01T09:00:00.000Z" });
-  } finally {
-    mock.timers.reset();
-  }
+  // No clock pinned: the snapshot's progression prose keys on the READ date (DATE), not
+  // the wall clock, so the fingerprint is the same whatever day the suite runs.
+  const snapshot = gatherDailyDecisionSnapshot(DATE);
+  const env = buildDailySessionDecision(snapshot, { now: "2031-07-01T09:00:00.000Z" });
   assert.equal("weekly_dose" in snapshot, false, "no weekly_dose key on an idle snapshot");
   assert.equal("stress_budget" in snapshot, false, "no stress_budget key on an idle snapshot");
   assert.equal(env.input_fingerprint, GOLDEN.lower_fingerprint, "the stored fingerprint is unchanged");

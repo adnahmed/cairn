@@ -621,7 +621,7 @@ export function sessionPrimer(
   const prescriptions = (() => {
     if (accepted || dayNumber == null) return [] as Prescription[];
     try {
-      return planDayProgression(dayNumber);
+      return planDayProgression(dayNumber, { readDate: d });
     } catch {
       return [] as Prescription[];
     }

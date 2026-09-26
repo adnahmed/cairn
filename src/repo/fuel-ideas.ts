@@ -253,6 +253,55 @@ export interface FuelIdeasOptions {
   exclude?: string[];
 }
 
+// A meal with no numbers at all: still being estimated, or never estimated.
+const unestimatedMeal = (entry: any): boolean =>
+  ["kcal", "protein_g", "fiber_g"].every((key) => entry?.[key] == null || !Number.isFinite(Number(entry[key])));
+
+/**
+ * What is logged so far, marked for what it is: a partial sum (unless the day reads
+ * complete) over the meals that carry numbers, with the unestimated ones left out and
+ * counted. PURE over `getDayIntake`'s shape.
+ */
+export function todaySoFar(
+  day: { entries: any[] },
+  state: ClientFuelIdeas["today_so_far"]["state"],
+  date: string
+): ClientFuelIdeas["today_so_far"] {
+  const counted = day.entries.filter((entry) => !unestimatedMeal(entry));
+  const unestimated = day.entries.length - counted.length;
+  const sum = (key: "kcal" | "protein_g" | "fiber_g") =>
+    Math.round(
+      counted.reduce((acc, entry) => acc + (Number.isFinite(Number(entry?.[key])) ? Number(entry[key]) : 0), 0)
+    );
+  const kcal = sum("kcal");
+  const protein_g = sum("protein_g");
+  const fiber_g = sum("fiber_g");
+  const isToday = date === localDateISO();
+  const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+  const numbers = `${protein_g} g protein, ${kcal.toLocaleString("en-US")} kcal and ${fiber_g} g fiber`;
+  let words: string;
+  if (state === "nothing logged") words = isToday ? "Nothing logged yet today." : "Nothing was logged that day.";
+  else if (!counted.length)
+    words = `${n(unestimated, "meal is", "meals are")} logged${isToday ? " so far" : ""}, with no numbers yet, so there is no sum to show.`;
+  else if (state === "complete" && !unestimated) words = `The day's total: ${numbers}.`;
+  else if (state === "complete")
+    words = `Logged that day: ${numbers} from ${n(counted.length, "meal", "meals")} — not the whole day.`;
+  else
+    words = `So far${isToday ? " today" : ""}: ${numbers} from ${n(counted.length, "meal", "meals")} — in progress, not the day's total.`;
+  if (unestimated && counted.length)
+    words += ` ${n(unestimated, "more meal has", "more meals have")} no numbers yet and ${unestimated === 1 ? "isn't" : "aren't"} counted.`;
+  return {
+    kcal,
+    protein_g,
+    fiber_g,
+    state,
+    partial: state !== "complete" || unestimated > 0,
+    meals_counted: counted.length,
+    meals_unestimated: unestimated,
+    words,
+  };
+}
+
 /**
  * Three ideas for the rest of `date` (default today), deterministic. Never logs,
  * never drafts a plan, never asks an agent.
@@ -333,12 +382,7 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
     kind: "ideas",
     date,
     protein_anchor: anchor,
-    today_so_far: {
-      kcal: totals.kcal,
-      protein_g: totals.protein_g,
-      fiber_g: totals.fiber_g,
-      state,
-    },
+    today_so_far: todaySoFar(day, state, date),
     room: {
       protein_g: proteinNeed == null ? null : Math.round(proteinNeed),
       energy_kcal: energyRoom,

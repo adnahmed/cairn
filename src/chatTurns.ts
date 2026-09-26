@@ -22,7 +22,7 @@ import {
 } from "./brain/query-loop-contract.js";
 import type { CoachReadToolRequest, CoachReadToolResult } from "./brain/read-tools.js";
 import type { CoachReadToolExecutionContext } from "./brain/read-tool-runtime.js";
-import { chatHistoryTimeLabel, localDateISO, nowContext, parseDbTime } from "./repo/shared.js";
+import { chatHistoryTimeLabel, localDateISO, mealLabelForTime, nowContext, parseDbTime } from "./repo/shared.js";
 import { runWithTimeZone } from "./tz.js";
 import {
   availabilityHolds,
@@ -243,16 +243,40 @@ export function enqueueChatTurn(id: number): void {
   runner.enqueue(id);
 }
 
+// The meal label for an instant capture: a label the athlete wrote wins; otherwise the
+// OBSERVED hour names it through the one set of meal windows (repo/shared.ts
+// mealLabelForTime) — breakfast 05–11, lunch 11–15, dinner 17–22, and a snack anywhere
+// else. So a log at 00:28 is a late-night snack, never "breakfast", and 22:30 is a snack
+// rather than a stretched dinner. Time → label only: no time is ever stored from this.
 export function inferCaptureMeal(message: string | null | undefined, hour = nowContext().hour): string {
   const text = String(message ?? "");
   for (const meal of ["breakfast", "lunch", "dinner", "snack"] as const) {
     if (new RegExp(`\\b${meal}\\b`, "i").test(text)) return meal;
   }
-  const h = Number(hour);
-  if (h < 11) return "breakfast";
-  if (h < 15) return "lunch";
-  if (h < 18) return "snack";
-  return "dinner";
+  const h = Math.trunc(Number(hour));
+  const label = Number.isFinite(h) ? mealLabelForTime(`${String(((h % 24) + 24) % 24).padStart(2, "0")}:00`) : null;
+  return label ?? "meal";
+}
+
+// The instant capture's receipt. It promises a background estimate ONLY when one will
+// actually run (the note is queued AND enrichment is on with a usable agent); otherwise
+// it says what was kept — the athlete's own items — and that the numbers stay blank.
+export function instantCaptureReply(meal: string, photo: boolean, note: any): string {
+  const queued = String(note?.enrichment_status ?? "") === "pending";
+  const availability = repo.backgroundEstimateAvailability();
+  if (queued && availability.ok) {
+    return photo
+      ? `Logged your ${meal}. I’ll refine the photo estimate in the background.`
+      : `Logged your ${meal}. I’ll fill in the nutrition details in the background.`;
+  }
+  const why =
+    !availability.ok && availability.reason === "no_agent"
+      ? "No agent is available to estimate it right now"
+      : "Nutrition estimates are switched off in Settings";
+  if (photo) return `Logged your ${meal} with the photo. ${why}, so its numbers stay blank until you add them.`;
+  const rows = Array.isArray(note?.parsed?.ingredients) ? note.parsed.ingredients.length : 0;
+  const items = rows > 1 ? ` as ${rows} items` : "";
+  return `Logged your ${meal}${items}, in your words. ${why}, so the numbers stay blank until you add them.`;
 }
 
 export function completeInstantFoodCapture(id: number, rawMessage?: string) {
@@ -285,9 +309,7 @@ export function completeInstantFoodCapture(id: number, rawMessage?: string) {
     routing,
     instant_capture: true,
   };
-  const reply = photo
-    ? `Logged your ${meal}. I’ll refine the photo estimate in the background.`
-    : `Logged your ${meal}. I’ll fill in the nutrition details in the background.`;
+  const reply = instantCaptureReply(meal, photo, note);
   const finished = repo.finishInstantCaptureChatTurn(id, { reply, meta }) as any;
   if (finished?.turn && finished?.message) emit(id, { type: "done", turn: finished.turn, message: finished.message });
   return { ...finished, note };

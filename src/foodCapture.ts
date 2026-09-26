@@ -746,3 +746,145 @@ export function recomputeFoodIngredients(
   }
   return { ingredients: rows, totals, unestimated, scaled, unfollowed, cleared: false };
 }
+
+// ---- the athlete's own lines, before (or without) any estimate ----------------
+//
+// A pasted meal of six lines is six things eaten, whether or not an agent ever reads
+// it. When no estimate exists yet — enrichment off, no agent reachable, or simply not
+// run yet — the words are split deterministically into rows so the meal card shows
+// what was eaten at once:
+//   - each non-empty line (a leading bullet or "1." dropped) is one row; a single line
+//     is split on commas/semicolons instead ("oats 60 g, milk 250 ml, a banana"), but
+//     never inside a number ("1,5 kg");
+//   - a line that is only a meal heading ("Breakfast:") is not a row, and a short
+//     lead-in before a colon ("Log lunch: …", "I had: …") is not part of the first one;
+//   - a quantity the athlete wrote — leading ("60 g oats", "2 eggs") or trailing
+//     ("oats 60g", "rice - 150 g", "chicken (205 g)", "toast x2") — goes into `amount`
+//     as they wrote it; the rest of their words is the item;
+//   - NO macros are invented. The rows carry no numbers; the meal reads
+//     `confidence: "low"`, `basis: "user_report"` (the items and amounts are the
+//     athlete's own words). A later agent estimate replaces the rows and fills the
+//     numbers — unless a person has edited the meal, which locks it (repo/nutrition.ts).
+
+// Units a written quantity may carry: parseFoodQuantity's mass and volume words, plus
+// the household measures people actually type.
+const FOOD_UNIT_WORDS = [
+  ...Object.keys(MASS_TO_G),
+  ...Object.keys(VOLUME_TO_ML),
+  "cup",
+  "cups",
+  "tbsp",
+  "tsp",
+  "tablespoon",
+  "tablespoons",
+  "teaspoon",
+  "teaspoons",
+  "slice",
+  "slices",
+  "scoop",
+  "scoops",
+  "piece",
+  "pieces",
+  "pc",
+  "pcs",
+  "serving",
+  "servings",
+  "handful",
+  "handfuls",
+  "can",
+  "cans",
+  "bowl",
+  "bowls",
+  "glass",
+  "glasses",
+  "bar",
+  "bars",
+];
+const UNIT_RE = `(?:${FOOD_UNIT_WORDS.join("|")})`;
+const NUM_RE = String.raw`(?:~\s*)?\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?`;
+const LEADING_UNIT = new RegExp(String.raw`^(${NUM_RE}\s*${UNIT_RE})\.?(?:\s+of)?\s+(.+)$`, "i");
+const LEADING_COUNT = new RegExp(String.raw`^(${NUM_RE}|½|¼|¾)\s+(.+)$`, "i");
+const TRAILING_UNIT = new RegExp(String.raw`^(.+?)[\s,:\-–—(]+(${NUM_RE}\s*${UNIT_RE})\.?\)?$`, "i");
+const TRAILING_TIMES = /^(.+?)\s*[x×]\s*(\d+)$/i;
+const BULLET_RE = /^\s*(?:[-*•·–—]+|\d+[.)])\s+/;
+const MEAL_HEADING_RE = /^(?:breakfast|brunch|lunch|dinner|supper|snacks?|meal|pre-?workout|post-?workout)\s*:?\s*$/i;
+const LEAD_IN_RE = /^[^:\d\n]{1,40}:\s*(?=\S)/;
+const SPOKEN_LEAD_RE =
+  /^(?:i\s+)?(?:just\s+)?(?:had|ate|eaten|log(?:ged)?)\b(?:\s+(?:for\s+)?(?:breakfast|brunch|lunch|dinner|supper|a\s+snack))?\s*:?\s*/i;
+
+function foodRowFromWords(words: string): FoodIngredient | null {
+  const text = words.replace(/\s+/g, " ").trim();
+  if (!text || MEAL_HEADING_RE.test(text)) return null;
+  const row = (item: string, amount?: string): FoodIngredient | null => {
+    const it = item.replace(/^[\s,:\-–—]+|[\s,:\-–—]+$/g, "").slice(0, TEXT_CAP);
+    if (!it) return amount ? { item: amount.slice(0, TEXT_CAP) } : null;
+    return amount ? { item: it, amount: amount.trim().slice(0, TEXT_CAP) } : { item: it };
+  };
+  let m = text.match(LEADING_UNIT);
+  if (m) return row(m[2], m[1]);
+  m = text.match(TRAILING_UNIT);
+  if (m) return row(m[1], m[2]);
+  m = text.match(TRAILING_TIMES);
+  if (m) return row(m[1], m[2]);
+  m = text.match(LEADING_COUNT);
+  if (m) return row(m[2], m[1]);
+  return row(text);
+}
+
+/**
+ * Split an athlete's own meal words into ingredient rows — one per line, bullet or
+ * (on a single line) comma-list item — with the quantity they wrote as `amount`.
+ * PURE, deterministic, no macros. Rules above. Empty when there is nothing to split.
+ */
+export function foodRowsFromWords(text: unknown): FoodIngredient[] {
+  const raw = String(text ?? "").replace(/\r\n?/g, "\n");
+  let lines = raw
+    .split("\n")
+    .map((line) => line.replace(BULLET_RE, "").trim())
+    .filter((line) => line && !MEAL_HEADING_RE.test(line));
+  if (!lines.length) return [];
+  // A short lead-in on the first line ("Log lunch: …", "I had: …") is not something eaten.
+  const first = lines[0].replace(LEAD_IN_RE, "").replace(SPOKEN_LEAD_RE, "").trim();
+  lines = first ? [first, ...lines.slice(1)] : lines.slice(1);
+  const segments =
+    lines.length === 1
+      ? lines[0]
+          .split(/[;,](?!\d)/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+      : lines;
+  return segments
+    .map(foodRowFromWords)
+    .filter((row): row is FoodIngredient => !!row)
+    .slice(0, MAX_INGREDIENTS);
+}
+
+/** True when a stored blob carries no estimate at all: no rows, no items, no numbers. */
+export function foodParsedHasNoEstimate(parsed: unknown): boolean {
+  if (!parsed || typeof parsed !== "object") return true;
+  const row = parsed as Record<string, unknown>;
+  if (Array.isArray(row.ingredients) && row.ingredients.length) return false;
+  if (Array.isArray(row.items) && row.items.length) return false;
+  return FOOD_MACRO_KEYS.every((key) => asNum(row[key]) === undefined);
+}
+
+/**
+ * The words-only capture: when `parsed` carries no estimate, the athlete's own text
+ * becomes rows (foodRowsFromWords) with no macros, `confidence: "low"` and
+ * `basis: "user_report"`. Anything already in `parsed` (a summary) is kept. Returns
+ * `parsed` untouched when it already carries an estimate or the text has no rows.
+ */
+export function withWordRows<T extends Record<string, unknown> | null | undefined>(
+  parsed: T,
+  text: unknown
+): T | Record<string, unknown> {
+  if (!foodParsedHasNoEstimate(parsed)) return parsed;
+  const rows = foodRowsFromWords(text);
+  if (!rows.length) return parsed;
+  return {
+    ...(parsed ?? {}),
+    ingredients: rows,
+    confidence: "low",
+    basis: "user_report",
+  };
+}

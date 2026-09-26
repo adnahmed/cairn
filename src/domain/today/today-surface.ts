@@ -108,7 +108,7 @@ export function todayAggregate(dateQuery?: unknown): TodayAggregate {
     exercises: listExercises(),
     last_sets,
     progression_day: progressionDay,
-    progression: progressionDay == null ? [] : planDayProgression(progressionDay),
+    progression: progressionDay == null ? [] : planDayProgression(progressionDay, { readDate: date }),
     strength_journey: strengthJourneyRead(),
     agenda,
     coaching_focus: getCoachingFocus(),
