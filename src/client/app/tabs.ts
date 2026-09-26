@@ -84,11 +84,11 @@ type TabSwitchOptions = {
       return segSkeleton(seg, PROGRESS_SEG, seg === "endurance" ? 2 : 3);
     }
     if (tab === "plan") {
-      // Fuel and Changes carry no seg bar; the editor wears Train's group nav; the
-      // race view keeps its own bar until Horizon takes it over.
+      // Fuel, Changes and the race view (Horizon's) carry no seg bar; the editor
+      // wears Train's group nav.
       const activePlan = state.planJump || state.planSeg || "edit";
-      if (activePlan === "food" || activePlan === "meals" || activePlan === "coach") return skelLines(2) + skelLines(3);
-      if (activePlan === "endurance") return segSkeleton("endurance", planSeg(), 3);
+      if (activePlan === "food" || activePlan === "meals" || activePlan === "coach" || activePlan === "endurance")
+        return skelLines(2) + skelLines(3);
       return segSkeleton("plan", PROGRESS_SEG, 3);
     }
     if (tab === "horizon" || tab === "you") return skelLines(2) + skelLines(3);

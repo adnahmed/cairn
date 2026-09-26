@@ -1880,7 +1880,6 @@ declare global {
   declare function renderYou(): unknown;
   declare function renderHorizon(): unknown;
   declare function syncRouteFromState(mode?: "push" | "replace"): void;
-  declare function planSeg(): readonly ClientSegment[];
   declare function todaySkeleton(): string;
   declare function segSkeleton(active: string, seg: readonly ClientSegment[], cards?: number): string;
   declare function skelLines(count?: number): string;

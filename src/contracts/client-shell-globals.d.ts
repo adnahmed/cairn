@@ -5,7 +5,6 @@ declare global {
   declare let primaryDiscipline: string;
   declare const PROGRESS_SEG: readonly ClientSegment[];
   declare const PROGRESS_HANDLERS: Record<string, () => unknown>;
-  declare const PLAN_HANDLERS: Record<string, () => unknown>;
   declare const art: (fn: string, ...args: unknown[]) => string;
   declare const stagger: (index?: number | null) => string;
   declare const reducedMotion: () => boolean;
