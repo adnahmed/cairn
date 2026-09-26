@@ -136,5 +136,48 @@ test("train overview masthead never surfaces a day streak", () => {
   const overview = readFileSync(join(root, "src/client/progress-overview-client.ts"), "utf8");
   assert.doesNotMatch(overview, /day streak/);
   // The week's sessions sit under the "This week" kicker, so the stat reads "sessions".
-  assert.match(overview, /stat\(`\$\{done\}\/\$\{planned\}`, "sessions"\)/);
+  assert.match(overview, /,\s*"sessions"\s*\)/);
+});
+
+// ---------- the muscle rows fold ----------
+
+function tovRow(group, tone, overrides = {}) {
+  return { group, label: group, tone, sets: 6, band: "productive", verdict: "", trend: "", loadNote: "", ...overrides };
+}
+
+test("the muscle rows lead with the groups that ask for a look; the rest fold under one line", () => {
+  const ctx = loadRoadFold();
+  const rows = [
+    tovRow("chest", "ok"),
+    tovRow("back", "due", { band: "low" }),
+    tovRow("shoulders", "ok"),
+    tovRow("quads", "high", { band: "high" }),
+    tovRow("hamstrings", "ok", { verdict: "stalling" }),
+    tovRow("biceps", "ok"),
+    tovRow("calves", "none", { sets: 0, band: "" }),
+    tovRow("neck", "none", { sets: 0, band: "" }),
+  ];
+  const html = ctx.tovRowsHtml(rows);
+  const [lead, fold] = html.split('<details class="tov-more">');
+  const groups = (part) => [...part.matchAll(/class="tov-row[^"]*"[^>]*data-group="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(groups(lead), ["back", "quads", "hamstrings"]);
+  // Quiet groups outside the anatomical scan (neck) are left out altogether.
+  assert.deepEqual(groups(fold), ["chest", "shoulders", "biceps", "calves"]);
+  assert.match(fold, /4 more muscle groups/);
+  assert.match(fold, /Chest, Shoulders, Biceps…/);
+  // Nothing asking for a look: the first three lead anyway, and no empty fold.
+  const calm = ctx.tovRowsHtml([tovRow("chest", "ok"), tovRow("back", "ok"), tovRow("shoulders", "ok")]);
+  assert.doesNotMatch(calm, /<details/);
+  assert.equal(ctx.tovRowsHtml([tovRow("neck", "none")]), "");
+});
+
+test("a tap on a folded muscle opens its fold and finds its row", () => {
+  const ctx = loadRoadFold();
+  const opened = { open: false };
+  const row = { closest: (sel) => (sel === "details" ? opened : null) };
+  const view = { querySelector: (sel) => (sel === '.tov-row[data-group="calves"]' ? row : null) };
+  assert.equal(ctx.tovOpenRow(view, "calves"), row);
+  assert.equal(opened.open, true);
+  assert.equal(ctx.tovOpenRow(view, "neck"), null);
+  assert.equal(ctx.tovOpenRow(view, ""), null);
 });

@@ -5977,6 +5977,8 @@ declare global {
       ): ClientHorizonSeason | null;
     };
     CairnHorizonChart: {
+      BODY_MARK_KINDS: ReadonlySet<string>;
+      FAN_ANCHOR_DAYS: number;
       terrainSvg(terrain: ClientHorizonTerrain): string;
       seasonSvg(season: ClientHorizonSeason): string;
     };

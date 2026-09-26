@@ -82,7 +82,7 @@
    */
   function seasonSlotHtml(lane: Lane): string {
     if (lane.key !== "goal" || lane.state !== "set") return "";
-    return `<figure class="horizon-chart-card is-season is-pending" data-horizon-season aria-busy="true"><div class="hshimmer horizon-chart-skel"></div></figure>`;
+    return `<figure class="horizon-chart-card is-season is-pending" data-horizon-season aria-busy="true"><div class="hshimmer horizon-chart-skel"></div><div class="horizon-chart-key-skel"></div></figure>`;
   }
 
   /** The season line for the goal line's slot; "" when there is no line to draw. */
@@ -90,11 +90,16 @@
     if (!season || typeof CairnHorizonChart === "undefined") return "";
     const chart = CairnHorizonChart.seasonSvg(season);
     if (!chart) return "";
+    // The key names only what the chart drew: the window only beside a goal line, and
+    // each diamond hue only when a mark of it is on the lane.
+    const body = season.marks.filter((m) => CairnHorizonChart.BODY_MARK_KINDS.has(m.kind)).length;
     const keys = [
       `<span class="horizon-key is-weight">Weight</span>`,
       season.goal_lb != null ? `<span class="horizon-key is-goal">Goal</span>` : "",
-      season.fan ? `<span class="horizon-key is-fan">Likely window</span>` : "",
-      season.marks.length ? `<span class="horizon-key is-mark">Labs and scans</span>` : "",
+      season.goal_lb != null && season.fan ? `<span class="horizon-key is-fan">Likely window</span>` : "",
+      season.marks.length > body ? `<span class="horizon-key is-mark">Labs</span>` : "",
+      body ? `<span class="horizon-key is-mark is-body">Body scans</span>` : "",
+      season.race ? `<span class="horizon-key is-mark is-race">Race day</span>` : "",
     ].join("");
     return `${chart}<figcaption class="horizon-chart-key">${keys}</figcaption>`;
   }
@@ -144,20 +149,26 @@
   function segHtml(active: ClientHorizonView): string {
     const buttons = SEGMENTS.map(
       ([key, label]) =>
-        `<button type="button" class="segbtn${key === active ? " active" : ""}" role="tab" aria-selected="${key === active}" data-horizon-seg="${key}">${escHtml(label)}</button>`
+        `<button type="button" class="segbtn${key === active ? " active" : ""}" role="tab" id="horizonTab-${key}" aria-controls="horizonPanel-${key}" aria-selected="${key === active}" data-horizon-seg="${key}">${escHtml(label)}</button>`
     ).join("");
     return `<div class="seg horizon-seg" role="tablist" aria-label="Horizon views">${buttons}</div>`;
   }
 
-  /** The timeline's frame: the view switch, then one slot per lane, in the timeline's order. */
+  /**
+   * The timeline's frame: the view switch, then one tab panel per view holding its lane
+   * slots, in the timeline's order.
+   */
   function shellHtml(active: ClientHorizonView = "race"): string {
-    const lanes = KEYS.map((key) => {
-      const hidden = PANEL[key] === active ? "" : " hidden";
-      return `<li class="horizon-lane" data-horizon-lane="${key}" data-horizon-panel="${PANEL[key]}"${hidden}>${laneSkeletonHtml(key)}</li>`;
+    const panels = SEGMENTS.map(([view]) => {
+      const lanes = KEYS.filter((key) => PANEL[key] === view)
+        .map((key) => `<li class="horizon-lane" data-horizon-lane="${key}">${laneSkeletonHtml(key)}</li>`)
+        .join("");
+      const hidden = view === active ? "" : " hidden";
+      return `<div class="horizon-panel" role="tabpanel" id="horizonPanel-${view}" aria-labelledby="horizonTab-${view}" data-horizon-panel="${view}"${hidden}><ol class="horizon-lanes" aria-label="What's ahead">${lanes}</ol></div>`;
     }).join("");
     return `<div class="horizon" data-horizon data-horizon-view="${active}">
       ${segHtml(active)}
-      <ol class="horizon-lanes" aria-label="What's ahead">${lanes}</ol>
+      ${panels}
     </div>`;
   }
 

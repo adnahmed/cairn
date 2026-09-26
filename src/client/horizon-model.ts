@@ -368,10 +368,16 @@
         marks.push({ date, label: LAB_KINDS[String(doc.kind)], kind: String(doc.kind), side: "behind" });
     }
     const checkup = record(checkupValue) as Checkup | null;
-    for (const item of [...(checkup?.due_now || []), ...(checkup?.upcoming || [])]) {
-      const date = dayKey(item?.next_due);
-      if (date && (!today || date >= today)) marks.push({ date, label: text(item.label), kind: text(item.kind) || "lab", side: "ahead" });
-    }
+    // A recheck the checkup calls due now stands on today's line even when its date has
+    // passed (the labs rail still lists it); an upcoming one stands at its own date.
+    const aheadMark = (item: CheckupItem | null | undefined, dueNow: boolean): void => {
+      const due = dayKey(item?.next_due);
+      if (!item || !due) return;
+      const date = dueNow && today && due < today ? today : due;
+      if (!today || date >= today) marks.push({ date, label: text(item.label), kind: text(item.kind) || "lab", side: "ahead" });
+    };
+    for (const item of Array.isArray(checkup?.due_now) ? checkup.due_now : []) aheadMark(item, true);
+    for (const item of Array.isArray(checkup?.upcoming) ? checkup.upcoming : []) aheadMark(item, false);
     return {
       points,
       goal_lb: num(record(read?.goal)?.weight_lb),

@@ -151,8 +151,12 @@ Horizon's two views and Train's charts share one chart language (`horizon-chart-
   (`.pchart.is-strength` / `.is-body`). Tone never colors a line.
 - **Annotations are deep-colored words on the chart**, never a legend-only code: `now` (dawn line),
   race day (dashed endurance line and its date), the goal (dotted body line, its weight and date),
-  the projection window as a fan from today's weight. Labs and scans ride the season line as
-  diamonds: filled behind today, open ahead, the same diamonds their rows wear below.
+  the projection window as a fan from the latest weigh-in. That weigh-in says `now` only when it
+  is today's; an older one wears its mono date, and once it is a few days old the fan no longer
+  leaves it (the window lies on the goal line alone). Labs and scans ride the season line as
+  diamonds: filled behind today, open ahead, the same diamonds their rows wear below; one far
+  beyond the season's own span is pinned at the edge rather than squeezing the line. The key
+  names only what was drawn.
 - **Space is held** at the chart's own aspect ratio while its reads land, so nothing jumps.
 
 ## Stylesheet ownership

@@ -11,7 +11,7 @@
 .horizon-seg{margin:0}
 .horizon-lanes{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-10)}
 .horizon-lane{min-width:0}
-.horizon-lane[hidden]{display:none}
+.horizon-panel[hidden]{display:none}
 
 /* ---- the lane: a voice, an instrument, rows ---- */
 .horizon-lane-card{display:grid;gap:var(--space-5);min-width:0}
@@ -32,8 +32,10 @@
 /* ---- the instruments ---- */
 .horizon-chart-card{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:18px;
   padding:var(--space-5) var(--space-4) var(--space-4);min-width:0}
-.horizon-chart-card.is-season.is-pending{aspect-ratio:340/196;display:grid;padding:var(--space-6)}
-.horizon-chart-skel{height:100%;border-radius:var(--radius-sm)}
+/* held at the drawn chart's own shape (viewBox 340x180) plus its key line */
+.horizon-chart-card.is-season.is-pending{display:grid}
+.horizon-chart-skel{aspect-ratio:340/180;border-radius:var(--radius-sm)}
+.horizon-chart-key-skel{height:calc(var(--text-xs) * 1.5);margin-top:var(--space-3)}
 .hz-chart{display:block;width:100%;height:auto;overflow:visible}
 .hz-chart text{font-family:var(--font-ui);font-size:10.5px;font-weight:600;fill:var(--ink-2)}
 .hz-chart .hz-axis{font-family:var(--font-mono);font-size:8.5px;font-weight:400;letter-spacing:.06em;fill:var(--muted)}
@@ -55,10 +57,14 @@
 .hz-fan-line{stroke:var(--d-body);stroke-width:1.6;stroke-dasharray:5 4}
 .hz-weight{fill:none;stroke:var(--d-body);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .hz-today{fill:var(--dawn);stroke:var(--surface);stroke-width:2}
+.hz-today.is-past{fill:var(--d-body)}
+.hz-chart .hz-today-word.is-past{fill:var(--ink-2)}
+.hz-fan.is-window{fill-opacity:.45}
 .hz-mark{stroke-width:1.4;fill:var(--d-heart);stroke:var(--d-heart)}
-.hz-mark.is-kind-dexa,.hz-mark.is-kind-rescan{fill:var(--d-body);stroke:var(--d-body)}
+.hz-mark.is-body{fill:var(--d-body);stroke:var(--d-body)}
 .hz-mark.is-ahead{fill:var(--surface)}
 .hz-mark.is-race{fill:var(--d-endurance);stroke:var(--d-endurance)}
+.hz-mark.is-beyond{opacity:.6}
 .horizon-chart-key{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);margin-top:var(--space-3);
   padding:0 var(--space-2);font-size:var(--text-xs);color:var(--muted)}
 .horizon-key{display:inline-flex;align-items:center;gap:6px}
@@ -66,6 +72,8 @@
 .horizon-key.is-goal::before{height:0;border-top:2px dotted var(--d-body);background:none}
 .horizon-key.is-fan::before{height:8px;background:var(--s-body);opacity:.5}
 .horizon-key.is-mark::before{width:7px;height:7px;border-radius:1px;transform:rotate(45deg);background:var(--d-heart)}
+.horizon-key.is-mark.is-body::before{background:var(--d-body)}
+.horizon-key.is-mark.is-race::before{background:var(--d-endurance)}
 
 /* ---- the race build, week by week: hairline rows under the terrain ---- */
 .horizon-lane-card.is-race .race-ladder{margin:0}
@@ -75,7 +83,10 @@
   gap:var(--space-1) var(--space-4);padding:var(--space-4) 0;border-radius:0;border-top:1px solid var(--line)}
 .horizon-lane-card.is-race .race-ladder-row:first-child{border-top:0}
 .horizon-lane-card.is-race .race-ladder-row.is-current{background:none;box-shadow:none}
-.horizon-lane-card.is-race .race-ladder-out,.horizon-lane-card.is-race .race-ladder-track{display:none}
+.horizon-lane-card.is-race .race-ladder-track{display:none}
+/* the "N wk out" word leaves the eye (the lane head says it) but stays for a screen reader */
+.horizon-lane-card.is-race .race-ladder-out{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .horizon-lane-card.is-race .race-ladder-date{font-family:var(--font-mono);font-size:var(--text-2xs);
   letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted)}
 .horizon-lane-card.is-race .race-ladder-kind{font-size:var(--text-body);font-weight:500}
@@ -128,8 +139,9 @@ a.horizon-row-link:active{transform:var(--press-lg)}
 .horizon-skel-title{height:1.6rem;width:62%}
 .horizon-skel-line{height:var(--space-4);width:85%}
 .horizon-skel-line.is-short{width:45%}
-.horizon-lane-card.is-race.is-loading::after{content:"";display:block;aspect-ratio:340/196;border-radius:18px;
-  border:1px solid var(--line);background:var(--surface)}
+/* the terrain card's own box: its padding, then the chart's viewBox (340x166) */
+.horizon-lane-card.is-race.is-loading::after{content:"";display:block;box-sizing:content-box;aspect-ratio:340/166;
+  padding:var(--space-5) var(--space-4) var(--space-4);border-radius:18px;border:1px solid var(--line);background:var(--surface)}
 
 /* ---- the goal line in depth ---- */
 .horizon-goal{display:grid;gap:var(--space-6)}

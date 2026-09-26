@@ -512,14 +512,24 @@ function tovRowsHtml(rows: TovRow[]): string {
     <div class="tov-rows">${lead.map((row, i) => tovRowHtml(row, i)).join("")}</div>${more}`;
 }
 
+/** A muscle's row, with its fold opened when it sits among the quiet groups. */
+function tovOpenRow(view: ParentNode, group: string): HTMLElement | null {
+  const row = group ? view.querySelector<HTMLElement>(`.tov-row[data-group="${group}"]`) : null;
+  const fold = row?.closest("details");
+  if (fold && !fold.open) fold.open = true;
+  return row;
+}
+
 function tovCapitalize(value: string): string {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }
 
 // The always-available start entry: routes through the shared openSession() (the
-// Brief's path; dayPicked reset in wireTovStart). Today's lift in the server's one line, with the one door into it. The door names
-// the plan day ("Start Pull →") and goes away once the day's lift is logged — the
-// line itself then says so.
+// Brief's path; dayPicked reset in wireTovStart).
+//
+// Today's lift in the server's one line, with the one door into it. The door names the
+// plan day ("Start Pull →") and goes away once the day's lift is logged; the line
+// itself then says so.
 function tovStartHtml(data?: TovData): string {
   const line = data?.strengthLine || null;
   const lineHtml = line ? CairnUiReads.strengthLineHtml(line, { kicker: "Today" }) : "";
@@ -678,11 +688,8 @@ function paintTrainOverview(data: TovData): void {
   view.querySelectorAll<SVGElement>(".tov-map [data-group]").forEach((el) => {
     el.style.cursor = "pointer";
     el.addEventListener("click", () => {
-      const group = el.getAttribute("data-group") || "";
-      const row = group ? view.querySelector<HTMLElement>(`.tov-row[data-group="${group}"]`) : null;
+      const row = tovOpenRow(view, el.getAttribute("data-group") || "");
       if (!row) return;
-      const fold = row.closest("details");
-      if (fold && !fold.open) fold.open = true;
       const reduce = reducedMotion();
       row.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
       row.style.transition = "background-color .5s ease";
@@ -693,8 +700,8 @@ function paintTrainOverview(data: TovData): void {
   });
 }
 
-// tovJourneyPointerHtml is exposed alongside the render entry so the journey line
-// can be unit-tested in isolation (test/clientRoadFold.test.js), the same way the
-// journey/timeline card renderers are.
-Object.assign(globalThis, { renderTrainOverview, tovJourneyPointerHtml });
-if (typeof window !== "undefined") Object.assign(window, { renderTrainOverview, tovJourneyPointerHtml });
+// tovJourneyPointerHtml, tovRowsHtml and tovOpenRow are exposed alongside the render
+// entry so the journey line and the muscle-row fold can be unit-tested in isolation
+// (test/clientRoadFold.test.js), the same way the journey/timeline card renderers are.
+Object.assign(globalThis, { renderTrainOverview, tovJourneyPointerHtml, tovRowsHtml, tovOpenRow });
+if (typeof window !== "undefined") Object.assign(window, { renderTrainOverview, tovJourneyPointerHtml, tovRowsHtml, tovOpenRow });

@@ -1,13 +1,17 @@
 // @ts-check
-// The Horizon instruments (docs/DESIGN.md "Horizon"): two SVG charts drawn to scale.
+// The Horizon instruments (docs/DESIGN.md "Charts: instruments drawn to scale"): two SVG
+// charts drawn to scale.
 //
 //   - terrainSvg: the race build as terrain. Every week's kilometres, a smooth ridge
 //     with two quieter contour lines under it, the km written over each week, a dawn
 //     "now" line, this week washed, and race day as a dashed endurance line.
 //   - seasonSvg: the season's weight line. The weigh-ins since the window opened, the
 //     goal as a dashed body-colored line, the server's projection window as a fan from
-//     today's weight to the goal, and a lane of dated diamonds under it: draws and
-//     scans behind (filled), rechecks ahead (open), race day (endurance).
+//     the latest weigh-in to the goal, and a lane of dated diamonds under it: draws and
+//     scans behind (filled), rechecks ahead (open), race day (endurance). The latest
+//     weigh-in says "now" only when it is today's; an older one wears its own date, and
+//     past FAN_ANCHOR_DAYS the fan no longer leaves it (the window lies on the goal line
+//     alone), so a stale weight is never drawn as the current one.
 //
 // Pure strings from shaped data; nothing here judges a pace or a fit. Every caller
 // word that reaches the SVG goes through escHtml. Axis labels are mono and small, the
@@ -18,6 +22,12 @@
   type Season = ClientHorizonSeason;
 
   const DAY = 86400000;
+  /** How old the latest weigh-in may be and still anchor the projection fan. */
+  const FAN_ANCHOR_DAYS = 3;
+  /** How far past the season's own end (today, goal, window, race) a mark may widen it. */
+  const MARK_REACH_DAYS = 30;
+  /** Mark kinds drawn in the body hue (a scan of the body), not the labs' heart. */
+  const BODY_MARK_KINDS: ReadonlySet<string> = new Set(["dexa", "rescan"]);
   const fx = (n: number): string => (Math.round(n * 10) / 10).toString();
 
   function dayNum(iso: string): number {
@@ -78,7 +88,10 @@
     const raceDay = Number.isFinite(dayNum(terrain.race_date))
       ? dayNum(terrain.race_date)
       : dayNum(weeks[weeks.length - 1].week_start) + 6;
-    const end = Math.max(raceDay + 1, dayNum(weeks[weeks.length - 1].week_start) + 7);
+    // The chart ends the day after the race: when race day falls inside the last week,
+    // that week's unused days past it are not drawn as empty ground.
+    const lastStart = dayNum(weeks[weeks.length - 1].week_start);
+    const end = raceDay >= lastStart && raceDay < lastStart + 7 ? raceDay + 1 : Math.max(raceDay + 1, lastStart + 7);
     const X = (n: number): number => L + ((n - first) / (end - first)) * (R - L);
     const maxKm = Math.max(...weeks.map((w) => Math.max(0, Number(w.km) || 0)));
     const { top, step } = axisTop(maxKm);
@@ -104,7 +117,8 @@
     const current = weeks.find((w) => w.current);
     if (current) {
       const a = X(dayNum(current.week_start));
-      g += `<rect class="hz-wash" x="${fx(a)}" y="${ceil - 8}" width="${fx(X(dayNum(current.week_start) + 7) - a)}" height="${fx(Y(0) - ceil + 8)}" rx="6"/>`;
+      const b = X(Math.min(end, dayNum(current.week_start) + 7));
+      g += `<rect class="hz-wash" x="${fx(a)}" y="${ceil - 8}" width="${fx(b - a)}" height="${fx(Y(0) - ceil + 8)}" rx="6"/>`;
     }
     g += `<path class="hz-terrain-fill" d="${ridgeD} Z"/>`;
     for (const k of [0.66, 0.36]) {
@@ -151,13 +165,17 @@
     const lane = 152;
     const today = dayNum(season.today);
     const first = dayNum(points[0].date);
+    // The span is the season's own: the weigh-ins, today, the goal, the window and race
+    // day. A mark may widen it by MARK_REACH_DAYS at most; one further out (a recheck
+    // months away) is pinned at the right edge, so it never squeezes the weight line.
     const edges = [today, dayNum(points[points.length - 1].date)];
     if (season.goal_date) edges.push(dayNum(season.goal_date));
     if (season.fan) edges.push(dayNum(season.fan.end));
     if (season.race) edges.push(dayNum(season.race.date));
-    for (const m of season.marks) edges.push(dayNum(m.date));
+    const core = Math.max(...edges.filter(Number.isFinite));
+    const reach = season.marks.map((m) => dayNum(m.date)).filter((n) => Number.isFinite(n) && n <= core + MARK_REACH_DAYS);
     const x0 = first;
-    const x1 = Math.max(...edges.filter(Number.isFinite)) + 4;
+    const x1 = Math.max(core, ...reach) + 4;
     const X = (n: number): number => L + ((n - x0) / Math.max(1, x1 - x0)) * (R - L);
     const lbs = points.map((p) => p.lb);
     if (season.goal_lb != null) lbs.push(season.goal_lb);
@@ -191,6 +209,8 @@
     const last = points[points.length - 1];
     const nx = X(dayNum(last.date));
     const ny = Y(last.lb);
+    const age = Number.isFinite(today) ? today - dayNum(last.date) : Number.POSITIVE_INFINITY;
+    const isToday = age === 0;
     if (season.goal_lb != null) {
       const gy = Y(season.goal_lb);
       const goalWord = [kmWord(season.goal_lb), season.goal_date ? CairnUiChart.dateLabel(season.goal_date) : ""]
@@ -201,26 +221,32 @@
         const fa = X(dayNum(season.fan.start));
         const fb = X(dayNum(season.fan.end));
         const fm = (fa + fb) / 2;
-        g += `<path class="hz-fan" d="M${fx(nx)},${fx(ny)} L${fx(fa)},${fx(gy)} L${fx(fb)},${fx(gy)}Z"/><line class="hz-fan-line" x1="${fx(nx)}" y1="${fx(ny)}" x2="${fx(fm)}" y2="${fx(gy)}"/>`;
+        g +=
+          age <= FAN_ANCHOR_DAYS
+            ? `<path class="hz-fan" d="M${fx(nx)},${fx(ny)} L${fx(fa)},${fx(gy)} L${fx(fb)},${fx(gy)}Z"/><line class="hz-fan-line" x1="${fx(nx)}" y1="${fx(ny)}" x2="${fx(fm)}" y2="${fx(gy)}"/>`
+            : `<rect class="hz-fan is-window" x="${fx(fa)}" y="${fx(gy - 4)}" width="${fx(Math.max(2, fb - fa))}" height="8" rx="4"/>`;
       }
     }
     const line = points.map((p, i) => `${i ? "L" : "M"}${fx(X(dayNum(p.date)))},${fx(Y(p.lb))}`).join("");
     g += `<path class="hz-weight" d="${line}"/>`;
     const firstP = points[0];
     g += `<text class="hz-num" x="${fx(X(dayNum(firstP.date)) + 4)}" y="${fx(Y(firstP.lb) - 7)}">${escHtml(kmWord(firstP.lb))}</text>`;
-    const todayWord = `${kmWord(last.lb)} now`;
-    // The label sits above and to the right of today's dot, where the fan leaves room;
+    const todayWord = `${kmWord(last.lb)} ${isToday ? "now" : `· ${monoDate(last.date)}`}`;
+    // The label sits above and to the right of the latest dot, where the fan leaves room;
     // near the right edge it steps to the left, under the line.
     const roomRight = R - nx > 64;
-    g += `<circle class="hz-today" cx="${fx(nx)}" cy="${fx(ny)}" r="4.5"/><text class="hz-today-word" x="${fx(roomRight ? nx + 8 : nx - 8)}" y="${fx(roomRight ? ny - 9 : ny + 16)}" text-anchor="${roomRight ? "start" : "end"}">${escHtml(todayWord)}</text>`;
+    const dot = isToday ? "hz-today" : "hz-today is-past";
+    g += `<circle class="${dot}" cx="${fx(nx)}" cy="${fx(ny)}" r="4.5"/><text class="${isToday ? "hz-today-word" : "hz-today-word is-past"}" x="${fx(roomRight ? nx + 8 : nx - 8)}" y="${fx(roomRight ? ny - 9 : ny + 16)}" text-anchor="${roomRight ? "start" : "end"}">${escHtml(todayWord)}</text>`;
     // The lane of diamonds: labs and scans behind (filled), ahead (open), race day.
     g += `<line class="hz-lane" x1="${L}" x2="${R}" y1="${lane}" y2="${lane}"/>`;
     const diamond = (x: number, cls: string): string =>
       `<rect class="${cls}" x="${fx(x - 3.6)}" y="${fx(lane - 3.6)}" width="7.2" height="7.2" transform="rotate(45 ${fx(x)} ${lane})"/>`;
     for (const m of season.marks) {
-      if (dayNum(m.date) < x0) continue;
-      const x = X(dayNum(m.date));
-      g += diamond(x, `hz-mark is-${m.side} is-kind-${m.kind.replace(/[^a-z0-9_-]/gi, "")}`);
+      const n = dayNum(m.date);
+      if (!Number.isFinite(n) || n < x0) continue;
+      const beyond = n > x1;
+      const body = BODY_MARK_KINDS.has(m.kind) ? " is-body" : "";
+      g += diamond(beyond ? R : X(n), `hz-mark is-${m.side} is-kind-${m.kind.replace(/[^a-z0-9_-]/gi, "")}${body}${beyond ? " is-beyond" : ""}`);
     }
     if (season.race) g += diamond(X(dayNum(season.race.date)), "hz-mark is-race");
     if (Number.isFinite(today) && today >= x0 && today <= x1) {
@@ -228,7 +254,7 @@
       g += `<line class="hz-now" x1="${fx(tx)}" x2="${fx(tx)}" y1="${lane - 9}" y2="${lane + 9}"/>`;
     }
     const aria = [
-      `Weight from ${kmWord(firstP.lb)} to ${kmWord(last.lb)} lb`,
+      `Weight from ${kmWord(firstP.lb)} to ${kmWord(last.lb)} lb${isToday ? " today" : ` on ${monoDate(last.date)}`}`,
       season.goal_lb != null ? `goal ${kmWord(season.goal_lb)} lb` : "",
       season.marks.length ? `${season.marks.length} labs and scans on the line` : "",
     ]
@@ -237,7 +263,7 @@
     return `<svg class="hz-chart hz-season" viewBox="0 0 ${W} 180" role="img" aria-label="${escAttr(aria)}">${g}</svg>`;
   }
 
-  const CAIRN_HORIZON_CHART = { terrainSvg, seasonSvg };
+  const CAIRN_HORIZON_CHART = { BODY_MARK_KINDS, FAN_ANCHOR_DAYS, terrainSvg, seasonSvg };
 
   Object.assign(globalThis, { CairnHorizonChart: CAIRN_HORIZON_CHART });
 }
