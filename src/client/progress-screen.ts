@@ -184,7 +184,7 @@ function goalPaceChartHtml(gp: unknown): string {
 
   const W = 328,
     H = 168,
-    L = 14,
+    L = 30,
     R = 16,
     T = 16,
     B = 26;
@@ -199,7 +199,7 @@ function goalPaceChartHtml(gp: unknown): string {
     .map(
       (tk) =>
         `<line class="gpace-grid" x1="${L}" y1="${py(tk).toFixed(1)}" x2="${W - R}" y2="${py(tk).toFixed(1)}" stroke="#e7dfd2" stroke-width="1"/>` +
-        `<text class="gpace-ylbl" x="${L}" y="${(py(tk) - 3).toFixed(1)}" fill="#9a907d" font-size="9">${escHtml(gpaceLb(tk))}</text>`
+        `<text class="gpace-ylbl" x="${L - 5}" y="${(py(tk) + 3).toFixed(1)}" text-anchor="end" fill="#9a907d" font-size="9">${escHtml(gpaceLb(tk))}</text>`
     )
     .join("");
 
