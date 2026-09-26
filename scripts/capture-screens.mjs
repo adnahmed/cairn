@@ -216,7 +216,11 @@ async function captureFullPage(cdp, file, { width, height, dpr }) {
     cdp,
     `Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0, ${height})`
   );
-  const pageHeight = Math.min(MAX_PAGE_HEIGHT, Math.ceil(Number(full) || height));
+  const fullHeight = Math.ceil(Number(full) || height);
+  const pageHeight = Math.min(MAX_PAGE_HEIGHT, fullHeight);
+  if (fullHeight > pageHeight) {
+    console.warn(`  ! ${path.basename(file)}: page is ${fullHeight}px, captured the first ${pageHeight}px`);
+  }
   await setViewport(cdp, { width, height: pageHeight, dpr });
   await sleep(350);
   const shot = await cdp.command("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
@@ -307,7 +311,7 @@ async function captureReference(file) {
 async function captureApp() {
   if (!existsSync(serverEntry)) throw new Error(`${serverEntry} is missing: run \`npm run build\` first`);
   mkdirSync(OUT, { recursive: true });
-  const routes = ONLY.length ? ROUTES.filter((r) => ONLY.some((o) => r.name === o || r.name.startsWith(`${o}-`) || r.name.includes(o))) : ROUTES;
+  const routes = ONLY.length ? ROUTES.filter((r) => ONLY.some((o) => r.name === o || r.name.startsWith(`${o}-`))) : ROUTES;
   if (!routes.length) throw new Error(`no route matches --only ${ONLY.join(",")}`);
   const agentsDir = mkdtempSync(path.join(tmpdir(), "cairn-screens-agents-"));
   let server = null;

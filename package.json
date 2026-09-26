@@ -34,6 +34,7 @@
     "tsc": "node node_modules/typescript-7/bin/tsc",
     "client:check": "npm run tsc -- -p tsconfig.client.build.json --noEmit",
     "client:build": "node scripts/build-client.mjs",
+    "styles:watch": "node scripts/build-styles.mjs --watch",
     "client:verify": "npm run typecheck:client && node scripts/check-client-build-output.mjs",
     "typecheck:client": "npm run tsc -- -p tsconfig.client.json && npm run client:check",
     "public:check": "node scripts/check-public-scripts.mjs",

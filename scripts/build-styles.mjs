@@ -13,8 +13,9 @@
 // read it straight from the checkout), so `--check` (run by `npm run verify`) fails
 // when the committed file drifts from its partials.
 //
-// Usage: node scripts/build-styles.mjs [--check]
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+// Usage: node scripts/build-styles.mjs [--check | --watch]
+//   --watch rebuilds on every partial save (`npm run styles:watch`, next to `npm run dev`).
+import { existsSync, readdirSync, readFileSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -133,9 +134,28 @@ export function checkStyles() {
   console.log(`✓ ${STYLES_OUTPUT} matches its ${STYLE_PARTIALS.length} partials`);
 }
 
+/** Rebuild on every partial save; a bad state is reported and waited out, never fatal. */
+export function watchStyles() {
+  const rebuild = () => {
+    try {
+      buildStyles();
+    } catch (error) {
+      console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+  rebuild();
+  let timer = null;
+  watch(path.join(root, STYLES_DIR), { recursive: true }, () => {
+    clearTimeout(timer);
+    timer = setTimeout(rebuild, 60);
+  });
+  console.log(`… watching ${STYLES_DIR}/ for changes`);
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
   try {
     if (process.argv.includes("--check")) checkStyles();
+    else if (process.argv.includes("--watch")) watchStyles();
     else buildStyles();
   } catch (error) {
     console.error(`✗ ${error instanceof Error ? error.message : String(error)}`);
