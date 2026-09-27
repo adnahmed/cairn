@@ -18,6 +18,7 @@ import {
   LAZY_ROUTES_MARKER,
   SHELL_EARLY_READS,
   VIEW_EARLY_READS,
+  bundleDigits,
   lazyRoutePreloadTable,
   viewBundleIndex,
   withLazyRouteTable,
@@ -384,4 +385,10 @@ test("api() hands each early response over once, keyed by the path it is asked w
   context.__cairnEarly = { "/markers/priority": { at: Date.now(), res } };
   assert.ok(context.CairnTodayPrefetch.takeEarly("/markers/priority"));
   assert.equal(context.CairnTodayPrefetch.takeEarly("/markers/priority"), undefined, "never twice");
+});
+
+test("a route's bundle string is one digit per index, and an 11th bundle url fails the build", () => {
+  assert.equal(bundleDigits([0, 3, 9]), "039");
+  assert.throws(() => bundleDigits([1, 10]), /not one digit/);
+  assert.ok(table.b.length <= 10, "today's table fits the encoding");
 });

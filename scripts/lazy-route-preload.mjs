@@ -97,6 +97,20 @@ function canonicalPaths(routes) {
   return out;
 }
 
+/**
+ * One route's bundle indices as the string the inline script reads ONE DIGIT per index
+ * (`T.b[+b[i]]`). An 11th bundle url would be index 10, read as 1 then 0 — the wrong
+ * bundles, silently — so the build refuses it rather than emit it.
+ */
+export function bundleDigits(indices) {
+  for (const i of indices) {
+    if (!Number.isInteger(i) || i < 0 || i > 9) {
+      throw new Error(`lazy bundle index ${i} is not one digit: widen index.html's preload encoding first`);
+    }
+  }
+  return indices.join("");
+}
+
 // An ?id= rides along so /app/you/domain parses as the canonical id-carrying route it
 // is; no other path's canonical form depends on it.
 const routeUrl = (segments) => `/app/${segments.join("/")}?id=x`;
@@ -137,13 +151,13 @@ export function lazyRoutePreloadTable(root, bundles) {
     const route = routes.parseRoute(routeUrl(segments));
     const lazy = bundleOf(route);
     if (!lazy) return "";
-    return closure(lazy)
-      .map((name) => {
+    return bundleDigits(
+      closure(lazy).map((name) => {
         const url = src[name];
         if (!urls.includes(url)) urls.push(url);
-        return String(urls.indexOf(url));
+        return urls.indexOf(url);
       })
-      .join("");
+    );
   };
   const q = [];
   const readsFor = (segments, lazy) => {
