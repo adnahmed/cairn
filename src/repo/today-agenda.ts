@@ -235,9 +235,12 @@ function briefHero(): TodayAgendaCandidate {
 // re-introduce plan-forward training cards underneath it. If today's Brief cache
 // is cold, stay conservative until the read fills it; past/future routed dates
 // keep the old behavior because they are review/planning views, not "open today".
-function planForwardAllowed(date: string): boolean {
+// A read an invalidation just marked stale (an Undo, a material write) still names
+// the last judged kind — that is not a cold cache, so the agenda keeps its
+// plan-forward cards rather than dropping them because /today raced /today-read.
+export function planForwardAllowed(date: string): boolean {
   try {
-    const kind = getCachedDayRead(date)?.kind;
+    const kind = getCachedDayRead(date, { includeStale: true })?.kind;
     if (!kind && date === localDateISO()) return false;
     return kind !== "rest" && kind !== "easy";
   } catch {
