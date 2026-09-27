@@ -4956,7 +4956,12 @@ Today's early fetch does, parked in `window.__cairnEarly` for `api()` to take ON
 asks, so it lands before a Train/Plan first paint rather than repainting it), Health's
 `fetchStandData` set on every Stand route (plus the Doctor packet's symptom links and report on
 Health › Share), Train › Program's conductor and program-state, and the plan editor's head reads plus `/plan` (unless its SWR row is under cachedApi's 3 s skip window) on Train › Plan. A read belongs there only if its loader asks for it,
-through `api()`, on every open of that route; otherwise the response is never taken.
+through `api()`, on every open of that route; otherwise the response is never taken. Any write
+(a local one, `apiInvalidate`, or `clearRememberedApiBodies`) drops the whole table
+(`forgetReads`, `api-core.ts`): a destination tapped away from before its bundle ran never takes its
+reads, and a body requested before the write must never be handed over, or remembered, after it
+(`test/clientEarlyWriteGuard.test.js`). The route's bundle string is one digit per index into `b`, so
+the build refuses an 11th lazy bundle url (`bundleDigits`) rather than emit a wrong preload.
 `scripts/check-client-build-output.mjs` fails a checkout whose committed `index.html` table is stale
 (the image ships the committed shell beside siblings precompressed from the rebuilt one).
 
