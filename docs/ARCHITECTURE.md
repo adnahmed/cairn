@@ -4955,7 +4955,7 @@ Today's early fetch does, parked in `window.__cairnEarly` for `api()` to take ON
 `/profile` only when no remembered SWR row survives the boot sweep (exactly when `primeDiscipline`
 asks, so it lands before a Train/Plan first paint rather than repainting it), Health's
 `fetchStandData` set on every Stand route (plus the Doctor packet's symptom links and report on
-Health › Share), and the plan editor's head reads plus `/plan` (unless its SWR row is under cachedApi's 3 s skip window) on Train › Plan. A read belongs there only if its loader asks for it,
+Health › Share), Train › Program's conductor and program-state, and the plan editor's head reads plus `/plan` (unless its SWR row is under cachedApi's 3 s skip window) on Train › Plan. A read belongs there only if its loader asks for it,
 through `api()`, on every open of that route; otherwise the response is never taken.
 `scripts/check-client-build-output.mjs` fails a checkout whose committed `index.html` table is stale
 (the image ships the committed shell beside siblings precompressed from the rebuilt one).

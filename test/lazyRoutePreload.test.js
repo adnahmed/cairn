@@ -173,7 +173,6 @@ test("a Health deep link preloads Train then Me/Health and starts the overview's
 
 test("Train, Horizon, Ask and Settings links preload their closure and start only the shell's reads", () => {
   const cases = {
-    "/app/train/program": ["/js/bundle-08-train.js"],
     "/APP/Train": ["/js/bundle-08-train.js"],
     "/app/horizon": ["/js/bundle-08-train.js", "/js/bundle-09-horizon.js"],
     "/app/horizon/race": ["/js/bundle-08-train.js", "/js/bundle-09-horizon.js"],
@@ -195,6 +194,15 @@ test("Train, Horizon, Ask and Settings links preload their closure and start onl
       pathname
     );
   }
+  const program = runBoot({ pathname: "/app/train/program" });
+  assert.deepEqual(
+    program.links.map((l) => l.href),
+    ["/js/bundle-08-train.js"]
+  );
+  assert.deepEqual(
+    program.calls,
+    [...SHELL_EARLY_READS, "/coaching-focus", "/program-state", "/profile"].map((p) => `/api${p}`)
+  );
   const plan = runBoot({ pathname: "/app/train/plan" });
   assert.deepEqual(
     plan.links.map((l) => l.href),
@@ -300,7 +308,23 @@ test("the early reads are the ones the boot and the Health overview always ask f
     read("src/client/plan-editor-controller.ts"),
     /async function renderPlanEditor\(\): Promise<void> \{\s*return paintPlanEditor\(\);/
   );
-  assert.deepEqual(Object.keys(VIEW_EARLY_READS).sort(), ["plan:edit", "stand", "stand:share"]);
+  assert.deepEqual(Object.keys(VIEW_EARLY_READS).sort(), ["plan:edit", "progress:program", "stand", "stand:share"]);
+
+  // Train › Program: the conductor through api(), program-state through paintSWR.
+  assert.deepEqual(VIEW_EARLY_READS["progress:program"], [
+    "/coaching-focus",
+    ["/program-state", "progress:program", 3000],
+  ]);
+  const program =
+    /async function renderProgressProgram\([\s\S]*?\n\}\n/.exec(
+      read("src/client/progress-program-controller.ts")
+    )?.[0] || "";
+  assert.match(program, /deps\s*\.api\("\/coaching-focus"\)/);
+  assert.match(
+    program,
+    /return deps\.paintSWR\(\{\s*key: "progress:program",\s*path: "\/program-state",\s*peek,\s*token,\s*tab: "progress",\s*render/
+  );
+  assert.match(read("src/client/swr-cache.ts"), /return cachedApi\(path, \{\s*key,\s*freshFor,\s*serveFreshFor,/);
 
   // Health › Doctor packet: showShare always loads the symptom links and mounts the
   // packet builder, whose first load asks cachedApi on a memory-only key.

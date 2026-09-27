@@ -49,6 +49,9 @@ export const VIEW_EARLY_READS = {
   // packet builder's first load asks cachedApi("/health-report.json", {key:
   // "health:packet"}) — a memory-only key, so a new page always asks.
   "stand:share": ["/symptom-links", ["/health-report.json", "health:packet", 3000]],
+  // Train › Program: renderProgressProgram always asks the conductor through api() and
+  // program-state through paintSWR/cachedApi on key "progress:program".
+  "progress:program": ["/coaching-focus", ["/program-state", "progress:program", 3000]],
   // The plan editor asks its three head reads (CairnPlanHead.headReads) on every
   // paint, and /plan through cachedApi({key:"plan"}), which answers without asking
   // only from an SWR row younger than its 3 s serveFreshFor. A `[path, swrKey, ms]`
