@@ -82,7 +82,7 @@ type ApiFetchOutcome = {
       }
     } catch {}
     try {
-      apiCoalescer().invalidateAll();
+      forgetReads();
     } catch {}
   }
 
@@ -170,7 +170,7 @@ type ApiFetchOutcome = {
     let staleHit: { data: CairnApiResponse<Path>; age: number } | undefined;
 
     if (!isGet) {
-      coalescer.invalidateAll(); // any write may change anything — never serve a stale read after it
+      forgetReads(); // any write may change anything — never serve a stale read after it
     } else if (!bypass) {
       const cached = coalescer.peekFresh<CairnApiResponse<Path>>(p);
       if (cached !== undefined) return Promise.resolve(cached);
@@ -297,10 +297,7 @@ type ApiFetchOutcome = {
       // other half of the window: a GET that began during the write but is answered
       // — and would be stored — before the write's own response lands must not be
       // kept as post-write truth once the write actually finishes.
-      result.then(
-        () => coalescer.invalidateAll(),
-        () => coalescer.invalidateAll()
-      );
+      result.then(forgetReads, forgetReads);
     }
     return result;
 
@@ -377,10 +374,15 @@ type ApiFetchOutcome = {
     return { body: await response.arrayBuffer(), headers: response.headers };
   }
 
-  // A write that landed elsewhere (a chat turn's actions, applied server-side later) clears
-  // the micro/stale tier the same way a local write does (write-invalidation-client.ts).
-  function apiInvalidate(): void {
+  // Every write — local, or one that landed elsewhere (a chat turn's actions, via
+  // apiInvalidate, write-invalidation-client.ts) — clears whatever api() could answer
+  // without asking: the micro/stale tier, the primes, and index.html's early reads,
+  // which were all requested before it (the early table is otherwise kept 15 s).
+  function forgetReads(): void {
     apiCoalescer().invalidateAll();
+    try {
+      delete (globalThis as { __cairnEarly?: unknown }).__cairnEarly;
+    } catch {}
   }
 
   Object.assign(globalThis, {
@@ -390,7 +392,7 @@ type ApiFetchOutcome = {
     api,
     apiBinary,
     apiPrime,
-    apiInvalidate,
+    apiInvalidate: forgetReads,
     apiWriteGeneration: () => apiCoalescer().writeGeneration(),
     clearRememberedApiBodies,
   });

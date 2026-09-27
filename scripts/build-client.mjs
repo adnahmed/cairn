@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
 import ts from "typescript";
 import { buildStyles } from "./build-styles.mjs";
+import { writeLazyRouteTable } from "./lazy-route-preload.mjs";
 
 const currentFile = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(currentFile), "..");
@@ -366,6 +367,12 @@ export const CLIENT_OUTPUTS = [
 // globals must never be referenced EAGERLY from an earlier bundle — only from
 // inside a function that runs after the destination has navigated.
 //
+// Each lazy entry names the `views` it renders (a route's `tab`, or `tab:section`
+// where Plan splits across homes) — the same choice render-dispatch.ts makes, held to
+// it by test/lazyRoutePreload.test.js. The build derives index.html's cold deep-link
+// preload table from it (scripts/lazy-route-preload.mjs), so a deep link starts its
+// lazy bundle's download alongside the eager set instead of after it.
+//
 // Lazy bundles may DEPEND on each other (LAZY_BUNDLE_DEPS in lazy-bundles.ts):
 // ensureBundle("horizon") also loads train. A lazy bundle never references another
 // lazy bundle at load time either, so their execution order does not matter.
@@ -603,6 +610,7 @@ export const BUNDLES = [
     // in the service worker's CORE_ASSETS so an installed PWA precaches it and
     // the first offline visit to Stand still works.
     lazy: "me-health",
+    views: ["stand", "me"],
     inputs: [
       "public/js/health-docs-client.js",
       "public/js/me-profile-form-client.js",
@@ -699,6 +707,7 @@ export const BUNDLES = [
     // week strip, the journey reads Horizon also paints, and the body-metrics
     // figure Health reuses. Horizon and me-health list it as a dependency.
     lazy: "train",
+    views: ["progress", "plan:edit"],
     inputs: [
       // Run/strength plan-item helpers: only the plan editor and the run plan read them.
       "public/js/cardio-plan-client.js",
@@ -746,6 +755,7 @@ export const BUNDLES = [
     // LAZY: the Horizon landing and the race / endurance plan view. Depends on
     // train (the journey reads, the run-plan cards, the plan week strip).
     lazy: "horizon",
+    views: ["horizon", "plan:endurance"],
     inputs: [
       "public/js/plan-endurance-model.js",
       "public/js/plan-endurance-client.js",
@@ -769,6 +779,7 @@ export const BUNDLES = [
     // LAZY: the Ask thread. The food composer and the chat primitives it shares
     // with Fuel stay eager in bundle-04.
     lazy: "ask",
+    views: ["chat", "plan:coach"],
     inputs: [
       // The reply renderer: only the thread reads markdown.
       "public/js/markdown-client.js",
@@ -803,6 +814,7 @@ export const BUNDLES = [
     // LAZY: the Settings surfaces. Route matching reads the section keys from
     // CairnRoutes (always eager), never from SET_SEG, so a cold deep link resolves.
     lazy: "settings",
+    views: ["settings"],
     inputs: [
       // The in-app CLI login terminal: opened only from Settings → Agents.
       "public/js/agent-login-model-client.js",
@@ -935,6 +947,8 @@ export function buildClient() {
 
   console.log(`✓ built client output (${CLIENT_OUTPUTS.length} file${CLIENT_OUTPUTS.length === 1 ? "" : "s"})`);
   buildBundles();
+  // Reads the per-module route-state / lazy-loader outputs, so it runs before any prune.
+  writeLazyRouteTable(root, BUNDLES);
   pruneOrphanedOutputs();
   pruneBundleIntermediates();
   buildStyles();

@@ -85,7 +85,9 @@ test("the paths match the ones the Today render builds", () => {
 });
 
 test("it stays quiet off Today and sends no token header without one", () => {
-  for (const pathname of ["/app/today/session", "/app/train", "/app/you/markers", "/app/horizon"]) {
+  // A lazy deep link (Train, Horizon, Health, ...) starts its own reads instead:
+  // test/lazyRoutePreload.test.js.
+  for (const pathname of ["/app/today/session", "/app/today/fuel", "/app/you", "/app/you/stone"]) {
     assert.deepEqual(runEarly({ pathname }).calls, [], pathname);
   }
   const { calls } = runEarly({ pathname: "/app" });
