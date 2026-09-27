@@ -158,6 +158,12 @@ test("a Health deep link preloads Train then Me/Health and starts the overview's
     ]
   );
   const reads = [...SHELL_EARLY_READS, ...VIEW_EARLY_READS.stand, "/profile"];
+  const share = runBoot({ pathname: "/app/you/share" });
+  assert.deepEqual(share.calls, [
+    ...[...SHELL_EARLY_READS, ...VIEW_EARLY_READS.stand, "/symptom-links", "/health-report.json", "/profile"].map(
+      (p) => `/api${p}`
+    ),
+  ]);
   assert.deepEqual(
     calls,
     reads.map((p) => `/api${p}`)
@@ -294,7 +300,26 @@ test("the early reads are the ones the boot and the Health overview always ask f
     read("src/client/plan-editor-controller.ts"),
     /async function renderPlanEditor\(\): Promise<void> \{\s*return paintPlanEditor\(\);/
   );
-  assert.deepEqual(Object.keys(VIEW_EARLY_READS).sort(), ["plan:edit", "stand"]);
+  assert.deepEqual(Object.keys(VIEW_EARLY_READS).sort(), ["plan:edit", "stand", "stand:share"]);
+
+  // Health › Doctor packet: showShare always loads the symptom links and mounts the
+  // packet builder, whose first load asks cachedApi on a memory-only key.
+  assert.deepEqual(VIEW_EARLY_READS["stand:share"], ["/symptom-links", ["/health-report.json", "health:packet", 3000]]);
+  const share = /function showShare\(\): void \{[\s\S]*?\n {2}\}\n/.exec(stand)?.[0] || "";
+  assert.match(share, /CairnRecordsSlot\.mount\("packet"/);
+  assert.match(share, /void CairnHealthReadController\.loadSymptomLinks\(/);
+  assert.match(
+    read("src/client/health-read-controller.ts"),
+    /async function loadSymptomLinks[\s\S]*?deps\.api\("\/symptom-links"\)/
+  );
+  const packet = read("src/client/packet-builder-controller.ts");
+  assert.match(packet, /const KEY = "health:packet";\s*const PATH = "\/health-report\.json";/);
+  assert.match(packet, /request = deps\.cachedApi\(PATH, \{ key: KEY \}\);/);
+  assert.match(
+    read("src/client/health-share-controller.ts"),
+    /CairnRecordsSlot\.register\("packet", mountHealthPacket\)/
+  );
+  assert.match(read("src/client/swr-cache.ts"), /function _swrMemOnly[\s\S]*?\^\(markers:\|recovery:\|health:/);
 
   const startup = read("src/client/app/startup.ts");
   for (const call of ["primeDiscipline();", "maybeOnboard();", "primeArtManifest();", "jobReconnect();"]) {

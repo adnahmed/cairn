@@ -30,7 +30,8 @@ export const SHELL_EARLY_READS = ["/settings", "/art/state", "/agent-jobs"];
 // fetch. Only a view whose loader asks unconditionally belongs here, or the early
 // response is never taken and costs a request. Health (the Stand view) runs
 // fetchStandData() on every entry, cold or revalidating, for every section
-// (stand-screen.ts). These two lists are the only hand-written part, and
+// (stand-screen.ts). A key is a view, or `view:section`, whose reads follow the
+// view's. These two lists are the only hand-written part, and
 // test/lazyRoutePreload.test.js holds each to the calls it mirrors.
 export const VIEW_EARLY_READS = {
   stand: [
@@ -44,6 +45,10 @@ export const VIEW_EARLY_READS = {
     "/directives",
     "/health/next-checkup",
   ],
+  // Health › Doctor packet: showShare always paints the symptom-links slot, and the
+  // packet builder's first load asks cachedApi("/health-report.json", {key:
+  // "health:packet"}) — a memory-only key, so a new page always asks.
+  "stand:share": ["/symptom-links", ["/health-report.json", "health:packet", 3000]],
   // The plan editor asks its three head reads (CairnPlanHead.headReads) on every
   // paint, and /plan through cachedApi({key:"plan"}), which answers without asking
   // only from an SWR row younger than its 3 s serveFreshFor. A `[path, swrKey, ms]`
@@ -141,7 +146,7 @@ export function lazyRoutePreloadTable(root, bundles) {
   const readsFor = (segments, lazy) => {
     if (!lazy) return null; // an eager destination paints without waiting on a bundle
     const route = routes.parseRoute(routeUrl(segments));
-    const own = VIEW_EARLY_READS[`${route.tab}:${route.section}`] || VIEW_EARLY_READS[route.tab] || [];
+    const own = [...(VIEW_EARLY_READS[route.tab] || []), ...(VIEW_EARLY_READS[`${route.tab}:${route.section}`] || [])];
     const reads = [...SHELL_EARLY_READS, ...own];
     const at = q.findIndex((list) => JSON.stringify(list) === JSON.stringify(reads));
     if (at >= 0) return at;
