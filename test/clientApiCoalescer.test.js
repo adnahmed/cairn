@@ -163,6 +163,8 @@ test("TTL cache: only the configured paths are cacheable — everything else nev
   // bursts do not always overlap — in-flight dedupe alone misses them.
   assert.equal(c.isMicroCachePath("/exercises"), true);
   assert.equal(c.isMicroCachePath("/plan"), true);
+  // A Program repaint re-runs loadPerformance just after the first answer landed.
+  assert.equal(c.isMicroCachePath("/performance"), true);
   assert.equal(c.isMicroCachePath("/today"), false);
   assert.equal(c.isMicroCachePath("/stats?date=2026-07-09"), false, "query-param'd paths stay uncached");
   assert.equal(c.isMicroCachePath("/plan?date=2026-07-09"), false, "a dated plan read is its own request");
