@@ -1099,11 +1099,11 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
     });
   }
 
-  // One fetch fills the whole overview snapshot; hosted tool views fetch their own
-  // data so a deep link paints immediately while this warms behind them. Pure — it
-  // returns the built payload and never touches module state, so the caller decides
-  // whether it wins the token race and whether the change warrants a repaint.
+  // One fetch (one /you-health trip) fills the whole overview snapshot; hosted tool views
+  // fetch their own data so a deep link paints at once while this warms behind them. Pure:
+  // the caller decides whether it wins the token race and whether to repaint.
   async function fetchStandData(): Promise<StandData> {
+    if (typeof CairnHealthFanIn !== "undefined") CairnHealthFanIn.prime(state.standSeg);
     const [priority, focus, body, synthRes, insightsRes, recoveryRes, suppRes, dirRes, checkupRes] = await Promise.all([
       api("/markers/priority") as unknown as Promise<{ markers?: StandMarker[]; groups?: StandGroup[] }>,
       (api("/coaching-focus") as unknown as Promise<Record<string, unknown>>).catch(() => null),
@@ -1292,7 +1292,7 @@ type StandStatus = "ok" | "watch" | "warn" | "mute";
   async function renderStand(): Promise<void> {
     headerTitle.textContent = "Health";
     const seg = state.standSeg || null;
-
+    if (typeof CairnHealthFanIn !== "undefined") CairnHealthFanIn.prime(seg); // before any view asks for its own read
     // Cold first paint: hydrate DATA from the sessionStorage snapshot so the overview
     // paints instantly, then background-revalidate. A truly cold open (no snapshot)
     // falls through to the loading state → fetch path below, exactly as before.

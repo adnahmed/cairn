@@ -1485,7 +1485,7 @@ declare global {
     inFlightCount(): number;
     cacheSize(): number;
     prime(paths: readonly string[], source: Promise<unknown>, ttlMs?: number): void;
-    primed(path: string): Promise<{ hit: true; data: unknown } | { hit: false }> | undefined;
+    primed(path: string): Promise<{ hit: true; data: unknown } | { hit: false; error?: unknown }> | undefined;
     primedSize(): number;
   };
   type ClientApiCallOptions = RequestInit & {
@@ -1516,6 +1516,24 @@ declare global {
     untilAborted<T>(promise: Promise<T>, signal: AbortSignal | null | undefined): Promise<T>;
   };
   declare const CairnApiCache: ClientApiCacheApi;
+  // Reachability the request layer remembers across requests (api-reach.ts).
+  type ClientApiReachApi = {
+    createReachMemo(opts?: { now?: () => number; windowMs?: number }): {
+      remember(path: string): void;
+      recent(path: string): boolean;
+      clear(): void;
+    };
+    isFetchFailure(error: unknown): boolean;
+    takeEarlyResponse(path: string): Promise<Response> | undefined;
+  };
+  declare const CairnApiReach: ClientApiReachApi;
+  // You -> Health's screen fan-in (health-fan-in-client.ts): one GET /you-health primes a leaf's reads.
+  declare const CairnHealthFanIn: { prime(seg: unknown): void; leafOf(seg: unknown): string };
+  // Train's screen fan-in (train-fan-in-client.ts): one GET /train-home primes a view's reads.
+  declare const CairnTrainFanIn: {
+    prime(view: "overview" | "program" | "endurance", paths?: readonly string[]): void;
+    pathsFor(view: "overview" | "program" | "endurance", date: string): string[];
+  };
   // Every api() failure: `kind` says whether Cairn answered (http, invalid_json)
   // or could not be reached (network, timeout). See api-cache.ts.
   class CairnApiError extends Error {
@@ -2053,7 +2071,7 @@ declare global {
   declare function maybeOnboard(): Promise<void>;
   declare function openOnboarding(): void;
   declare function primeArtManifest(): Promise<void>;
-  declare function jobReconnect(): Promise<void>;
+  declare function jobReconnect(opts?: { reuseWithinMs?: number }): Promise<void>;
   /** Names of the bundles index.html does NOT load eagerly (see build-client's BUNDLES). */
   declare type ClientLazyBundleName = "me-health" | "train" | "horizon" | "ask" | "settings";
   /** Inject a lazily-loaded app-shell bundle (and its dependencies) once; resolves after they have executed. */

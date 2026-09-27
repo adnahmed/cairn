@@ -164,6 +164,8 @@ export const CLIENT_API_CONTRACT_PATHS = [
   "/run-plan",
   "/race-build",
   "/horizon-race",
+  "/train-home",
+  "/you-health",
   "/journey",
   "/journey/milestones",
   "/journey/timeline",

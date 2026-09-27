@@ -411,6 +411,7 @@ async function renderProgressProgram(deps: ClientProgressProgramControllerDeps):
   const token = deps.nextToken();
   const peek = deps.peekCached<ProgressProgramState>("progress:program");
   if (!peek) deps.view.innerHTML = deps.skeletonHtml("program", 3);
+  if (typeof CairnTrainFanIn !== "undefined") CairnTrainFanIn.prime("program"); // one /train-home trip answers the screen's reads
 
   // Fetch the conductor in parallel. It never blocks the warm Program paint; if the
   // card presence changes, repaint from the cached program-state payload.

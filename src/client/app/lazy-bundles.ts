@@ -72,11 +72,12 @@ type CairnLazyBundleName = ClientLazyBundleName;
     const owed = closure(name).filter((n) => sweepOwed.has(n));
     if (!owed.length) return;
     for (const n of owed) sweepOwed.delete(n);
-    const reconnect = (globalThis as { jobReconnect?: () => Promise<void> }).jobReconnect;
+    const reconnect = (globalThis as { jobReconnect?: (opts?: { reuseWithinMs?: number }) => Promise<void> }).jobReconnect;
     if (typeof reconnect !== "function") return;
+    // The boot sweep's job list, when it is seconds old, is the list: no second read.
     void Promise.resolve(painted)
       .catch(() => {})
-      .then(() => reconnect())
+      .then(() => reconnect({ reuseWithinMs: 10000 }))
       .catch(() => {});
   }
 

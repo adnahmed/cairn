@@ -13,9 +13,10 @@ type TodayPrefetchApi = {
   get(path: string, fetcher: (path: string) => Promise<unknown>): Promise<unknown>;
   // The response index.html's early fetch already has on the wire for this API
   // path (without the /api prefix), handed over exactly once; undefined otherwise.
-  takeEarly?(path: string): Promise<Response | null> | undefined;
-  // Prime the request layer from the widened /today aggregate for this render.
-  primeFanIn?(date: string, deps: TodayFanInDeps): void;
+  takeEarly?(path: string): Promise<Response> | undefined;
+  // Prime the request layer from the widened /today aggregate for this render
+  // (`surface` "today", the default, or "session" for the Session destination).
+  primeFanIn?(date: string, deps: TodayFanInDeps, surface?: "today" | "session"): void;
 };
 type TodayFanInDeps = {
   api(path: string): Promise<unknown>;
@@ -86,7 +87,7 @@ type TodayFanInDeps = {
   const EARLY_TTL_MS = 15000;
   const PRIME_REUSE_MS = 3000;
 
-  function takeEarly(path: string): Promise<Response | null> | undefined {
+  function takeEarly(path: string): Promise<Response> | undefined {
     try {
       const table = (globalThis as { __cairnEarly?: Record<string, { at?: unknown; res?: unknown } | undefined> })
         .__cairnEarly;
@@ -96,7 +97,10 @@ type TodayFanInDeps = {
       const at = Number(entry.at);
       if (!Number.isFinite(at) || Date.now() - at > EARLY_TTL_MS) return undefined;
       const res = entry.res as Promise<Response | null> | undefined;
-      return res && typeof (res as Promise<unknown>).then === "function" ? res.catch(() => null) : undefined;
+      // index.html's catch resolves null, which only a rejected fetch() produces: that is
+      // a network failure (api-reach.ts), never a cue to ask again.
+      if (!res || typeof (res as Promise<unknown>).then !== "function") return undefined;
+      return res.then((r) => r || Promise.reject(new TypeError("offline")));
     } catch {
       return undefined;
     }
@@ -112,19 +116,25 @@ type TodayFanInDeps = {
   // came back without falls through to its own request, and any write clears every
   // prime. When THIS page primed the same date seconds ago (a soft repaint), those
   // primes still stand, so nothing is asked again — a fresh page load always primes.
-  let lastPrime: { date: string; at: number } | null = null;
-  function primeFanIn(date: string, deps: TodayFanInDeps): void {
+  // The Session destination primes the same way from `/today?surface=session`: the
+  // header's strength line, the plan-day pick, the anchor journey, the day's symptom
+  // rows — and, once it lands, the picked day's prescriptions and primer.
+  let lastPrime: { key: string; at: number } | null = null;
+  function primeFanIn(date: string, deps: TodayFanInDeps, surface: "today" | "session" = "today"): void {
     try {
-      if (lastPrime && lastPrime.date === date && Date.now() - lastPrime.at < PRIME_REUSE_MS) return;
-      lastPrime = { date, at: Date.now() };
+      const key = date + surface;
+      if (lastPrime && lastPrime.key === key && Date.now() - lastPrime.at < PRIME_REUSE_MS) return;
+      lastPrime = { key, at: Date.now() };
       const q = encodeURIComponent;
-      const paths = [
-        `/today-plan-day?date=${q(date)}`, `/today-agenda?date=${q(date)}`, "/coaching-focus", "/strength-journey",
-        "/settings", "/profile", `/today-side?date=${q(date)}`, "/context-tags/vocab",
-        `/context-tags?date=${q(deps.localISO())}`, `/today/stones?date=${q(date)}`, "/directives", "/brain/changes",
-      ];
-      if (date === deps.localISO()) paths.push(`/training-agenda?date=${q(date)}`);
-      const aggregate = deps.api(CairnTodayDataLoader.aggregatePath(date, "today"));
+      const paths = [`/today-plan-day?date=${q(date)}`, "/strength-journey", "/settings", "/profile"];
+      if (surface === "session") {
+        paths.push(`/today-strength-line?date=${q(date)}`, `/training-symptoms?on=${q(date)}&include_resolved=1`);
+      } else {
+        paths.push(`/today-agenda?date=${q(date)}`, "/coaching-focus", `/today-side?date=${q(date)}`, "/context-tags/vocab",
+          `/context-tags?date=${q(deps.localISO())}`, `/today/stones?date=${q(date)}`, "/directives", "/brain/changes");
+        if (date === deps.localISO()) paths.push(`/training-agenda?date=${q(date)}`);
+      }
+      const aggregate = deps.api(CairnTodayDataLoader.aggregatePath(date, surface));
       apiPrime(paths, aggregate.then((value) => (value as { responses?: unknown } | null)?.responses ?? null));
     } catch {
       /* every loader simply asks for its own path */

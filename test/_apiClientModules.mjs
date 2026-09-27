@@ -12,6 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const API_CLIENT_MODULES = [
   "token-sheet",
   "api-cache",
+  "api-reach",
   "api-core",
   "api-signals",
   "outbox-queue",

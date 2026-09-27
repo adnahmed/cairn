@@ -23,6 +23,7 @@ import { trainingLogRouter } from "./routes/training-log.js";
 import { bodyMetricsRouter } from "./routes/body-metrics.js";
 import { journeyRouter } from "./routes/journey.js";
 import { appleHealthRouter } from "./routes/apple-health.js";
+import { screensRouter } from "./routes/screens.js";
 import { diagnosticErrorName, diagnosticStackFrames, recordUnexpectedApiError, requestId } from "./diagnostics.js";
 import { telemetryRequestPathLabel } from "./telemetry-privacy.js";
 import { log } from "./log.js";
@@ -32,19 +33,21 @@ import { assertNoDuplicateApiRoutes, type ApiMount } from "./route-audit.js";
 
 export const api = Router();
 
-// `/today-side` (health synthesis, recovery baseline) and `/directives` (lab findings)
-// carry the same health data as the routes named for it, so they are no-store too.
+// `/today-side` (health synthesis, recovery baseline), `/directives` (lab findings) and
+// the `/you-health` fan-in carry the same health data as the routes named for it, so
+// they are no-store too.
 const NO_STORE_API_PATH =
-  /^\/(?:health|markers?|recovery|records|doctor|imaging|dicom|today-side|directives)(?:[-/.?]|$)/;
+  /^\/(?:health|markers?|recovery|records|doctor|imaging|dicom|today-side|directives|you-health)(?:[-/.?]|$)/;
 
 /**
  * The Cache-Control an API read carries unless its route sets its own. `query` is the
  * request's parsed query: Today's fan-in (`/today?surface=today`) embeds the side
- * panels and the directives, so it is held to their no-store.
+ * panels and the directives, and the Session's (`surface=session`) the symptom rows,
+ * so both are held to their no-store.
  */
 export function apiCacheControlFor(path: string, query?: Record<string, unknown>): string {
   if (NO_STORE_API_PATH.test(path)) return "private, no-store";
-  if (path === "/today" && query?.surface === "today") return "private, no-store";
+  if (path === "/today" && (query?.surface === "today" || query?.surface === "session")) return "private, no-store";
   return "private, no-cache";
 }
 
@@ -96,6 +99,7 @@ const API_MOUNTS: ApiMount[] = [
   { name: "body-metrics", prefix: "/", router: bodyMetricsRouter },
   { name: "journey", prefix: "/", router: journeyRouter },
   { name: "apple-health", prefix: "/", router: appleHealthRouter },
+  { name: "screens", prefix: "/", router: screensRouter },
   { name: "chat", prefix: "/chat", router: chatRouter },
   { name: "agent-jobs", prefix: "/agent-jobs", router: agentJobsRouter },
   { name: "health-docs", prefix: "/health-docs", router: healthDocsRouter },

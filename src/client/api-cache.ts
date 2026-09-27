@@ -10,8 +10,9 @@
 type CairnApiErrorKind = "http" | "invalid_json" | "network" | "timeout";
 type ApiCoalesceEntry<T> = { data: T; expires: number };
 // A primed read (see ApiCoalescer.prime): the answer another request already
-// carries for this path. `hit:false` means that request came back without it.
-type ApiPrimeResult = { hit: true; data: unknown } | { hit: false };
+// carries for this path. `hit:false` means that request came back without it, and
+// `error` is why when the request itself failed (api-core fails fast on an outage).
+type ApiPrimeResult = { hit: true; data: unknown } | { hit: false; error?: unknown };
 type ApiStaleEntry<T> = { data: T; ts: number };
 type ApiCoalescer = {
   isMicroCachePath(path: string): boolean;
@@ -217,16 +218,22 @@ type ApiCoalescer = {
     function prime(paths: readonly string[], source: Promise<unknown>, primeTtlMs = API_PRIME_TTL_MS): void {
       const gen = writeGen;
       const owner = {};
+      let failure: unknown;
       const table: Promise<Record<string, unknown> | null> = Promise.resolve(source).then(
         (value) => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null),
-        () => null
+        (error) => {
+          failure = error;
+          return null;
+        }
       );
       // Pending entries: a named path asked for before the source lands waits for it.
       // They never expire before the source settles (a slow link must not turn a
       // primed read into a second request), only after.
       for (const path of paths) {
         const settled: Promise<ApiPrimeResult> = table.then((map) =>
-          map && Object.prototype.hasOwnProperty.call(map, path) ? { hit: true, data: map[path] } : { hit: false }
+          map && Object.prototype.hasOwnProperty.call(map, path)
+            ? { hit: true, data: map[path] }
+            : failure === undefined ? { hit: false } : { hit: false, error: failure }
         );
         primes.set(path, { gen, owner, expires: Number.POSITIVE_INFINITY, settled });
       }

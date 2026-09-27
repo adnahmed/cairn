@@ -15,7 +15,7 @@ import {
 import { markTodayAgendaSeen, todayAggregate, todayDateParam, todayStones } from "../domain/today/index.js";
 import { ensureWeekAheadJob } from "../agentJobs.js";
 import { memoizedRead } from "./response-memo.js";
-import { publicTodayPlanDay, todaySurfaceResponses } from "./today-responses.js";
+import { publicTodayPlanDay, sessionSurfaceResponses, todaySurfaceResponses } from "./today-responses.js";
 import { recordDismissal } from "../repo/surface-dismissals.js";
 
 export const todayRouter = Router();
@@ -32,9 +32,10 @@ export { todayAggregate, publicTodayPlanDay };
 // those routes still exists and answers identically — this only collapses the
 // request count; the client still primes their individual SWR keys.
 //
-// `?surface=today` (the Today tab, not the Session destination) widens it with
-// `responses`: the bodies every other Today GET would answer, keyed by the path the
-// client asks with (routes/today-responses.ts), so the whole open is one trip.
+// `?surface=today` (the Today tab) widens it with `responses`: the bodies every other
+// Today GET would answer, keyed by the path the client asks with
+// (routes/today-responses.ts), so the whole open is one trip. `?surface=session` (the
+// Session destination) carries the Session's own reads the same way.
 //
 // Memoized on the response freshness key (routes/response-memo.ts): a repeat open
 // with nothing logged since answers the stored body — or a 304 — without recomputing.
@@ -45,6 +46,13 @@ todayRouter.get("/today",
     "today",
     (req) => {
       const aggregate = todayAggregate(req.query.date);
+      if (req.query.surface === "session") {
+        const responses = sessionSurfaceResponses(aggregate.date, {
+          progressionDay: aggregate.progression_day,
+          strengthJourney: aggregate.strength_journey,
+        });
+        return { body: { ...aggregate, responses }, weekAheadKey: null as string | null };
+      }
       if (req.query.surface !== "today") return { body: aggregate, weekAheadKey: null as string | null };
       let weekAheadKey: string | null = null;
       const body = {
@@ -62,6 +70,9 @@ todayRouter.get("/today",
       return { body, weekAheadKey };
     },
     {
+      // The Session fan-in carries reads the memo's freshness key was never built
+      // around (the primer, the symptom rows): it is computed on every open.
+      cacheable: (req) => req.query.surface !== "session",
       body: (value) => value.body,
       onHit: (_req, value) => {
         if (value.weekAheadKey) ensureWeekAheadJob(undefined, value.weekAheadKey);

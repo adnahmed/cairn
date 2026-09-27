@@ -142,14 +142,13 @@ async function renderProgressEndurance(deps: ProgressEnduranceControllerDeps): P
   let agenda: ProgressEnduranceAgenda | null = null;
   let programState: ProgressEnduranceProgramState | null = null;
   let calibration: ProgressEnduranceCalibration | null = null;
-  // Every other read in this fan-out already tolerates its own failure
-  // (`.catch(() => null)`); `/stats` was the one exception, so a single failed
-  // request rejected the whole `Promise.all` and the catch below discarded every
-  // OTHER card that had actually loaded, painting the calm "no history" empty
-  // state as if the athlete had never logged anything. Catch it like its
-  // neighbors and track the failure explicitly so a genuine fetch failure never
-  // reads as "nothing logged".
+  // Every other read in this fan-out already tolerates its own failure (`.catch(() =>
+  // null)`); `/stats` was the one exception, so a single failed request rejected the
+  // whole `Promise.all` and the catch below discarded every OTHER card that had loaded,
+  // painting the calm "no history" empty state as if the athlete had never logged
+  // anything. Catch it like its neighbors and track the failure explicitly.
   let statsFailed = false;
+  if (typeof CairnTrainFanIn !== "undefined") CairnTrainFanIn.prime("endurance"); // one /train-home trip answers every read below
   try {
     const results = await Promise.all([
       deps.api("/stats").catch(() => { statsFailed = true; return null; }),

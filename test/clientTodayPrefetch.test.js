@@ -201,3 +201,104 @@ test("primeFanIn primes every Today path from ONE widened aggregate, and skips a
   assert.equal(primed.length, 2);
   assert.equal(asked.length, 2);
 });
+
+test("primeFanIn(…, 'session') primes the Session's own reads from ONE /today?surface=session", async () => {
+  const primed = [];
+  const asked = [];
+  const { context } = load(["public/js/today-prefetch.js"], {
+    encodeURIComponent,
+    apiPrime: (paths, source) => primed.push({ paths: [...paths], source }),
+    CairnTodayDataLoader: { aggregatePath: (date, tab) => `/today?date=${date}&surface=${tab}` },
+  });
+  const deps = {
+    api: (path) => {
+      asked.push(path);
+      return Promise.resolve({ responses: { "/profile": { name: "A" } } });
+    },
+    localISO: () => "2026-09-26",
+  };
+  context.CairnTodayPrefetch.primeFanIn("2026-09-26", deps, "session");
+  assert.deepEqual(asked, ["/today?date=2026-09-26&surface=session"]);
+  assert.deepEqual([...primed[0].paths].sort(), [
+    "/profile",
+    "/settings",
+    "/strength-journey",
+    "/today-plan-day?date=2026-09-26",
+    "/today-strength-line?date=2026-09-26",
+    "/training-symptoms?on=2026-09-26&include_resolved=1",
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(await primed[0].source)), { "/profile": { name: "A" } });
+  // The Today open's primes for the same date never stand in for the Session's.
+  context.CairnTodayPrefetch.primeFanIn("2026-09-26", deps, "today");
+  assert.equal(asked.length, 2);
+  context.CairnTodayPrefetch.primeFanIn("2026-09-26", deps, "today");
+  assert.equal(asked.length, 2, "a repaint seconds later rides the standing primes");
+});
+
+test("the Train fan-in primes each view's reads from ONE /train-home", async () => {
+  const primed = [];
+  const asked = [];
+  const { context } = load(["public/js/train-fan-in-client.js"], {
+    encodeURIComponent,
+    localISO: () => "2026-09-26",
+    api: (path) => {
+      asked.push(path);
+      return Promise.resolve({ responses: { "/stats": {} } });
+    },
+    apiPrime: (paths, source) => primed.push({ paths: [...paths], source }),
+  });
+  context.CairnTrainFanIn.prime("endurance");
+  context.CairnTrainFanIn.prime("program");
+  context.CairnTrainFanIn.prime("overview", ["/stats", "/journey"]);
+  assert.deepEqual(asked, [
+    "/train-home?view=endurance&date=2026-09-26",
+    "/train-home?view=program&date=2026-09-26",
+    "/train-home?view=overview&date=2026-09-26",
+  ]);
+  assert.ok(primed[0].paths.includes("/training-agenda?date=2026-09-26"));
+  assert.ok(primed[0].paths.includes("/calibration/status?date=2026-09-26"));
+  assert.ok(primed[1].paths.includes("/strength-journeys") && primed[1].paths.includes("/dexa-targeting"));
+  assert.deepEqual(primed[2].paths, ["/stats", "/journey"], "the home passes its own list");
+  assert.deepEqual(JSON.parse(JSON.stringify(await primed[2].source)), { "/stats": {} });
+});
+
+test("the Health fan-in primes the overview's reads plus the open leaf's, once per open", async () => {
+  const primed = [];
+  const asked = [];
+  const { context, advance } = load(["public/js/health-fan-in-client.js"], {
+    api: (path) => {
+      asked.push(path);
+      return Promise.resolve({ responses: {} });
+    },
+    apiPrime: (paths, source) => primed.push({ paths: [...paths], source }),
+  });
+  context.CairnHealthFanIn.prime("share");
+  context.CairnHealthFanIn.prime("share");
+  assert.deepEqual(asked, ["/you-health?leaf=share"], "the warm-behind rides the open's fan-in");
+  assert.ok(primed[0].paths.includes("/markers/priority") && primed[0].paths.includes("/health/visit-questions"));
+  context.CairnHealthFanIn.prime("records");
+  assert.equal(asked[1], "/you-health?leaf=records");
+  assert.ok(primed[1].paths.includes("/health-docs") && !primed[1].paths.includes("/health/visit-questions"));
+  advance(3000);
+  context.CairnHealthFanIn.prime("records");
+  assert.equal(asked.length, 3, "a later open asks again");
+  assert.equal(context.CairnHealthFanIn.leafOf("connections"), "health");
+  assert.equal(context.CairnHealthFanIn.leafOf("toString"), "health");
+});
+
+test("takeEarly hands a live early response over once, and a failed one as a network failure", async () => {
+  const live = { status: 200 };
+  const { context } = load(["public/js/today-prefetch.js"], {
+    TypeError,
+    __cairnEarly: {
+      "/today-read?date=2026-09-26": { at: 1000, res: Promise.resolve(live) },
+      "/today?date=2026-09-26": { at: 1000, res: Promise.resolve(null) }, // index.html's catch
+    },
+  });
+  context.globalThis = context;
+  const prefetch = context.CairnTodayPrefetch;
+  assert.equal(await prefetch.takeEarly("/today-read?date=2026-09-26"), live);
+  assert.equal(prefetch.takeEarly("/today-read?date=2026-09-26"), undefined, "handed over once");
+  await assert.rejects(prefetch.takeEarly("/today?date=2026-09-26"), TypeError);
+  assert.equal(prefetch.takeEarly("/daily-session/preview?date=2026-09-26"), undefined);
+});

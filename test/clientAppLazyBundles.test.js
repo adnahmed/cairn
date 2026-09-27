@@ -308,3 +308,19 @@ test("the idle warm-up stands down on Save-Data", () => {
   assert.equal(timers.length, 0);
   assert.equal(env.scripts.length, 0);
 });
+
+test("an owed sweep asks to reuse the boot sweep's seconds-old job list, never a second /agent-jobs", async () => {
+  const seen = [];
+  const env = loadLoader({
+    registerAppJobReconnectors: () => 1,
+    jobReconnect: async (opts) => {
+      seen.push(opts);
+    },
+  });
+  const nav = env.context.withBundle("ask", () => {});
+  env.scripts[0].fire("load");
+  await nav;
+  await settle();
+  assert.equal(seen.length, 1);
+  assert.ok(seen[0] && seen[0].reuseWithinMs > 0, "the sweep reuses a recent list");
+});
