@@ -14,8 +14,8 @@ import {
 } from "../domain/training/index.js";
 import { markTodayAgendaSeen, todayAggregate, todayDateParam, todayStones } from "../domain/today/index.js";
 import { ensureWeekAheadJob } from "../agentJobs.js";
-import { memoizedRead } from "./response-memo.js";
-import { publicTodayPlanDay, todaySurfaceResponses } from "./today-responses.js";
+import { memoizedRead, memoizedValue } from "./response-memo.js";
+import { publicTodayPlanDay, sessionSurfaceResponses, todaySurfaceResponses } from "./today-responses.js";
 import { recordDismissal } from "../repo/surface-dismissals.js";
 
 export const todayRouter = Router();
@@ -32,9 +32,10 @@ export { todayAggregate, publicTodayPlanDay };
 // those routes still exists and answers identically — this only collapses the
 // request count; the client still primes their individual SWR keys.
 //
-// `?surface=today` (the Today tab, not the Session destination) widens it with
-// `responses`: the bodies every other Today GET would answer, keyed by the path the
-// client asks with (routes/today-responses.ts), so the whole open is one trip.
+// `?surface=today` (the Today tab) widens it with `responses`: the bodies every other
+// Today GET would answer, keyed by the path the client asks with
+// (routes/today-responses.ts), so the whole open is one trip. `?surface=session` (the
+// Session destination) carries the Session's own reads the same way.
 //
 // Memoized on the response freshness key (routes/response-memo.ts): a repeat open
 // with nothing logged since answers the stored body — or a 304 — without recomputing.
@@ -44,6 +45,18 @@ todayRouter.get("/today",
   memoizedRead(
     "today",
     (req) => {
+      if (req.query.surface === "session") {
+        // The aggregate half keeps plain /today's freshness (it is the same read);
+        // only the Session's own reads below are computed on every open.
+        const aggregate = memoizedValue(`today-aggregate ${String(req.query.date ?? "")}`, () =>
+          todayAggregate(req.query.date)
+        );
+        const responses = sessionSurfaceResponses(aggregate.date, {
+          progressionDay: aggregate.progression_day,
+          strengthJourney: aggregate.strength_journey,
+        });
+        return { body: { ...aggregate, responses }, weekAheadKey: null as string | null };
+      }
       const aggregate = todayAggregate(req.query.date);
       if (req.query.surface !== "today") return { body: aggregate, weekAheadKey: null as string | null };
       let weekAheadKey: string | null = null;
@@ -62,6 +75,9 @@ todayRouter.get("/today",
       return { body, weekAheadKey };
     },
     {
+      // The Session fan-in carries reads the memo's freshness key was never built
+      // around (the primer, the symptom rows): only its aggregate half is memoized.
+      cacheable: (req) => req.query.surface !== "session",
       body: (value) => value.body,
       onHit: (_req, value) => {
         if (value.weekAheadKey) ensureWeekAheadJob(undefined, value.weekAheadKey);

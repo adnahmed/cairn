@@ -2,7 +2,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import zlib from "node:zlib";
 import type { Request, Response, NextFunction } from "express";
+import { acceptedEncodings } from "./staticCompression.js";
 
 // The service worker's cache name, DERIVED from what it precaches.
 //
@@ -154,9 +156,11 @@ export function buildServiceWorkerScript(publicDir: string): ServiceWorkerScript
  *
  * Mounted BEFORE the static layers so the substituted body is the only /sw.js
  * anyone can reach — build-client.mjs deliberately does not precompress sw.js,
- * so there is no `.br`/`.gz` sibling to go stale behind this. `no-cache` (not
- * `no-store`) keeps the browser's own revalidation cheap while guaranteeing it
- * never serves a worker from the HTTP cache without asking.
+ * so there is no `.br`/`.gz` sibling to go stale behind this. Instead the
+ * SUBSTITUTED body is compressed here (brotli, else gzip, per Accept-Encoding),
+ * once per served version (see encodedBody). `no-cache` (not `no-store`) keeps the
+ * browser's own revalidation cheap while guaranteeing it never serves a worker from
+ * the HTTP cache without asking.
  *
  * The computation is memoized on a size+mtime signature of the shell, so a
  * `tsx watch` session picks up an edited styles.css without a restart while a
@@ -198,6 +202,42 @@ export function currentShellVersion(publicDir: string = DEFAULT_PUBLIC_DIR): str
   }
 }
 
+/** The two encodings /sw.js is offered in, best ratio first. */
+const SW_ENCODINGS = ["br", "gzip"] as const;
+type SwEncoding = (typeof SW_ENCODINGS)[number];
+
+/**
+ * The substituted worker body in `encoding`, compressed once per served script
+ * (the memo above hands back the same object until the shell moves, so this is
+ * paid once per deploy) — or null when compression failed, and the body goes plain.
+ */
+const encodedBodies = new WeakMap<ServiceWorkerScript, Partial<Record<SwEncoding, Buffer | null>>>();
+export function encodedServiceWorkerBody(script: ServiceWorkerScript, encoding: SwEncoding): Buffer | null {
+  let entry = encodedBodies.get(script);
+  if (!entry) {
+    entry = {};
+    encodedBodies.set(script, entry);
+  }
+  if (entry[encoding] === undefined) {
+    const raw = Buffer.from(script.body, "utf8");
+    try {
+      entry[encoding] =
+        encoding === "br"
+          ? zlib.brotliCompressSync(raw, {
+              params: {
+                [zlib.constants.BROTLI_PARAM_QUALITY]: 11,
+                [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
+                [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length,
+              },
+            })
+          : zlib.gzipSync(raw, { level: 9 });
+    } catch {
+      entry[encoding] = null;
+    }
+  }
+  return entry[encoding] ?? null;
+}
+
 export function serviceWorkerScript(publicDir: string) {
   const root = path.resolve(publicDir);
   const current = (): ServiceWorkerScript => currentServiceWorkerScript(root);
@@ -215,16 +255,26 @@ export function serviceWorkerScript(publicDir: string) {
       next();
       return;
     }
-    const body = Buffer.from(script.body, "utf8");
     res.setHeader("Content-Type", "text/javascript; charset=UTF-8");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Service-Worker-Allowed", "/");
+    res.setHeader("Vary", "Accept-Encoding");
+    // Weak and encoding-neutral: every encoding carries the same worker, so a 304
+    // for any of them is true of all of them.
     res.setHeader("ETag", `W/"${script.version}"`);
     // res.end() bypasses Express's freshness check, so answer the conditional
     // GET by hand: a worker revalidating an unchanged script gets 304, not the body.
     if (req.fresh) {
       res.status(304).end();
       return;
+    }
+    let body: Buffer = Buffer.from(script.body, "utf8");
+    for (const encoding of acceptedEncodings(req.headers["accept-encoding"], SW_ENCODINGS)) {
+      const encoded = encodedServiceWorkerBody(script, encoding as SwEncoding);
+      if (!encoded) continue;
+      res.setHeader("Content-Encoding", encoding);
+      body = encoded;
+      break;
     }
     res.setHeader("Content-Length", String(body.length));
     if (req.method === "HEAD") {

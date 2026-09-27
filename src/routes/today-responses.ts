@@ -24,6 +24,7 @@ import { CONTEXT_TAG_VOCAB, getProfile, listContextTags } from "../domain/person
 import {
   calendarDayRead,
   getEnduranceGoal,
+  listTrainingSymptoms,
   listUnreconciledGarminStrength,
   planDayProgression,
   planDayRecoveryCandidates,
@@ -33,11 +34,12 @@ import {
   recentTraining,
   runComplianceRead,
   selectedPlanDayForDate,
+  todayStrengthLine,
   weekWins,
   weeklyRunPlan,
 } from "../domain/training/index.js";
 import { todayDateParam, todayStones } from "../domain/today/index.js";
-import { flexibleTrainingAgenda } from "../repo.js";
+import { flexibleTrainingAgenda, sessionPrimer } from "../repo.js";
 import { localDateISO } from "../repo/shared.js";
 import { directivesResponse } from "./connected-brain.js";
 import { weekAheadResponse } from "./day-coach.js";
@@ -178,6 +180,36 @@ export function todaySurfaceResponses(
       : null;
     if (weekly && (weekly.feedback !== "up" || weekly.stale === true)) put(out, "/week-wins", () => weekWins(undefined));
   }
+  return out;
+}
+
+/**
+ * Everything a Session open asks for beside the aggregate, keyed by the path it asks
+ * with: the header's strength line, the plan-day pick, the plan day's prescriptions,
+ * the anchor journey, the primer for that day and the day's symptom rows. The primer
+ * and prescriptions follow the plan day the aggregate picked (`progressionDay`); a
+ * session opened on another day simply asks for its own. Each entry is the same call
+ * its route makes, so this is never memoized (routes/today.ts) — it is exactly as fresh
+ * as the reads it replaces.
+ */
+export function sessionSurfaceResponses(
+  date: string,
+  opts: { progressionDay: number | null; strengthJourney: unknown },
+): ApiResponses {
+  const out: ApiResponses = {};
+  put(out, `/today-strength-line?date=${q(date)}`, () => todayStrengthLine(date));
+  put(out, `/today-plan-day?date=${q(date)}`, () => publicTodayPlanDay(date));
+  out["/strength-journey"] = opts.strengthJourney;
+  put(out, "/settings", () => settingsResponse());
+  put(out, "/profile", () => getProfile());
+  if (opts.progressionDay != null) {
+    const day = opts.progressionDay;
+    put(out, `/program/progression?day=${q(String(day))}`, () => planDayProgression(day));
+    put(out, `/session-primer?date=${q(date)}&day=${q(String(day))}`, () => sessionPrimer(date, { dayNumber: day }));
+  }
+  put(out, `/training-symptoms?on=${q(date)}&include_resolved=1`, () =>
+    listTrainingSymptoms({ on: date, include_resolved: true, seed_legacy: true })
+  );
   return out;
 }
 

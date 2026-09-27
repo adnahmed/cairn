@@ -176,7 +176,8 @@ test("api client surfaces and clears the offline hairline", async () => {
   assert.equal(loaded.getOfflineBar().classList.contains("show"), true);
 
   loaded.context.fetch = async () => ({ status: 200, json: async () => ({ ok: true }) });
-  await loaded.context.api("/health");
+  // The failed path itself is held out of reach for a moment (api-reach.ts); any answer clears the hairline.
+  await loaded.context.api("/version");
   assert.equal(loaded.getOfflineBar().classList.contains("show"), false);
 });
 
@@ -225,8 +226,14 @@ test("api() dedupe entry clears on a rejected fetch so a retry actually re-fetch
     fetchCount++;
     return { status: 200, json: async () => ({ ok: true }) };
   };
+  // Out of reach a moment ago (api-reach.ts): an immediate re-ask of that path fails
+  // the same way without the wire...
+  await assert.rejects(loaded.context.api("/stats"), /Could not reach Cairn/);
+  assert.equal(fetchCount, 0, "the same outage is never paid for twice");
+  // ...until Cairn answers anything, which clears it.
+  await loaded.context.api("/version");
   await loaded.context.api("/stats");
-  assert.equal(fetchCount, 1, "the failed attempt didn't wedge the path — the retry actually hit the network");
+  assert.equal(fetchCount, 2, "the failed attempt didn't wedge the path — the retry actually hit the network");
 });
 
 test("api() dedupe entry clears on a 401 so it never wedges the path — each caller independently hangs", async () => {
@@ -1785,6 +1792,22 @@ test("api() answers primed paths from a fan-in in one trip; a path it lacks fall
   await loaded.context.api("/sets", { method: "POST", body: "{}" });
   const after = await loaded.context.api("/directives");
   assert.equal(after.own, "/api/directives");
+});
+
+test("api() prime: an opted-in SWR read the fan-in answers seeds its stale tier", async () => {
+  const loaded = loadApiClient();
+  const urls = [];
+  loaded.context.fetch = async (url) => {
+    urls.push(url);
+    throw new TypeError("Failed to fetch");
+  };
+  loaded.context.apiPrime(["/performance"], Promise.resolve({ "/performance": { tier: "a" } }), 1);
+  assert.equal((await loaded.context.api("/performance", { swr: true })).tier, "a");
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  // The prime has expired and the device is offline: the fan-in's body is the last-known paint.
+  const served = await loaded.context.api("/performance", { swr: { freshMs: 60_000 } });
+  assert.equal(served.tier, "a");
+  assert.deepEqual(urls, [], "the remembered body served without the wire");
 });
 
 test("api() prime: a failed fan-in falls every waiting reader through to its own request", async () => {

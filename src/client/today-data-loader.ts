@@ -94,11 +94,12 @@ type TodayDataLoaderApi = {
     }
   }
 
-  // The Today tab asks for the widened aggregate (`surface=today`): its `responses`
-  // carry every other Today GET's body and prime the request layer (see
-  // today-screen renderToday / apiPrime). The Session destination reads the plain one.
+  // The Today tab asks for the widened aggregate (`surface=today`) and the Session
+  // destination for its own (`surface=session`): the `responses` carry every other GET
+  // that open makes and prime the request layer (today-prefetch primeFanIn / apiPrime).
   function todayAggregatePath(date: string, tab: string | undefined): string {
-    return "/today?date=" + encodeURIComponent(date) + (tab === "today" ? "&surface=today" : "");
+    const surface = tab === "today" ? "&surface=today" : tab === "session" ? "&surface=session" : "";
+    return "/today?date=" + encodeURIComponent(date) + surface;
   }
 
   // The fan-in half never reaches the SWR tiers: it holds health reads (directives,

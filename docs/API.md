@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**359 routes** across 122 groups.
+**361 routes** across 124 groups.
 
 ## `/activities`
 
@@ -858,7 +858,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/today` | One server read for the whole Today open: the independent low-risk reads the client used to fetch separately (/plan, /sessions?date=, /stats, /profile, /exercises) PLUS the per-plan-day last sets, that day's progression, the strength journey, the salience agenda and the conductor's focus. Every one of those routes still exists and answers identically — this only collapses the request count; the client still primes their individual SWR keys.  `?surface=today` (the Today tab, not the Session destination) widens it with `responses`: the bodies every other Today GET would answer, keyed by the path the client asks with (routes/today-responses.ts), so the whole open is one trip.  Memoized on the response freshness key (routes/response-memo.ts): a repeat open with nothing logged since answers the stored body — or a 304 — without recomputing. A week-ahead refresh the fan-in kicked is remembered beside the body and re-kicked on every hit (ensureWeekAheadJob dedupes), as GET /week-ahead does on every serve. |
+| GET | `/api/today` | One server read for the whole Today open: the independent low-risk reads the client used to fetch separately (/plan, /sessions?date=, /stats, /profile, /exercises) PLUS the per-plan-day last sets, that day's progression, the strength journey, the salience agenda and the conductor's focus. Every one of those routes still exists and answers identically — this only collapses the request count; the client still primes their individual SWR keys.  `?surface=today` (the Today tab) widens it with `responses`: the bodies every other Today GET would answer, keyed by the path the client asks with (routes/today-responses.ts), so the whole open is one trip. `?surface=session` (the Session destination) carries the Session's own reads the same way.  Memoized on the response freshness key (routes/response-memo.ts): a repeat open with nothing logged since answers the stored body — or a 304 — without recomputing. A week-ahead refresh the fan-in kicked is remembered beside the body and re-kicked on every hit (ensureWeekAheadJob dedupes), as GET /week-ahead does on every serve. |
 | GET | `/api/today/stones` | The six stones (v2 wave 4): Strength, Endurance, Fuel, Recovery, Body, Heart — one plain word and a reading-layer tone each, projected on the server from the signal state and the domain reads (src/domain/today/today-stones.ts). A part of the picture with nothing fresh reads "quiet", never low; no score. A pure read. |
 
 ## `/today-agenda`
@@ -894,6 +894,12 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/today-strength-line` | Today's lift in one line — plan day NAME, its state off the log, a rest/easy read as a caveat, a run logged today beside it. Every strength surface renders this verbatim; the Brief and the aggregate carry the same object. |
+
+## `/train-home`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/train-home` | Train in ONE request (routes/screen-responses.ts): `?view=overview\|program\|endurance` picks the screen, `?date=` is the device's local day its dated reads are keyed by. `responses` is keyed by the path each individual route answers, with that route's exact body — every one of those routes still stands on its own. Not memoized: the reads are computed on every open, as the individual routes are. |
 
 ## `/training-agenda`
 
@@ -979,6 +985,12 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/whole-person-trajectory` |  |
+
+## `/you-health`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/you-health` | You -> Health in ONE request: the standing overview's reads plus the open leaf's own (`?leaf=health\|records\|markers\|share`). Health data throughout, so no-store (api.ts). |
 
 ---
 

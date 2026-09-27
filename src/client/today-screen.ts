@@ -1402,6 +1402,10 @@ async function renderSession(opts: any = {}): Promise<void> {
   }
 
 
+  // One /today?surface=session trip answers the Session's own reads (today-prefetch).
+  if (todayState.tab === "session") {
+    (globalThis as { CairnTodayPrefetch?: TodayPrefetchApi }).CairnTodayPrefetch?.primeFanIn?.(todayState.logDate, { api: todayApi, localISO }, "session");
+  }
   // Today's lift, in the server's one line — requested beside the data load so the
   // header names the plan day (never a rest suggestion as its title) on first paint.
   const strengthLinePromise: Promise<import("../contracts/client-api.js").ClientTodayStrengthLine | null> =

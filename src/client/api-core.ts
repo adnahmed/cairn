@@ -126,6 +126,7 @@ type ApiFetchOutcome = {
     } catch {}
   }
 
+  const apiReach = CairnApiReach.createReachMemo();
   let apiCoalescerSingleton: ApiCoalescer | null = null;
   function apiCoalescer(): ApiCoalescer {
     if (!apiCoalescerSingleton) apiCoalescerSingleton = createApiCoalescer({});
@@ -173,20 +174,24 @@ type ApiFetchOutcome = {
     } else if (!bypass) {
       const cached = coalescer.peekFresh<CairnApiResponse<Path>>(p);
       if (cached !== undefined) return Promise.resolve(cached);
-      // A fan-in (the /today or /horizon-race aggregate) already carries this path's
-      // body: take it instead of a round trip. Primes clear on any write, and one the
-      // fan-in came back without falls through to a normal request.
+      // A fan-in (/today, /horizon-race, /train-home, /you-health) already carries this
+      // path's body: take it instead of a round trip. Primes clear on any write; one the
+      // fan-in came back without falls through to a normal request — unless the fan-in
+      // could not reach Cairn, when this read would fail too: it is failed without the
+      // wire (api-reach.ts), so a remembered body still serves and the rest go last-known.
+      // An opted-in read the fan-in answers still seeds its SWR tier (coalescer.store).
+      if (swr) coalescer.markStaleable(p);
       const primedRead = coalescer.primed(p);
       if (primedRead) {
         const primedGen = coalescer.writeGeneration();
         return primedRead.then((result) => {
+          if (!result.hit && CairnApiReach.isFetchFailure(result.error)) apiReach.remember(p);
           if (!result.hit) return api(p, opts);
           coalescer.store(p, result.data, primedGen);
           return result.data as CairnApiResponse<Path>;
         });
       }
       if (swr) {
-        coalescer.markStaleable(p);
         staleHit = coalescer.peekStale<CairnApiResponse<Path>>(p, swr.maxStaleMs);
         // Remembered seconds ago (another surface just read it): serve it, no refetch.
         if (staleHit && staleHit.age < swr.freshMs) return Promise.resolve(staleHit.data);
@@ -200,6 +205,8 @@ type ApiFetchOutcome = {
     if (tz) headers["X-Cairn-TZ"] = tz;
 
     const attempt = (): Promise<ApiFetchOutcome> => {
+      // This very path failed out of reach a moment ago: fail the same way, no wire.
+      if (isGet && !bypass && apiReach.recent(p)) return Promise.reject(new CairnApiError({ kind: "network", method, route: p }));
       // The write generation this request began under — a body fetched across a
       // write is returned to its caller but never remembered (see coalescer.store).
       const writeGen = coalescer.writeGeneration();
@@ -211,15 +218,12 @@ type ApiFetchOutcome = {
           typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
         return Math.max(0, ended - started);
       };
-      // Today's paint-critical reads may already be on the wire: index.html starts
-      // them before the bundles parse, and CairnTodayPrefetch hands each one over
-      // exactly once. A missing or failed early response is a normal fetch.
-      // index.html starts it with no signal: the Response and its body race this
-      // attempt's GET timeout instead, so a stalled one reads as a normal timeout.
-      const early = isGet && !bypass ? takeEarlyResponse(p) : undefined;
-      const response = early
-        ? untilAborted(early, init.signal).then((r) => r || fetch("/api" + p, init))
-        : fetch("/api" + p, init);
+      // Today's paint-critical reads may already be on the wire (index.html; see
+      // api-reach.ts): a missing early response is a normal fetch, a failed one a
+      // network failure. index.html starts it with no signal: the Response and its body
+      // race this attempt's GET timeout instead, so a stalled one reads as a timeout.
+      const early = isGet && !bypass ? CairnApiReach.takeEarlyResponse(p) : undefined;
+      const response = early ? untilAborted(early, init.signal) : fetch("/api" + p, init);
       return response
         .then(async (r) => {
           const base = { status: r.status, durationMs: elapsed(), requestId: responseRequestId(r), writeGen };
@@ -250,6 +254,7 @@ type ApiFetchOutcome = {
             durationMs: elapsed(),
             cause,
           });
+          if (isGet && !bypass && error.kind === "network") apiReach.remember(p);
           reportApiError(error);
           throw error;
         })
@@ -307,6 +312,7 @@ type ApiFetchOutcome = {
             return new Promise<CairnApiResponse<Path>>(() => {});
           }
           setOffline(false); // a real response landed, Cairn is reachable
+          apiReach.clear();
           if (result.status < 200 || result.status >= 300) {
             // Readiness uses 503 as meaningful operator truth (for example, a stale
             // scheduler) and still returns a bounded JSON contract. Opt-in callers
@@ -350,16 +356,6 @@ type ApiFetchOutcome = {
     }
   }
 
-  function takeEarlyResponse(p: string): Promise<Response | null> | undefined {
-    try {
-      const prefetch = (globalThis as { CairnTodayPrefetch?: { takeEarly?(path: string): Promise<Response | null> | undefined } })
-        .CairnTodayPrefetch;
-      return prefetch?.takeEarly?.(p);
-    } catch {
-      return undefined;
-    }
-  }
-
   // Prime the request layer from a fan-in (see ApiCoalescer.prime): `source`
   // resolves to a map of path -> the body GET <path> answers.
   function apiPrime(paths: readonly string[], source: Promise<unknown>, ttlMs?: number): void {
@@ -395,6 +391,7 @@ type ApiFetchOutcome = {
     apiBinary,
     apiPrime,
     apiInvalidate,
+    apiWriteGeneration: () => apiCoalescer().writeGeneration(),
     clearRememberedApiBodies,
   });
 }

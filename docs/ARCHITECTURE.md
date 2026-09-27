@@ -4883,17 +4883,33 @@ other way writes the wrong day into the athlete's log.
   computing; the ETag is the body digest. A body is stored only when the key read before
   the compute equals the key read after it, so a read with side effects never stores its
   first answer. A new input a memoized read depends on belongs in that key.
-- **Fan-ins** (`src/routes/today-responses.ts`): `/today?surface=today` carries
-  `responses` — the exact body of every other GET a Today open makes, keyed by path —
-  and `/horizon-race?dates=` does the same for Horizon → Race. The client primes its
-  request layer with them (`apiPrime`, `api-cache.ts` / `api-core.ts`); primes clear on
-  any write. A new Today GET should join `todaySurfaceResponses` (reuse the route's own
-  body function) and the path list in `today-prefetch.ts`. `responses` never reaches the
-  SWR tiers.
+- **Fan-ins** (`src/routes/today-responses.ts`, `src/routes/screen-responses.ts`):
+  `/today?surface=today` carries `responses` — the exact body of every other GET a Today
+  open makes, keyed by path — and `/today?surface=session` (Session), `/horizon-race?dates=`
+  (Horizon → Race), `/train-home?view=overview|program|endurance` (Train) and
+  `/you-health?leaf=health|records|markers|share` (You → Health) do the same for theirs.
+  The client primes its request layer with them (`apiPrime`, `api-cache.ts` /
+  `api-core.ts`; `today-prefetch.ts`, `train-fan-in-client.ts`, `stand-screen.ts`), so
+  every loader keeps asking for its own path; primes clear on any write. A new GET on
+  one of those screens joins its fan-in (reuse the route's own body function) and the
+  client's path list. `responses` never reaches the SWR tiers. The Session, Train and
+  Health fan-ins are NOT memoized (they carry reads outside the freshness key), and
+  `/you-health` and `surface=session` are `no-store` like the health reads they carry.
+- **Out of reach once, not twice** (`src/client/api-reach.ts`): a fan-in whose `fetch()`
+  failed fails the reads it primed without the wire (a remembered body still serves; the
+  rest paint last-known via `CairnOffline`), a path whose fetch just failed fails again
+  for 1.5 s without the wire (any answer from Cairn, or the device coming online, clears
+  it), and a failed early fetch is a network failure, never a second request. A timeout
+  or an HTTP error is not proof of an outage: those reads still ask for themselves.
 - **Early fetch**: `index.html`'s one inline script starts `/today-read`,
   `/daily-session/preview` and `/today?surface=today` before the bundles parse; its CSP
   hash is computed at boot from the served file (`src/earlyFetch.ts`), and api() takes
   each response once via `CairnTodayPrefetch.takeEarly`.
+- **`/sw.js`** is served dynamically (`src/swVersion.ts`: the derived cache name and the
+  per-file hashes substituted into the committed placeholders), so it cannot have a
+  build-time `.br`/`.gz` sibling; the handler compresses the SUBSTITUTED body instead
+  (brotli, else gzip, per Accept-Encoding), once per served version, keeping `no-cache`
+  and one weak ETag for every encoding.
 
 ## PWA surfaces (`public/`, source in `src/client/**`)
 

@@ -354,7 +354,9 @@ test("a background aggregate only FILLS an empty last-set key, never overwrites 
 test("the Today tab asks for the widened aggregate, and its fan-in half never reaches the SWR tiers", async () => {
   const loader = loadDataLoader();
   assert.equal(loader.aggregatePath("2026-01-02", "today"), "/today?date=2026-01-02&surface=today");
-  assert.equal(loader.aggregatePath("2026-01-02", "session"), "/today?date=2026-01-02");
+  // The Session destination asks for its own fan-in (today-prefetch primeFanIn "session").
+  assert.equal(loader.aggregatePath("2026-01-02", "session"), "/today?date=2026-01-02&surface=session");
+  assert.equal(loader.aggregatePath("2026-01-02", "plan"), "/today?date=2026-01-02");
   let projected = null;
   const { deps, calls } = makeDeps({
     cachedApi: (path, options) => {

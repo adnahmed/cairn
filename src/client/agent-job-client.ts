@@ -151,14 +151,22 @@ function openJobStream(jobId: AgentJobId, handlers: AgentJobHandlers = {}): void
   });
 }
 
-async function jobReconnect(): Promise<void> {
-  let jobs: AgentJob[] = [];
-  try {
-    const res = await api("/agent-jobs");
-    const row = agentJobRecords.record(res);
-    jobs = agentJobRecords.rows(row.jobs).map(agentJobRecords.job).filter((job): job is AgentJob => !!job);
-  } catch {
-    jobs = [];
+// The last sweep's list of running jobs. A sweep a lazy bundle owes (it brought a new
+// reconnector, app/lazy-bundles.ts) moments after the boot sweep re-reads THAT list
+// rather than asking /agent-jobs again: a job this page started has its own handlers,
+// so only a job started elsewhere in those few seconds could be missing, and the next
+// open's sweep finds it.
+let lastJobList: { at: number; jobs: AgentJob[] } | null = null;
+
+async function jobReconnect(opts: { reuseWithinMs?: number } = {}): Promise<void> {
+  const held = lastJobList && Date.now() - lastJobList.at < (opts.reuseWithinMs || 0) ? lastJobList.jobs : null;
+  let jobs: AgentJob[] = held || [];
+  if (!held) {
+    try {
+      const row = agentJobRecords.record(await api("/agent-jobs"));
+      jobs = agentJobRecords.rows(row.jobs).map(agentJobRecords.job).filter((job): job is AgentJob => !!job);
+      lastJobList = { at: Date.now(), jobs };
+    } catch {}
   }
 
   for (const job of jobs) {

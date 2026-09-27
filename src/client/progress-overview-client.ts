@@ -125,8 +125,10 @@ async function tovFetch(): Promise<{ data: TovData; refresh: Promise<TovData | n
   // the caller keeps the last-known overview (or says it cannot reach Cairn) rather
   // than folding a pile of nulls into the first-run empty state.
   let unreachable = 0;
+  const paths = tovPaths();
+  if (typeof CairnTrainFanIn !== "undefined") CairnTrainFanIn.prime("overview", paths); // one /train-home trip answers every read below
   const values: unknown[] = await Promise.all(
-    tovPaths().map((path, i) =>
+    paths.map((path, i) =>
       api(path, {
         swr: {
           onStale: (refresh) => {
