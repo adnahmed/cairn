@@ -13,6 +13,7 @@ COPY package*.json tsconfig.json tsconfig.client.build.json ./
 RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci
 COPY scripts/build-client.mjs ./scripts/build-client.mjs
 COPY scripts/build-styles.mjs ./scripts/build-styles.mjs
+COPY scripts/lazy-route-preload.mjs ./scripts/lazy-route-preload.mjs
 COPY src ./src
 # The bundling step concatenates every generated client output PLUS the one
 # hand-written classic shim, public/js/10-boot.js (everything else in public/js is

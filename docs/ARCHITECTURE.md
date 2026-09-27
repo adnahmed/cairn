@@ -4939,6 +4939,26 @@ factory otherwise stays eager: the energy surface's nutrition check-in, the meal
 non-lazy bundles and `CORE_ASSETS` to the whole manifest; `scripts/check-public-scripts.mjs` scans
 the lazy bundles too, since they land in the same global scope.
 
+A COLD DEEP LINK onto a lazy destination does not wait for the eager set to execute before its
+bundle starts downloading. `index.html`'s one inline boot script (`#cairn-early-fetch`, CSP-hashed at
+boot by `src/earlyFetch.ts`) looks the path up in a GENERATED table and appends a
+`<link rel="preload" as="script" fetchpriority="low">` for the route's bundle closure; `ensureBundle`'s
+later tag for the same query-less url takes the fetched response and executes it after the eager
+bundles, as always (a preload never executes). The table is written into `index.html` by the build
+(`scripts/lazy-route-preload.mjs`, run from `buildClient`) from the route grammar (`parseRoute` over
+every canonical `/app/<home>[/<section>]`), the `views` each lazy `BUNDLES` entry declares (the view,
+or `plan:<section>`, render-dispatch loads it for — `test/lazyRoutePreload.test.js` runs the
+dispatcher over every canonical route to hold the two together) and the loader's own
+`LAZY_BUNDLE_SRC`/`LAZY_BUNDLE_DEPS`. The same lookup starts the route's always-asked reads the way
+Today's early fetch does, parked in `window.__cairnEarly` for `api()` to take ONCE
+(`CairnTodayPrefetch.takeEarly`): the shell's boot reads (`/settings`, `/art/state`, `/agent-jobs`),
+`/profile` only when no remembered SWR row survives the boot sweep (exactly when `primeDiscipline`
+asks, so it lands before a Train/Plan first paint rather than repainting it), and Health's
+`fetchStandData` set on every Stand route. A read belongs there only if its loader asks for it,
+through `api()`, on every open of that route; otherwise the response is never taken.
+`scripts/check-client-build-output.mjs` fails a checkout whose committed `index.html` table is stale
+(the image ships the committed shell beside siblings precompressed from the rebuilt one).
+
 The served bundles also lose each line's leading indentation (`stripIndentation`, never inside a
 template or string literal; `test/shipMinify.test.js` proves every module parses to the same
 program), and `public/styles.css` is minified by `scripts/build-styles.mjs` (`minifyCss`: comments
