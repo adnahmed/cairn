@@ -2,9 +2,9 @@
 // The You home (/app/you, and /app/you/stone?id=<key>): the whole cairn, then Health,
 // About you and Settings.
 //
-// - The landing leads with the full six-stone cairn-stack (cairn-stack-*.ts) off the
-//   same GET /api/today/stones read as Today's pebble strip, then three quiet groups
-//   of rows into the surfaces that live under You.
+// - The landing leads with the full six-stone cairn-stack (cairn-stack-*.ts) off its
+//   own GET /api/today/stones read, then three quiet groups of rows into the
+//   surfaces that live under You.
 // - A stone opens its detail (stone-detail-*.ts): its read, then the places that
 //   part of the picture already lives. The decade view is reached from Heart's.
 //

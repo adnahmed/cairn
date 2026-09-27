@@ -2,7 +2,7 @@
 // The stone detail, the controller (docs/V2-PLAN.md wave 5). `mount(host, deps)`
 // paints the detail at once — the step back, the stone's name and its homes need no
 // read — and fills the stone's word and line from GET /api/today/stones through the
-// SWR cache the cairn-stack and the pebble strip share. A failed read leaves the
+// SWR cache the cairn-stack reads under too. A failed read leaves the
 // name and the homes standing with no error line; a revalidation repaints only when
 // the stone itself changed. A home tap opens that surface; a modified click keeps
 // the link's native behaviour.

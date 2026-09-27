@@ -70,20 +70,17 @@ type TodayMainShellApi = {
     </details>`;
   }
 
-  // The pebble strip and the fuel glance are mounted INTO the Brief by their own
-  // controllers (voice → stones → NOW → fuel). An in-place Brief swap takes the painted
-  // nodes out of the old element and stands them in the new one, each where its own
-  // controller places it, so nothing repaints or replays its entrance.
+  // The fuel glance is mounted INTO the Brief by its own controller (voice → NOW →
+  // fuel). An in-place Brief swap takes the painted node out of the old element and
+  // stands it in the new one, where its own controller places it, so nothing
+  // repaints or replays its entrance.
   function carryBriefSlots(from: Element): (into: Element) => void {
-    const pebbles = from.querySelector("#pebbleStripSlot");
     const fuel = from.querySelector("#todayFuelSlot");
     return (into) => {
       const g = globalThis as {
-        CairnPebbleStripController?: { place?(brief: Element, slot: Element): void };
         CairnTodayFuelGlance?: { place?(brief: Element, slot: Element): void };
       };
       try {
-        if (pebbles) g.CairnPebbleStripController?.place?.(into, pebbles);
         if (fuel) g.CairnTodayFuelGlance?.place?.(into, fuel);
       } catch {}
     };

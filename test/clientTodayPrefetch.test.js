@@ -182,7 +182,6 @@ test("primeFanIn primes every Today path from ONE widened aggregate, and skips a
     "/today-plan-day?date=2026-09-26",
     "/today-agenda?date=2026-09-26",
     "/today-side?date=2026-09-26",
-    "/today/stones?date=2026-09-26",
     "/training-agenda?date=2026-09-26",
     "/directives",
     "/brain/changes",

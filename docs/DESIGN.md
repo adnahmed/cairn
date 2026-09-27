@@ -97,7 +97,7 @@ and `CairnStone` (`src/client/ui-stone.ts`, SVG strings), CSS in `src/styles/fou
   row's dot, a dawn ring).
 - **Layouts.** `cairnSvg(stones, {idPrefix, drift})`: top first, base widest, each stone resting on
   the one below with gentle x-offsets. `pebbleSvg(key, {idPrefix, flag})`: the same stone laid flat
-  (the Today pebble strip, the stone detail). Each `<svg>` owns one sheen gradient; `idPrefix` keeps
+  (the stone detail). Each `<svg>` owns one sheen gradient; `idPrefix` keeps
   its id unique per surface.
 - **Drift.** `.stone-drift`: 1.6px over `--dur-drift` (7s), phase-offset by `--i`; reduced motion
   stills it.
@@ -206,7 +206,7 @@ stays committed because the Docker runtime stage and the tests read it from the 
 |---|---|---|
 | `foundation/` | the foundation stream | tokens, fonts, base + type, motion, primitives, stones, cards, components, segments, loading, reduced motion, a11y |
 | `shell/` | shell | overlays, sheets, toast, save bar, tab bar, desktop nav, detail overlay, responsive, identity, five-home nav |
-| `today/` | Today | header strip, date control, Garmin strip, the Brief, pebble strip |
+| `today/` | Today | header strip, date control, Garmin strip, the Brief |
 | `session/` | Session | exercise cards, rest timer, the Session destination |
 | `fuel/` | Fuel | meal plans, planner, meal sheet, meal card, Fuel today |
 | `ask/` | Ask | chat, capture, changes feed, ask cards, what-if |
@@ -260,15 +260,12 @@ Brief's voice is the page's one focal point; it pins to the top of the scroll an
 condenses to a slim blurred band — see `body[data-tab="today"] header.condensed`).
 
 **Today (Atelier v2).** One focal point, then show-when-needed, in this order: the Brief's voice →
-the six stones → NOW → Fuel today → around today → "Worth a look". The Brief (`.brief`) is the
+NOW → Fuel today → around today → "Worth a look". The six stones no longer print on Today: they
+live on You (the cairn-stack) and each stone's own detail page. The Brief (`.brief`) is the
 page's voice, not a card: it sits on the ground with a mono kicker, the Young Serif
 `.brief-headline`, and the ink2 `.brief-why`. In the why, the first word naming each stone (at most
 three) is a `.brief-tok.stone-<key>` — ink with the stone's hue as its underline
-(`CairnTodayBriefVoice.whyHtml`, `today-brief-voice-client.ts`). The pebble strip
-(`#pebbleStripSlot`) stands INSIDE the Brief, right above `.brief-now`
-(`CairnPebbleStripController.place`); each pebble prints the server's one-word `short` form of its
-stone word (`TODAY_STONE_SHORT`, `src/domain/today/today-stones.ts`) so every word holds one line
-at 360 px — the full word stays in the aria label and on every other surface. `.brief-now` wraps
+(`CairnTodayBriefVoice.whyHtml`, `today-brief-voice-client.ts`). `.brief-now` wraps
 today's lift line and the read's actions; while the Brief carries today's start it is the NOW
 card (`.brief-now-card`): a mono `.brief-now-top` with a still dawn dot, the server lift line in the
 serif voice (verbatim), the focus saying only what the line does not, the session facts (the
@@ -278,9 +275,9 @@ m", the last and next set as one serif line, a bar per lift in the strength hue)
 instead. The steer line follows the card; then Fuel today (`#todayFuelSlot`, `.tfuel`,
 `today-fuel-glance-client.ts`): protein and energy as slim fuel-hue meters beside the day's number
 and ONE idea for later — no meters on an unlogged day (absent, never low), every tap opens Fuel —
-which replaces the rail's `fuel` card on today's column. Both slots are transplanted across the
-Brief's in-place upgrade, and both carry `aria-live="off"` so the Brief's polite live region never
-announces them painting in; a failed day read removes the fuel slot, so the rail keeps its own
+which replaces the rail's `fuel` card on today's column. The slot is transplanted across the
+Brief's in-place upgrade, and carries `aria-live="off"` so the Brief's polite live region never
+announces it painting in; a failed day read removes the fuel slot, so the rail keeps its own
 `fuel` card. Around today reads as hairline ROWS, never cards: `.brief-around` (a
 `<details>` folding the forward look, block clock and arc), the provenance line, the life-context
 line (`.ctxbanner`, which drops an injury the NOW card already names), the block thread
@@ -1178,7 +1175,7 @@ in each row.
 **Components v2 adds** (sequenced in `docs/V2-PLAN.md`): `changes-line`, `changes-feed`,
 `decision-undo`, `meal-card` (read-only portions in words; an explicit Edit opens the gram rows), `food-composer` (shared by Fuel and chat),
 `fuel-today`, `idea-card`, `records-search`, `packet-builder`, `visit-questions`, `race-ladder`,
-`pebble-strip`, `cairn-stack`, `app-readd` (the one-time iOS re-add note) and `app-id` (Settings →
+`cairn-stack`, `app-readd` (the one-time iOS re-add note) and `app-id` (Settings →
 Data's "This app" block: server build, this app's shell, Copy token), both from
 `app-identity-{model,client,controller}.ts`.
 

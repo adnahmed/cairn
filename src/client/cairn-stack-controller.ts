@@ -1,7 +1,7 @@
 // @ts-check
 // The cairn-stack, the controller (docs/V2-PLAN.md wave 5). `mount(host, deps)` reads
-// GET /api/today/stones through the SWR cache, under the same key the pebble strip
-// uses, so a morning that already opened Today paints You at once. A cold cache shows
+// GET /api/today/stones through the SWR cache, under its own `today:stones:<date>`
+// key. A cold cache shows
 // the stack's skeleton, and the revalidation repaints only when the stones actually
 // changed. The stack is optional: a read that fails with nothing painted collapses
 // the slot (never an error line, never a retry to tap), and a failed revalidation

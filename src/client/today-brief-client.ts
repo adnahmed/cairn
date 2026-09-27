@@ -590,7 +590,7 @@ type TodayBriefHtmlOptions = {
     const arcHtml = arc ? `<button class="brief-forward brief-arc" data-redirect="view-program" title="See your plan's arc"><span class="brief-forward-arrow" aria-hidden="true">◷</span><span class="brief-forward-txt">${arc}</span></button>` : "";
     const provenance = `<div id="briefProvenance" class="prov-slot"></div>`;
     // NOW: today's session as ONE card while the Brief carries its start (voice client);
-    // any other read keeps a bare wrapper, the pebble strip's anchor.
+    // any other read keeps a bare wrapper.
     const launch = actions.length ? `<div class="brief-launch">${actions.join("")}</div>` : "";
     const nowCard = !!voice?.nowHtml && kind === "train" && !!(sessionFold || live);
     const now = nowCard

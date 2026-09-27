@@ -284,7 +284,7 @@ type TodayBriefControllerDeps = {
       return;
     }
     fresh.classList.add(deps.reducedMotion() ? "" : "brief-settle");
-    // The stones and the fuel glance live INSIDE the Brief: carry them across the swap.
+    // The fuel glance lives INSIDE the Brief: carry it across the swap.
     const carry = (globalThis as { CairnTodayMainShell?: Window["CairnTodayMainShell"] }).CairnTodayMainShell?.carryBriefSlots?.(live);
     live.replaceWith(fresh);
     carry?.(fresh);

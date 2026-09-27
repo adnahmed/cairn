@@ -6,12 +6,11 @@
 // reading layer's three (`ok` / `watch` / `quiet`, unknown → `quiet`). A stone with no
 // word of its own is left off rather than given one: this module never works a
 // stone's word out. Where a stone OPENS is the one thing the You home decides for
-// itself: its own detail (you/stone?id=<key>), never the pebble strip's surface link.
+// itself: its own detail (you/stone?id=<key>), never the server's own `target`.
 {
   type StoneTarget = ClientYouTarget;
 
   const TONES: ReadonlySet<string> = new Set<ClientStoneTone>(["ok", "watch", "quiet"]);
-  // The same SWR key the pebble strip reads under, so Today and You share one read.
   const KEY_PREFIX = "today:stones:";
   const PATH = "/today/stones";
 

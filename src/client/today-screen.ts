@@ -612,7 +612,6 @@ async function renderToday(opts: any = {}) {
   );
   wireExerciseDecisionUndo(todayView, () => renderToday({ soft: true }));
   if (isToday) CairnTodayRailController.mountChangesLine(todayView, todayRailDeps()); // "2 changes overnight"
-  if (isToday) CairnPebbleStripController.mountToday(todayView, todayRailDeps()); // six stones, between the voice and NOW
   if (isToday) CairnTodayFuelGlance.mountToday(todayView, { ...todayRailDeps(), date: todayState.logDate }); // under NOW
   wireGuides(view);
 

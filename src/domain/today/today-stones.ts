@@ -5,8 +5,8 @@
 // the five signal dimensions (src/repo/signal-state.ts, through the same
 // `dayPlanningSignalState` the Brief and the coach context read) and the domain reads
 // (today's strength line, the race build, today's intake, the weight trend, the lab
-// read). The mapping lives only on the server: the pebble strip prints the word and
-// never works one out.
+// read). The mapping lives only on the server: the cairn-stack and stone detail print
+// the word and never work one out.
 //
 // Laws this module holds:
 //   - Silence is QUIET, never low. A stone with nothing fresh to read says "quiet"; a

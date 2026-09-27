@@ -81,9 +81,6 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/today-rail-loaders-client.ts", output: "public/js/today-rail-loaders-client.js" },
   { source: "src/client/changes-line-client.ts", output: "public/js/changes-line-client.js" },
   { source: "src/client/changes-line-controller.ts", output: "public/js/changes-line-controller.js" },
-  { source: "src/client/pebble-strip-model.ts", output: "public/js/pebble-strip-model.js" },
-  { source: "src/client/pebble-strip-client.ts", output: "public/js/pebble-strip-client.js" },
-  { source: "src/client/pebble-strip-controller.ts", output: "public/js/pebble-strip-controller.js" },
   { source: "src/client/today-fuel-glance-client.ts", output: "public/js/today-fuel-glance-client.js" },
   { source: "src/client/today-worth-client.ts", output: "public/js/today-worth-client.js" },
   { source: "src/client/today-rail-controller.ts", output: "public/js/today-rail-controller.js" },
@@ -459,12 +456,9 @@ export const BUNDLES = [
       "public/js/today-rail-loaders-client.js",
       "public/js/changes-line-client.js",
       "public/js/changes-line-controller.js",
-      // The stone renderer: its only callers (pebble strip, cairn stack, stone detail) live here.
+      // The stone renderer: its only callers (cairn stack, stone detail) live here.
       "public/js/ui-stone-model.js",
       "public/js/ui-stone.js",
-      "public/js/pebble-strip-model.js",
-      "public/js/pebble-strip-client.js",
-      "public/js/pebble-strip-controller.js",
       "public/js/today-fuel-glance-client.js",
       "public/js/today-worth-client.js",
       "public/js/today-rail-controller.js",

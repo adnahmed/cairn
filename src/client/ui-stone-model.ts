@@ -1,7 +1,7 @@
 // @ts-check
 // The stone renderer's model (docs/DESIGN.md "Stones"): pure geometry for the one
-// stone every surface draws — the You cairn, the Today pebble strip, the stone
-// detail. A stone is an organic superellipse whose outline is jittered by a SEEDED
+// stone every surface draws — the You cairn, the stone detail. A stone is an
+// organic superellipse whose outline is jittered by a SEEDED
 // generator, so the same stone keeps the same shape on every paint, device and
 // reload. Nothing here knows a colour: a stone's hue is its key (`--s-<key>`),
 // applied by the view through a class, and its state is never a fill.

@@ -53,7 +53,7 @@
     return `<g class="${escAttr(cls)}"${attrsHtml(spec.attrs)}>${inner}</g>`;
   }
 
-  /** One pebble, laid flat, in its own small <svg> (the Today strip, a list dot). */
+  /** One pebble, laid flat, in its own small <svg> (the stone detail's own rock). */
   function pebbleSvg(key: string, opts: { idPrefix: string; flag?: boolean; drift?: boolean; cls?: string }): string {
     const sheenId = `${opts.idPrefix}-sheen`;
     const seed = CairnStoneModel.seedFor(key);

@@ -2,7 +2,7 @@
 // in ONE request and keyed by the exact path the PWA would have asked for them.
 //
 // A Today open used to fire ~25 GETs across several serial waves (the plan-day
-// pick, the run line, the side panels, the stones, the directives, the Changes
+// pick, the run line, the side panels, the directives, the Changes
 // line, and the rail cards the agenda names). Over a phone link the cost is request
 // count x round trip, so `/today?surface=today` carries all of them in `responses`
 // and the client primes its request layer (api-core apiPrime) from it — every
@@ -38,7 +38,7 @@ import {
   weekWins,
   weeklyRunPlan,
 } from "../domain/training/index.js";
-import { todayDateParam, todayStones } from "../domain/today/index.js";
+import { todayDateParam } from "../domain/today/index.js";
 import { flexibleTrainingAgenda, sessionPrimer } from "../repo.js";
 import { localDateISO } from "../repo/shared.js";
 import { directivesResponse } from "./connected-brain.js";
@@ -153,8 +153,7 @@ export function todaySurfaceResponses(
   put(out, "/context-tags/vocab", () => CONTEXT_TAG_VOCAB);
   const wallDate = localDateISO();
   put(out, `/context-tags?date=${q(wallDate)}`, () => listContextTags(wallDate));
-  // The stones strip, the directives the capture provenance reads, the Changes line.
-  put(out, `/today/stones?date=${q(date)}`, () => todayStones(date));
+  // The directives the capture provenance reads, the Changes line.
   put(out, "/directives", () => directivesResponse(false));
   put(out, "/brain/changes", () => brainChangesRead({}));
   // The rail: only the cards this agenda names (see the header).

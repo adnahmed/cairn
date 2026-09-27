@@ -109,7 +109,7 @@ type TodayFanInDeps = {
   // ---- one trip for the whole open ------------------------------------------------
   // `/today?surface=today` carries, in `responses`, the body of every other GET a
   // Today open makes — the plan-day pick, the run line's agenda, the side panels, the
-  // tag chips, the stones, the directives, the Changes line, the agenda and conductor,
+  // tag chips, the directives, the Changes line, the agenda and conductor,
   // and the rail cards the agenda names (src/routes/today-responses.ts). Priming the
   // request layer with it (apiPrime, api-core.ts) lets every loader keep asking for
   // its own path and simply get its answer without a round trip; a path the fan-in
@@ -131,7 +131,7 @@ type TodayFanInDeps = {
         paths.push(`/today-strength-line?date=${q(date)}`, `/training-symptoms?on=${q(date)}&include_resolved=1`);
       } else {
         paths.push(`/today-agenda?date=${q(date)}`, "/coaching-focus", `/today-side?date=${q(date)}`, "/context-tags/vocab",
-          `/context-tags?date=${q(deps.localISO())}`, `/today/stones?date=${q(date)}`, "/directives", "/brain/changes");
+          `/context-tags?date=${q(deps.localISO())}`, "/directives", "/brain/changes");
         if (date === deps.localISO()) paths.push(`/training-agenda?date=${q(date)}`);
       }
       const aggregate = deps.api(CairnTodayDataLoader.aggregatePath(date, surface));
