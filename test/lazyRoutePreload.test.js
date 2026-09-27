@@ -113,10 +113,14 @@ test("a preload names the exact url ensureBundle injects, and the worker precach
   }
 });
 
-function runBoot({ pathname, profileRow, now = Date.UTC(2026, 8, 26, 12) }) {
+function runBoot({ pathname, profileRow, planRow, now = Date.UTC(2026, 8, 26, 12) }) {
   const links = [];
   const calls = [];
-  const storage = { cairn_token: "", "cairn.swr.v1.profile": profileRow == null ? null : JSON.stringify(profileRow) };
+  const storage = {
+    cairn_token: "",
+    "cairn.swr.v1.profile": profileRow == null ? null : JSON.stringify(profileRow),
+    "cairn.swr.v1.plan": planRow == null ? null : JSON.stringify(planRow),
+  };
   const context = {
     location: { pathname },
     localStorage: { getItem: (key) => storage[key] ?? null },
@@ -192,8 +196,20 @@ test("Train, Horizon, Ask and Settings links preload their closure and start onl
   );
   assert.deepEqual(
     plan.calls,
-    [...SHELL_EARLY_READS, ...VIEW_EARLY_READS["plan:edit"], "/profile"].map((p) => `/api${p}`)
+    [...SHELL_EARLY_READS, "/plan/week", "/plan/recovery-status", "/plan/upcoming", "/plan", "/profile"].map(
+      (p) => `/api${p}`
+    )
   );
+});
+
+test("/plan is asked early unless cachedApi would answer it from a row under 3 s old", () => {
+  const now = Date.UTC(2026, 8, 26, 12);
+  const young = runBoot({ pathname: "/app/train/plan", now, planRow: { data: [], ts: now - 2000 } });
+  assert.ok(!young.calls.includes("/api/plan"));
+  const older = runBoot({ pathname: "/app/train/plan", now, planRow: { data: [], ts: now - 3000 } });
+  assert.ok(older.calls.includes("/api/plan"));
+  const shapeless = runBoot({ pathname: "/app/train/plan", now, planRow: { ts: now } });
+  assert.ok(shapeless.calls.includes("/api/plan"), "a row without data never peeks");
 });
 
 test("/profile is asked early only when primeDiscipline will ask for it", () => {
@@ -259,7 +275,16 @@ test("the early reads are the ones the boot and the Health overview always ask f
   const heads = /function planHeadReads\(\)[\s\S]*?\n\}/.exec(head)?.[0] || "";
   assert.deepEqual(
     [...heads.matchAll(/planHeadRead\("([^"]+)"\)/g)].map((m) => m[1]),
-    VIEW_EARLY_READS["plan:edit"]
+    VIEW_EARLY_READS["plan:edit"].slice(0, 3)
+  );
+  assert.deepEqual(VIEW_EARLY_READS["plan:edit"][3], ["/plan", "plan", 3000]);
+  assert.match(
+    read("src/client/plan-editor-controller.ts"),
+    /const revalidate = cachedApi\("\/plan", \{\s*key: "plan",\s*onUpgrade/
+  );
+  assert.match(
+    read("src/client/swr-cache.ts"),
+    /const \{ key, freshFor = 60000, serveFreshFor = 3000, onUpgrade, project \} = options;/
   );
   assert.match(
     read("src/client/plan-editor-controller.ts"),

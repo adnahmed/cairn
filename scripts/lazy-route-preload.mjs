@@ -45,9 +45,10 @@ export const VIEW_EARLY_READS = {
     "/health/next-checkup",
   ],
   // The plan editor asks its three head reads (CairnPlanHead.headReads) on every
-  // paint; /plan itself goes through cachedApi, which may answer from a seconds-old
-  // row without asking, so it is not started here.
-  "plan:edit": ["/plan/week", "/plan/recovery-status", "/plan/upcoming"],
+  // paint, and /plan through cachedApi({key:"plan"}), which answers without asking
+  // only from an SWR row younger than its 3 s serveFreshFor. A `[path, swrKey, ms]`
+  // entry is started only when no stored row for swrKey is younger than ms.
+  "plan:edit": ["/plan/week", "/plan/recovery-status", "/plan/upcoming", ["/plan", "plan", 3000]],
 };
 
 export const LAZY_ROUTES_MARKER = /\/\*cairn:lazy-routes\*\/[\s\S]*?\/\*end\*\//;
@@ -142,7 +143,7 @@ export function lazyRoutePreloadTable(root, bundles) {
     const route = routes.parseRoute(routeUrl(segments));
     const own = VIEW_EARLY_READS[`${route.tab}:${route.section}`] || VIEW_EARLY_READS[route.tab] || [];
     const reads = [...SHELL_EARLY_READS, ...own];
-    const at = q.findIndex((list) => list.join("\n") === reads.join("\n"));
+    const at = q.findIndex((list) => JSON.stringify(list) === JSON.stringify(reads));
     if (at >= 0) return at;
     q.push([...reads]);
     return q.length - 1;
