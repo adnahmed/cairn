@@ -360,7 +360,7 @@ test("the early reads are the ones the boot and the Health overview always ask f
   );
   assert.match(
     read("src/client/agent-job-client.ts"),
-    /async function jobReconnect\(\)[\s\S]*?await api\("\/agent-jobs"\)/
+    /async function jobReconnect\([^)]*\)[\s\S]*?await api\("\/agent-jobs"\)/
   );
   assert.deepEqual(SHELL_EARLY_READS, ["/settings", "/art/state", "/agent-jobs"]);
 

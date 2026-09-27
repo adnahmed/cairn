@@ -51,13 +51,10 @@ type ApiCoalescer = {
   // add-exercise flow) and those bursts do not always overlap, so in-flight dedupe
   // alone misses them. Any write still clears the whole micro-cache, and the TTL is
   // 1.5 s, so neither can serve a stale plan into a surface the athlete just changed.
-  // An entry ending in "?" covers every query of that path. `/today-plan-day?` and
-  // `/markers/priority` are each asked twice in one open by independent readers (the
-  // plan-day pick and the pill recovery hints; the Markers list and its header) that
-  // do not overlap in flight, so dedupe alone missed them. `/performance` likewise:
-  // a Program repaint (its revalidated read changed) re-runs loadPerformance, and once
-  // a deep link's reads start early that repaint can land just after the first
-  // answer, no longer inside it.
+  // An entry ending in "?" covers every query of that path. `/today-plan-day?`,
+  // `/markers/priority` and `/performance` are each asked twice in one open by readers
+  // that do not overlap in flight (plan-day pick + pill hints; Markers list + header; a
+  // Program repaint landing just after a deep link's early first answer).
   const API_MICRO_CACHE_PATHS: readonly string[] = [
     "/settings",
     "/profile",

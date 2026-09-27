@@ -28,6 +28,7 @@ function load() {
     Date,
     Intl,
     setOffline: () => {},
+    addEventListener() {},
     localStorage: {
       getItem: (k) => (stored.has(k) ? stored.get(k) : null),
       setItem: (k, v) => stored.set(k, String(v)),
@@ -44,7 +45,7 @@ function load() {
   };
   context.globalThis = context;
   context.window = context;
-  for (const file of ["public/js/api-cache.js", "public/js/api-core.js", "public/js/today-prefetch.js"]) {
+  for (const file of ["public/js/api-cache.js", "public/js/api-reach.js", "public/js/api-core.js", "public/js/today-prefetch.js"]) {
     vm.runInNewContext(read(file), context);
   }
   const early = (body) => ({
