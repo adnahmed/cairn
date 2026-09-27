@@ -1326,6 +1326,9 @@ declare global {
   declare function clearRememberedApiBodies(): void;
   // Drop api()'s own micro/stale tier (api-core.ts) — a write that landed elsewhere.
   declare function apiInvalidate(): void;
+  // Moves on every write (local or apiInvalidate): a fan-in reuse guard keys on it, so
+  // a repaint after a write primes afresh instead of riding primes the write cleared.
+  declare function apiWriteGeneration(): number;
 
   // Offline outbox — a durable localStorage queue that replays failed capture /
   // set-log POSTs when Cairn is reachable again (see outbox-queue.ts / outbox.ts).

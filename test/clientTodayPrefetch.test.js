@@ -262,6 +262,32 @@ test("the Train fan-in primes each view's reads from ONE /train-home", async () 
   assert.deepEqual(JSON.parse(JSON.stringify(await primed[2].source)), { "/stats": {} });
 });
 
+test("the Train fan-in is asked once per open; a write or a later open asks again", async () => {
+  const asked = [];
+  let gen = 0;
+  const { context, advance } = load(["public/js/train-fan-in-client.js"], {
+    encodeURIComponent,
+    localISO: () => "2026-09-26",
+    api: (path) => {
+      asked.push(path);
+      return Promise.resolve({ responses: {} });
+    },
+    apiPrime: () => {},
+    apiWriteGeneration: () => gen,
+  });
+  context.CairnTrainFanIn.prime("program");
+  context.CairnTrainFanIn.prime("program");
+  assert.equal(asked.length, 1, "a repaint seconds later rides the standing primes");
+  context.CairnTrainFanIn.prime("endurance");
+  assert.equal(asked.length, 2, "another view is its own open");
+  gen++;
+  context.CairnTrainFanIn.prime("endurance");
+  assert.equal(asked.length, 3, "a write cleared the primes: ask afresh");
+  advance(3000);
+  context.CairnTrainFanIn.prime("endurance");
+  assert.equal(asked.length, 4, "a later open asks again");
+});
+
 test("the Health fan-in primes the overview's reads plus the open leaf's, once per open", async () => {
   const primed = [];
   const asked = [];

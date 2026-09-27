@@ -1794,6 +1794,22 @@ test("api() answers primed paths from a fan-in in one trip; a path it lacks fall
   assert.equal(after.own, "/api/directives");
 });
 
+test("api() prime: an opted-in SWR read the fan-in answers seeds its stale tier", async () => {
+  const loaded = loadApiClient();
+  const urls = [];
+  loaded.context.fetch = async (url) => {
+    urls.push(url);
+    throw new TypeError("Failed to fetch");
+  };
+  loaded.context.apiPrime(["/performance"], Promise.resolve({ "/performance": { tier: "a" } }), 1);
+  assert.equal((await loaded.context.api("/performance", { swr: true })).tier, "a");
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  // The prime has expired and the device is offline: the fan-in's body is the last-known paint.
+  const served = await loaded.context.api("/performance", { swr: { freshMs: 60_000 } });
+  assert.equal(served.tier, "a");
+  assert.deepEqual(urls, [], "the remembered body served without the wire");
+});
+
 test("api() prime: a failed fan-in falls every waiting reader through to its own request", async () => {
   const loaded = loadApiClient();
   const urls = [];

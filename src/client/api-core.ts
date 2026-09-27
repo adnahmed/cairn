@@ -179,6 +179,8 @@ type ApiFetchOutcome = {
       // fan-in came back without falls through to a normal request — unless the fan-in
       // could not reach Cairn, when this read would fail too: it is failed without the
       // wire (api-reach.ts), so a remembered body still serves and the rest go last-known.
+      // An opted-in read the fan-in answers still seeds its SWR tier (coalescer.store).
+      if (swr) coalescer.markStaleable(p);
       const primedRead = coalescer.primed(p);
       if (primedRead) {
         const primedGen = coalescer.writeGeneration();
@@ -190,7 +192,6 @@ type ApiFetchOutcome = {
         });
       }
       if (swr) {
-        coalescer.markStaleable(p);
         staleHit = coalescer.peekStale<CairnApiResponse<Path>>(p, swr.maxStaleMs);
         // Remembered seconds ago (another surface just read it): serve it, no refetch.
         if (staleHit && staleHit.age < swr.freshMs) return Promise.resolve(staleHit.data);
@@ -390,6 +391,7 @@ type ApiFetchOutcome = {
     apiBinary,
     apiPrime,
     apiInvalidate,
+    apiWriteGeneration: () => apiCoalescer().writeGeneration(),
     clearRememberedApiBodies,
   });
 }

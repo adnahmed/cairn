@@ -239,7 +239,9 @@ type ApiCoalescer = {
       }
       void table.then((map) => {
         if (writeGen !== gen) return; // a write landed: this map is pre-write truth
-        const expires = now() + primeTtlMs;
+        // A source that never reached Cairn fails its reads only for the reach window
+        // (api-reach.ts), so one first asked once the link is back touches the wire.
+        const expires = now() + (failure === undefined ? primeTtlMs : ttlMs);
         for (const path of paths) {
           const entry = primes.get(path);
           if (entry && entry.owner === owner) entry.expires = expires;

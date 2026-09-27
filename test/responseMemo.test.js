@@ -7,7 +7,7 @@ import { test, after, mock } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import { api, apiCacheControlFor } from "../dist/api.js";
-import { memoizedRead, resetResponseMemo } from "../dist/routes/response-memo.js";
+import { memoizedRead, memoizedValue, resetResponseMemo } from "../dist/routes/response-memo.js";
 import { responseFreshnessKey } from "../dist/repo/response-freshness.js";
 import { applyProposalWithAutonomy, revertDecision } from "../dist/domain/brain/autonomy-service.js";
 import { setDirectiveStatusByUser } from "../dist/repo/propagation.js";
@@ -144,6 +144,24 @@ test("onHit replays a read's side effects on a memo hit, and only then", async (
   assert.equal(hits, 2, "every hit re-kicks what the skipped compute would have");
 });
 
+test("memoizedValue keeps a value only while the freshness key holds, and never an {ok:false}", () => {
+  resetResponseMemo();
+  let n = 0;
+  const read = () => memoizedValue("probe-value", () => ({ n: ++n, plan: repo.getPlan().length }));
+  read(); // may carry first-read bookkeeping
+  const settled = read();
+  assert.equal(read(), settled, "an unmoved key answers the kept value without computing");
+  seedPlan();
+  const moved = read();
+  assert.notEqual(moved, settled, "any write the value could see recomputes it");
+  assert.equal(moved.plan, 1);
+  let fails = 0;
+  const fail = () => memoizedValue("probe-value-fail", () => ({ ok: false, n: ++fails }));
+  fail();
+  fail();
+  assert.equal(fails, 2, "a designed failure is never kept");
+});
+
 // ---------- the real routes: every athlete write moves the ETag and the body ----------
 
 async function settledToday(path) {
@@ -164,6 +182,22 @@ test("GET /today: a logged set moves the ETag and the body", async () => {
   assert.notEqual(after.etag, before.etag);
   assert.notEqual(JSON.parse(after.text).session, JSON.parse(before.text).session);
   assert.equal(JSON.parse(after.text).session.sets.length, 1);
+});
+
+test("GET /today?surface=session: its aggregate half is kept like /today's, and a logged set moves it", async () => {
+  resetResponseMemo();
+  seedPlan();
+  const date = localDateISO();
+  const path = `/api/today?date=${date}&surface=session`;
+  await get(path);
+  const before = await get(path);
+  const again = await get(path);
+  assert.equal(again.status, 200, "the Session surface is never answered 304");
+  assert.equal(again.text, before.text, "an unmoved read answers the same body");
+  repo.logSetByName({ exercise: PRESS, weight: 100, reps: 8, date });
+  const after = JSON.parse((await get(path)).text);
+  assert.equal(after.session.sets.length, 1, "the kept aggregate never outlives a logged set");
+  assert.ok(after.responses, "the Session's own reads still ride along");
 });
 
 test("GET /today-read: a logged set moves it; /daily-session/preview: a plan edit moves it", async () => {

@@ -126,6 +126,27 @@ test("a fan-in that could not reach Cairn fails its reads without re-requesting 
   assert.deepEqual(calls, ["/api/train-home?view=overview"], "only the fan-in touched the wire");
 });
 
+test("a failed fan-in's unasked reads fail fast only for the reach window, not the prime's", async () => {
+  const now = { t: 10_000 };
+  const { context, calls } = load({ now });
+  let down = true;
+  context.fetch = async (url) => {
+    calls.push(url);
+    if (down) throw new TypeError("Failed to fetch");
+    return { status: 200, json: async () => ({ url }) };
+  };
+  const source = context.api("/train-home?view=overview");
+  context.apiPrime(["/stats", "/journey"], source.then((v) => v.responses));
+  await assert.rejects(source);
+  await assert.rejects(context.api("/stats"), /Could not reach Cairn/);
+  assert.equal(calls.length, 1, "inside the window a primed read fails without the wire");
+  // The link is back 1.5 s later: a primed read nobody asked for yet asks the wire.
+  now.t += 1500;
+  down = false;
+  assert.deepEqual(await context.api("/journey"), { url: "/api/journey" });
+  assert.deepEqual(calls, ["/api/train-home?view=overview", "/api/journey"]);
+});
+
 test("a member with a remembered body still serves it when its fan-in is out of reach", async () => {
   const { context, calls } = load();
   await context.api("/journey", { swr: true }); // remembered

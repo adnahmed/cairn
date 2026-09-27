@@ -45,6 +45,7 @@ registerTrainingCacheClear(() => memo.clear());
 /** Drop every remembered response (tests, and any caller that must not read one). */
 export function resetResponseMemo(): void {
   memo.clear();
+  values.clear();
 }
 
 export type MemoizedReadOptions<T> = {
@@ -144,6 +145,38 @@ function remember(slot: string, entry: MemoEntry): void {
 
 function isDesignedFailure(body: unknown): boolean {
   return !!body && typeof body === "object" && (body as { ok?: unknown }).ok === false;
+}
+
+const values = new Map<string, { fresh: string; value: unknown }>();
+registerTrainingCacheClear(() => values.clear());
+
+/**
+ * One value computed inside a read that cannot be memoized whole (a fan-in that also
+ * carries reads the freshness key was never built around), kept under the same three
+ * rules as a memoized response: remembered only when the freshness key read before the
+ * compute equals the one read after it, never an `{ok:false}`, and answered only while
+ * the key has not moved. Callers must not mutate what it returns.
+ */
+export function memoizedValue<T>(key: string, compute: () => T): T {
+  const before = responseFreshnessKey();
+  if (before == null) return compute();
+  const hit = values.get(key);
+  if (hit && hit.fresh === before) {
+    values.delete(key); // re-insert so Map order is least-recently-served first
+    values.set(key, hit);
+    return hit.value as T;
+  }
+  const value = compute();
+  if (responseFreshnessKey() === before && !isDesignedFailure(value)) {
+    values.delete(key);
+    values.set(key, { fresh: before, value });
+    while (values.size > MAX_SLOTS) {
+      const oldest = values.keys().next().value;
+      if (oldest === undefined) break;
+      values.delete(oldest);
+    }
+  }
+  return value;
 }
 
 /**
