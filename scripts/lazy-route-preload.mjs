@@ -24,34 +24,26 @@ import vm from "node:vm";
 // its own, only when primeDiscipline will ask for it (no SWR row survives the sweep).
 export const SHELL_EARLY_READS = ["/settings", "/art/state", "/agent-jobs"];
 
-// The dateless reads a view's first paint ALWAYS asks for, whatever its section, on
-// every entry: the inline script starts them next to the bundle preload and api()
-// takes each response once (CairnTodayPrefetch.takeEarly), exactly like Today's early
-// fetch. Only a view whose loader asks unconditionally belongs here, or the early
-// response is never taken and costs a request. Health (the Stand view) runs
-// fetchStandData() on every entry, cold or revalidating, for every section
-// (stand-screen.ts). A key is a view, or `view:section`, whose reads follow the
-// view's. These two lists are the only hand-written part, and
-// test/lazyRoutePreload.test.js holds each to the calls it mirrors.
+// The reads a view's first paint ALWAYS asks for, whatever its section, on every
+// entry: the inline script starts them next to the bundle preload and api() takes
+// each response once (CairnTodayPrefetch.takeEarly), exactly like Today's early
+// fetch. Only a request the view makes unconditionally belongs here, or the early
+// response is never taken and costs a request. A screen that answers its reads from
+// one fan-in (health-fan-in-client.ts, train-fan-in-client.ts) starts THAT request
+// here, never the reads it primes: a primed read never reaches the wire, so an early
+// copy of it would only be a second request. A key is a view, or `view:section`,
+// which REPLACES the view's list for that section; `{date}` is the device's local
+// date, filled in by the inline script. These lists are the only hand-written part,
+// and test/lazyRoutePreload.test.js holds each to the call it mirrors.
 export const VIEW_EARLY_READS = {
-  stand: [
-    "/markers/priority",
-    "/coaching-focus",
-    "/body-metrics?unit=in",
-    "/health/synthesis",
-    "/insights",
-    "/recovery",
-    "/supplements",
-    "/directives",
-    "/health/next-checkup",
-  ],
-  // Health › Doctor packet: showShare always paints the symptom-links slot, and the
-  // packet builder's first load asks cachedApi("/health-report.json", {key:
-  // "health:packet"}) — a memory-only key, so a new page always asks.
-  "stand:share": ["/symptom-links", ["/health-report.json", "health:packet", 3000]],
-  // Train › Program: renderProgressProgram always asks the conductor through api() and
-  // program-state through paintSWR/cachedApi on key "progress:program".
-  "progress:program": ["/coaching-focus", ["/program-state", "progress:program", 3000]],
+  // Health (the Stand view) primes CairnHealthFanIn with its section on every entry,
+  // cold or revalidating (stand-screen.ts renderStand), before any view asks.
+  stand: ["/you-health?leaf=health"],
+  "stand:records": ["/you-health?leaf=records"],
+  "stand:markers": ["/you-health?leaf=markers"],
+  "stand:share": ["/you-health?leaf=share"],
+  // Train › Program: renderProgressProgram primes CairnTrainFanIn("program") first.
+  "progress:program": ["/train-home?view=program&date={date}"],
   // The plan editor asks its three head reads (CairnPlanHead.headReads) on every
   // paint, and /plan through cachedApi({key:"plan"}), which answers without asking
   // only from an SWR row younger than its 3 s serveFreshFor. A `[path, swrKey, ms]`
@@ -163,7 +155,7 @@ export function lazyRoutePreloadTable(root, bundles) {
   const readsFor = (segments, lazy) => {
     if (!lazy) return null; // an eager destination paints without waiting on a bundle
     const route = routes.parseRoute(routeUrl(segments));
-    const own = [...(VIEW_EARLY_READS[route.tab] || []), ...(VIEW_EARLY_READS[`${route.tab}:${route.section}`] || [])];
+    const own = VIEW_EARLY_READS[`${route.tab}:${route.section}`] || VIEW_EARLY_READS[route.tab] || [];
     const reads = [...SHELL_EARLY_READS, ...own];
     const at = q.findIndex((list) => JSON.stringify(list) === JSON.stringify(reads));
     if (at >= 0) return at;

@@ -149,7 +149,7 @@ function runBoot({ pathname, profileRow, planRow, now = Date.UTC(2026, 8, 26, 12
   return { links, calls, early: context.__cairnEarly };
 }
 
-test("a Health deep link preloads Train then Me/Health and starts the overview's reads", () => {
+test("a Health deep link preloads Train then Me/Health and starts its leaf's one fan-in", () => {
   const { links, calls, early } = runBoot({ pathname: "/app/you/markers" });
   assert.deepEqual(
     links.map((l) => [l.rel, l.as, l.fetchPriority, l.href]),
@@ -158,13 +158,19 @@ test("a Health deep link preloads Train then Me/Health and starts the overview's
       ["preload", "script", "low", "/js/bundle-05-me-health.js"],
     ]
   );
-  const reads = [...SHELL_EARLY_READS, ...VIEW_EARLY_READS.stand, "/profile"];
-  const share = runBoot({ pathname: "/app/you/share" });
-  assert.deepEqual(share.calls, [
-    ...[...SHELL_EARLY_READS, ...VIEW_EARLY_READS.stand, "/symptom-links", "/health-report.json", "/profile"].map(
-      (p) => `/api${p}`
-    ),
-  ]);
+  const reads = [...SHELL_EARLY_READS, "/you-health?leaf=markers", "/profile"];
+  for (const [pathname, leaf] of [
+    ["/app/you/share", "share"],
+    ["/app/you/records", "records"],
+    ["/app/you/health", "health"],
+    ["/app/you/recovery", "health"],
+  ]) {
+    assert.deepEqual(
+      runBoot({ pathname }).calls,
+      [...SHELL_EARLY_READS, `/you-health?leaf=${leaf}`, "/profile"].map((p) => `/api${p}`),
+      pathname
+    );
+  }
   assert.deepEqual(
     calls,
     reads.map((p) => `/api${p}`)
@@ -202,7 +208,8 @@ test("Train, Horizon, Ask and Settings links preload their closure and start onl
   );
   assert.deepEqual(
     program.calls,
-    [...SHELL_EARLY_READS, "/coaching-focus", "/program-state", "/profile"].map((p) => `/api${p}`)
+    [...SHELL_EARLY_READS, "/train-home?view=program&date=2026-09-26", "/profile"].map((p) => `/api${p}`),
+    "{date} is the device's local date, the one CairnTrainFanIn asks with"
   );
   const plan = runBoot({ pathname: "/app/train/plan" });
   assert.deepEqual(
@@ -274,16 +281,24 @@ test("a shell without a document still starts the reads", () => {
 
 // Each early read must be asked for, through api(), on every open of its route —
 // otherwise its response is never taken and it costs a request.
-test("the early reads are the ones the boot and the Health overview always ask for", () => {
+test("the early reads are the ones the boot and each lazy view always ask for", () => {
+  // Health: every Stand entry (cold or snapshot-warm, any section) primes the one
+  // /you-health fan-in for its section's leaf before any view asks — so the early
+  // request is that fan-in, never the reads it primes (a primed read never reaches
+  // the wire, and an early copy of it would only be a second request).
   const stand = read("src/client/stand-screen.ts");
-  const body = /async function fetchStandData\(\)[\s\S]*?\]\);/.exec(stand)?.[0] || "";
-  assert.deepEqual(
-    [...body.matchAll(/api\("([^"]+)"\)/g)].map((m) => m[1]),
-    VIEW_EARLY_READS.stand
-  );
-  // Every Stand entry (cold or snapshot-warm, any section) runs fetchStandData.
   const render = /async function renderStand\(\)[\s\S]*?\n {2}\}\n/.exec(stand)?.[0] || "";
-  assert.match(render, /void revalidateStand\(\)[\s\S]*void loadStandData\(\)/);
+  assert.match(
+    render,
+    /const seg = state\.standSeg \|\| null;\s*if \(typeof CairnHealthFanIn !== "undefined"\) CairnHealthFanIn\.prime\(seg\);/
+  );
+  const fanIn = read("src/client/health-fan-in-client.ts");
+  assert.match(fanIn, /api\(`\/you-health\?leaf=\$\{leaf\}`/);
+  assert.match(fanIn, /return s === "records" \|\| s === "markers" \|\| s === "share" \? s : "health";/);
+  assert.deepEqual(VIEW_EARLY_READS.stand, ["/you-health?leaf=health"]);
+  for (const leaf of ["records", "markers", "share"]) {
+    assert.deepEqual(VIEW_EARLY_READS[`stand:${leaf}`], [`/you-health?leaf=${leaf}`]);
+  }
 
   // The plan editor asks its three head reads on every first paint (a repaint reuses them).
   const head = read("src/client/plan-head-client.ts");
@@ -309,42 +324,27 @@ test("the early reads are the ones the boot and the Health overview always ask f
     read("src/client/plan-editor-controller.ts"),
     /async function renderPlanEditor\(\): Promise<void> \{\s*return paintPlanEditor\(\);/
   );
-  assert.deepEqual(Object.keys(VIEW_EARLY_READS).sort(), ["plan:edit", "progress:program", "stand", "stand:share"]);
-
-  // Train › Program: the conductor through api(), program-state through paintSWR.
-  assert.deepEqual(VIEW_EARLY_READS["progress:program"], [
-    "/coaching-focus",
-    ["/program-state", "progress:program", 3000],
+  assert.deepEqual(Object.keys(VIEW_EARLY_READS).sort(), [
+    "plan:edit",
+    "progress:program",
+    "stand",
+    "stand:markers",
+    "stand:records",
+    "stand:share",
   ]);
+
+  // Train › Program: renderProgressProgram primes the /train-home fan-in for "program"
+  // on every entry, before it asks for anything, with the device's local date.
+  assert.deepEqual(VIEW_EARLY_READS["progress:program"], ["/train-home?view=program&date={date}"]);
   const program =
     /async function renderProgressProgram\([\s\S]*?\n\}\n/.exec(
       read("src/client/progress-program-controller.ts")
     )?.[0] || "";
-  assert.match(program, /deps\s*\.api\("\/coaching-focus"\)/);
-  assert.match(
-    program,
-    /return deps\.paintSWR\(\{\s*key: "progress:program",\s*path: "\/program-state",\s*peek,\s*token,\s*tab: "progress",\s*render/
-  );
-  assert.match(read("src/client/swr-cache.ts"), /return cachedApi\(path, \{\s*key,\s*freshFor,\s*serveFreshFor,/);
-
-  // Health › Doctor packet: showShare always loads the symptom links and mounts the
-  // packet builder, whose first load asks cachedApi on a memory-only key.
-  assert.deepEqual(VIEW_EARLY_READS["stand:share"], ["/symptom-links", ["/health-report.json", "health:packet", 3000]]);
-  const share = /function showShare\(\): void \{[\s\S]*?\n {2}\}\n/.exec(stand)?.[0] || "";
-  assert.match(share, /CairnRecordsSlot\.mount\("packet"/);
-  assert.match(share, /void CairnHealthReadController\.loadSymptomLinks\(/);
-  assert.match(
-    read("src/client/health-read-controller.ts"),
-    /async function loadSymptomLinks[\s\S]*?deps\.api\("\/symptom-links"\)/
-  );
-  const packet = read("src/client/packet-builder-controller.ts");
-  assert.match(packet, /const KEY = "health:packet";\s*const PATH = "\/health-report\.json";/);
-  assert.match(packet, /request = deps\.cachedApi\(PATH, \{ key: KEY \}\);/);
-  assert.match(
-    read("src/client/health-share-controller.ts"),
-    /CairnRecordsSlot\.register\("packet", mountHealthPacket\)/
-  );
-  assert.match(read("src/client/swr-cache.ts"), /function _swrMemOnly[\s\S]*?\^\(markers:\|recovery:\|health:/);
+  assert.match(program, /CairnTrainFanIn\.prime\("program"\)[\s\S]*?deps\s*\.api\("\/coaching-focus"\)/);
+  const train = read("src/client/train-fan-in-client.ts");
+  assert.match(train, /const date = localISO\(\);/);
+  assert.match(train, /const path = `\/train-home\?view=\$\{view\}&date=\$\{encodeURIComponent\(date\)\}`;/);
+  assert.ok(earlyFetchScript(html).includes('q=q.replace("{date}",d);'), "the inline script fills {date}");
 
   const startup = read("src/client/app/startup.ts");
   for (const call of ["primeDiscipline();", "maybeOnboard();", "primeArtManifest();", "jobReconnect();"]) {
