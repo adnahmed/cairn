@@ -228,3 +228,52 @@ test("a missing optional asset is left out of the hashes, never a crash", () => 
   assert.equal(built.assetHashes["/vendor/xterm.js"], undefined);
   assert.ok(built.assetHashes["/styles.css"]);
 });
+
+/** The raw bytes of a response (no decoding), for the compressed-transfer contract. */
+async function getRaw(port, urlPath, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: "127.0.0.1", port, path: urlPath, method: "GET", headers }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+test("the served worker is compressed (brotli, else gzip) and decodes to the same substituted body", async () => {
+  const zlib = await import("node:zlib");
+  const dir = makeShell();
+  const port = await serve(dir);
+  const plain = await getRaw(port, "/sw.js");
+  assert.equal(plain.headers["content-encoding"], undefined, "no Accept-Encoding, no encoding");
+  assert.equal(plain.headers.vary, "Accept-Encoding");
+  const source = plain.body.toString("utf8");
+  assert.ok(!source.includes(SW_CACHE_PLACEHOLDER) && !source.includes(SW_ASSET_HASHES_PLACEHOLDER));
+
+  const br = await getRaw(port, "/sw.js", { "accept-encoding": "gzip, deflate, br" });
+  assert.equal(br.headers["content-encoding"], "br");
+  assert.equal(br.headers["cache-control"], "no-cache", "compression never changes the no-cache contract");
+  assert.equal(Number(br.headers["content-length"]), br.body.length);
+  assert.ok(br.body.length < plain.body.length / 2, "the worker ships a fraction of its bytes");
+  assert.equal(zlib.brotliDecompressSync(br.body).toString("utf8"), source);
+  assert.equal(br.headers.etag, plain.headers.etag, "one worker, one validator, whatever the encoding");
+
+  const gz = await getRaw(port, "/sw.js", { "accept-encoding": "gzip" });
+  assert.equal(gz.headers["content-encoding"], "gzip");
+  assert.equal(zlib.gunzipSync(gz.body).toString("utf8"), source);
+
+  const refused = await getRaw(port, "/sw.js", { "accept-encoding": "br;q=0, gzip;q=0" });
+  assert.equal(refused.headers["content-encoding"], undefined);
+  assert.equal(refused.body.toString("utf8"), source);
+
+  const revalidated = await getRaw(port, "/sw.js", { "accept-encoding": "br", "if-none-match": String(plain.headers.etag) });
+  assert.equal(revalidated.status, 304);
+
+  // A rebuilt shell ships a new, freshly compressed worker.
+  fs.writeFileSync(path.join(dir, "styles.css"), "body{color:blue}");
+  const rebuilt = await getRaw(port, "/sw.js", { "accept-encoding": "br" });
+  const next = zlib.brotliDecompressSync(rebuilt.body).toString("utf8");
+  assert.notEqual(cacheName(next), cacheName(source));
+});
