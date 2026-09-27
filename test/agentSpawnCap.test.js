@@ -101,7 +101,10 @@ test("six concurrent runs never put more than the limit of CLIs on the host", as
     assert.equal(lines.length, 12, "six starts and six ends were logged");
     assert.ok(peak <= 2, `at most 2 CLIs alive together, saw ${peak}`);
     assert.equal(peak, 2, "and the cap is used, not merely respected");
-    assert.deepEqual(startOrder, names, "waiting is FIFO — no lane overtakes an earlier one");
+    // The first two take a permit at once and spawn together, so which child logs its
+    // start first is the OS scheduler's call; FIFO is a claim about the ones that WAITED.
+    assert.deepEqual([...startOrder.slice(0, 2)].sort(), names.slice(0, 2), "the first two start at once");
+    assert.deepEqual(startOrder.slice(2), names.slice(2), "waiting is FIFO — no lane overtakes an earlier one");
   });
 });
 
