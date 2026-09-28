@@ -190,6 +190,7 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/settings-agents-controller.ts", output: "public/js/settings-agents-controller.js" },
   { source: "src/client/settings-sources-automation-controller.ts", output: "public/js/settings-sources-automation-controller.js" },
   { source: "src/client/settings-screen.ts", output: "public/js/settings-screen.js" },
+  { source: "src/client/capture-macros-client.ts", output: "public/js/capture-macros-client.js" },
   { source: "src/client/chat-client.ts", output: "public/js/chat-client.js" },
   { source: "src/client/chat-attachment-client.ts", output: "public/js/chat-attachment-client.js" },
   { source: "src/client/chat-composer-focus-client.ts", output: "public/js/chat-composer-focus-client.js" },
@@ -777,6 +778,7 @@ export const BUNDLES = [
     inputs: [
       // The reply renderer: only the thread reads markdown.
       "public/js/markdown-client.js",
+      "public/js/capture-macros-client.js",
       "public/js/chat-client.js",
       // Ask → Changes (the calm asks + the history-first feed with Undo). renderCoach
       // stays in the eager bundle-04 and is dispatched through withBundle("ask").

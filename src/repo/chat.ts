@@ -77,7 +77,17 @@ function foodNoteMacro(value: unknown): number | null {
 const CAPTURE_REVIEW_MAX_ROWS = 6;
 const CAPTURE_REVIEW_TEXT_CAP = 90;
 
-type CaptureReviewRow = { item: string; amount: string | null; kcal: number | null; protein_g: number | null };
+// Every macro the row carries rides along: the chat review prints a food's
+// SIGNATURE macros (what it meaningfully brings), which needs the whole split.
+type CaptureReviewRow = {
+  item: string;
+  amount: string | null;
+  kcal: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  fiber_g: number | null;
+};
 
 function captureReviewText(value: unknown): string {
   return String(value ?? "").trim().slice(0, CAPTURE_REVIEW_TEXT_CAP);
@@ -86,7 +96,9 @@ function captureReviewText(value: unknown): string {
 function captureReviewRow(raw: unknown): CaptureReviewRow | null {
   if (typeof raw === "string") {
     const item = captureReviewText(raw);
-    return item ? { item, amount: null, kcal: null, protein_g: null } : null;
+    return item
+      ? { item, amount: null, kcal: null, protein_g: null, carbs_g: null, fat_g: null, fiber_g: null }
+      : null;
   }
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;
@@ -97,6 +109,9 @@ function captureReviewRow(raw: unknown): CaptureReviewRow | null {
     amount: captureReviewText(row.amount ?? row.qty ?? row.quantity ?? row.portion) || null,
     kcal: foodNoteMacro(row.kcal),
     protein_g: foodNoteMacro(row.protein_g),
+    carbs_g: foodNoteMacro(row.carbs_g),
+    fat_g: foodNoteMacro(row.fat_g),
+    fiber_g: foodNoteMacro(row.fiber_g),
   };
 }
 

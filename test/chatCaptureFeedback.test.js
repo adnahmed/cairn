@@ -146,6 +146,9 @@ test("the settled payload carries the ingredient rows and the estimate's provena
   assert.equal(food.ingredients[0].kcal, 320);
   assert.equal(food.ingredients[0].protein_g, 42);
   assert.equal(food.ingredients[2].protein_g, null, "a row that estimated no protein says so");
+  assert.equal(food.ingredients[0].fat_g, 15, "the whole macro split rides along for signature tags");
+  assert.equal(food.ingredients[0].carbs_g, null);
+  assert.equal(food.ingredients[0].fiber_g, null);
   assert.equal(food.confidence, "medium");
   assert.equal(food.basis, "estimated_from_foods");
 });

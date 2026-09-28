@@ -194,6 +194,12 @@ body.chat-mode{padding-bottom:var(--vvb,0px)}
 .capture-item-kcal{flex:0 0 auto;margin-left:auto;padding-left:var(--space-3);color:var(--muted);
   font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
 .capture-item-more{color:var(--muted)}
+/* Signature macros: at most two quiet tags ("P47 F20") just left of the kcal. The
+   kcal keeps a floor width so the tags line up down the list. */
+.capture-item-macros{flex:0 0 auto;margin-left:auto;padding-left:var(--space-3);display:inline-flex;gap:var(--space-2);
+  color:var(--muted);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.capture-item-macros + .capture-item-kcal{margin-left:0;padding-left:var(--space-2);min-width:8.5ch;text-align:right}
+.capture-macro-k{font-size:.82em;font-weight:650;letter-spacing:.02em;opacity:.75;margin-right:1px}
 @media (prefers-reduced-motion:reduce){.capture-review.settling{animation:none}}
 .agentcheck{
   display:inline-flex;align-items:center;gap:7px;margin-top:8px;max-width:100%;

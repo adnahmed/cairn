@@ -26,6 +26,7 @@ function escAttr(v) {
 function loadChatClient() {
   const context = { Math, Number, String, Date, RegExp, Set, JSON, escHtml, escAttr };
   context.window = context;
+  vm.runInNewContext(readFileSync(join(root, "public/js/capture-macros-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/chat-client.js"), "utf8"), context);
   return context.CairnChatClient;
 }
@@ -136,15 +137,21 @@ test("captureFoodReviewInner is one quiet read-only line per item, once the esti
     done,
     '<ul class="capture-items">' +
       '<li class="capture-item"><span class="capture-item-name">Trail mix</span><span class="capture-item-portion">1 handful</span><span class="capture-item-kcal">~150 kcal</span></li>' +
-      '<li class="capture-item"><span class="capture-item-name">Greek yogurt</span><span class="capture-item-portion">170 g</span><span class="capture-item-kcal">~100 kcal</span></li>' +
-      '<li class="capture-item"><span class="capture-item-name">Chicken breast</span><span class="capture-item-portion">150 g</span><span class="capture-item-kcal">~248 kcal</span></li>' +
+      '<li class="capture-item"><span class="capture-item-name">Greek yogurt</span><span class="capture-item-portion">170 g</span>' +
+      '<span class="capture-item-macros"><span class="capture-macro" title="17 g protein"><span class="capture-macro-k">P</span>17</span></span>' +
+      '<span class="capture-item-kcal">~100 kcal</span></li>' +
+      '<li class="capture-item"><span class="capture-item-name">Chicken breast</span><span class="capture-item-portion">150 g</span>' +
+      '<span class="capture-item-macros"><span class="capture-macro" title="35 g protein"><span class="capture-macro-k">P</span>35</span></span>' +
+      '<span class="capture-item-kcal">~248 kcal</span></li>' +
       '<li class="capture-item"><span class="capture-item-name">Sourdough toast</span><span class="capture-item-portion">2 slices</span><span class="capture-item-kcal">~160 kcal</span></li>' +
       '<li class="capture-item"><span class="capture-item-name">Olive oil</span><span class="capture-item-portion">1 tsp</span></li>' +
       "</ul>"
   );
-  for (const absent of [/<input/, /<button/, /Add an item/, /Save/, /confidence/i, /usual servings/, /protein/]) {
+  for (const absent of [/<input/, /<button/, /Add an item/, /Save/, /confidence/i, /usual servings/]) {
     assert.doesNotMatch(done, absent, `nothing editable or verbose: ${absent}`);
   }
+  // The visible text never spells a macro out; the word lives only in the hover title.
+  assert.doesNotMatch(done.replace(/title="[^"]*"/g, ""), /protein/);
 
   // Nothing is claimed before the estimate lands, or when it never will.
   assert.equal(chat.captureFoodReviewInner("pending", food), "");
@@ -153,6 +160,27 @@ test("captureFoodReviewInner is one quiet read-only line per item, once the esti
   assert.equal(chat.captureFoodReviewInner("skipped", food), "");
   // An enriched note with no components has no review to show — no orphan block.
   assert.equal(chat.captureFoodReviewInner("done", { meal: "lunch", kcal: 400 }), "");
+});
+
+// A food shows what it meaningfully brings — its lead macro, fiber when it is a real
+// source, else a second big macro — two tags at most, and nothing for a trivial row.
+// Fixtures are a real logged dinner's ingredient rows.
+test("signature macros name what each food brings, never the full split", () => {
+  const context = { Math, Number, String, escHtml, escAttr };
+  vm.runInNewContext(readFileSync(join(root, "public/js/capture-macros-client.js"), "utf8"), context);
+  const sig = (row) => context.captureFoodSignatureMacros(row).map((t) => `${t.key}${t.grams}`).join(" ");
+  assert.equal(sig({ kcal: 380, protein_g: 47, carbs_g: 0, fat_g: 20, fiber_g: 0 }), "P47 F20");
+  assert.equal(sig({ kcal: 143, protein_g: 9, carbs_g: 26, fat_g: 1, fiber_g: 9 }), "C26 fib9");
+  assert.equal(sig({ kcal: 15, protein_g: 0.2, carbs_g: 3.5, fat_g: 0, fiber_g: 3.2 }), "fib3");
+  assert.equal(sig({ kcal: 6, protein_g: 1, carbs_g: 1, fat_g: 0, fiber_g: 0.5 }), "", "a handful of greens earns no tag");
+  assert.equal(sig({ kcal: 65, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0 }), "", "spirits carry no macro");
+  assert.equal(sig({ kcal: 62, protein_g: 2.4, carbs_g: 0.6, fat_g: 5.6, fiber_g: 0 }), "F6");
+  assert.equal(sig({ kcal: 50, protein_g: 1.2, carbs_g: 11.6, fat_g: 0.3, fiber_g: 3.4 }), "C12 fib3");
+  assert.equal(sig({ kcal: 280, protein_g: 16, carbs_g: 22, fat_g: 14, fiber_g: 1.5 }), "P16 F14", "fixed P C F order");
+  assert.equal(sig({ kcal: 135, protein_g: 29, carbs_g: 1, fat_g: 1.5, fiber_g: 0 }), "P29");
+  // A row with only kcal + protein (an older, thinner estimate) still reads.
+  assert.equal(sig({ kcal: 320, protein_g: 42 }), "P42");
+  assert.equal(sig({ item: "olive oil" }), "", "no numbers, no tags");
 });
 
 test("the review is bounded, honest about what it hides, and escapes every string", () => {

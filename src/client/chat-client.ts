@@ -245,7 +245,8 @@ function chatFuelHtml(day: ChatClientDayIntake | null | undefined): string {
 // note's live enrichment_status + a compact {meal,summary,kcal,protein_g}; these
 // pure helpers turn that into the in-thread chip and keep it in sync as the note's
 // SSE stream settles (see chat-message-client.ts).
-type CaptureFoodRow = { item?: unknown; amount?: unknown; kcal?: unknown; protein_g?: unknown };
+// Row shape shared with capture-macros-client.ts (CaptureMacroRow), which draws the tags.
+type CaptureFoodRow = CaptureMacroRow & { item?: unknown; amount?: unknown };
 type CaptureFood = {
   meal?: unknown;
   summary?: unknown;
@@ -328,7 +329,8 @@ function captureFoodRow(raw: unknown): CaptureFoodRow | null {
   const item = String(row.item ?? row.name ?? row.food ?? "").trim();
   if (!item) return null;
   const amount = String(row.amount ?? row.qty ?? row.quantity ?? row.portion ?? "").trim();
-  return { item, amount, kcal: row.kcal, protein_g: row.protein_g };
+  const { kcal, protein_g, carbs_g, fat_g, fiber_g } = row;
+  return { item, amount, kcal, protein_g, carbs_g, fat_g, fiber_g };
 }
 
 // "1 handful (~30 g)" reads "1 handful": the bracketed weight is the estimator's
@@ -357,7 +359,7 @@ function captureFoodReviewInner(status: unknown, food: unknown): string {
       const kcal = Number(row.kcal);
       return `<li class="capture-item"><span class="capture-item-name">${escHtml(row.item)}</span>${
         portion ? `<span class="capture-item-portion">${escHtml(portion)}</span>` : ""
-      }${kcal > 0 ? `<span class="capture-item-kcal">~${Math.round(kcal)} kcal</span>` : ""}</li>`;
+      }${captureFoodMacrosHtml(row)}${kcal > 0 ? `<span class="capture-item-kcal">~${Math.round(kcal)} kcal</span>` : ""}</li>`;
     })
     .join("");
   const more = hidden ? `<li class="capture-item capture-item-more">and ${hidden} more</li>` : "";
