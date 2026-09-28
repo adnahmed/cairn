@@ -144,14 +144,18 @@ test("three consecutive nights below the athlete's own band → a dip, and a bou
     true,
     `three low nights running are a real dip: ${JSON.stringify(dipped.rationale)}`
   );
-  assert.ok(totalKm(dipped) < totalKm(ordinary), `the dip eases the week (${totalKm(dipped)} vs ${totalKm(ordinary)})`);
+  // TODAY is the real date, so some weeks land on the ramp's scheduled down week, which
+  // already sits at the recovery floor the dip is bounded by: there the dip can only hold.
+  const downWeek = ordinary.rationale.some((line) => /Scheduled down week/.test(line));
+  const eases = (a, b) => (downWeek ? a <= b : a < b);
+  assert.ok(eases(totalKm(dipped), totalKm(ordinary)), `the dip eases the week (${totalKm(dipped)} vs ${totalKm(ordinary)})`);
   // Bounded: never below a recovery week (0.8) off the 26 km week it steps from — the
   // dip's own 0.9, one fewer run only on a four-run week, the quality day a short set.
   assert.ok(totalKm(dipped) >= 26 * 0.8 - 0.05, `the trim is bounded (${totalKm(dipped)} vs ${totalKm(ordinary)} km)`);
   assert.ok(totalKm(dipped) <= 26 * 0.9 + 0.05, "and it is a real trim, not a build");
   // The long run steps a clear step UNDER the demonstrated 12 km — the spike / reset hold
   // (0.85) — never sized off the eased week's share.
-  assert.ok(longKm(dipped) < longKm(ordinary), "the long run eases with it");
+  assert.ok(eases(longKm(dipped), longKm(ordinary)), "the long run eases with it");
   assert.ok(
     longKm(dipped) >= 12 * 0.85 - 0.05,
     `the long run holds one step under the longest (got ${longKm(dipped)})`
