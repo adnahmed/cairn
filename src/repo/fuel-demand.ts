@@ -27,6 +27,9 @@
 //     (calendarDayRead). Plan days hold strength only, so no plan row stands for it.
 //   • LOGGED work refines a date that has already started, via `dayLoad` and
 //     `hybridDayContext().cardio_today`.
+//   • TODAY follows the day read (one day, one voice): a run this morning rested is
+//     no run, and a rest read on a lift not yet started takes that lift out of the
+//     day's work — the suggestion off `todayStrengthLine()`, the line every surface prints.
 //
 // Absence is neutral: no plan, no agenda, nothing logged → "standard". Nothing here
 // throws; every failure degrades to the neutral read.
@@ -36,6 +39,7 @@ import type { WeeklyRunPlan } from "./run-progression.js";
 import type { PlanDayGroups } from "./training-read.js";
 import { dayLoad, hybridDayContext, planDayStrengthGroups } from "./training-read.js";
 import { calendarDayRead, planDayCandidates, strengthPlanDayOn, thisWeekPlanDayMap } from "./plan-selection.js";
+import { todayStrengthLine } from "./today-strength-line.js";
 import { LB_PER_KG, addDaysISO, localDateISO } from "./shared.js";
 import { resolvedCurrentBodyweight } from "./bodyweight.js";
 import { mondayOf } from "../lib/dates.js";
@@ -262,6 +266,10 @@ function agendaToRunDayRead(agenda: FlexibleTrainingAgenda | null | undefined): 
   const byDate = new Map<string, FlexibleRunKind[]>();
   if (!agenda || !agenda.available) return { available: false, byDate };
   for (const intent of agenda.intents) {
+    // A run this morning rested is not work the day carries: the read said no run, so
+    // Fuel never frames the day around it ("lifting and running both land today" on a
+    // day the run sits out). A run actually logged still counts, through the log.
+    if (intent.status === "open" && intent.adjustment?.dose === "rest") continue;
     const date = intent.completion?.date ?? intent.suggested_date;
     if (!date) continue;
     const kinds = byDate.get(date);
@@ -335,6 +343,18 @@ function loggedWork(date: string): LoggedDay {
   return { strength, run, cardio, cardioMinutes };
 }
 
+// The day read's suggestion for today's lift, off the one strength line every surface
+// prints (the Brief, the Session header, the week strip). Null when the read has
+// nothing to say about the lift, or on any failure: absence keeps the plan's framing.
+function readSuggestion(date: string): "easy" | "rest" | null {
+  try {
+    const line = todayStrengthLine(date);
+    return line.state === "not_started" ? line.suggestion : null;
+  } catch {
+    return null;
+  }
+}
+
 interface DemandInputs {
   runs: RunDayRead;
   calendar: CalendarReader;
@@ -354,19 +374,27 @@ function classify(date: string, inputs: DemandInputs): DayFuelDemand {
   const runKinds = new Set(runs.byDate.get(date) ?? []);
   if (runs.available) evidence.push("flexible_training_agenda");
 
-  const planDay = calendar.strengthDay(date);
-  if (planDay) evidence.push("plan_days");
-
   const logged = date <= today ? loggedWork(date) : null;
   if (logged?.strength) evidence.push("logged_sessions");
   if (logged?.cardio) evidence.push("logged_activities");
+
+  // One day, one voice: TODAY's plan day is framed the way the day read frames it —
+  // the one strength line's suggestion. A rest read takes the not-yet-lifted plan day
+  // out of today's work (the lift is still the athlete's to pick up, and the moment
+  // they do the log counts it); an easy read keeps the lift but not a "heavy lower"
+  // framing. Other days have no read yet, so the plan stands.
+  const suggestion = date === today && !logged?.strength ? readSuggestion(date) : null;
+  const plannedDay = calendar.strengthDay(date);
+  const planDay = suggestion === "rest" ? null : plannedDay;
+  if (plannedDay) evidence.push("plan_days");
+  if (suggestion) evidence.push("day_read");
 
   const strengthDay = !!planDay?.groups.length || !!logged?.strength;
   const runDay = runKinds.size > 0 || !!logged?.run;
 
   if (runKinds.has("long")) drivers.push("long run on this day");
   if (runKinds.has("quality")) drivers.push("quality run on this day");
-  if (planDay?.heavy_lower) drivers.push("heavy lower-body strength day");
+  if (planDay?.heavy_lower && suggestion !== "easy") drivers.push("heavy lower-body strength day");
   if (strengthDay && runDay) drivers.push("strength and running on the same day");
   // A long ride or other long non-run endurance session already logged — a 2-hour
   // trail ride is endurance work in the high band, not an ordinary day. Duration only,
@@ -381,7 +409,11 @@ function classify(date: string, inputs: DemandInputs): DayFuelDemand {
       // intention has landed on it, and (for a day already underway) nothing has
       // been logged. Anything less certain than that stays standard — absence of
       // evidence is neutral here, never a reason to read a day as light.
-      !planDay && calendar.restDay(date) && !runDay && !logged?.strength && !logged?.cardio
+      !planDay &&
+        (calendar.restDay(date) || suggestion === "rest") &&
+        !runDay &&
+        !logged?.strength &&
+        !logged?.cardio
       ? "light"
       : "standard";
 

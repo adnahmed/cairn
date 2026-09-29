@@ -17,6 +17,7 @@ import { carbRangeForTier, dayFuelDemand, fuelDemandWeek } from "../dist/repo/fu
 import { PROMPT_CONTEXT_SITES, projectCoachContext } from "../dist/prompt/context-projection.js";
 import { buildMealPlanPrompt, buildMealSwapPrompt, buildNutritionCheckinPrompt } from "../dist/prompt.js";
 import { localDateISO } from "../dist/repo/shared.js";
+import { mondayOf } from "../dist/lib/dates.js";
 
 const MONDAY = "2026-04-20";
 const TUESDAY = "2026-04-21";
@@ -338,4 +339,51 @@ test("the check-in names the day's carb range from the coach context, as shape a
   const prompt = buildNutritionCheckinPrompt();
   assert.match(prompt, /carbs \d+–\d+ g \([\d.]+–[\d.]+ g\/kg\)/);
   assert.match(prompt, /never a new target, and never a measure of what was or wasn't eaten/);
+});
+
+// ── one day, one voice: today's fuel follows the day read ────────────────────
+//
+// Fuel said "Lifting and running both land today" on a morning the Brief rested the
+// day and the run. Today's work is what the read leaves standing: a run the morning
+// rested is no run, and a rest read on a lift not yet started takes the lift out —
+// until the athlete logs it anyway, when the log counts it.
+test("today's demand follows the day read: a rested run, then a rest read, leave nothing to fuel as a double", () => {
+  const today = localDateISO();
+  const dow = new Date(`${today}T12:00:00`).getDay();
+  const dayNumber = ((dow + 6) % 7) + 1; // the run plan's Monday-anchored day number
+  repo.savePlanDay(1, "Lower", "Lower", [
+    { exercise: "Back Squat", sets: 4, rep_low: 5, rep_high: 8 },
+    { exercise: "Romanian Deadlift", sets: 3, rep_low: 8, rep_high: 10 },
+  ]);
+  repo.setProfile({ strength_schedule: { days: [{ dow }], source: "athlete" } });
+  const trainRead = { kind: "train", headline: "A good day to lift.", why: "Steady.", source: "deterministic", override: null };
+  repo.saveDayRead(today, trainRead);
+  const week = (adjustment) => ({
+    ...runWeek([run(dayNumber, "easy", 6)]),
+    week_start: mondayOf(today),
+    ...(adjustment ? { today_adjustment: adjustment } : {}),
+  });
+
+  const planned = dayFuelDemand(today, { today, runPlan: week(null) });
+  assert.ok(planned.drivers.some((d) => d.includes("same day")), JSON.stringify(planned));
+
+  const rested = dayFuelDemand(today, {
+    today,
+    runPlan: week({ date: today, kind: "easy", planned_kind: "easy", dose: "rest", changed: true, why: "No run today." }),
+  });
+  assert.ok(!rested.drivers.some((d) => d.includes("same day")), `a rested run is no run (${JSON.stringify(rested)})`);
+  assert.ok(rested.drivers.some((d) => d.includes("heavy lower")), "the lift the Brief keeps on still counts");
+
+  repo.saveDayRead(today, { ...trainRead, kind: "rest", headline: "Today is for resting." });
+  const restRead = dayFuelDemand(today, {
+    today,
+    runPlan: week({ date: today, kind: "easy", planned_kind: "easy", dose: "rest", changed: true, why: "No run today." }),
+  });
+  assert.deepEqual(restRead.drivers, [], JSON.stringify(restRead));
+  assert.equal(restRead.demand, "light", "a rested day with nothing left on it reads light");
+  assert.ok(restRead.evidence.includes("day_read"));
+
+  // The athlete lifts anyway: the log is truth, and the lift counts again.
+  seedTrainingDay(today);
+  assert.notEqual(dayFuelDemand(today, { today, runPlan: week(null) }).demand, "light");
 });

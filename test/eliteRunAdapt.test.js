@@ -16,6 +16,8 @@ import { db, repo, resetTables } from "./_seed.js";
 import { localDateISO } from "../dist/repo/shared.js";
 import { weeklyRunPlan } from "../dist/repo/run-progression.js";
 import { flexibleTrainingAgenda } from "../dist/repo/flexible-training-agenda.js";
+import { planWeek } from "../dist/domain/training/plan-week.js";
+import { dayFuelDemand } from "../dist/repo/fuel-demand.js";
 import { violatesReadingGrammar } from "../dist/repo/day-read-grammar.js";
 import {
   classifyRunWord,
@@ -562,6 +564,16 @@ test("rest-grade readiness on a long-run morning: plan, agenda, Today line and B
   assert.equal(intent?.adjustment?.dose, "rest");
   const read = repo.dayRead(TODAY);
   assert.equal(read.kind, "rest", `the Brief rests too (${read.decision?.rule_code})`);
+  // The plan-week line never lists the rested run as "still open", and Fuel never
+  // frames the day around a run that is not happening.
+  const week = planWeek(TODAY);
+  assert.ok(
+    !week.progress.runs_open.some((r) => r.suggested_date === TODAY),
+    JSON.stringify(week.progress.runs_open)
+  );
+  assert.doesNotMatch(String(week.progress.line), /rest or an easy walk/i);
+  const fuel = dayFuelDemand(TODAY);
+  assert.ok(!fuel.drivers.some((d) => /long run|same day/.test(d)), JSON.stringify(fuel));
 });
 
 // ---------- 3. a Brief steer reaches its own read ----------
