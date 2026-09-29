@@ -164,8 +164,8 @@ test("the Brief target also drops the last-known Brief the fast path paints from
   env.api.invalidateChatApplied([{ type: "log_checkin" }]);
   assert.equal(storage.getItem("cairn.brief.v1"), null);
   assert.equal(storage.getItem("other"), "1");
-  // The key is the Brief controller's own.
-  assert.match(readFileSync(join(root, "src/client/today-brief-controller.ts"), "utf8"), /BRIEF_LS_KEY = "cairn\.brief\.v1"/);
+  // The key is the Brief cache's own (today-brief-cache-client.ts).
+  assert.match(readFileSync(join(root, "src/client/today-brief-cache-client.ts"), "utf8"), /BRIEF_LS_KEY = "cairn\.brief\.v1"/);
 });
 
 test("a plan write resets the in-memory plan; meal edits no longer name a dead shop: target", () => {

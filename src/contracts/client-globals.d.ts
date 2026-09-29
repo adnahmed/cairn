@@ -4875,6 +4875,20 @@ declare global {
     CairnCaptureReadJobs: CaptureReadJobsApi;
     CairnCaptureReads: CaptureReadsRuntime;
 
+    CairnTodayBriefCache: {
+      read(date: string): TodayBriefControllerDayRead | null;
+      persist(date: string, override: string, read: TodayBriefControllerDayRead | null | undefined): void;
+    };
+
+    CairnTodaySessionLaunch: {
+      facts(opts: SessionLaunchOptions): SessionLaunchFacts;
+      cardHtml(opts: SessionLaunchOptions, decisionLabel: string | null): string;
+    };
+
+    CairnCaptureCheckin: {
+      loadCheckin(): Promise<void>;
+    };
+
     CairnCaptureVoice: {
       micGlyph: string;
       setup(deps: {

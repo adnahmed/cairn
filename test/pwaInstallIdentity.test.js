@@ -142,13 +142,13 @@ const PERSISTED_KEYS = {
   "cairn.fuelLogRetry.v1": ["fuel-deps"],
   "cairn.sessnotes.": ["today-session-controller"],
   "cairn.swr.v1.": ["swr-cache"],
-  "cairn.brief.v1": ["today-brief-controller", "write-invalidation-client"],
+  "cairn.brief.v1": ["today-brief-cache-client", "write-invalidation-client"],
   // Chat turns a surface stopped following, settled on the next open (v2 wave 6C).
   "cairn.turnwatch.v1": ["write-invalidation-client"],
   "cairn.train.v1": ["progress-overview-snapshot-client"],
-  "cairn.checkin.dismissed.v1": ["capture"],
+  "cairn.checkin.dismissed.v1": ["capture-checkin-client"],
   // The Brief's check-in line as it last stood today, painted in the Brief's own frame (v2 wave 7).
-  "cairn.checkin.paint.v1": ["capture"],
+  "cairn.checkin.paint.v1": ["capture-checkin-client"],
   "cairn.diagnostics.v1": ["client-diagnostics"],
   "cairn.records.evw": ["evidence-wanted-controller"],
   "cairn.records.group": ["records-search-controller"],

@@ -7,6 +7,8 @@ import vm from "node:vm";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const today = readFileSync(join(root, "src/client/today-screen.ts"), "utf8");
+// Today's launch card (and the facts it shares with the Brief) — drawn by today-screen.ts.
+const launch = readFileSync(join(root, "src/client/today-session-launch-client.ts"), "utf8");
 const sessionShell = readFileSync(join(root, "src/client/session-snapshot-client.ts"), "utf8");
 const brief = readFileSync(join(root, "src/client/today-brief-actions-client.ts"), "utf8");
 const overview = readFileSync(join(root, "src/client/progress-overview-client.ts"), "utf8");
@@ -64,20 +66,21 @@ test("primary training entries converge on one durable prepare path", () => {
 });
 
 test("prepared Session exposes durable source, rationale, and accessible stable entry", () => {
-  assert.match(today, /"Built for today"/);
-  assert.match(today, /"Adapted for today"/);
-  assert.match(today, /"Training by choice"/);
-  assert.match(today, /`From plan\$\{day && day\.name/);
-  assert.match(today, /dailySession\?\.why/);
-  assert.match(today, /dailySession\?\.est_minutes/);
+  const todaySurface = today + launch;
+  assert.match(todaySurface, /"Built for today"/);
+  assert.match(todaySurface, /"Adapted for today"/);
+  assert.match(todaySurface, /"Training by choice"/);
+  assert.match(todaySurface, /`From plan\$\{day && day\.name/);
+  assert.match(todaySurface, /dailySession\?\.why/);
+  assert.match(todaySurface, /dailySession\?\.est_minutes/);
   // The session shell (its one heading) lives with the session's first paint.
   assert.match(sessionShell, /role="heading" aria-level="1" tabindex="-1"/);
   assert.match(today, /focus\(\{ preventScroll: true \}\)/);
-  assert.match(today, /role="status" aria-live="polite"/);
+  assert.match(todaySurface, /role="status" aria-live="polite"/);
   assert.match(today, /id = "sessionPrepareLive"|status\.id = "sessionPrepareLive"/);
-  assert.match(today, /preview\?\.title/);
-  assert.match(today, /preview\?\.primary_rationale/);
-  assert.match(today, /preview\.constraints\.slice\(0, 2\)/);
+  assert.match(todaySurface, /preview\?\.title/);
+  assert.match(todaySurface, /preview\?\.primary_rationale/);
+  assert.match(todaySurface, /preview\.constraints\.slice\(0, 2\)/);
   assert.equal(
     (today.match(/wireExerciseDecisionUndo\(todayView,/g) || []).length,
     2,

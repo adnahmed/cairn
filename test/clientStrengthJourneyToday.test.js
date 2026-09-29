@@ -105,7 +105,7 @@ test("support provenance is day-specific and unavailable journeys stay silent", 
 });
 
 test("Today launch integration stays inside the existing card and checks exact anchor membership", () => {
-  const source = readFileSync(join(root, "src/client/today-screen.ts"), "utf8");
+  const source = readFileSync(join(root, "src/client/today-session-launch-client.ts"), "utf8");
   assert.match(source, /class="sess-launch-journey"/);
   assert.match(
     source,
