@@ -119,8 +119,8 @@ test("the eager totals sum what the first open downloads, and fail past their fi
 
 test("the checked-in eager ceilings hold the first open to the per-screen load-time targets", () => {
   const budget = JSON.parse(read("scripts/bundle-budget.json"));
-  assert.ok(budget.eager.js.brotli <= DEFAULT_EAGER_BUDGET.js.brotli, "eager JS stays at or under 225 KB brotli");
-  assert.ok(DEFAULT_EAGER_BUDGET.js.brotli <= 225 * 1024);
+  assert.ok(budget.eager.js.brotli <= DEFAULT_EAGER_BUDGET.js.brotli, "eager JS stays at or under 220 KB brotli");
+  assert.ok(DEFAULT_EAGER_BUDGET.js.brotli <= 220 * 1024);
   assert.ok(budget.eager.styles.brotli <= 85 * 1024, "the stylesheet stays at or under 85 KB brotli");
 });
 

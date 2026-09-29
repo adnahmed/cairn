@@ -225,7 +225,8 @@ type TabSwitchOptions = {
     if (state.tab === "chat" && next !== "chat" && typeof chatTeardownMonitor === "function") chatTeardownMonitor();
     teardownJobs();
     closeDetail(true);
-    closeMealSheet(true);
+    // The meal sheet lives in the lazy meals bundle: no bundle, no sheet to close.
+    if (typeof closeMealSheet === "function") closeMealSheet(true);
     state.tab = next;
     highlightHome(next);
     if (opts.syncRoute !== false) syncRouteFromState(opts.replace ? "replace" : "push");

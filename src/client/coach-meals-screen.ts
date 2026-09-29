@@ -3,6 +3,13 @@ type CoachAgent = import("../contracts/client-api.js").ClientAgentInfo & { name?
 type CoachMealPlan = import("../contracts/client-api.js").ClientMealPlan;
 type CoachMealRecord = Record<string, unknown>;
 
+// SWR cache keys for the meal-plan journal. Drafts/swaps/reorders/recipes mutate the
+// plan server-side, so writes invalidate MEALS_KEY; MEALS_SETTINGS_KEY caches /settings
+// for the verbatim meal_prefs that ride along. Defined here, EAGER: Fuel and the tab
+// switcher name them before the lazy meals bundle (the planner itself) has loaded.
+var MEALS_KEY = "meals:plans";
+var MEALS_SETTINGS_KEY = "meals:settings";
+
 function isCoachMealRecord(value: unknown): value is CoachMealRecord {
   return !!value && typeof value === "object";
 }
@@ -137,9 +144,11 @@ async function renderCoach(): Promise<void> {
     api("/proposals?limit=10").then((proposals) => {
       if (current()) CairnCoachProposalController.renderProposals(proposals);
     }),
-    api("/mealplans?limit=8").then((plans) => {
-      if (current()) CairnMealPlannerController.renderMealPlans(plans);
-    }),
+    api("/mealplans?limit=8").then((plans) =>
+      withBundle("meals", () => {
+        if (current()) CairnMealPlannerController.renderMealPlans(plans);
+      })
+    ),
   ]);
 }
 
@@ -150,44 +159,14 @@ function instructionValue(): string {
 }
 
 // ---------- meal plans ----------
-// Planner operations/reconnectors live in /js/meal-planner-controller.js;
+// Planner operations/reconnectors live in /js/meal-planner-controller.js (the lazy
+// "meals" bundle, reached through withBundle);
 // proposal orchestration lives in /js/coach-proposal-controller.js. This screen
 // owns only the visible Coach/Plan routing and paint sequence.
 function runMealPlan(): void {
   const agent = $<HTMLSelectElement>("#agentsel")?.value || "auto";
-  CairnMealPlannerController.runCoachMealPlan(agent, instructionValue());
-}
-
-// Hold (a change still waiting) and Undo (one that landed) both go through the
-// durable decision rollback. A later accepted plan intentionally wins over an
-// older rollback: the response confirms the decision was reverted, not that its
-// prior plan became current, so the Undo confirmation stays truthful under that race.
-function wireMealDecisionActions(host: Element): void {
-  const after = async (): Promise<void> => {
-    swrInvalidate(MEALS_KEY);
-    await repaintMealHistory();
-  };
-  CairnDecisionUndoController.mount(
-    host,
-    { api, toast },
-    {
-      "meal-decision-hold": {
-        reason: "hold on — keep my current meal plan",
-        success: "Held — your current meals stay",
-        stale: "That meal change can no longer be held.",
-        failed: "Could not hold that meal change",
-        after,
-      },
-      "meal-decision-undo": {
-        reason: "undo from the meal plan",
-        success: "Undo recorded — showing your current meals",
-        stale: "That meal change can no longer be undone.",
-        failed: "Could not undo that meal change",
-        after,
-      },
-    },
-    "meal-decision"
-  );
+  const instruction = instructionValue();
+  void withBundle("meals", () => CairnMealPlannerController.runCoachMealPlan(agent, instruction));
 }
 
 // ---------- Plan → Food: the Fuel surface ----------
@@ -310,60 +289,9 @@ function paintMealHistory(token: number): Promise<unknown> {
   fold.dataset.painted = "1";
   const peek = peekCached<CoachMealPlan[]>(MEALS_KEY);
   if (!peek) slot.innerHTML = skelLines(3);
-  let mealPrefs = String(
-    peekCached<import("../contracts/client-api.js").ClientSettingsResponse>(MEALS_SETTINGS_KEY)?.data?.settings
-      ?.meal_prefs || ""
-  );
-  cachedApi("/settings", {
-    key: MEALS_SETTINGS_KEY,
-    onUpgrade: (data) => {
-      mealPrefs = String(data.settings?.meal_prefs || "");
-    },
-  }).catch(() => {});
-  return paintSWR({
-    key: MEALS_KEY,
-    path: "/mealplans?limit=12",
-    peek,
-    token,
-    tab: "plan",
-    render: (plansRes) => {
-      if (slot.isConnected) paintMealsBody(slot, plansRes || [], mealPrefs);
-    },
-  });
-}
-
-// Build + wire the meal-plan journal from a plans list (+ verbatim meal prefs) into
-// the history slot. Called on a warm peek and again on a changed revalidate; the
-// inner wiring re-queries the freshly written DOM each time.
-function paintMealsBody(slot: HTMLElement, plans: unknown, mealPrefs: string): void {
-  const current = CairnMealPlan.currentMealPlan(plans);
-  const upcoming = Array.isArray(plans)
-    ? plans.find((plan) => {
-        const row = plan && typeof plan === "object" ? (plan as Record<string, any>) : {};
-        return row.status === "draft" && ["announced", "pending"].includes(String(row.autonomy?.status));
-      })
-    : null;
-  const currentPlan =
-    current && (typeof current.id === "string" || typeof current.id === "number")
-      ? (current as Record<string, unknown> & { id: string | number })
-      : null;
-  let shopChecked = new Set<unknown>();
-  try {
-    if (currentPlan) shopChecked = new Set(JSON.parse(localStorage.getItem(`shop:${currentPlan.id}`) || "[]"));
-  } catch {
-    /* a ticked shopping list is a convenience */
-  }
-  const painted = CairnMealPlan.mealPlannerBodyHtml(current, mealPrefs, {
-    checkedShopping: shopChecked,
-    verified: currentPlan ? CairnMealPlannerController.verifiedForPlan(currentPlan.id) : null,
-    upcoming,
-  });
-  slot.innerHTML = `${painted.html}<h3 class="lbl fuel-history-h">Earlier weeks</h3><div id="mealHist"></div>`;
-  runCountUps(slot);
-  CairnMealPlannerController.renderMealPlans(plans, "#mealHist", () => repaintMealHistory());
-  CairnMealPlannerController.wireMealPlannerBody(currentPlan, painted.context);
-  wireMealDecisionActions(slot);
-  if (currentPlan) loadMealProvenance();
+  // The planner renders from the lazy meals bundle; the fold is closed on arrival
+  // unless Plan -> Meals opened it, so this is never Fuel's first paint.
+  return Promise.resolve(withBundle("meals", () => CairnMealJournal.paint(token, slot, peek)));
 }
 
 // SWR over the derived expenditure (key shared with the old Energy view), painted
@@ -392,6 +320,8 @@ function loadMealsEnergy(token: number): void {
 }
 
 Object.assign(globalThis, {
+  MEALS_KEY,
+  MEALS_SETTINGS_KEY,
   renderCoach,
   renderFoodJournal,
   renderMeals,

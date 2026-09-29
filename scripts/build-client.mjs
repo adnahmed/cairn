@@ -255,6 +255,7 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/meal-swap-controller.ts", output: "public/js/meal-swap-controller.js" },
   { source: "src/client/meal-planner-actions-controller.ts", output: "public/js/meal-planner-actions-controller.js" },
   { source: "src/client/meal-planner-controller.ts", output: "public/js/meal-planner-controller.js" },
+  { source: "src/client/meal-journal-client.ts", output: "public/js/meal-journal-client.js" },
   { source: "src/client/coach-proposal-controller.ts", output: "public/js/coach-proposal-controller.js" },
   { source: "src/client/coach-meals-screen.ts", output: "public/js/06-coach-meals.js" },
   { source: "src/client/food-note-client.ts", output: "public/js/food-note-client.js" },
@@ -556,19 +557,8 @@ export const BUNDLES = [
     ],
   },  {
     output: "public/js/bundle-04-coach-meals.js",
-    label: "coach proposals + meal planner",
+    label: "coach proposals + Fuel",
     inputs: [
-      "public/js/meal-fuel-context-client.js",
-      "public/js/meal-row-client.js",
-      "public/js/meal-plan-client.js",
-      "public/js/meal-planner-jobs-client.js",
-      "public/js/meal-recipe-client.js",
-      "public/js/meal-recipe-controller.js",
-      "public/js/meal-swap-data-client.js",
-      "public/js/meal-swap-row-actions-controller.js",
-      "public/js/meal-swap-controller.js",
-      "public/js/meal-planner-actions-controller.js",
-      "public/js/meal-planner-controller.js",
       "public/js/coach-proposal-controller.js",
       "public/js/06-coach-meals.js",
       // Food-note formatting + the food detail sheet USED to head bundle-05.
@@ -854,6 +844,30 @@ export const BUNDLES = [
     lazy: "day",
     views: ["day"],
     inputs: ["public/js/day-record-client.js"],
+  },
+  {
+    output: "public/js/bundle-13-meals.js",
+    label: "Meal planner (the meal-plan journal, swaps, recipes)",
+    // LAZY: the weekly meal plan is ideation, kept as history in a CLOSED fold at the
+    // foot of Fuel (Plan -> Meals opens Fuel with it open). coach-meals-screen (eager)
+    // paints the fold and reaches the journal through withBundle("meals"); the
+    // meal_plan / meal_swap / recipe reconnectors register when this lands.
+    lazy: "meals",
+    views: ["plan:meals"],
+    inputs: [
+      "public/js/meal-fuel-context-client.js",
+      "public/js/meal-row-client.js",
+      "public/js/meal-plan-client.js",
+      "public/js/meal-planner-jobs-client.js",
+      "public/js/meal-recipe-client.js",
+      "public/js/meal-recipe-controller.js",
+      "public/js/meal-swap-data-client.js",
+      "public/js/meal-swap-row-actions-controller.js",
+      "public/js/meal-swap-controller.js",
+      "public/js/meal-planner-actions-controller.js",
+      "public/js/meal-planner-controller.js",
+      "public/js/meal-journal-client.js",
+    ],
   },
 ];
 

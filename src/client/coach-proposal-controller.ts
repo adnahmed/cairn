@@ -116,13 +116,57 @@ type CoachProposalControllerOpOptions = ClientAgentOpHandlers & {
     );
   }
 
+  // Re-attach a running draft job to the status line (and busy button) of the
+  // surface on screen. Shared: coach proposals here, the Plan -> Endurance composer,
+  // and the meal planner (the lazy meals bundle) all reconnect through it.
+  function reconnectStatusHost(
+    o: CoachProposalControllerOpOptions,
+    statusSel: string,
+    btnSel: string | null,
+    ghost: boolean,
+  ): ClientAgentOpHandlers | null {
+    const status = view.querySelector<HTMLElement>(statusSel);
+    if (!status) return null;
+    const btn = btnSel ? view.querySelector(btnSel) : null;
+    if (btn) btnBusy(btn, "Drafting…", { ghost });
+    status.innerHTML = CairnUi.jobCaptionHtml();
+    let stop = () => {};
+    const capEl = status.querySelector(".job-cap");
+    if (capEl) stop = thinkingCaption(capEl, o.caption);
+    if (!reducedMotion()) status.classList.add("is-thinking");
+    const clear = () => {
+      stop();
+      const s = view.querySelector<HTMLElement>(statusSel);
+      if (s) {
+        s.classList.remove("is-thinking", "is-thinking--determinate");
+        s.style.removeProperty("--frac");
+      }
+    };
+    return {
+      guard: o.guard,
+      onDone: (result) => {
+        clear();
+        if (o.isFail(result)) o.onFail(result);
+        else o.render(result);
+      },
+      onError: () => {
+        clear();
+        o.onFail(null);
+      },
+      onCanceled: () => {
+        clear();
+        o.onFail(null);
+      },
+    };
+  }
+
   // The single registered reconnector for `proposal` jobs: Coach drafts and the
   // Plan -> Endurance composer enqueue the same kind, so this selects whichever
   // surface is currently mounted.
   function reconnectProposal(): ClientAgentOpHandlers | null {
     if (view.querySelector("#endDraftStatus")) {
       enduranceComposerLock();
-      return CairnMealPlannerController.reconnectStatusHost(
+      return reconnectStatusHost(
         enduranceProposalOpOpts() as CoachProposalControllerOpOptions,
         "#endDraftStatus",
         "#endDraftBtn",
@@ -130,7 +174,7 @@ type CoachProposalControllerOpOptions = ClientAgentOpHandlers & {
       );
     }
     if (view.querySelector("#runstatus")) {
-      return CairnMealPlannerController.reconnectStatusHost(coachProposalOpOpts(), "#runstatus", "#runbtn", false);
+      return reconnectStatusHost(coachProposalOpOpts(), "#runstatus", "#runbtn", false);
     }
     return null;
   }
@@ -139,6 +183,7 @@ type CoachProposalControllerOpOptions = ClientAgentOpHandlers & {
     applyProposalById,
     coachProposalOpOpts,
     reconnectProposal,
+    reconnectStatusHost,
     refreshProposals,
     renderProposals,
     runCoachProposal,

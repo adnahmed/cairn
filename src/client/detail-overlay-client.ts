@@ -177,8 +177,9 @@
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    if (document.querySelector(".sheet") && typeof globalThis.closeMealSheet === "function") {
-      globalThis.closeMealSheet();
+    // The meal sheet is the lazy meals bundle's: absent until that bundle has loaded.
+    if (document.querySelector(".sheet") && typeof closeMealSheet === "function") {
+      closeMealSheet();
       return;
     }
     closeDetail();

@@ -2096,7 +2096,7 @@ declare global {
   declare function primeArtManifest(): Promise<void>;
   declare function jobReconnect(opts?: { reuseWithinMs?: number }): Promise<void>;
   /** Names of the bundles index.html does NOT load eagerly (see build-client's BUNDLES). */
-  declare type ClientLazyBundleName = "me-health" | "train" | "horizon" | "ask" | "settings" | "day";
+  declare type ClientLazyBundleName = "me-health" | "train" | "horizon" | "ask" | "settings" | "day" | "meals";
   /** Inject a lazily-loaded app-shell bundle (and its dependencies) once; resolves after they have executed. */
   declare function ensureBundle(name: ClientLazyBundleName): Promise<void>;
   declare function bundleLoaded(name: ClientLazyBundleName): boolean;
@@ -3341,6 +3341,20 @@ declare global {
         onFail: (error?: unknown) => unknown;
       };
       reconnectProposal(job?: unknown): ClientAgentOpHandlers | null;
+      reconnectStatusHost(
+        options: ClientAgentOpHandlers & {
+          path: string;
+          anchor: string;
+          caption: string;
+          guard: () => boolean;
+          isFail: (result: unknown) => boolean;
+          render: (result: unknown) => unknown;
+          onFail: (error?: unknown) => unknown;
+        },
+        statusSelector: string,
+        buttonSelector: string | null,
+        ghost: boolean,
+      ): ClientAgentOpHandlers | null;
       refreshProposals(): Promise<void>;
       renderProposals(proposals: unknown): void;
       runCoachProposal(agent: string, instruction: string): void;
@@ -4885,6 +4899,14 @@ declare global {
       cardHtml(opts: SessionLaunchOptions, decisionLabel: string | null): string;
     };
 
+    CairnMealJournal: {
+      paint(
+        token: number,
+        slot: HTMLElement,
+        peek: SwrPeek<import("./client-api.js").ClientMealPlan[]> | null,
+      ): Promise<unknown>;
+    };
+
     CairnCaptureCheckin: {
       loadCheckin(): Promise<void>;
     };
@@ -5318,6 +5340,7 @@ declare global {
   declare const CairnCaptureReadJobs: Window["CairnCaptureReadJobs"];
   declare const CairnCaptureReads: Window["CairnCaptureReads"];
   declare const CairnCaptureVoice: Window["CairnCaptureVoice"];
+  declare const CairnMealJournal: Window["CairnMealJournal"];
   declare const CairnTodaySessionSuggest: Window["CairnTodaySessionSuggest"];
   declare const CairnTodaySessionSuggestController: Window["CairnTodaySessionSuggestController"];
   declare const CairnProgressData: Window["CairnProgressData"];

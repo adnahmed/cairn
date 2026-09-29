@@ -98,6 +98,7 @@ test("every lazy bundle maps to its own precached url", () => {
     ask: "/js/bundle-10-ask.js",
     settings: "/js/bundle-11-settings.js",
     day: "/js/bundle-12-day.js",
+    meals: "/js/bundle-13-meals.js",
   });
 });
 
@@ -298,8 +299,8 @@ test("the idle warm-up executes every lazy bundle one at a time, once", async ()
     }
     await new Promise((r) => setImmediate(r));
   }
-  assert.deepEqual(order, ["train", "ask", "horizon", "day", "me-health", "settings"]);
-  assert.equal(env.scripts.length, 6, "one tag per bundle");
+  assert.deepEqual(order, ["train", "ask", "horizon", "day", "me-health", "meals", "settings"]);
+  assert.equal(env.scripts.length, 7, "one tag per bundle");
 });
 
 test("the idle warm-up stands down on Save-Data", () => {

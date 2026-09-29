@@ -35,6 +35,8 @@ function load({ logDate = "", firstPaint = () => null } = {}) {
   const state = { logDate, planSeg: "edit", tab: "plan" };
   const routes = [];
   const tabs = [];
+  const bundles = [];
+  const journal = [];
   const globals = {
     state,
     escHtml: (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
@@ -66,8 +68,16 @@ function load({ logDate = "", firstPaint = () => null } = {}) {
     markRefreshing: () => {},
     runCountUps: () => {},
     syncRouteFromState: (mode) => routes.push(mode),
-    MEALS_KEY: "meals:plans",
-    MEALS_SETTINGS_KEY: "meals:settings",
+    // The meal-plan journal lives in the lazy meals bundle, reached through withBundle.
+    withBundle: (name, fn) => {
+      bundles.push(name);
+      return fn();
+    },
+    CairnMealJournal: {
+      paint: async (token, slot) => {
+        journal.push({ token, slot });
+      },
+    },
     CairnFuelDeps: {
       today: (date, today) => ({ date, today }),
       meals: (date, today, _token, onChanged) => ({ date, today, onChanged }),
@@ -88,7 +98,7 @@ function load({ logDate = "", firstPaint = () => null } = {}) {
   const view = createHost(win.document);
   win.view = view;
   win.$ = (sel) => view.querySelector(sel);
-  return { win, view, mounts, events, state, routes, tabs };
+  return { win, view, mounts, events, state, routes, tabs, bundles, journal };
 }
 
 test("Fuel paints its shell under Today and mounts every component into its slot", () => {
@@ -113,6 +123,12 @@ test("Fuel paints its shell under Today and mounts every component into its slot
   assert.equal(mounts.ideas.host, view.querySelector("#fuelIdeasSlot"));
   assert.equal(mounts.today.deps.date, TODAY);
   assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), false, "history stays folded");
+});
+
+test("a folded history never loads the meal planner: Fuel's first paint is eager only", () => {
+  const { win, bundles } = load();
+  win.renderFoodJournal();
+  assert.deepEqual(bundles, [], "no withBundle(\"meals\") until the fold opens");
 });
 
 test("a cold open holds the day card's skeleton and writes the surface once the slots' reads answer", async () => {
@@ -188,12 +204,14 @@ test("another day is read and corrected only: no composer, no ideas", () => {
 });
 
 test("Plan → Meals redirects into Fuel with the meal-plan journal open as history", async () => {
-  const { win, view, state, routes } = load();
+  const { win, view, state, routes, bundles, journal } = load();
   await win.renderMeals();
   assert.equal(state.planSeg, "food");
   assert.ok(view.querySelector(".food-journal"));
   assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), true);
   assert.equal(view.querySelector("#fuelHistory").dataset.painted, "1", "the journal paints into the fold");
+  assert.deepEqual(bundles, ["meals"], "the planner is the lazy meals bundle's");
+  assert.equal(journal[0]?.slot, view.querySelector("#fuelHistorySlot"));
   assert.deepEqual(routes, ["replace"], "the URL follows to /app/today/fuel");
 });
 

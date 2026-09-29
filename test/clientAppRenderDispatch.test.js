@@ -88,13 +88,20 @@ test("render dispatcher clears shell affordances before rendering a tab", () => 
   assert.equal(env.body.dataset.tab, "today");
 });
 
-test("render dispatcher routes plan jumps and clears one-shot planJump", () => {
+test("render dispatcher routes plan jumps and clears one-shot planJump", async () => {
   const env = loadRenderDispatch({ planJump: "meals" });
 
-  env.context.renderTab("plan");
+  const painted = env.context.renderTab("plan");
 
   assert.equal(env.context.state.planJump, null);
+  // Plan -> Meals opens Fuel with the meal-plan journal, the lazy meals bundle's.
+  assert.deepEqual(env.calls.at(-1), ["ensureBundle", "meals"]);
+  await painted;
   assert.equal(env.calls.at(-1)[0], "renderMeals");
+
+  const warm = loadRenderDispatch({ planJump: "meals", warm: ["meals"] });
+  warm.context.renderTab("plan");
+  assert.equal(warm.calls.at(-1)[0], "renderMeals", "a warm bundle renders in the same turn");
 });
 
 test("render dispatcher hides the rest bar off other tabs and restores it on session/today", () => {

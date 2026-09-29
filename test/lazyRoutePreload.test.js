@@ -106,7 +106,16 @@ function lazyLoader() {
 
 test("a preload names the exact url ensureBundle injects, and the worker precaches it", () => {
   const { LAZY_BUNDLE_SRC } = lazyLoader();
-  assert.deepEqual([...table.b].sort(), Object.values(LAZY_BUNDLE_SRC).sort());
+  // Every lazy bundle a canonical route needs is preloadable. The meals bundle (the
+  // meal-plan journal) has no canonical route of its own: /app/plan/meals is a legacy
+  // link that lands on Fuel, which reaches it through withBundle when its fold opens.
+  const ROUTELESS = new Set([LAZY_BUNDLE_SRC.meals]);
+  assert.deepEqual(
+    [...table.b].sort(),
+    Object.values(LAZY_BUNDLE_SRC)
+      .filter((url) => !ROUTELESS.has(url))
+      .sort()
+  );
   const sw = read("public/sw.js");
   for (const url of table.b) {
     assert.ok(!url.includes("?"), `${url} carries no query (it must hit the precache entry)`);

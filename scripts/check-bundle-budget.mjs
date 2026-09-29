@@ -53,11 +53,9 @@ export const BUDGETED_ASSETS = [
 /**
  * Default eager totals (brotli bytes) for a budget file that has none yet. Eager JS:
  * every script index.html loads (the non-lazy bundles plus art.js and the body
- * figure); styles: the render-blocking stylesheet. Eager JS moved 220 → 225 KB in v2
- * wave 7 for Today's in-frame taps and quiet rewrites (today-slot-hold.ts, the
- * check-in save lane); the Today route still passes scripts/check-perf.mjs.
+ * figure); styles: the render-blocking stylesheet.
  */
-export const DEFAULT_EAGER_BUDGET = { js: { brotli: 225 * KIB }, styles: { brotli: 70 * KIB } };
+export const DEFAULT_EAGER_BUDGET = { js: { brotli: 220 * KIB }, styles: { brotli: 70 * KIB } };
 
 /** The `public/...` path of every same-origin <script src> in index.html, in order. */
 export function eagerScriptsFromIndex(html) {

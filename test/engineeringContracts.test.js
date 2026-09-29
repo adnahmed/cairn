@@ -1495,6 +1495,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   const mealPlannerControllerSource = read("src/client/meal-planner-controller.ts");
   const coachProposalControllerSource = read("src/client/coach-proposal-controller.ts");
   const coachMealsScreenSource = read("src/client/coach-meals-screen.ts");
+  const mealJournalSource = read("src/client/meal-journal-client.ts");
   const foodNoteSource = read("src/client/food-note-client.ts");
   const foodDetailControllerSource = read("src/client/food-detail-controller.ts");
   const meProfileFormSource = read("src/client/me-profile-form-client.ts");
@@ -3257,8 +3258,8 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   );
   assert.ok(
     bootPos("/js/meal-plan-client.js") > bootPos("/js/meal-row-client.js") &&
-      bootPos("/js/meal-plan-client.js") < bootPos("/js/06-coach-meals.js"),
-    "meal-plan-client.js must load after meal row helpers and before Meals screen consumers"
+      bootPos("/js/meal-plan-client.js") < bootPos("/js/meal-journal-client.js"),
+    "meal-plan-client.js must load after meal row helpers and before the meal-plan journal that paints it"
   );
   assert.ok(
     bootPos("/js/fuel-today-controller.js") > bootPos("/js/fuel-today-client.js") &&
@@ -3293,13 +3294,15 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   );
   assert.ok(
     bootPos("/js/meal-planner-controller.js") > bootPos("/js/meal-swap-controller.js") &&
-      bootPos("/js/meal-planner-controller.js") < bootPos("/js/06-coach-meals.js"),
-    "meal-planner-controller.js must load before Meals screen consumers"
+      bootPos("/js/meal-planner-controller.js") < bootPos("/js/meal-journal-client.js"),
+    "meal-planner-controller.js must load before the meal-plan journal that drives it"
   );
+  // The meal planner is the lazy meals bundle; the eager Fuel/Changes screen and the
+  // proposal controller whose status host it reuses load before it, in the eager set.
   assert.ok(
-    bootPos("/js/coach-proposal-controller.js") > bootPos("/js/meal-planner-controller.js") &&
-      bootPos("/js/coach-proposal-controller.js") < bootPos("/js/06-coach-meals.js"),
-    "coach-proposal-controller.js must load after proposal/meal planner helpers and before Meals screen consumers"
+    bootPos("/js/coach-proposal-controller.js") < bootPos("/js/06-coach-meals.js") &&
+      bootPos("/js/06-coach-meals.js") < bootPos("/js/meal-fuel-context-client.js"),
+    "coach-proposal-controller.js and 06-coach-meals.js load eagerly, ahead of the lazy meal planner"
   );
   assert.ok(
     bootPos("/js/health-docs-client.js") > bootPos("/js/06-coach-meals.js") &&
@@ -5305,7 +5308,10 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(coachMealsScreenSource, /async function renderCoach\(\): Promise<void>/);
   assert.match(coachMealsScreenSource, /async function renderMeals\(\): Promise<unknown>/);
   assert.match(coachMealsScreenSource, /function renderFoodJournal\(options: \{ history\?: boolean \} = \{\}\): Promise<unknown>/);
-  assert.match(coachMealsScreenSource, /CairnMealPlannerController\.wireMealPlannerBody/);
+  // The meal-plan journal is the lazy meals bundle's; Fuel reaches it through withBundle.
+  assert.match(mealJournalSource, /CairnMealPlannerController\.wireMealPlannerBody/);
+  assert.match(coachMealsScreenSource, /withBundle\("meals", \(\) => CairnMealJournal\.paint/);
+  assert.doesNotMatch(coachMealsScreenSource, /CairnMealPlan\.|CairnMealPlannerController\.wireMealPlannerBody/);
   assert.match(coachMealsScreenSource, /CairnCoachProposalController\.runCoachProposal/);
   assert.match(coachMealsScreenSource, /CairnCoachProposalController\.renderProposals/);
   assert.doesNotMatch(
@@ -6373,7 +6379,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(meals, /CairnFuelTodayController\.mount\(/);
   assert.match(mealsSource, /meal-plan-client\.js/);
   assert.match(meals, /CairnMealPlannerController\.renderMealPlans/);
-  assert.match(meals, /CairnMealPlan\.mealPlannerBodyHtml\(current, mealPrefs/);
+  assert.match(read("public/js/meal-journal-client.js"), /CairnMealPlan\.mealPlannerBodyHtml\(current, mealPrefs/);
   assert.match(mealSwapRowActionsController, /recipeController\.openMealSheet/);
   assert.match(mealSwapController, /CairnMealPlan\.mealDayHtml/);
   assert.match(foodNoteClient, /Object\.assign\(globalThis, \{/);

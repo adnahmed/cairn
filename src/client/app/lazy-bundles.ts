@@ -4,7 +4,8 @@ type CairnLazyBundleName = ClientLazyBundleName;
 // On-demand loader for app-shell bundles index.html does NOT load eagerly.
 //
 // Only Today, You, Fuel, capture and the shell are eager. Train, Horizon, Ask,
-// Settings and the Me / Health / Records surfaces are injected on first
+// Settings, a day's record, the meal planner (Fuel's history fold) and the
+// Me / Health / Records surfaces are injected on first
 // navigation to a destination that needs them, and warmed on idle after the
 // first paint (prefetchLazyBundles) so a tab switch does not wait on the network.
 //
@@ -29,6 +30,7 @@ type CairnLazyBundleName = ClientLazyBundleName;
     "ask": "/js/bundle-10-ask.js",
     "settings": "/js/bundle-11-settings.js",
     "day": "/js/bundle-12-day.js",
+    "meals": "/js/bundle-13-meals.js",
   };
 
   // What else a bundle calls into at render time. Health reuses the body-metrics
@@ -41,10 +43,11 @@ type CairnLazyBundleName = ClientLazyBundleName;
     "ask": [],
     "settings": [],
     day: [],
+    meals: [],
   };
 
   // Warm order after first paint: the homes a tap away first, Settings last.
-  const PREFETCH_ORDER: readonly CairnLazyBundleName[] = ["train", "ask", "horizon", "day", "me-health", "settings"];
+  const PREFETCH_ORDER: readonly CairnLazyBundleName[] = ["train", "ask", "horizon", "day", "me-health", "meals", "settings"];
 
   const inflight = new Map<CairnLazyBundleName, Promise<void>>();
   const executed = new Set<CairnLazyBundleName>();

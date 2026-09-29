@@ -59,10 +59,11 @@
     if (tab === "plan") {
       const jump = state.planJump || state.planSeg || "edit";
       state.planJump = null;
-      // Fuel and Meals are eager; Changes mounts the ask bundle's feed, the editor is
-      // Train's, the race view Horizon's.
+      // Fuel is eager; Meals opens Fuel with the meal-plan journal (the lazy meals
+      // bundle) open, Changes mounts the ask bundle's feed, the editor is Train's, the
+      // race view Horizon's.
       return jump === "food" ? renderFoodJournal()
-        : jump === "meals" ? renderMeals()
+        : jump === "meals" ? lazy("meals", () => renderMeals())
         : jump === "coach" ? lazy("ask", () => renderCoach())
         : jump === "endurance" ? lazy("horizon", () => renderPlanEndurance())
         : lazy("train", () => renderPlanEditor());

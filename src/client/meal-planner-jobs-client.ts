@@ -20,11 +20,8 @@ type MealPlannerJobOpOptions = ClientAgentOpHandlers & {
 };
 type MealPlannerJobBusyElement<T extends Element = HTMLElement> = T & { _busyRestore?: () => void };
 
-// SWR cache keys for the meals journal. Drafts/swaps/reorders/recipes mutate the
-// plan server-side or in memory, so writes invalidate MEALS_KEY. MEALS_SETTINGS_KEY
-// caches /settings for the verbatim meal_prefs that ride along into the journal.
-var MEALS_KEY = "meals:plans";
-var MEALS_SETTINGS_KEY = "meals:settings";
+// The meals journal's SWR keys (MEALS_KEY, MEALS_SETTINGS_KEY) are defined EAGERLY in
+// coach-meals-screen.ts: Fuel and the tab switcher name them before this bundle loads.
 
 const mealPlannerJobVerifiedByPlan = new Map<string | number, unknown>();
 
@@ -153,45 +150,14 @@ function mealPlannerJobMealPlanDraftOpOpts(): MealPlannerJobOpOptions {
   };
 }
 
+// The status host is shared with coach proposals (eager, coach-proposal-controller.ts).
 function mealPlannerJobReconnectStatusHost(
   o: MealPlannerJobOpOptions,
   statusSel: string,
   btnSel: string | null,
   ghost: boolean
 ): ClientAgentOpHandlers | null {
-  const status = view.querySelector<HTMLElement>(statusSel);
-  if (!status) return null;
-  const btn = btnSel ? view.querySelector(btnSel) : null;
-  if (btn) btnBusy(btn, "Drafting…", { ghost });
-  status.innerHTML = CairnUi.jobCaptionHtml();
-  let stop = () => {};
-  const capEl = status.querySelector(".job-cap");
-  if (capEl) stop = thinkingCaption(capEl, o.caption);
-  if (!reducedMotion()) status.classList.add("is-thinking");
-  const clear = () => {
-    stop();
-    const s = view.querySelector<HTMLElement>(statusSel);
-    if (s) {
-      s.classList.remove("is-thinking", "is-thinking--determinate");
-      s.style.removeProperty("--frac");
-    }
-  };
-  return {
-    guard: o.guard,
-    onDone: (result) => {
-      clear();
-      if (o.isFail(result)) o.onFail(result);
-      else o.render(result);
-    },
-    onError: () => {
-      clear();
-      o.onFail(null);
-    },
-    onCanceled: () => {
-      clear();
-      o.onFail(null);
-    },
-  };
+  return CairnCoachProposalController.reconnectStatusHost(o, statusSel, btnSel, ghost);
 }
 
 function mealPlannerJobReconnectMealPlan(): ClientAgentOpHandlers | null {
@@ -226,8 +192,6 @@ const CAIRN_MEAL_PLANNER_JOBS = {
 };
 
 Object.assign(globalThis, {
-  MEALS_KEY,
-  MEALS_SETTINGS_KEY,
   CairnMealPlannerJobs: CAIRN_MEAL_PLANNER_JOBS,
   reconnectMealPlan: mealPlannerJobReconnectMealPlan,
 });

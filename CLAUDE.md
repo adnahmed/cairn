@@ -80,8 +80,9 @@ an exact match, and `scripts/check-sw-cache.mjs` asserts it). **Art URLs carry `
 
 **`index.html` does not load every bundle.** Only the Today/You/Fuel shell is eager; every bundle
 marked `lazy: "<name>"` in `BUNDLES` (`scripts/build-client.mjs`) — Train, Horizon, Ask, Settings,
-Me/Health — is injected on first navigation by `ensureBundle`/`withBundle`
-(`src/client/app/lazy-bundles.ts`), warmed on idle, and still precached. So eager code reaches a lazy
+Me/Health, another day's record, the meal planner — is injected on first navigation by
+`ensureBundle`/`withBundle` (`src/client/app/lazy-bundles.ts`), warmed on idle, and still precached.
+The eager JS ceiling is 220 KB brotli (`scripts/bundle-budget.json`). So eager code reaches a lazy
 global ONLY through `withBundle(name, fn)` (or a `typeof` guard), never at top level —
 `test/lazyBundleContract.test.js` enforces it. Each lazy entry also names the `views` it renders; the
 build derives `index.html`'s cold deep-link preload table from them (`scripts/lazy-route-preload.mjs`)

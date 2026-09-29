@@ -125,7 +125,8 @@
        startAppShell() call still runs dead last, same as the old synchronous order.
 
        Only the Today / You / Fuel shell loads here. Train (bundle-08), Horizon
-       (bundle-09), Ask (bundle-10), Settings (bundle-11) and Health / About you
+       (bundle-09), Ask (bundle-10), Settings (bundle-11), a day's record
+       (bundle-12), the meal planner (bundle-13) and Health / About you
        (bundle-05) are deliberately ABSENT: they are injected on first navigation
        by ensureBundle (src/client/app/lazy-bundles.ts) and warmed on idle after the
        first paint. They stay in the service worker's CORE_ASSETS, so an installed

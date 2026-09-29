@@ -198,7 +198,7 @@ test("the persisted storage key strings never change", () => {
   }
   // Derived keys, pinned by their exact construction.
   assert.match(built("outbox-runtime"), /`\$\{OUTBOX_KEY\}\.lock`/);
-  assert.match(built("coach-meals-screen"), /`shop:\$\{currentPlan\.id\}`/);
+  assert.match(built("meal-journal-client"), /`shop:\$\{currentPlan\.id\}`/);
   assert.match(built("meal-planner-actions-controller"), /`shop:\$\{currentPlan\.id\}`/);
 });
 

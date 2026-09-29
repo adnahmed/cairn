@@ -36,12 +36,16 @@ test("Changes lives under Ask: no Plan seg bar, one quiet way back to Ask", () =
 
 test("meal-plan Hold and Undo use the durable decision rollback path", () => {
   // The revert POST itself is the shared decision-undo component's
-  // (test/decisionUndo.test.js drives it); this screen mounts it for both actions.
-  assert.match(source, /CairnDecisionUndoController\.mount\(\s*host,/);
-  assert.match(source, /"meal-decision-hold": \{/);
-  assert.match(source, /"meal-decision-undo": \{/);
-  assert.match(source, /swrInvalidate\(MEALS_KEY\)/);
-  assert.match(source, /await repaintMealHistory\(\)/);
-  assert.match(source, /Undo recorded — showing your current meals/);
-  assert.doesNotMatch(source, /Put back the previous meal plan/);
+  // (test/decisionUndo.test.js drives it); the meal-plan journal (the lazy meals
+  // bundle's meal-journal-client.ts) mounts it for both actions.
+  const journal = readFileSync(join(root, "src/client/meal-journal-client.ts"), "utf8");
+  assert.match(journal, /CairnDecisionUndoController\.mount\(\s*host,/);
+  assert.match(journal, /"meal-decision-hold": \{/);
+  assert.match(journal, /"meal-decision-undo": \{/);
+  assert.match(journal, /swrInvalidate\(MEALS_KEY\)/);
+  assert.match(journal, /await repaintMealHistory\(\)/);
+  assert.match(journal, /Undo recorded — showing your current meals/);
+  assert.doesNotMatch(journal + source, /Put back the previous meal plan/);
+  // Fuel reaches the journal only once its fold asks for it.
+  assert.match(source, /withBundle\("meals", \(\) => CairnMealJournal\.paint\(token, slot, peek\)\)/);
 });
