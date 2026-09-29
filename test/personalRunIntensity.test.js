@@ -369,3 +369,19 @@ test("program state: no model keeps the watch's label bar", () => {
   watch({ date: shift(REF, -3), km: 8, minutes: 50, avgHr: 148, te: 3.4, label: "TEMPO" });
   assert.equal(repo.getProgramState(REF).endurance?.has_quality, true);
 });
+
+test("loading day: a 54-minute run is ordinary for this runner, sustained for a novice; rides unchanged", () => {
+  ordinaryWeeks(REF);
+  const tue = shift(REF, 1);
+  repo.addActivity({ type: "run", date: tue, duration_min: 54, distance_km: 8.6 });
+  assert.equal(hardCardioDay(tue), false, "under 1.5× his 37.5-minute median");
+  const wed = shift(REF, 2);
+  repo.addActivity({ type: "run", date: wed, duration_min: 60, distance_km: 9.5 });
+  assert.equal(hardCardioDay(wed), true, "past his own bar");
+  const thu = shift(REF, 3);
+  repo.addActivity({ type: "ride", date: thu, duration_min: 45, distance_km: 18 });
+  assert.equal(hardCardioDay(thu), true, "a ride keeps the fixed 40 minutes");
+  resetTables("activities");
+  repo.addActivity({ type: "run", date: tue, duration_min: 54, distance_km: 8.6 });
+  assert.equal(hardCardioDay(tue), true, "no history: the fixed 40 minutes");
+});

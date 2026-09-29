@@ -761,6 +761,7 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
   // run with heart rate is there to judge.
   let model: HrModel | null | undefined;
   const personalModel = (): HrModel | null => (model === undefined ? (model = usablePersonalHrModel(date)) : model);
+  let sustainedRunBars: RunLengthBars | undefined;
   for (const r of rows) {
     // The athlete SAID it was easy (a stated effort in the talk-test band): the
     // watch's intensity bars do not get to overrule them. Only (d), the plain
@@ -791,10 +792,19 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
     // (d) SPORT-AWARE duration bar: a run/ride/swim/row loads at ≥ 40 min; a walk/hike
     // or unknown "other" type needs a much longer effort (~90 min) so an easy hike of
     // ~40 min never grades as a loading day. Distance is deliberately not a trigger.
+    // A RUN's bar is his own (runLengthBars: 1.5× his six-week median run, never under
+    // the 40 minutes, capped; his long-run-day run stays loading): for a runner whose
+    // ordinary run is ~40 minutes, every run was a loading day.
     const dur = r.duration_min != null ? Number(r.duration_min) : null;
     if (dur == null) continue;
     const sport = canonicalEnduranceSport(r.type).key;
-    const isEnduranceSession = sport === "run" || sport === "ride" || sport === "swim" || sport === "row";
+    if (sport === "run") {
+      if (!sustainedRunBars) sustainedRunBars = runLengthBars(date, { min: HARD_CARDIO_MIN, km: Number.POSITIVE_INFINITY });
+      if (isLongRunForAthlete(sustainedRunBars, { date, minutes: dur, km: r.distance_km != null ? Number(r.distance_km) : null }))
+        return true;
+      continue;
+    }
+    const isEnduranceSession = sport === "ride" || sport === "swim" || sport === "row";
     if (dur >= (isEnduranceSession ? HARD_CARDIO_MIN : CARDIO_GRADE.walkHikeModerateMin)) return true;
   }
   return false;
