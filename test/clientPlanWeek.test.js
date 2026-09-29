@@ -420,6 +420,11 @@ test("the detail line shows the selected day; today's speaks the server line onc
   assert.doesNotMatch(todayPanel, /strength-line-k/, "the panel already names the day");
   const nextPanel = panels.find((p) => p[1] === "3")[3];
   assert.match(nextPanel, /<span class="pweek-detail-name">Upper &lt;B&gt;<\/span><span class="pweek-detail-status">Up next<\/span>/);
+  // A rest day says "Rest" once: a status that only repeats the label is dropped.
+  const restPanel = panels.find((p) => p[1] === "1")[3];
+  assert.equal((restPanel.match(/Rest/g) || []).length, 1, restPanel);
+  assert.doesNotMatch(restPanel, /pweek-detail-status/);
+  assert.match(html, /aria-label="Tue, Rest"/);
 });
 
 test("with no today, the next upcoming day is the default; template mode starts on day 1", () => {

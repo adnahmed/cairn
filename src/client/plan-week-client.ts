@@ -153,9 +153,11 @@ type PlanWeekRole = import("../contracts/client.js").ClientPlanWeekRole;
 
   // Only the FIRST upcoming cell is "Up next"; the rest of the week is simply later,
   // and a strip of five "Up next" labels said nothing.
+  // Say each fact once: a status that only repeats the label ("Rest" under "Rest") is dropped.
   function cellStatus(day: PlanWeekDay, index: number, days: PlanWeekDay[]): string {
     const firstUpcoming = days.findIndex((d) => d.status === "upcoming");
-    return day.status === "upcoming" && index !== firstUpcoming ? "" : statusLine(day, false);
+    const status = day.status === "upcoming" && index !== firstUpcoming ? "" : statusLine(day, false);
+    return status.trim().toLowerCase() === cellLabel(day).trim().toLowerCase() ? "" : status;
   }
 
   // One cell is one real button. Wide screens lay it out as the labeled grid cell
