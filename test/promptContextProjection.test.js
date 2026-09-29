@@ -762,3 +762,38 @@ test("road_ahead reaches the forward-planning sites and the conference, and noth
   assert.equal(conference[0], "road_ahead", "it leads the conference snapshot");
   assert.ok(conference.length < 50, `the conference snapshot fits its 50-key bound (${conference.length})`);
 });
+
+test("the race build reaches a prompt without the race page's per-week prose", () => {
+  const ctx = {
+    race_build: {
+      available: true,
+      running: "race",
+      weeks: [
+        {
+          week_start: "2026-09-14",
+          km: 30,
+          long_km: 12,
+          quality_hint: "Threshold repeats.",
+          strength_hint: "Heavy lower early in the week.",
+          focus: "The weeks that make the fitness: VO2 intervals, and a long run that keeps stretching.",
+          focus_short: "VO2 intervals and a longer long run",
+          with_lifting: "Lower B on Friday is the last lift before Sunday's long run.",
+        },
+      ],
+    },
+  };
+  for (const site of ["case_conference", "week_ahead"]) {
+    const projected = projectCoachContext(ctx, site);
+    if (!Object.hasOwn(projected, "race_build")) continue;
+    const [week] = projected.race_build.weeks;
+    assert.equal(week.km, 30, `${site} keeps the numbers`);
+    assert.equal(week.quality_hint, "Threshold repeats.", `${site} keeps the engine's hints`);
+    for (const key of ["focus", "focus_short", "with_lifting"])
+      assert.ok(!Object.hasOwn(week, key), `${site} drops ${key}`);
+  }
+  assert.ok(
+    Object.hasOwn(projectCoachContext(ctx, "case_conference"), "race_build"),
+    "the conference still carries the build"
+  );
+  assert.equal(ctx.race_build.weeks[0].with_lifting.length > 0, true, "the source context is never mutated");
+});

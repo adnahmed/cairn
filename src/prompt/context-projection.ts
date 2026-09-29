@@ -948,6 +948,25 @@ function compactDirectives(directives: unknown): unknown {
   });
 }
 
+// The race build's per-week athlete-register prose — the week's coaching sentence, its
+// short form, and the "with your lifting" line — is written for the race page, not a
+// model: the prompts read the engine's own quality_hint / strength_hint and the leg map
+// instead, and the lifting line repeats nearly verbatim on every rung. Dropped at the
+// prompt boundary only; the route, MCP tool and coach context keep all of it.
+function compactRaceBuild(build: unknown): unknown {
+  if (!build || typeof build !== "object" || Array.isArray(build)) return build;
+  const row = build as Record<string, unknown>;
+  if (!Array.isArray(row.weeks)) return row;
+  return {
+    ...row,
+    weeks: row.weeks.map((week) => {
+      if (!week || typeof week !== "object" || Array.isArray(week)) return week;
+      const { focus: _focus, focus_short: _short, with_lifting: _lifting, ...rest } = week as Record<string, unknown>;
+      return rest;
+    }),
+  };
+}
+
 // ---------- the helper every prompt uses ----------
 
 /**
@@ -979,7 +998,9 @@ export function projectCoachContext(ctx: PartialCoachContext, site: PromptSite):
                 ? compactSignalState(value)
                 : key === "directives"
                   ? compactDirectives(value)
-                  : value;
+                  : key === "race_build"
+                    ? compactRaceBuild(value)
+                    : value;
   }
   return out as PartialCoachContext;
 }

@@ -166,7 +166,12 @@ export type RunningPresence = "race" | "runs" | "none";
 export interface RaceBuild {
   available: boolean;
   as_of: string;
-  running: RunningPresence;
+  /**
+   * `null` on a no-race read that did not ask (`describeRunning` off): telling a runner
+   * from a lifter costs a log read the internal callers never need. A dated build is
+   * always `race`.
+   */
+  running: RunningPresence | null;
   race: {
     event: string | null;
     date: string;
@@ -418,6 +423,56 @@ export function weekFocusShort(kind: RaceWeekKind, phase: RacePhase): string {
   return key ? WEEK_FOCUS_SHORT[key] : "";
 }
 
+// The quality session a label asks for, as a phrase in the athlete's words, or null
+// for a label no session word fits (a fartlek, a label the engine never writes).
+function qualitySessionWords(label: string | null | undefined): string | null {
+  if (/hill/i.test(String(label ?? ""))) return "hill repeats";
+  const key = paceKeyForQuality(label);
+  if (key === "vo2") return "VO2 intervals";
+  if (key === "threshold") return "threshold work";
+  if (key === "tempo") return "a tempo run";
+  return null;
+}
+
+const capFirst = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/**
+ * This week's focus when the engine's week holds a quality run: the phase's sentence
+ * with the session the week actually carries named in it, so the focus never asks for a
+ * threshold session on the week the card lists VO2 intervals. Only a build week whose
+ * phase sentence names a session is rewritten (base, build, sharpen); a peak, reset,
+ * taper or race week names none, and an unrecognised label keeps the phase's words.
+ * `null` when there is nothing to rewrite.
+ */
+export function qualityWeekFocus(
+  kind: RaceWeekKind,
+  phase: RacePhase,
+  qualityLabel: string | null | undefined
+): { focus: string; focus_short: string } | null {
+  if (kind !== "build") return null;
+  const session = qualitySessionWords(qualityLabel);
+  if (!session) return null;
+  switch (focusKey(kind, phase)) {
+    case "base":
+      return {
+        focus: `Mostly easy running to grow the engine, with ${session} to keep the legs sharp.`,
+        focus_short: `Easy volume and ${session}`,
+      };
+    case "build":
+      return {
+        focus: `The weeks that make the fitness: ${session}, and a long run that keeps stretching.`,
+        focus_short: `${capFirst(session)} and a longer long run`,
+      };
+    case "sharpen":
+      return {
+        focus: `Sharpen rather than add: ${session} while the volume holds.`,
+        focus_short: `${capFirst(session)}, volume holds`,
+      };
+    default:
+      return null;
+  }
+}
+
 // The stress budget's own week kinds and phases for the key-run eve (stress-budget.ts
 // EVE_WEEK_KINDS / EVE_PHASES): outside them the eve is left as written, so the words
 // never claim a trim the day will not carry.
@@ -462,12 +517,21 @@ export function liftingLine(week: Pick<RaceBuildWeek, "kind" | "phase">, legMap:
   }
   const heavyDays = weekdayList(heavy.map((d) => d.weekday));
   if (!keys.length) return `Heavy legs on ${heavyDays}; every run this week is easy, so they sit alongside.`;
+  // Rank what needs saying: a heavy lift on the SAME day as a key run first (the one
+  // collision the athlete has to space out within a day), then the heaviest key run's
+  // heavy eve. Both can hold in one week, so both can be said — at most two sentences.
+  const runWord = (d: LegMapDay): string => RUN_WORD(d.run?.kind === "long" ? "long" : "quality");
+  const clauses: string[] = [];
+  const sameDay = keys.find((key) => heavy.some((d) => d.day_number === key.day_number));
+  if (sameDay) {
+    const lift = heavy.find((d) => d.day_number === sameDay.day_number);
+    clauses.push(
+      `${sameDay.weekday} carries both ${lift?.strength?.name} and the ${runWord(sameDay)}; give them as many hours apart as the day allows.`
+    );
+  }
   for (const key of keys) {
-    const run = RUN_WORD(key.run?.kind === "long" ? "long" : "quality");
-    const same = heavy.find((d) => d.day_number === key.day_number);
-    if (same) {
-      return `${key.weekday} carries both ${same.strength?.name} and the ${run}; give them as many hours apart as the day allows.`;
-    }
+    if (key === sameDay) continue;
+    const run = runWord(key);
     // The last lift day before the key run, at most two days back with no lift between
     // (the ring wraps: a Monday run's eve is the Sunday before it).
     const back = (n: number): LegMapDay | undefined =>
@@ -475,11 +539,14 @@ export function liftingLine(week: Pick<RaceBuildWeek, "kind" | "phase">, legMap:
     const eve = back(1)?.strength ? back(1) : back(2)?.strength ? back(2) : undefined;
     if (!eve?.strength?.heavy_lower) continue;
     const gap = eve === back(1) ? "the day before" : "two days before";
-    if (EVE_KINDS.has(week.kind) && EVE_PHASES.has(week.phase)) {
-      return `${eve.strength.name} on ${eve.weekday} is the last lift before ${key.weekday}'s ${run}: the main lift stands and the leg extras drop a set, so the legs arrive ready.`;
-    }
-    return `${eve.strength.name} on ${eve.weekday} lands ${gap} ${key.weekday}'s ${run}; both stay as written, so keep that run conversational.`;
+    clauses.push(
+      EVE_KINDS.has(week.kind) && EVE_PHASES.has(week.phase)
+        ? `${eve.strength.name} on ${eve.weekday} is the last lift before ${key.weekday}'s ${run}: the main lift stands and the leg extras drop a set, so the legs arrive ready.`
+        : `${eve.strength.name} on ${eve.weekday} lands ${gap} ${key.weekday}'s ${run}; both stay as written, so keep that run conversational.`
+    );
+    break;
   }
+  if (clauses.length) return clauses.join(" ");
   return `Heavy legs on ${heavyDays} sit clear of ${keyWords(keys)}.`;
 }
 
@@ -931,7 +998,8 @@ export function raceBuild(
   const asOf = date || localDateISO();
   const goal = getEnduranceGoal(asOf);
   const empty = (reason: string): RaceBuild => {
-    const running = runningWithoutRace(asOf, goal);
+    // Only a surface that asked pays for the read of whether the athlete runs at all.
+    const running = opts?.describeRunning ? runningWithoutRace(asOf, goal) : null;
     const out: RaceBuild = {
       available: false,
       as_of: asOf,
@@ -948,7 +1016,7 @@ export function raceBuild(
       why: "",
       reason,
     };
-    if (!opts?.describeRunning || running === "none") return out;
+    if (running !== "runs") return out;
     const logRuns = recentRuns(asOf, 42);
     const plan = opts?.runPlan === undefined ? safe(() => weeklyRunPlan(asOf, { adjustToday: false })) : opts.runPlan;
     return { ...out, this_week: thisWeekRead(plan, asOf, logRuns, null), review: weeklyReview(asOf, logRuns) };
@@ -1094,10 +1162,16 @@ export function raceBuild(
   // This week's focus speaks to the week the engine actually prescribed: a build week
   // whose runs are all easy (no quality run on the card) is an aerobic week, and says
   // so, rather than asking for the phase's threshold session the week does not hold.
+  // And a week that holds one names the session it holds, not the phase's usual one.
   const currentRung = weeks.find((w) => w.current);
-  if (currentRung && plan?.available && runs.length && !qualityRun && (currentRung.kind === "build" || currentRung.kind === "peak")) {
-    currentRung.focus = AEROBIC_WEEK_FOCUS;
-    currentRung.focus_short = AEROBIC_WEEK_FOCUS_SHORT;
+  if (currentRung && plan?.available && runs.length) {
+    if (!qualityRun && (currentRung.kind === "build" || currentRung.kind === "peak")) {
+      currentRung.focus = AEROBIC_WEEK_FOCUS;
+      currentRung.focus_short = AEROBIC_WEEK_FOCUS_SHORT;
+    } else if (qualityRun) {
+      const named = qualityWeekFocus(currentRung.kind, currentRung.phase, qualityRun.label || plan.quality_focus);
+      if (named) Object.assign(currentRung, named);
+    }
   }
   // A ring with nothing on it (no run placed, nothing lifted, no ride) is no map: it
   // goes out empty rather than as seven blank columns.

@@ -979,6 +979,29 @@ test("terrain: the closed weeks the log holds lead the ridge, quieter; the stage
   assert.doesNotMatch(none, /hz-wash/);
 });
 
+test("terrain: with the log's weeks ahead of a full ladder, every stage band still says its stage", () => {
+  const win = load();
+  const review = {
+    weeks: ["2026-08-10", "2026-08-17", "2026-08-24", "2026-08-31"].map((week_start, i) => ({
+      week_start,
+      km: 20 + i,
+      runs: 3,
+    })),
+    longest_recent_km: 12,
+    volume_word: "rising",
+  };
+  const lane = win.CairnHorizonModel.raceLane(build({ weeks: WEEKS, review }));
+  assert.equal(lane.terrain.weeks.length, 13, "four logged weeks and the nine of the ladder");
+  const svg = win.CairnHorizonChart.terrainSvg(lane.terrain);
+  const bands = (svg.match(/<rect class="hz-stage[ "]/g) || []).length;
+  const words = [...svg.matchAll(/class="hz-stage-word[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
+  assert.equal(words.length, bands, `a word on every band: ${words.join(" ")}`);
+  // One-week bands are too narrow for the whole word: the taper and race week still read.
+  assert.ok(words.includes("TAPER") || words.includes("TPR"), words.join(" "));
+  assert.ok(words.includes("RACE") || words.includes("R"), words.join(" "));
+  assert.ok(words.includes("PEAK") || words.includes("PK"), words.join(" "));
+});
+
 function planWeek() {
   const day = (date, weekday, status, extra = {}) => ({
     date,

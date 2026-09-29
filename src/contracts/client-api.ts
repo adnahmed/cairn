@@ -1344,7 +1344,7 @@ export interface ClientRaceBuild {
    * week and the closed weeks still ride on `this_week` / `review`), `none` a
    * lifting-only athlete with no run or race surface at all.
    */
-  running?: "race" | "runs" | "none";
+  running?: "race" | "runs" | "none" | null;
   race: {
     event: string | null;
     date: ISODateString | string;

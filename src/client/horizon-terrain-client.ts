@@ -69,6 +69,28 @@
   const monoWidth = (text: string): number => text.length * 4.3 + 6;
   /** The ribbon's own short words: a band is often one week wide. */
   const RIBBON_WORD: Readonly<Record<string, string>> = { "Down week": "Down" };
+  /**
+   * A one-week band at 390px is ~22 units wide, too narrow for PEAK or TAPER: the band
+   * still says its stage in the plan's own shorthand, and past that in its initial, so
+   * the turning points the ribbon is for are never blank tiles.
+   */
+  const RIBBON_SHORT: Readonly<Record<string, string>> = {
+    Logged: "LOG",
+    Base: "BSE",
+    Build: "BLD",
+    Sharpen: "SHP",
+    Peak: "PK",
+    "Down week": "DN",
+    Taper: "TPR",
+    Race: "R",
+  };
+  /** The longest of a stage's words that fits a band, or "" when not even its initial does. */
+  function ribbonWord(label: string, width: number): string {
+    const full = (RIBBON_WORD[label] || label).toUpperCase();
+    const short = (RIBBON_SHORT[label] || "").toUpperCase();
+    for (const word of [full, short, full.charAt(0)]) if (word && monoWidth(word) <= width) return word;
+    return "";
+  }
 
   /**
    * The race build as terrain (docs/DESIGN.md "Charts"): one axis, distance per week in
@@ -195,8 +217,8 @@
         .filter(Boolean)
         .join(" ");
       g += `<rect class="${cls}" x="${fx(a)}" y="${ribbonTop}" width="${fx(width)}" height="${ribbonH}" rx="4"/>`;
-      const word = (RIBBON_WORD[band.label] || band.label).toUpperCase();
-      if (monoWidth(word) <= width) {
+      const word = ribbonWord(band.label, width);
+      if (word) {
         const tone = band.current ? " is-current" : band.logged ? " is-logged" : "";
         g += `<text class="hz-stage-word${tone}" x="${fx(a + width / 2)}" y="${fx(ribbonTop + 10)}" text-anchor="middle">${escHtml(word)}</text>`;
       }

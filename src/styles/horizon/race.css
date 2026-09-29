@@ -36,12 +36,17 @@
 .race-runs{list-style:none;margin:0;padding:0;display:grid}
 .race-run{border-top:1px solid var(--line);min-width:0}
 .race-run:first-child{border-top:0}
-.race-run-row{display:grid;grid-template-columns:5.4em minmax(0,1fr) auto;align-items:baseline;gap:var(--space-4);
+/* Day, name, prescription on one line when they fit. A long prescription (a quality
+   session's reps and pace band) never squeezes the name: it wraps to its own line,
+   right-aligned under the name, and the name keeps the first line whole. The day
+   column is in rem: the var is read at three font sizes. */
+.race-run-row{--race-run-when:5.1rem;display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-4);
   padding:var(--space-4) 0;min-height:44px;box-sizing:border-box}
-.race-run-when{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+.race-run-when{flex:0 0 var(--race-run-when);font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
   text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.race-run-name{font-size:var(--text-body);color:var(--ink);min-width:0}
-.race-run-pres{font-size:var(--text-sm);font-weight:600;color:var(--ink);text-align:right;font-variant-numeric:lining-nums tabular-nums}
+.race-run-name{flex:1 0 auto;max-width:calc(100% - var(--race-run-when) - var(--space-4));font-size:var(--text-body);color:var(--ink);min-width:0}
+.race-run-pres{flex:0 1 auto;margin-left:auto;max-width:calc(100% - var(--race-run-when) - var(--space-4));
+  font-size:var(--text-sm);font-weight:600;color:var(--ink);text-align:right;font-variant-numeric:lining-nums tabular-nums}
 .race-run.is-done .race-run-name,.race-run.is-done .race-run-pres{color:var(--ink-2);font-weight:400}
 .race-run-tick{margin-left:var(--space-2);font-size:var(--text-xs);color:var(--sage)}
 .race-run.is-next .race-run-when{color:var(--dawn)}

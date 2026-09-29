@@ -47,11 +47,23 @@
   function runWords(value: unknown, units?: unknown): string {
     const s = String(value || "").trim();
     if (unitsOf(units) !== "mi") return s;
+    const pace = (mm: string, ss: string): string => {
+      const sec = Math.round((Number(mm) * 60 + Number(ss)) * KM_PER_MILE);
+      return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+    };
+    // Ranges first, both ends at once ("5:10–5:40 /km", "10-12 km"): the single-value
+    // passes below only see a range's LAST figure, which would restate half of it.
     return s
-      .replace(/(\d+):(\d{2}) ?\/ ?km\b/g, (_m, mm: string, ss: string) => {
-        const sec = Math.round((Number(mm) * 60 + Number(ss)) * KM_PER_MILE);
-        return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} /mi`;
-      })
+      .replace(
+        /(\d+):(\d{2})\s*([–-])\s*(\d+):(\d{2})\s*\/\s*km\b/g,
+        (_m, m1: string, s1: string, dash: string, m2: string, s2: string) =>
+          `${pace(m1, s1)}${dash}${pace(m2, s2)} /mi`
+      )
+      .replace(/(\d+):(\d{2}) ?\/ ?km\b/g, (_m, mm: string, ss: string) => `${pace(mm, ss)} /mi`)
+      .replace(
+        /(\d+(?:\.\d+)?)\s*([–-])\s*(\d+(?:\.\d+)?) ?km\b/g,
+        (_m, a: string, dash: string, b: string) => `${distNum(Number(a), "mi")}${dash}${kmText(Number(b), "mi")}`
+      )
       .replace(/(\d+(?:\.\d+)?) ?km\b/g, (_m, n: string) => kmText(Number(n), "mi"));
   }
 

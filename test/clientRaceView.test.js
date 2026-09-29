@@ -244,6 +244,15 @@ test("run volume and paces both follow the athlete's run units", () => {
   for (const km of metric.querySelectorAll(".race-ladder-km")) assert.match(km.textContent, /^\d+(\.\d)? km$/);
 });
 
+test("a server sentence restates a range whole in miles, never half of it", () => {
+  const { runWords } = load().CairnRaceViewModel;
+  assert.equal(runWords("easy at 5:10–5:40 /km", "mi"), "easy at 8:19–9:07 /mi");
+  assert.equal(runWords("tempo 6:10-6:40/km", "mi"), "tempo 9:55-10:44 /mi");
+  assert.equal(runWords("a long run of 10–12 km", "mi"), "a long run of 6.2–7.5 mi");
+  assert.equal(runWords("your 16 km run (5:10 /km)", "mi"), "your 9.9 mi run (8:19 /mi)");
+  assert.equal(runWords("easy at 5:10–5:40 /km", "km"), "easy at 5:10–5:40 /km", "km reads as written");
+});
+
 // ---------- the head and the estimate ----------
 
 test("the head frames the race: its name, the ladder's own weeks to race, and race day", () => {

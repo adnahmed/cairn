@@ -13,7 +13,7 @@
 import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { repo, resetTables } from "./_seed.js";
-import { liftingLine, raceBuild, weekFocus, weekFocusShort } from "../dist/repo/race-build.js";
+import { liftingLine, qualityWeekFocus, raceBuild, weekFocus, weekFocusShort } from "../dist/repo/race-build.js";
 import { planWeek } from "../dist/domain/training/plan-week.js";
 
 const TODAY = "2026-09-16"; // a Wednesday
@@ -150,15 +150,17 @@ test("(b) a runner with no race: the running week and the closed weeks, never a 
   assert.equal(out.review.weeks.length, 4);
   assert.ok(out.review.weeks.every((w) => w.km > 0));
   assert.match(out.reason, /No dated race/);
-  // The internal callers never pay for the run week: without describeRunning it stays empty.
+  // The internal callers never pay for the run week, or for the read of whether the
+  // athlete runs at all: without describeRunning both stay unread.
   const internal = raceBuild(TODAY);
-  assert.equal(internal.running, "runs");
+  assert.equal(internal.running, null);
   assert.equal(internal.this_week, null);
+  assert.deepEqual(internal.review.weeks, []);
 });
 
 test("(b) running is the log too: runs with no stated days and no goal still read as a runner", () => {
   seedRuns();
-  assert.equal(raceBuild(TODAY).running, "runs");
+  assert.equal(raceBuild(TODAY, { describeRunning: true }).running, "runs");
 });
 
 // ---------------------------------------------------------------------------
@@ -330,4 +332,62 @@ test("liftingLine: the same day, clear spacing, no heavy legs, and nothing to fi
     liftingLine({ kind: "build", phase: "build" }, wrap),
     /^Lower A on Sunday is the last lift before Monday's long run/
   );
+});
+
+test("liftingLine: a heavy lift on a key run's own day is said first, and a heavy eve before the long run still gets its line", () => {
+  // The demo's ring: Lower B and the VO2 session share Thursday, Full Body on Friday
+  // is the last lift before Sunday's long run.
+  const ring = [
+    day(1, "Monday", null, ["Upper A", false]),
+    day(2, "Tuesday", "easy", ["Lower A", true]),
+    day(3, "Wednesday", null, ["Upper B", false]),
+    day(4, "Thursday", "quality", ["Lower B", true]),
+    day(5, "Friday", null, ["Full Body", true]),
+    day(6, "Saturday", null, null),
+    day(7, "Sunday", "long", null),
+  ];
+  const line = liftingLine({ kind: "build", phase: "build" }, ring);
+  assert.match(
+    line,
+    /^Thursday carries both Lower B and the quality run; give them as many hours apart as the day allows\. /
+  );
+  assert.match(line, /Full Body on Friday is the last lift before Sunday's long run: the main lift stands/);
+  // Only the same-day collision: said alone.
+  const onlySame = ring.map((d) => (d.day_number === 5 ? day(5, "Friday", null, ["Upper C", false]) : d));
+  assert.equal(
+    liftingLine({ kind: "build", phase: "build" }, onlySame),
+    "Thursday carries both Lower B and the quality run; give them as many hours apart as the day allows."
+  );
+});
+
+test("qualityWeekFocus: this week's sentence names the session the week holds", () => {
+  assert.deepEqual(qualityWeekFocus("build", "build", "VO2 intervals"), {
+    focus: "The weeks that make the fitness: VO2 intervals, and a long run that keeps stretching.",
+    focus_short: "VO2 intervals and a longer long run",
+  });
+  assert.match(qualityWeekFocus("build", "base", "Hill repeats").focus, /with hill repeats to keep the legs sharp/);
+  assert.match(qualityWeekFocus("build", "sharpen", "Cruise intervals").focus, /threshold work while the volume holds/);
+  assert.equal(qualityWeekFocus("build", "build", "Tempo").focus_short, "A tempo run and a longer long run");
+  // A turning point's sentence names no session; an unknown label keeps the phase's words.
+  assert.equal(qualityWeekFocus("peak", "sharpen", "VO2 intervals"), null);
+  assert.equal(qualityWeekFocus("down", "build", "Tempo"), null);
+  assert.equal(qualityWeekFocus("build", "build", "Fartlek"), null);
+});
+
+test("(d) the current week's focus agrees with the quality run the week holds", () => {
+  seedRace();
+  seedRunDays();
+  seedLifting();
+  seedRuns();
+  const out = raceBuild(TODAY, { describeRunning: true });
+  const current = out.weeks.find((w) => w.current);
+  const label = out.this_week?.quality?.label;
+  assert.ok(label, "the seeded build week holds a quality run");
+  assert.equal(current.kind, "build");
+  const named = qualityWeekFocus(current.kind, current.phase, label);
+  assert.ok(named, label);
+  assert.equal(current.focus, named.focus);
+  assert.equal(current.focus_short, named.focus_short);
+  // Never the phase's either/or once the week has chosen.
+  assert.doesNotMatch(current.focus, /threshold or tempo/);
 });
