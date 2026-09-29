@@ -8,6 +8,10 @@
 .fuel-slot + .fuel-slot{margin-top:var(--space-8)}
 /* the energy read below the slots keeps the same breath, so it never reads as part of the ideas */
 .fuel .fuel-slot ~ #energyCard{margin-top:var(--space-8)}
+/* While the energy read loads, its slot holds roughly the card's own height, so the
+   card landing never shoves the meal-plan history fold below it (a cold-load shift
+   whenever the cards above leave that fold inside the first screen). */
+.fuel #energyCard > .loadstate{min-height:22rem;justify-content:flex-start}
 
 /* ---- Today so far: one card, protein leads as a meter in the fuel stone's hue ---- */
 .fuel-today{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
