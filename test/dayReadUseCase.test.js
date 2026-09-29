@@ -176,6 +176,8 @@ test("material truth replaces a stale persisted athlete steer once, then remains
     `INSERT INTO checkins (date, mood, energy, sleep_feel, soreness, note)
      VALUES (?, 2, 1, 2, 4, 'run down')`
   ).run(date);
+  // …on a genuinely short night, the objective witness a tap needs to own a rest.
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(date);
 
   const healed = await readToday({ date });
   const persistedAfterHeal = repo.getCachedDayRead(date);

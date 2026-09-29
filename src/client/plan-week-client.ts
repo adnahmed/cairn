@@ -103,6 +103,13 @@ type PlanWeekRole = import("../contracts/client.js").ClientPlanWeekRole;
     // Today's cell holding logged work not yet finished says so — the today line's own
     // "in progress", never a bare "Today" that reads as not started.
     if (status === "today" && day.session) return weekday ? `In progress · ${weekday}` : "In progress";
+    // The day read's suggestion, verbatim from the server's one line ("lighter today"),
+    // stands where the bare "Today" would — the plan day keeps its name in the cell.
+    const suggested = status === "today" && day.suggestion?.label ? String(day.suggestion.label) : "";
+    if (suggested) {
+      const said = `${suggested.charAt(0).toUpperCase()}${suggested.slice(1)}`;
+      return weekday ? `${said} · ${weekday}` : said;
+    }
     if (status === "today") return weekday ? `Today · ${weekday}` : "Today";
     if (status === "upcoming") return weekday ? `${weekday} · Up next` : "Up next";
     if (status === "rest") return weekday ? `${weekday} · Rest` : "Rest";

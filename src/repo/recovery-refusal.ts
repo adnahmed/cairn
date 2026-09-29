@@ -19,6 +19,7 @@ import { latestUserVetoAt } from "./brain-decisions.js";
 import { contextEventReadsAsIllness } from "./context-effect.js";
 import { getActiveBlock } from "./program-blocks.js";
 import { addDaysISO, localDateISO } from "./shared.js";
+import { withSymptomClosures } from "./injury-symptom-link.js";
 
 // With no active block to scope to, a refusal still has to mean something. Four
 // weeks is the ordinary block length, so it is the honest stand-in.
@@ -122,13 +123,17 @@ export function newSafetyGradeSignalSince(since: string, today = localDateISO())
   // under — the same classifier the day-read uses, so there is one answer to "is
   // this an illness" rather than a second regex free to drift.
   try {
-    const events = db
-      .prepare(
-        `SELECT id, kind, title, detail, start_date, end_date, resolved_at
-           FROM context_events
-          WHERE COALESCE(archived, 0) = 0 AND start_date > ? AND start_date <= ?`
-      )
-      .all(since, today) as any[];
+    // An injury closed through its twin training symptom carries that closing date.
+    const events = withSymptomClosures(
+      db
+        .prepare(
+          `SELECT id, kind, title, detail, start_date, end_date, resolved_at
+             FROM context_events
+            WHERE COALESCE(archived, 0) = 0 AND start_date > ? AND start_date <= ?`
+        )
+        .all(since, today) as any[],
+      today
+    );
     for (const event of events) {
       const clinical = String(event?.kind ?? "") === "injury" || contextEventReadsAsIllness(event);
       if (!clinical) continue;

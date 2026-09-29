@@ -2,6 +2,7 @@ import { db, todayISO } from "../db.js";
 import { getBrainDecision, listBrainExpectations } from "../repo/brain-decisions.js";
 import { latestBrainEvaluation, recordBrainToolCall } from "../repo/brain-evaluations.js";
 import { activeMedications, getMarkerHistory } from "../repo/health.js";
+import { injuryClosuresOn } from "../repo/injury-symptom-link.js";
 import { currentMealPlan } from "../repo/nutrition.js";
 import { getPlanDay } from "../repo/plan.js";
 import { directivesForCoach } from "../repo/propagation.js";
@@ -587,6 +588,9 @@ function readLifeContextWindow(request: Extract<CoachReadToolRequest, { tool: "r
       ORDER BY start_date DESC, id DESC LIMIT ?`
     )
     .all(request.args.end_date, request.args.start_date, limit + 1) as MutableRow[];
+  // An injury the athlete closed through its twin training symptom is handed over
+  // closed, on that symptom's date — the agent never reads it as still open.
+  const closures = injuryClosuresOn(todayISO());
   const events = rows.slice(0, limit).map((row) => ({
     id: row.id,
     kind: row.kind,
@@ -597,7 +601,10 @@ function readLifeContextWindow(request: Extract<CoachReadToolRequest, { tool: "r
     meta: safeJson(parsedObject(row.meta_json)),
     archived: !!row.archived,
     expected_recovery_days: row.expected_recovery_days,
-    resolved_at: row.resolved_at,
+    resolved_at: row.resolved_at ?? closures.get(Number(row.id))?.resolved_on ?? null,
+    ...(row.resolved_at == null && closures.has(Number(row.id))
+      ? { resolved_by_symptom_id: closures.get(Number(row.id))!.symptom_id }
+      : {}),
   }));
   return {
     data: { range: { start_date: request.args.start_date, end_date: request.args.end_date }, events },

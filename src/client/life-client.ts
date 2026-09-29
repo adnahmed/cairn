@@ -12,6 +12,9 @@ type LifeEventRow = {
   start_date?: unknown;
   end_date?: unknown;
   resolved_at?: unknown;
+  // Set by the server when the athlete closed this injury through its twin training
+  // symptom (injury-symptom-link.ts) — `resolved_at` itself stays unstamped.
+  resolved_by_symptom?: { symptom_id?: unknown; resolved_on?: unknown } | null;
   archived?: unknown;
   meta_json?: unknown;
 };
@@ -78,8 +81,16 @@ function daysUntil(iso: unknown, todayIso = localISO()): number | null {
   return Math.round((date.getTime() - today.getTime()) / 86400000);
 }
 
+// The date an event closed: its own `resolved_at`, or the day the athlete resolved the
+// training symptom it stands for — the same answer the Brief and the coach read.
+function eventResolvedOn(event: LifeEventRow | null | undefined): string {
+  if (event?.resolved_at) return String(event.resolved_at).slice(0, 10);
+  const bySymptom = event?.resolved_by_symptom?.resolved_on;
+  return bySymptom ? String(bySymptom).slice(0, 10) : "";
+}
+
 function eventResolved(event: LifeEventRow | null | undefined, todayIso = localISO()): boolean {
-  const resolved = event?.resolved_at ? String(event.resolved_at).slice(0, 10) : "";
+  const resolved = eventResolvedOn(event);
   return !!resolved && resolved <= todayIso;
 }
 
@@ -212,7 +223,7 @@ function lifeEventInner(event: LifeEventRow, impact?: LifeImpact | null): string
     ${range ? `<div class="sess-line" style="color:var(--muted)">${range}</div>` : ""}
     ${metaLine ? `<div class="sess-line" style="color:var(--muted);font-size:.78rem">${metaLine}</div>` : ""}
     ${event.detail ? `<div class="sess-line">${escHtml(event.detail)}</div>` : ""}
-    ${resolved ? `<div class="sess-line" style="color:var(--muted);font-size:.78rem">Closed ${escHtml(shortDate(String(event.resolved_at).slice(0, 10)))}</div>` : ""}
+    ${resolved ? `<div class="sess-line" style="color:var(--muted);font-size:.78rem">Closed ${escHtml(shortDate(eventResolvedOn(event)))}${event.resolved_by_symptom ? " with its symptom" : ""}</div>` : ""}
     ${lifeImpactsHtml(impact)}
     <div class="hdoc-ctl">
       ${resolved || event.archived ? "" : `<button class="linkbtn linkbtn-plain linkbtn-sm" data-lresolve="${escAttr(event.id)}" type="button">${escHtml(kind === "injury" ? "Mark resolved" : "Mark done")}</button>`}

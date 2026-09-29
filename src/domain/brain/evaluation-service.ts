@@ -21,6 +21,7 @@ import {
   dayReadExpectationSurvivesSupersession,
 } from "../../repo/brain/read-adherence.js";
 import { addDaysISO, localDateISO } from "../../repo/shared.js";
+import { withSymptomClosures } from "../../repo/injury-symptom-link.js";
 import { insertBrainEvaluation, latestBrainEvaluation } from "../../repo/brain-evaluations.js";
 import { RETIRED_EXPECTATION_STATUSES } from "../../repo/brain/expectation-arbitration.js";
 import { contextTagLabel, isContextTagKey } from "../../contextTags.js";
@@ -111,6 +112,8 @@ export function staleOpenEndedContextEvents(asOf = localDateISO()): StaleOpenEnd
           ORDER BY start_date, id LIMIT 100`
       )
       .all() as ContextEventRow[];
+    // An injury closed through its twin training symptom is closed, not open-ended.
+    rows = withSymptomClosures(rows as any[], today).filter((row: any) => !row.resolved_at) as ContextEventRow[];
   } catch {
     return [];
   }
@@ -226,7 +229,9 @@ function contextEventConfounders(expectation: BrainExpectation): string[] {
     .all(expectation.window_start, expectation.window_end, expectation.window_end, expectation.window_start) as Array<
     Record<string, unknown>
   >;
-  const overlapping = rows.filter((row) => {
+  // An injury closed through its twin training symptom ends on that symptom's date.
+  const closedRows = withSymptomClosures(rows, localDateISO());
+  const overlapping = closedRows.filter((row) => {
     // The SQL above lets every unclosed row through (a null end coalesces to the
     // window's own end); the horizon is what decides whether it is still running.
     const end = contextEventEffectiveEnd(row);

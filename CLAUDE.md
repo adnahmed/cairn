@@ -347,7 +347,10 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   Check-in `energy`/
   `sleep_feel` still brake at ≤2 and support at ≥4, but a `3` is genuinely NEUTRAL (it still emits an
   observation, so a tapped-in athlete never reads as untracked) — never round it to a brake or a
-  support vote. Chat can write the same check-in via the `log_checkin` action
+  support vote. **A tap alone eases, it never rests**: a felt brake takes the whole day only with an
+  objective witness about the same 24 hours (`FELT_REST_CORROBORATION`, `signal-state.ts`), and a poor
+  sleep-feel beside an energy ≥4 tap is an advisory caveat (`sleep_feel_mixed`). Details in
+  `docs/ARCHITECTURE.md` "A check-in tap is slight input". Chat can write the same check-in via the `log_checkin` action
   (`src/chatActions.ts`), 1–5 scales only, and a free-text note there is routed through symptom
   capture only when the athlete's own words carry symptom intent — never automatically.
 - **Deload-due is earned by loaded weeks and a log-confirmed shortfall, never the calendar.**

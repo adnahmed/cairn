@@ -15,10 +15,12 @@
 // - a run logged today is named beside the lift, never instead of it ("Run in · Pull
 //   still open").
 //
-// Deterministic and cheap: it reads the persisted day read and never computes one.
+// Deterministic and cheap: it reads the persisted day read, and computes the
+// deterministic floor only when no row exists at all (the floor the Brief would serve).
 import { db } from "../db.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
 import { getCachedDayRead } from "./day-read-cache.js";
+import { dayRead } from "./day-read.js";
 import { activitySportWhere, RUN_SPORT_PATTERNS } from "./endurance-sports.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
 import {
@@ -48,6 +50,8 @@ export interface TodayStrengthLine {
   state: TodayStrengthState;
   /** The read's suggestion for today, carried as a caveat on the plan day. */
   suggestion: "easy" | "rest" | null;
+  /** The suggestion as a few words beside the plan day's name ("Pull · lighter today"). */
+  suggestion_label: string | null;
   caveat: string | null;
   run_in: { km: number | null } | null;
   /** Most of the accepted session's slots were substituted off the plan day. */
@@ -136,7 +140,16 @@ function acceptedComposition(date: string): { reshaped: boolean; decisionKind: s
 function suggestionFor(date: string, decisionKind: string | null): "easy" | "rest" | null {
   let readKind: string | null = null;
   try {
-    readKind = getCachedDayRead(date)?.kind ?? null;
+    // Stale rows included: `invalidateDayRead` only MARKS the Brief's row (a check-in, a
+    // sync), and hiding it here left the line with no caveat on the very morning the
+    // Brief was still saying rest — two voices for one day. The marked row is the last
+    // thing the Brief said, and the Brief's next open reconciles it in place.
+    const cached = getCachedDayRead(date, { includeStale: true });
+    // No row at all: an invalidation DELETES a deterministic row, and the Brief then
+    // serves the deterministic floor on its next open. Say what that floor says rather
+    // than nothing — the one computed read here, and only on a day with a lift still
+    // open (the caller's gate).
+    readKind = cached ? (cached.kind ?? null) : (dayRead(date)?.kind ?? null);
   } catch {
     readKind = null;
   }
@@ -162,6 +175,13 @@ const CAVEAT: Record<"easy" | "rest", ((name: string) => string)[]> = {
     (name) => `Today reads as rest — ${name} is still there whenever you want it.`,
     (name) => `The read leans toward rest — ${name} is still yours to pick up.`,
   ],
+};
+
+// The short form a strip cell prints beside the plan day's NAME — still a suggestion,
+// never a replacement title and never a gate.
+const SUGGESTION_LABEL: Record<"easy" | "rest", string> = {
+  easy: "lighter today",
+  rest: "rest suggested",
 };
 
 function caveatFor(suggestion: "easy" | "rest", name: string, date: string): string {
@@ -279,6 +299,7 @@ export function todayStrengthLine(date?: string): TodayStrengthLine {
     role,
     state,
     suggestion,
+    suggestion_label: suggestion && name ? SUGGESTION_LABEL[suggestion] : null,
     caveat: suggestion && name ? caveatFor(suggestion, name, d) : null,
     run_in: run,
     reshaped,

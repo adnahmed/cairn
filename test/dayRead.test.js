@@ -409,6 +409,39 @@ test("the drive read has a hard ceiling: at five hard days the read is easy, not
   assert.equal(four.decision.rule_code, "push_drive_targeted_training");
 });
 
+// The stack IS the week (2026-09-29): five days in a row that all sat on the athlete's
+// own stated lifting week, with nothing in the last three days saying it cost them, are
+// the plan — not an overload signal. The ceiling falls back to the stacked-days caveat.
+test("a clean stated rhythm carries the five-day ceiling; the count alone no longer eases it", () => {
+  seedDriveMorning({ days: 5 });
+  repo.setProfile({
+    strength_schedule: {
+      days: [0, 1, 2, 3, 4, 5, 6].map((dow) => ({ dow })),
+      source: "athlete",
+      updated_at: DRIVE_REF,
+    },
+  });
+  const r = repo.dayRead(DRIVE_REF);
+  assert.equal(r.signals.consecutive_training_days, 5);
+  assert.equal(r.kind, "train", "the athlete's own week, kept clean, is a training day");
+  assert.equal(r.decision.rule_code, "planned_training");
+  saysOneCaveat(r.why, "planned_training:stacked_days");
+
+  // A genuine signal still decides: the same stack on a genuinely short night with a
+  // run-down tap rests exactly as before.
+  seedDriveMorning({ days: 5 });
+  repo.setProfile({
+    strength_schedule: {
+      days: [0, 1, 2, 3, 4, 5, 6].map((dow) => ({ dow })),
+      source: "athlete",
+      updated_at: DRIVE_REF,
+    },
+  });
+  repo.addCheckin(DRIVE_REF, { energy: 2, sleep_feel: 3 });
+  seedSleep(DRIVE_REF, 280);
+  assert.equal(repo.dayRead(DRIVE_REF).kind, "rest");
+});
+
 test("a low readiness reading keeps its rest whatever the drive says", () => {
   seedDriveMorning();
   repo.setSettings({ training_drive: "push" });
@@ -899,10 +932,12 @@ test("a corroborated short night on an injury day still names the work-around", 
   assert.doesNotMatch(r.why, /an active injury is worth easing/i);
 });
 
-test("low subjective check-in (low energy) forces REST", () => {
-  // checkin is read by date inside dayRead (getCheckinByDate(d)); seed it on REF.
+test("low subjective check-in (low energy) on a short night forces REST", () => {
+  // checkin is read by date inside dayRead (getCheckinByDate(d)); seed it on REF. The
+  // short night is the objective witness a tap needs to own the whole day.
   repo.savePlanDay(1, "Lower", "Lower body", [{ exercise: "Squat", sets: 3 }]);
   repo.addCheckin(REF, { energy: 1, sleep_feel: 2, mood: 2, soreness: 4 });
+  seedSleep(REF, 280);
   const r = repo.dayRead(REF, { has_data: false, recovery: {} });
   assert.equal(r.kind, "rest");
   // A low-energy check-in is a safety override, so the unified protect posture — not
@@ -2474,10 +2509,11 @@ test("a felt-recovery check-in leads the Brief in the athlete's own voice, and r
     const date = dayBefore(REF, back);
     repo.addCheckin(date, { sleep_feel: 1, energy: 3, mood: 3 });
     const read = repo.dayRead(date, { has_data: false, recovery: {} });
-    assert.equal(read.kind, "rest");
+    // A lone tap with nothing objective behind it: a lighter day, in its own words.
+    assert.equal(read.kind, "easy");
     assert.equal(read.decision.rule_code, "acute_signal_protection");
-    assert.equal(read.signals.signal_state.action.voice.key, "sleep_feel_low");
-    saysOneOf(read.why, "acute_signal_protection:sleep_feel_low");
+    assert.equal(read.signals.signal_state.action.voice.key, "sleep_feel_light");
+    saysOneOf(read.why, "acute_signal_protection:sleep_feel_light");
     // The exact string the reviewer found on the Brief.
     assert.doesNotMatch(read.why, /The athlete feels poorly recovered/i);
     seen.push(read.why);
@@ -2800,12 +2836,12 @@ test("each reachable rule branch reports its own code and reason, never a generi
   assert.equal(stacked.decision.rule_code, "accumulated_load_rest");
   resetTables("logged_sets", "sessions", "context_events");
 
-  // A run-down check-in reaches rest through the unified protect posture, which
-  // sits ABOVE earned rest — so the code that reaches the ledger describes the
-  // rule that actually fired, not the one further down the list.
+  // A run-down check-in reaches the unified protect posture, which sits ABOVE earned
+  // rest — so the code that reaches the ledger describes the rule that actually
+  // fired, not the one further down the list. Alone, the tap reads lighter, not rest.
   repo.addCheckin(REF, { energy: 1, sleep_feel: 2 });
   const runDown = record(repo.dayRead(REF, { has_data: false, recovery: {} }));
-  assert.equal(runDown.kind, "rest");
+  assert.equal(runDown.kind, "easy");
   assert.equal(runDown.decision.rule_code, "acute_signal_protection");
   resetTables("checkins");
 
@@ -3401,14 +3437,26 @@ test("an illness holds the same line", () => {
   assert.notEqual(r.decision.rule_code, "outcome_feedback_soften");
 });
 
+test("an illness plus a run-down tap is still a rest day, in the illness's voice", () => {
+  repo.addContextEvent({ kind: "illness", title: "Head cold", start_date: REF });
+  repo.addCheckin(REF, { energy: 2, sleep_feel: 3, mood: 3, soreness: 2 });
+  const r = repo.dayRead(REF, { has_data: false, recovery: {} });
+  assert.equal(r.kind, "rest");
+  assert.doesNotMatch(r.why, /lighter version of the day/, `a tap's easy voice must not speak for an illness: ${r.why}`);
+});
+
 test("a felt-signal rest softens too, since that is the read they keep overruling", () => {
   // A low-energy check-in reaches rest through the unified protect posture, whose
   // evidence is recovery_capacity — nothing clinical, so the pattern applies.
   for (let i = 1; i <= 3; i++) seedOverriddenRest(dayBefore(REF, i));
   repo.addCheckin(REF, { energy: 1, sleep_feel: 3, mood: 3, soreness: 2 });
+  // A genuinely short night is the objective witness that lets the tap own a REST
+  // (a tap alone is a lighter day, and there would be no rest to soften).
+  seedSleep(REF, 280);
 
   const r = repo.dayRead(REF, { has_data: false, recovery: {} });
-  assert.equal(r.signals.signal_state.action.posture, "rest");
+  // (The scoped recovery argument keeps the night out of the signal state itself; the
+  // read's own last-night row is what corroborates the tap into a rest.)
   assert.equal(r.kind, "easy");
   assert.equal(r.decision.rule_code, "outcome_feedback_soften");
 });
@@ -3457,12 +3505,13 @@ test("a softened easy day they actually TOOK sends the next morning back to rest
   // Three rest mornings trained through, then the eased day they simply took.
   for (let i = 6; i >= 4; i--) seedOverriddenRest(dayBefore(REF, i));
   seedSoftenedEasy(dayBefore(REF, 3), { trained: false });
-  // A low-energy check-in reaches rest through the protect posture (nothing clinical),
-  // so the only question left is whether the softening still has evidence to spend.
+  // A low-energy check-in on a short night reaches rest through the protect posture
+  // (nothing clinical), so the only question left is whether the softening still has
+  // evidence to spend.
   repo.addCheckin(REF, { energy: 1, sleep_feel: 3, mood: 3, soreness: 2 });
+  seedSleep(REF, 280);
 
   const r = repo.dayRead(REF, { has_data: false, recovery: {} });
-  assert.equal(r.signals.signal_state.action.posture, "rest");
   assert.equal(r.kind, "rest", "honoring the eased day is the athlete agreeing with the read");
   assert.notEqual(r.decision.rule_code, "outcome_feedback_soften");
   assert.equal(r.signals.outcome_feedback.active, false);
@@ -3474,6 +3523,7 @@ test("the same week with that eased day trained through stays soft", () => {
   for (let i = 6; i >= 4; i--) seedOverriddenRest(dayBefore(REF, i));
   seedSoftenedEasy(dayBefore(REF, 3));
   repo.addCheckin(REF, { energy: 1, sleep_feel: 3, mood: 3, soreness: 2 });
+  seedSleep(REF, 280);
 
   const r = repo.dayRead(REF, { has_data: false, recovery: {} });
   assert.equal(r.kind, "easy");

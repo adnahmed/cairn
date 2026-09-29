@@ -188,6 +188,16 @@ export const DAY_READ_OUTCOMES = {
       "You checked in feeling run-down.",
     ],
   },
+  // The same check-in as felt_run_down_rest with nothing objective behind it (owner
+  // ruling, 2026-09-29: a tap is slight input). A lighter day, never a rest day.
+  felt_low_easy: {
+    code: "felt_low_easy",
+    reasons: [
+      "You checked in a little low today, so the day stays on the lighter side.",
+      "Your own check-in says today should be lighter, not off.",
+      "You tapped in low this morning, and nothing else says to stop — so, lighter.",
+    ],
+  },
   logged_light_work_today: {
     code: "logged_light_work_today",
     reasons: [
@@ -351,6 +361,10 @@ export const REST_GRADE_READINESS_WHY: readonly string[] = [
 // this rule and the protect posture below, and two literals for one trigger is
 // exactly how the same morning ends up reading in two different voices.
 export const RUN_DOWN_WHY: readonly string[] = signalVoice({ key: "felt_energy_low" });
+// …and the lighter day the same tap earns when nothing objective agrees with it. The
+// words are the protect posture's own light voices, borrowed for the same reason.
+export const FELT_LOW_ENERGY_EASY_WHY: readonly string[] = signalVoice({ key: "felt_energy_light" });
+export const FELT_LOW_SLEEP_EASY_WHY: readonly string[] = signalVoice({ key: "sleep_feel_light" });
 export const LIGHT_WORK_WHY: readonly string[] = [
   "You've already moved today — keep the rest of it easy.",
   "Something's already on the board today, so keep the rest gentle.",
@@ -1126,6 +1140,7 @@ export const DAY_READ_WHY_VARIANTS: Readonly<Record<string, readonly string[]>> 
   low_readiness_rest: LOW_READINESS_WHY,
   rest_grade_readiness: REST_GRADE_READINESS_WHY,
   felt_run_down_rest: RUN_DOWN_WHY,
+  felt_low_easy: [...FELT_LOW_ENERGY_EASY_WHY, ...FELT_LOW_SLEEP_EASY_WHY],
   logged_light_work_today: LIGHT_WORK_WHY,
   endurance_volume_spike: VOLUME_SPIKE_WHY,
   chronic_sleep_watch: CHRONIC_SLEEP_WHY,
@@ -1202,6 +1217,8 @@ export const DAY_READ_REQUIRED_CONCEPT: Readonly<Record<string, RegExp>> = {
   // argument, and a phrasing that stops naming it is an unexplained rest day.
   rest_grade_readiness: /\b(?:readiness|reading)\b/i,
   felt_run_down_rest: /\b(?:run-down|low)\b/i,
+  // A lighter day, never a stop: a phrasing that drops the lightness reads as rest.
+  felt_low_easy: /\b(?:light|lighter|edge)\b/i,
   logged_light_work_today: /\b(?:moved|movement|board)\b/i,
   endurance_volume_spike: /\b(?:running|run|mileage)\b/i,
   chronic_sleep_watch: /\bsleep\b/i,

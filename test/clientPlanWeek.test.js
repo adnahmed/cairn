@@ -344,6 +344,23 @@ test("today's cell with an open session reads in progress, never done", () => {
   assert.equal(week.statusLine(wed), "In progress · Wed");
 });
 
+// One day, one voice: the day read's suggestion rides on today's cell verbatim from the
+// server's strength line — the plan day keeps its NAME, the suggestion replaces only the
+// bare "Today" status word.
+test("today's cell carries the day read's suggestion, never a replacement title", () => {
+  const week = loadPlanWeek();
+  const tue = {
+    ...liftDay("2026-04-21", "Tue", 2, 2, "Pull", "today"),
+    suggestion: { kind: "easy", label: "lighter today", caveat: "Today reads easy — Pull is still yours." },
+  };
+  assert.equal(week.statusLine(tue), "Lighter today · Tue");
+  const html = week.stripHtml({ days: [tue], progress: { line: null }, layout: { clean: true } });
+  assert.match(html, />Pull</, "the plan day's name stays the cell's label");
+  assert.match(html, /Lighter today/);
+  // No suggestion: the plain word.
+  assert.equal(week.statusLine(liftDay("2026-04-21", "Tue", 2, 2, "Pull", "today")), "Today · Tue");
+});
+
 // ---- mobile dot strip + tap for detail ----
 
 function mobileWeek() {

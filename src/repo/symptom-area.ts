@@ -61,6 +61,8 @@ const AREA_TERMS: ReadonlyArray<{ re: RegExp; label: string }> = [
   { re: /\bplantar\b/, label: "plantar fascia" },
   { re: /\bfoot\b|\bfeet\b/, label: "foot" },
   { re: /\bshin\b|\bshins\b|\btib(?:ialis)?\b/, label: "shin" },
+  // The flank is TRUNK, and its own place: an oblique note is never read as "back".
+  { re: /\bobliques?\b|\bflanks?\b|\bintercostals?\b/, label: "oblique" },
   { re: /\bsternum\b/, label: "sternum" },
   { re: /\brib\b|\bribs\b/, label: "rib" },
   { re: /\bpec\w*\b/, label: "chest" },
@@ -89,6 +91,24 @@ export function symptomAreaVocabularyLabel(value: unknown): string | null {
   if (!best) return null;
   const side = SIDE_RE.exec(text.slice(Math.max(0, best.index - 24), best.index));
   return side ? `${side[1]} ${best.label}` : best.label;
+}
+
+/**
+ * Every distinct place the text names, bare of side ("knee and hip pain" → knee, hip).
+ * The terms are ordered most-specific first, and each match is consumed before the
+ * next term looks, so "lower back" is one place, never "lower back" plus "back".
+ */
+export function symptomAreaVocabularyLabels(value: unknown): string[] {
+  let text = String(value ?? "").toLowerCase();
+  if (!text) return [];
+  const labels = new Set<string>();
+  for (const term of AREA_TERMS) {
+    const all = new RegExp(term.re.source, "g");
+    if (!all.test(text)) continue;
+    labels.add(term.label);
+    text = text.replace(all, (hit) => " ".repeat(hit.length));
+  }
+  return [...labels];
 }
 
 /**

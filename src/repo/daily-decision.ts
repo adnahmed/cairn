@@ -9,15 +9,14 @@ import {
   inferExerciseEquipment,
   parseEquipmentCapability,
 } from "./equipment-capability.js";
-import { harmEvidenceOnDay, withMorningReadiness } from "./brain/read-adherence.js";
+import { withMorningReadiness } from "./brain/read-adherence.js";
 import { canonicalGroup, classifyMuscleGroup, resolveExerciseName } from "./exercise-canon.js";
 import { findExercise } from "./exercises.js";
 import { flexibleTrainingAgenda } from "./flexible-training-agenda.js";
 import { getInjuryImpacts, listContextEvents } from "./health.js";
 import { type AcuteGateReading, RUN_PRIME_GROUPS, acuteGates, recentEnduranceImpacts } from "./hybrid-load.js";
 import { getPlanDay } from "./plan.js";
-import { isStatedRunDay, isoDow } from "./profile.js";
-import { strengthScheduleRead } from "./strength-schedule.js";
+import { type StatedRhythm, statedRhythmRead } from "./stated-rhythm.js";
 import {
   HEAVY_LOWER_GROUPS,
   planDayFocus,
@@ -372,13 +371,7 @@ export interface DailyDecisionSnapshot {
   // `recent_harm_free`: nothing in the last three days says the work cost them
   // (harmEvidenceOnDay). Together, with no deciding brake, they are the license that
   // stops a stack of days from holding intensity by itself.
-  stated_rhythm?: {
-    source: "stated" | "observed" | "run_only";
-    lift_day: boolean;
-    run_day: boolean;
-    streak_on_rhythm: boolean;
-    recent_harm_free: boolean;
-  };
+  stated_rhythm?: StatedRhythm;
   // Today is a lifting weekday, endurance is already logged, and the lifting is still
   // undone (dayRead's `lift_day_open_after`). `rest_grade` marks a morning whose quiet
   // read stands on its own: a rest-grade MORNING readiness, a rest posture, or a rule
@@ -1265,48 +1258,6 @@ const REST_GRADE_READ_RULES: ReadonlySet<string> = new Set([
   // A lab draw is a hold on the work itself (CK, AST, creatinine), not a quiet read.
   "lab_draw_morning",
 ]);
-
-// How far back "the work has not cost them" reads. Fresh means the last few days, not
-// the whole streak: a physiology brake a week ago is not news about this morning.
-const RHYTHM_HARM_WINDOW_DAYS = 3;
-const RHYTHM_STREAK_LOOKBACK_DAYS = 7;
-
-function statedRhythmRead(date: string, consecutive: number | null): DailyDecisionSnapshot["stated_rhythm"] | undefined {
-  const lift = safe(() => strengthScheduleRead(date), null);
-  const liftDows = new Set((lift?.days ?? []).map((day) => Number(day.dow)));
-  const runWeek = safe(() => isStatedRunDay(date) != null, false);
-  if (!liftDows.size && !runWeek) return undefined;
-  const runDay = (iso: string) => safe(() => isStatedRunDay(iso) === true, false);
-  const liftDay = (iso: string) => liftDows.has(isoDow(iso));
-  const onRhythm = (iso: string) => liftDay(iso) || runDay(iso);
-  if (!onRhythm(date)) return undefined;
-  const streak = Math.min(Math.max(0, Math.floor(consecutive ?? 0)), RHYTHM_STREAK_LOOKBACK_DAYS);
-  let streakOnRhythm = true;
-  for (let i = 1; i <= streak; i++) {
-    const iso = addDaysISO(date, -i);
-    if (!iso || !onRhythm(iso)) {
-      streakOnRhythm = false;
-      break;
-    }
-  }
-  let recentHarmFree = true;
-  for (let i = 1; i <= RHYTHM_HARM_WINDOW_DAYS; i++) {
-    const iso = addDaysISO(date, -i);
-    if (!iso) continue;
-    // Fail closed: an unreadable day is not evidence that the work was free.
-    if (safe(() => harmEvidenceOnDay(iso) != null, true)) {
-      recentHarmFree = false;
-      break;
-    }
-  }
-  return {
-    source: liftDows.size ? (lift?.source === "observed" ? "observed" : "stated") : "run_only",
-    lift_day: liftDay(date),
-    run_day: runDay(date),
-    streak_on_rhythm: streakOnRhythm,
-    recent_harm_free: recentHarmFree,
-  };
-}
 
 // ---- a lift that has outgrown a shallow hold (owner ruling, 2026-09-23) ----
 // Two of its last three exposures met the TOP of the prescribed rep range on every
@@ -2392,9 +2343,20 @@ export function buildDailySessionDecision(
     ...snapshot.muscle_load.filter((m) => m.saturated).map((m) => m.group),
     ...snapshot.program.volume_high_groups,
   ]);
-  if (saturated.length) {
+  // Only the groups TODAY's plan day actually trains speak as a saturation note: a
+  // Push day's chest and triceps are not news about a Pull morning (owner ruling,
+  // 2026-09-29). The full list still routes composition (`muscles.saturated`) and the
+  // leg residual below; with no plan day to scope against, every group speaks.
+  const planGroups = new Set(
+    snapshot.plan_items
+      .filter((item) => item.kind !== "cardio")
+      .map((item) => canonicalGroup(item.muscle_group ?? null) ?? classifyMuscleGroup(item.exercise))
+      .filter((group): group is NonNullable<typeof group> => group != null)
+  );
+  const saturatedToday = planGroups.size ? saturated.filter((group) => planGroups.has(group as any)) : saturated;
+  if (saturatedToday.length) {
     fire(precedence, "muscle_saturated");
-    soft.push({ code: "muscle_saturated", detail: `Recently saturated: ${saturated.join(", ")}` });
+    soft.push({ code: "muscle_saturated", detail: `Recently saturated: ${saturatedToday.join(", ")}` });
   }
   // ---- the leg residual finally gates CARDIO too (owner ruling, 2026-08-28) ----
   // Every one of these inputs was already on the snapshot and none of them reached a

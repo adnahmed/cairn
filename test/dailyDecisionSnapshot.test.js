@@ -50,9 +50,11 @@ function seedRestBaseline() {
   for (const date of ["2031-06-07", "2031-06-08", "2031-06-09"]) {
     repo.logSetByName({ date, exercise: "Back Squat", weight: 185, reps: 5, day_number: null });
   }
-  // A first-person low-recovery check-in is an unambiguous deterministic rest
-  // input even when the test database has no wearable history.
+  // A first-person low-recovery check-in on a genuinely short night: the tap has its
+  // objective witness, so it is an unambiguous deterministic rest input (a tap alone
+  // is a lighter day since the 2026-09-29 ruling).
   repo.addCheckin(DATE, { sleep_feel: 1, energy: 3, mood: 3 });
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(DATE);
 }
 
 test("gathering the same date twice yields an identical fingerprint", () => {

@@ -11,6 +11,8 @@ import {
   recordSymptomReport,
 } from "./symptom-reports.js";
 import { requireIsoDate } from "../lib/dates.js";
+import { invalidateDayRead } from "./day-read-cache.js";
+import { bumpTrainingDataVersion } from "./training-cache.js";
 
 export type SymptomFreshness = "acute_movement_brake" | "hold_easy_recheck" | "stale_needs_recheck";
 
@@ -683,7 +685,20 @@ export function resolveTrainingSymptom(id: number, on = localDateISO()): Trainin
   ).run(resolvedOn, Number(id));
   const event = getTrainingSymptom(id, resolvedOn);
   reconcileTrainingSymptomOutcomeDates(resolvedOn);
+  symptomLifecycleChanged();
   return event;
+}
+
+// A symptom closing or coming back changes what TODAY may load, and the injury
+// event it stands for (injury-symptom-link.ts) — so the memoized training reads and
+// the cached Brief both have to hear about it, the way a resolved context event does.
+function symptomLifecycleChanged(): void {
+  bumpTrainingDataVersion();
+  try {
+    invalidateDayRead();
+  } catch {
+    /* best-effort: the next open recomputes */
+  }
 }
 
 /**
@@ -806,6 +821,7 @@ export function recurTrainingSymptom(
     db.exec("RELEASE recur_training_symptom");
     const recurred = getTrainingSymptom(eventId, on);
     reconcileTrainingSymptomOutcomeDates(on);
+    symptomLifecycleChanged();
     return recurred;
   } catch (error) {
     try {

@@ -397,6 +397,18 @@ export const SIGNAL_VOICE = {
       "Low by your own account today, so let this one be a rest day.",
     ],
   },
+  // The same run-down tap WITHOUT anything objective behind it (see
+  // FELT_REST_CORROBORATION): a lighter day, not a rest day, and it still says so in
+  // the athlete's own terms.
+  felt_energy_light: {
+    concept: /\b(?:run-down|low)\b/i,
+    variants: [
+      "You're feeling a bit run-down today, so keep the work on the lighter side.",
+      "You said you're low today — still move, just take the edge off.",
+      "Feeling run-down by your own account, so today's work stays light.",
+      "You're running low today; a lighter version of the day fits better than a hard one.",
+    ],
+  },
   felt_energy_ok: {
     concept: /\benergy\b/i,
     variants: [
@@ -413,6 +425,25 @@ export const SIGNAL_VOICE = {
       "By your own read you're not rested today, so today is for recovering.",
       "You haven't woken up rested, and that's worth listening to ahead of anything a watch says.",
       "However you slept, you don't feel recovered — today is for getting some of that back.",
+    ],
+  },
+  sleep_feel_light: {
+    concept: /\b(?:rested|recovered|slept)\b/i,
+    variants: [
+      "You don't feel fully rested this morning, so keep today on the lighter side.",
+      "You woke up not quite recovered — move today, just take the edge off.",
+      "By your own read you slept poorly, so today's work stays light.",
+      "However you slept, you don't feel rested yet — a lighter day fits.",
+    ],
+  },
+  // A short night by the athlete's own read, on a morning they ALSO said they feel
+  // good. Their energy answers the sleep question; the night rides as a caveat only.
+  sleep_feel_mixed: {
+    concept: /\b(?:slept|sleep|night)\b/i,
+    variants: [
+      "The night was short by your own read, but you feel good — let the warm-up tell you how hard to go.",
+      "You didn't sleep your best, and you still feel good; train, and let the first sets set the pace.",
+      "A rougher night, a good feeling this morning — go by how the warm-up feels.",
     ],
   },
   sleep_feel_ok: {
@@ -1433,7 +1464,40 @@ function planningDirectives(dimensions: Record<SignalDimension, SignalDimensionS
 // them — it is the contract written down, for a caller assembling raw observations.)
 const FELT_PROTECT_FIELDS: ReadonlySet<string> = new Set(["felt_energy", "sleep_feel", "illness"]);
 
-function actionState(dimensions: Record<SignalDimension, SignalDimensionState>) {
+// ---- A TAP IS SLIGHT INPUT (owner ruling, 2026-09-29) ----
+//
+// A check-in is one tap the athlete gives "no big thought". On its own it used to own
+// the whole day: a single sleep-feel 2 — on a morning they also tapped energy 5 —
+// turned a planned Pull day into REST. That is the tap carrying a weight the athlete
+// never put on it. So a felt brake now takes the day only when something OBJECTIVE
+// agrees with it about the same 24 hours:
+//   • last night's own HRV or resting HR past the athlete's band (a caution that is
+//     not `advice_only` — an older reading rides as context and cannot corroborate),
+//   • last night's sleep genuinely short (the `sleep` observation at constraint), or
+//   • yesterday's harm evidence (a rated-poor session, an unplanned longest run, a
+//     hard effort the next morning did not vouch for — `harmEvidenceOnDay`).
+// Without one, the felt brake falls to the recovery rung below and the day reads
+// EASY — lighter, still moving — in words that say so. Illness is not a tap about
+// how they slept; "I'm sick" keeps the day on its own. A rest-grade readiness reading
+// is its own rule in day-read (above the protect rule) and needs no help from here.
+const FELT_REST_CORROBORATION = (item: ResolvedSignalEvidence): boolean =>
+  item.dimension === "recovery_capacity" &&
+  (((item.field === "hrv" || item.field === "resting_hr") &&
+    (item.direction === "caution" || item.direction === "constraint") &&
+    item.advice_only !== true) ||
+    (item.field === "sleep" && item.direction === "constraint"));
+
+// The easy-day voice of an uncorroborated felt brake: the same evidence, spoken as
+// a lighter day rather than as rest.
+const FELT_LIGHT_VOICE: Readonly<Record<string, SignalVoiceKey>> = {
+  felt_energy: "felt_energy_light",
+  sleep_feel: "sleep_feel_light",
+};
+
+function actionState(
+  dimensions: Record<SignalDimension, SignalDimensionState>,
+  context: { harmYesterday?: string | null } = {}
+) {
   // `dimension.evidence` deliberately still carries context-only items, so the posture
   // ladder filters them here. Note the `!active.length` rung further down: without this
   // filter a single context-only observation would be enough to turn an
@@ -1443,23 +1507,39 @@ function actionState(dimensions: Record<SignalDimension, SignalDimensionState>) 
   );
   const done = active.find((item) => item.field === "completed_today" && item.direction === "support");
   if (done) return { readiness: "complete" as const, posture: "done" as const, evidence: [done] };
-  const feltProtect = active.find(
+  // The rest rung is decided over the WHOLE felt set, never the first match: dimension
+  // order puts recovery_capacity (a tap) ahead of health_constraints (illness), so a
+  // `find` handed back the tap on a sick morning with an energy-2 check-in, the
+  // corroboration test failed, and illness-plus-a-tap read EASY where illness alone
+  // read rest. Illness rests on its own and leads the evidence, so its voice speaks.
+  const feltProtect = active.filter(
     (item) =>
       item.safety_override &&
       item.direction === "constraint" &&
       FELT_PROTECT_FIELDS.has(item.field) &&
       item.age_days === 0
   );
-  if (feltProtect) return { readiness: "protect" as const, posture: "rest" as const, evidence: [feltProtect] };
+  const illness = feltProtect.find((item) => item.field === "illness");
+  if (illness) return { readiness: "protect" as const, posture: "rest" as const, evidence: [illness] };
+  if (feltProtect.length && (!!context.harmYesterday || active.some(FELT_REST_CORROBORATION)))
+    return { readiness: "protect" as const, posture: "rest" as const, evidence: [feltProtect[0]] };
   // Recovery and accumulated-load protection own the overall posture before a
   // simultaneous health work-around. The health dimension remains intact, so an
   // injury still caveats any movement; it just cannot reopen hard training on a
   // day the canonical recovery/load state has already made easy.
-  const recoveryConstraints = active.filter(
-    (item) =>
-      (item.dimension === "recovery_capacity" || item.dimension === "training_load_tolerance") &&
-      item.direction === "constraint"
-  );
+  const recoveryConstraints = active
+    .filter(
+      (item) =>
+        (item.dimension === "recovery_capacity" || item.dimension === "training_load_tolerance") &&
+        item.direction === "constraint"
+    )
+    // An uncorroborated felt brake reaches here (above) and is spoken as the lighter
+    // day it now earns — never with the rest-day words it no longer owns.
+    .map((item) =>
+      item.voice && FELT_LIGHT_VOICE[item.field] && item.voice.key !== FELT_LIGHT_VOICE[item.field]
+        ? { ...item, voice: { ...item.voice, key: FELT_LIGHT_VOICE[item.field] } }
+        : item
+    );
   if (recoveryConstraints.length)
     return { readiness: "protect" as const, posture: "easy" as const, evidence: recoveryConstraints };
   const healthConstraints = active.filter(
@@ -1586,8 +1666,25 @@ export function hasFreshBrake(dimensions: Record<SignalDimension, SignalDimensio
 // is entitled to answer that one. See `advisory_brake` on SignalObservation.
 // Exported for day-read's stacked-load corroboration: a REST is a decision, so only a
 // brake that may decide can corroborate one.
-export function hasFreshDecidingBrake(dimensions: Record<SignalDimension, SignalDimensionState>): boolean {
-  return freshBearingEvidence(dimensions).some((item) => isBrakeEvidence(item) && !isAdvisoryBrake(item));
+export function hasFreshDecidingBrake(
+  dimensions: Record<SignalDimension, SignalDimensionState>,
+  opts: { exceptFelt?: boolean } = {}
+): boolean {
+  return freshBearingEvidence(dimensions).some(
+    (item) =>
+      isBrakeEvidence(item) && !isAdvisoryBrake(item) && !(opts.exceptFelt && FELT_CHECKIN_FIELDS.has(item.field))
+  );
+}
+
+// The two check-in taps. A tap alone is slight input (see FELT_REST_CORROBORATION):
+// day-read asks `exceptFelt` wherever an UNcorroborated tap must not be the thing that
+// corroborates a rest on its own.
+export const FELT_CHECKIN_FIELDS: ReadonlySet<string> = new Set(["felt_energy", "sleep_feel"]);
+
+// Whether anything OBJECTIVE on the board agrees with a felt brake about the same 24
+// hours — the same predicate the posture ladder uses (harm evidence is the caller's).
+export function hasFeltRestCorroboration(dimensions: Record<SignalDimension, SignalDimensionState>): boolean {
+  return freshBearingEvidence(dimensions).some(FELT_REST_CORROBORATION);
 }
 
 // The same set, NAMED by field — what a caller has to cite to claim a deciding brake.
@@ -1672,6 +1769,10 @@ export interface UnifiedSignalStateOptions {
   // the conservative direction: an unnamed series is only ever spoken of as
   // "readings", never as nights (see WearAbsenceView.measures).
   sensorCadenceField?: string | null;
+  // Yesterday's harm evidence (`harmEvidenceOnDay(d-1)`, read-adherence.ts) — a kind
+  // label, or null. It decides ONE thing: whether a felt check-in brake may take the
+  // whole day (see FELT_REST_CORROBORATION). Absent is absence; it never adds a brake.
+  harmYesterday?: string | null;
 }
 
 export function buildUnifiedSignalState(
@@ -1686,7 +1787,7 @@ export function buildUnifiedSignalState(
   const dimensions = Object.fromEntries(
     DIMENSIONS.map((dimension) => [dimension, dimensionState(dimension, resolved, sensorAbsence)])
   ) as Record<SignalDimension, SignalDimensionState>;
-  const action = actionState(dimensions);
+  const action = actionState(dimensions, { harmYesterday: options.harmYesterday ?? null });
   const directives = planningDirectives(dimensions);
   const reasons = action.evidence
     .map((item) => item.summary)
@@ -1796,6 +1897,8 @@ export function planningSignalState(input: {
    * is read here, through the same predicate the run builder caps the week with.
    */
   directives?: any[];
+  /** Yesterday's harm evidence kind (`harmEvidenceOnDay(d-1)?.kind`), or null. See UnifiedSignalStateOptions. */
+  harmYesterday?: string | null;
 }): UnifiedSignalState {
   const date = input.date;
   const observations: SignalObservation[] = [];
@@ -2285,7 +2388,13 @@ export function planningSignalState(input: {
   // Same ladder, and neutral emits here for the same reason: a 3 is a check-in the
   // athlete filled in, so the field stays in coverage without reaching the support
   // rung or any brake.
+  //
+  // A low sleep-feel on a morning the athlete ALSO tapped good energy (≥4) is MIXED:
+  // they are telling us the night was poor and that they feel good anyway. Their own
+  // energy answers the sleep question, so the night rides as a caution — a caveat on
+  // the day — and never as the safety-override brake it is when it stands alone.
   const sleepFeel = checkin?.sleep_feel == null ? null : Number(checkin.sleep_feel);
+  const sleepFeelMixed = sleepFeel != null && sleepFeel <= 2 && energy != null && energy >= 4;
   if (sleepFeel != null)
     observations.push(
       observation(
@@ -2293,16 +2402,21 @@ export function planningSignalState(input: {
         "sleep_feel",
         date,
         "user_checkin",
-        sleepFeel <= 2 ? "constraint" : sleepFeel >= 4 ? "support" : "neutral",
-        sleepFeel <= 2
-          ? "The athlete feels poorly recovered despite any wearable reading."
-          : sleepFeel >= 4
-            ? "The athlete feels well rested today."
-            : "The athlete feels reasonably rested today.",
+        sleepFeelMixed ? "caution" : sleepFeel <= 2 ? "constraint" : sleepFeel >= 4 ? "support" : "neutral",
+        sleepFeelMixed
+          ? "The athlete reports a poor night but feels good this morning."
+          : sleepFeel <= 2
+            ? "The athlete feels poorly recovered despite any wearable reading."
+            : sleepFeel >= 4
+              ? "The athlete feels well rested today."
+              : "The athlete feels reasonably rested today.",
         {
-          voice: { key: sleepFeel <= 2 ? "sleep_feel_low" : "sleep_feel_ok" },
-          safety_override: sleepFeel <= 2,
+          voice: { key: sleepFeelMixed ? "sleep_feel_mixed" : sleepFeel <= 2 ? "sleep_feel_low" : "sleep_feel_ok" },
+          safety_override: sleepFeel <= 2 && !sleepFeelMixed,
           max_age_days: 0,
+          // The mixed night is ADVICE: it rides as a caveat on the day and decides
+          // nothing — their own energy tap already answered it.
+          ...(sleepFeelMixed ? { advisory_brake: true, advice_only: true } : {}),
         }
       )
     );
@@ -2894,5 +3008,6 @@ export function planningSignalState(input: {
   return buildUnifiedSignalState(date, observations, {
     sensorCadence: cadenceEntry?.cadence ?? null,
     sensorCadenceField: cadenceEntry?.field ?? null,
+    harmYesterday: input.harmYesterday ?? null,
   });
 }

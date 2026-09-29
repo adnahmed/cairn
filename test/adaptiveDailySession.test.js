@@ -772,6 +772,8 @@ test("canonical agent-job retry is idempotent after logging starts", () => {
 test("legacy session suggestions are revalidated against the current rest envelope at acceptance", () => {
   seedPlan();
   repo.addCheckin(DATE, { sleep_feel: 1, energy: 3, mood: 3 });
+  // A short night is the objective witness a check-in tap needs to own a rest (2026-09-29).
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(DATE);
   assert.equal(repo.decideDailySession(DATE).envelope.kind, "rest");
   const job = completedSuggestionJob({
     name: "Unbounded strength",
@@ -808,6 +810,8 @@ test("asking for a session on a rest day keeps its movements once accepted", () 
   // itself as the intent (train_anyway on the job), which is what carries through.
   seedPlan();
   repo.addCheckin(DATE, { sleep_feel: 1, energy: 3, mood: 3 });
+  // A short night is the objective witness a check-in tap needs to own a rest (2026-09-29).
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(DATE);
   assert.equal(repo.decideDailySession(DATE).envelope.kind, "rest");
 
   const asked = completedSuggestionJob(suggestedSession(), { train_anyway: true });
@@ -825,6 +829,8 @@ test("asking for a session on a rest day keeps its movements once accepted", () 
 test("legacy train-intent agent input persists train_anyway and conservative rest-day caps", () => {
   seedPlan();
   repo.addCheckin(DATE, { sleep_feel: 1, energy: 3, mood: 3 });
+  // A short night is the objective witness a check-in tap needs to own a rest (2026-09-29).
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(DATE);
   const job = completedSuggestionJob(suggestedSession(), { override: "push" });
   const accepted = prepare({
     date: DATE,
@@ -842,6 +848,8 @@ test("legacy train-intent agent input persists train_anyway and conservative res
 test("negated legacy override cannot become train_anyway during adaptive preparation", () => {
   seedPlan();
   repo.addCheckin(DATE, { sleep_feel: 1, energy: 3, mood: 3 });
+  // A short night is the objective witness a check-in tap needs to own a rest (2026-09-29).
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(DATE);
   const accepted = prepare({
     date: DATE,
     source: "adaptive_plan",

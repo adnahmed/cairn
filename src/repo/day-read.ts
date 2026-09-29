@@ -27,6 +27,7 @@ import {
   readAdherenceModel,
   restOverrideSoftening,
   type RestOverrideSoftening,
+  harmEvidenceOnDay,
   trainsAnywayWithoutHarm,
   withMorningReadiness,
 } from "./brain/read-adherence.js";
@@ -38,6 +39,7 @@ import { estimateExpenditure } from "./expenditure.js";
 import { flexibleTrainingAgenda } from "./flexible-training-agenda.js";
 import type { RunDayIntensity } from "./run-day-intensity.js";
 import { runDaySteerKey } from "./run-day-steer.js";
+import { statedRhythmRead } from "./stated-rhythm.js";
 import { planningContextEvents } from "./health.js";
 import { plainGroupWords } from "./exercise-canon.js";
 import { acuteGates, suppressSaturatedDue } from "./hybrid-load.js";
@@ -77,6 +79,8 @@ import { listTrainingSymptoms } from "./training-symptoms.js";
 import {
   dimensionIsAdviceOnly,
   hasFreshBrake,
+  FELT_CHECKIN_FIELDS,
+  hasFeltRestCorroboration,
   hasFreshDecidingBrake,
   freshDecidingBrakeFields,
   lifeCapacityIsCommitment,
@@ -156,6 +160,8 @@ import {
   RECOVERY_WEEK_CAVEAT,
   REST_GRADE_READINESS_WHY,
   RUN_DOWN_WHY,
+  FELT_LOW_ENERGY_EASY_WHY,
+  FELT_LOW_SLEEP_EASY_WHY,
   SLEEP_EXPOSURE_CAVEAT,
   STACKED_DAYS_CAVEAT,
   STACKED_LOAD_CEILING_WHY,
@@ -921,6 +927,7 @@ export interface DayPlanningSignalInputs {
   completedToday?: boolean;
   runIntensity?: any;
   directives?: any[];
+  harmYesterday?: string | null;
 }
 
 function signalInput<T>(compute: () => T, fallback: T): T {
@@ -983,10 +990,26 @@ export function dayPlanningSignalState(date: string, provided: DayPlanningSignal
           ),
         null
       );
+    const checkin = provided.checkin ?? signalInput(() => getCheckinByDate(date), null);
+    // Yesterday's harm evidence corroborates a felt check-in brake into a rest day
+    // (FELT_REST_CORROBORATION, signal-state.ts). Read only on a morning that HAS a
+    // felt brake — it decides nothing on any other.
+    const feltBrake =
+      checkin != null &&
+      ((checkin.energy != null && Number(checkin.energy) <= 2) ||
+        (checkin.sleep_feel != null && Number(checkin.sleep_feel) <= 2));
+    const yesterday = addDaysISO(date, -1);
+    const harmYesterday =
+      provided.harmYesterday !== undefined
+        ? provided.harmYesterday
+        : feltBrake && yesterday
+          ? signalInput(() => harmEvidenceOnDay(yesterday)?.kind ?? null, null)
+          : null;
     return planningSignalState({
       date,
       recovery,
-      checkin: provided.checkin ?? signalInput(() => getCheckinByDate(date), null),
+      harmYesterday,
+      checkin,
       trainingSignals: trainingSignalsView,
       programState,
       expenditure,
@@ -1564,9 +1587,16 @@ function computeDayRead(
   // acute_sleep_corroborated) and would make these two rules unreachable if they
   // shared that predicate.
   const chronicLowSleep = lowSleep && recentNight != null;
-  const lowSubjective =
-    checkin &&
-    ((checkin.energy != null && checkin.energy <= 2) || (checkin.sleep_feel != null && checkin.sleep_feel <= 2));
+  // A low sleep-feel on a morning the athlete ALSO tapped good energy is MIXED — a
+  // poor night they feel fine after — and is not a run-down check-in at all (the
+  // signal state speaks it as a caveat, `sleep_feel_mixed`).
+  const feltEnergyLow = !!checkin && checkin.energy != null && Number(checkin.energy) <= 2;
+  const feltSleepLow =
+    !!checkin &&
+    checkin.sleep_feel != null &&
+    Number(checkin.sleep_feel) <= 2 &&
+    !(checkin.energy != null && Number(checkin.energy) >= 4);
+  const lowSubjective = feltEnergyLow || feltSleepLow;
 
   // ---- predictive deload anticipation ----
   // Don't wait for 3 hard days to already be logged: read the acute-vs-chronic
@@ -2055,8 +2085,39 @@ function computeDayRead(
   //
   // The count itself is a CAVEAT. `accumulated_load_rest` as REST may fire only when
   // this rhythm is corroborated by a current signal — never from the calendar alone.
+  // ---- a tap is slight input (owner ruling, 2026-09-29) ----
+  // A run-down check-in takes the whole day only when something OBJECTIVE agrees about
+  // the same 24 hours: a rest-grade morning reading, a genuinely short night, last
+  // night's HRV/RHR past the athlete's own band, or yesterday's harm evidence
+  // (FELT_REST_CORROBORATION, signal-state.ts). Otherwise it is a lighter day
+  // (`felt_low_easy`), and it cannot on its own corroborate the stacked-days rest
+  // either — that would hand the tap back the weight this ruling takes off it.
+  const feltRestCorroborated =
+    lowSubjective &&
+    (restGradeReadiness ||
+      (lastNight?.total_min != null && Number(lastNight.total_min) > 0 && Number(lastNight.total_min) < 300) ||
+      hasFeltRestCorroboration(signalState.dimensions) ||
+      (() => {
+        const yesterday = addDaysISO(d, -1);
+        return !!yesterday && signalInput(() => harmEvidenceOnDay(yesterday) != null, false);
+      })());
   const stackedLoadingRest = consec >= 3 && !recoveryWeek;
-  const atHardCeiling = stackedLoadingRest && consec >= PUSH_DRIVE_CONSEC_CEILING;
+  const FELT_LIGHT_VOICE_KEYS: ReadonlySet<string> = new Set(["felt_energy_light", "sleep_feel_light"]);
+  // ---- the stack IS the week (owner ruling, 2026-09-29, the day-read half of 2026-09-23) ----
+  // An athlete who lifts five weekdays and runs three is "at the ceiling" most mornings
+  // by count alone. When every day of the streak sat on their own stated (or observed)
+  // week and nothing in the last three days says it cost them (stated-rhythm.ts — the
+  // same read the daily decision licenses from), the ceiling is the plan, not an
+  // overload signal: it falls back to the stacked-days caveat like any shorter run of
+  // days. A genuine corroborating signal still rests the day exactly as before.
+  const atCountCeiling = stackedLoadingRest && consec >= PUSH_DRIVE_CONSEC_CEILING;
+  const rhythmCarriesCeiling =
+    atCountCeiling &&
+    (() => {
+      const rhythm = signalInput(() => statedRhythmRead(d, consec), undefined);
+      return rhythm?.streak_on_rhythm === true && rhythm.recent_harm_free === true;
+    })();
+  const atHardCeiling = atCountCeiling && !rhythmCarriesCeiling;
   const recoveryCapacity = signalState.dimensions.recovery_capacity;
   // The brake is a CURRENT caution, not a watch status beside some fresh support: a
   // wearable caution kept only as context (a reading older than last night) never counts.
@@ -2066,7 +2127,8 @@ function computeDayRead(
       (item) =>
         (item.freshness === "fresh" || item.freshness === "recent") &&
         (item.direction === "caution" || item.direction === "constraint") &&
-        item.advice_only !== true
+        item.advice_only !== true &&
+        (feltRestCorroborated || !FELT_CHECKIN_FIELDS.has(item.field))
     );
   const tomorrowClinical = holdsTomorrow.some((hold) => hold.clinical === true);
   const stackedLoadCorroborated =
@@ -2077,11 +2139,12 @@ function computeDayRead(
     // already counts toward the run of days, and counting it twice would turn the
     // calendar back into a brake of its own.
     !!runNoveltyYesterday ||
-    lowSubjective ||
+    feltRestCorroborated ||
     yesterdayRecoveryOverdose ||
     // A rest is a DECISION, so only a brake that may decide corroborates one — fueling
-    // advice after a long run (an advisory brake) does not.
-    hasFreshDecidingBrake(signalState.dimensions) ||
+    // advice after a long run (an advisory brake) does not. An uncorroborated check-in
+    // tap is not one either (see feltRestCorroborated above).
+    hasFreshDecidingBrake(signalState.dimensions, { exceptFelt: !feltRestCorroborated }) ||
     recoveryCapacityFreshBrake ||
     clinicallyDriven(signalState, healthWorkaround) ||
     tomorrowClinical;
@@ -2179,13 +2242,38 @@ function computeDayRead(
         // the most common rest path repeated itself verbatim every morning a stable
         // check-in fired the same branch. The set rotates by calendar day like every
         // other rule; `summary` stays exactly as it is for coaches and machines.
+        // A felt tap the signal state could only ease (it saw nothing objective) may
+        // still be corroborated by what THIS read sees — last night's own sleep row, a
+        // rest-grade reading, yesterday's harm (feltRestCorroborated). Then it is the
+        // rest it always was, in the rest voice of the same tap: one trigger, one read.
+        const feltLight = FELT_LIGHT_VOICE_KEYS.has(String(signalState.action.voice?.key ?? ""));
+        const feltRest = signalState.action.posture === "easy" && feltLight && feltRestCorroborated;
+        // …and a tap alone may never read LOUDER than a rest the athlete's own week or
+        // word already gives the day: a day they claimed, or the week's rest day, stays
+        // the rest it is (the rules below own those), never "easy" off a tap.
+        if (
+          signalState.action.posture === "easy" &&
+          feltLight &&
+          !feltRestCorroborated &&
+          !trainedToday &&
+          !bigActivity &&
+          (holdsToday.some((hold) => hold.claims_day) || templateRestDay())
+        )
+          return null;
+        const kind = feltRest ? ("rest" as const) : signalState.action.posture;
+        const voice = feltRest
+          ? {
+              ...signalState.action.voice,
+              key: signalState.action.voice.key === "sleep_feel_light" ? "sleep_feel_low" : "felt_energy_low",
+            }
+          : signalState.action.voice;
         return {
           outcome: DAY_READ_OUTCOMES.acute_signal_protection,
           read: {
-            kind: signalState.action.posture,
+            kind,
             focus: null,
-            why: spokenSignalVoice(signalState.action.voice, d, SIGNAL_VOICE_KEYS.protect),
-            est_minutes: signalState.action.posture === "easy" ? 20 : null,
+            why: spokenSignalVoice(voice as typeof signalState.action.voice, d, SIGNAL_VOICE_KEYS.protect),
+            est_minutes: kind === "easy" ? 20 : null,
             signals,
           },
         };
@@ -2546,6 +2634,25 @@ function computeDayRead(
             },
           };
         }
+        if (!feltRestCorroborated) {
+          // The week's own rest day stays the rest it is — a tap never makes it louder.
+          if (templateRestDay()) return null;
+          // The tap alone: a lighter day, in the voice of whichever tap it was.
+          return {
+            outcome: DAY_READ_OUTCOMES.felt_low_easy,
+            read: {
+              kind: "easy",
+              focus: null,
+              why: pickDayVariant(
+                feltEnergyLow ? FELT_LOW_ENERGY_EASY_WHY : FELT_LOW_SLEEP_EASY_WHY,
+                d,
+                "felt_low_easy"
+              ),
+              est_minutes: 30,
+              signals,
+            },
+          };
+        }
         return {
           outcome: DAY_READ_OUTCOMES.felt_run_down_rest,
           read: {
@@ -2562,7 +2669,10 @@ function computeDayRead(
       resolve: () => {
         // An easy/light effort already done today (a short walk, a recovery spin a lifter
         // doesn't count as their real work) — acknowledge it without telling them to rest.
-        if (!(trainedToday || bigActivity)) return null;
+        // On a weekday they lift, a run is not the lifting (liftDayStillOpen): the easy
+        // run on a stated Pull + run day leaves the Pull as planned, not "keep the rest
+        // of it easy".
+        if (!(trainedToday || (bigActivity && !liftDayStillOpen))) return null;
         return {
           outcome: DAY_READ_OUTCOMES.logged_light_work_today,
           read: {

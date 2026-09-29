@@ -271,6 +271,8 @@ test("REST and MCP mirror the explicit Train-anyway decision and accepted finger
 
   const restDate = "2032-03-12";
   repo.addCheckin(restDate, { sleep_feel: 1, energy: 3, mood: 3 });
+  // A short night is the objective witness a check-in tap needs to own a rest (2026-09-29).
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(restDate);
   const restDecision = await routerRequest("GET", "/daily-session/decision", { query: { date: restDate } });
   assert.equal(restDecision.body.kind, "rest");
 
@@ -282,6 +284,8 @@ test("REST and MCP mirror the explicit Train-anyway decision and accepted finger
 
   const trainDate = "2032-03-13";
   repo.addCheckin(trainDate, { sleep_feel: 1, energy: 3, mood: 3 });
+  // A short night is the objective witness a check-in tap needs to own a rest (2026-09-29).
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(trainDate);
   const restBaseline = await routerRequest("GET", "/daily-session/decision", { query: { date: trainDate } });
   assert.equal(restBaseline.body.kind, "rest");
   const restFingerprint = restBaseline.body.input_fingerprint;
@@ -303,6 +307,8 @@ test("REST and MCP mirror the explicit Train-anyway decision and accepted finger
 
   const mcpDate = "2032-03-14";
   repo.addCheckin(mcpDate, { sleep_feel: 1, energy: 3, mood: 3 });
+  // A short night is the objective witness a check-in tap needs to own a rest (2026-09-29).
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(mcpDate);
   const { client, server } = await mcpHarness();
   try {
     const mcpDecision = toolJson(

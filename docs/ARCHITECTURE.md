@@ -186,7 +186,9 @@ unlogged row with the heavier look.
 
 **The envelope stops capping every day (2026-09-23).** Four refinements in `daily-decision.ts` /
 `daily-composition.ts`, all fed by omit-when-idle snapshot fields:
-- *The stack is the week.* `stated_rhythm` (gather: `strengthScheduleRead` + `isStatedRunDay`) marks a
+- *The stack is the week.* `stated_rhythm` (`statedRhythmRead`, `src/repo/stated-rhythm.ts` — the same read
+  day-read uses to let a clean stated streak carry its five-day ceiling back to the stacked-days caveat
+  instead of an easy day, 2026-09-29) marks a
   day on the athlete's own lift/run week, whether the current streak was all on it, and whether
   `harmEvidenceOnDay` is clean for the last three days. With both true and no DECIDING brake
   (`signal_support.advisory_brake_only` marks a board whose only fresh brakes are advisory, e.g. the
@@ -453,8 +455,12 @@ the week-ahead floor lists the agenda's runs beside the lifting days.
 The plan day is the one today resolves to (a session with logged sets owns it, else
 `selectedPlanDayForDate`), labelled by `planDayLabel` — the NAME, never the focus sentence. The state
 comes off the log (`not_started` / `in_progress` / `logged` / `rest_day` / `no_lift`); a rest/easy read
-(the cached day read, else the accepted composition's decision) is a `caveat` on that plan day, never a
-replacement title; a run logged today rides beside it ("Run in · Pull still open"); an accepted session
+(the cached day read — a row `invalidateDayRead` only marked stale included, since it is still what the
+Brief last said — else the deterministic floor when no row exists at all, else the accepted
+composition's decision) is a `caveat` on that plan day, never a replacement title, with a short
+`suggestion_label` ("lighter today" / "rest suggested") that `planWeek()` stamps onto TODAY's cell as
+`suggestion` so the strip and the Brief name one day with one voice; both resolve quietly once the day is
+logged; a run logged today rides beside it ("Run in · Pull still open"); an accepted session
 whose slots are mostly `substitution_for` reads "Pull, reshaped" and carries the plan day's `original`
 list. It rides on every Brief response (`attachDayReadContext`), the Today aggregate, `planWeek()`, and
 `GET /api/today-strength-line` (Session header, Train overview), and every client prints `text`/`caveat`
@@ -4233,6 +4239,25 @@ manufactured majority. `checkinSignal()` (the `checkin_signal` felt-signal patte
 and averages; extend any new "most check-ins"/persistence read over `checkins` the same way rather
 than counting rows.
 
+## A check-in tap is slight input (owner ruling, 2026-09-29)
+
+A tap is given "no big thought", so on its own it may ease a day but never take it. In
+`planningSignalState`/`actionState` (`src/repo/signal-state.ts`) an energy or sleep-feel ≤ 2 is still a
+safety-override constraint, but the top (REST) rung needs an objective witness about the same 24 hours
+(`FELT_REST_CORROBORATION`): last night's HRV/resting HR past the athlete's band (not `advice_only`), a
+genuinely short night (`sleep` at constraint), or yesterday's harm evidence (`harmYesterday`, read by
+`dayPlanningSignalState` only on a morning with a felt brake). Illness keeps the rung on its own.
+Without a witness the felt item falls to the recovery rung — EASY — and is re-voiced as
+`felt_energy_light` / `sleep_feel_light` (the machine `summary` is untouched). A sleep-feel ≤ 2 on a
+morning the athlete also tapped energy ≥ 4 is MIXED: an advisory caution (`sleep_feel_mixed`) that
+decides nothing. Day-read mirrors it: `lowSubjective` excludes the mixed case, `feltRestCorroborated`
+adds the read's own last-night row and a rest-grade reading, the protect rule upgrades a felt-light easy
+to rest when corroborated (and steps aside for a claimed day or the week's rest day rather than read
+louder than them), the earned-rest rule's felt arm returns `felt_low_easy` when uncorroborated, and an
+uncorroborated tap no longer corroborates the stacked-days rest (`hasFreshDecidingBrake(…, {exceptFelt})`).
+`REST_GRADE_READINESS` stays its own rule; a `3` stays neutral. The daily envelope's `muscle_saturated`
+note names only groups today's plan day trains (the full list still routes composition).
+
 ## Repeated entries: one weigh-in and one tape per day, one run per effort
 
 The same fact typed twice must never read as two facts. One rule per kind:
@@ -4622,6 +4647,27 @@ agentic pass turns that into the lifecycle rows the training loop reads.
   it as *"tolerated in training twice — no word from you yet"*. The column DEFAULTS to `'stated'`, so
   every `INSERT … SELECT` that carries observations into a new `evidence_epoch` must name `evidence`
   in BOTH column lists — omitting it silently rewrites a week of silence as a confirmed clearance.
+
+**Resolved means resolved — one pain, two records (2026-09-29).** A complaint often lands twice: the
+session note becomes a training symptom, and the chat turn that heard it files an `injury` context event.
+`injuriesResolvedBySymptoms` (`src/repo/injury-symptom-link.ts`) ties them READ-SIDE inside
+`listContextEvents`/`getContextEvent`: an open injury whose twin AREA symptom (same episode — onset
+within three days of the event's start and resolved on/after it — and same place: no left/right
+conflict, and the same area label or a shared place word) was resolved reads `resolved` (with
+`resolved_by_symptom`) and drops out of the active set, so `getInjuryImpacts`, the decision envelope and
+the signal state stop gating on it the same day. Nothing is stamped or deleted; while a recurrence row
+(`recurrence:<id>`) of that symptom is open the event reads open again. Injury words match whole words
+only (`namesInjuryWord` — "discomfort" is not a DISC), and an oblique/flank note maps to `core` alone,
+never the back or the legs. Resolving or recurring a symptom bumps the training-data version and
+invalidates today's read. The tie refuses more than one symptom can speak for: an event naming MORE
+places than the symptom ("knee and hip"), a shared tissue word alone ("muscle", "tendon"), and any
+STRUCTURAL injury (tear, fracture, sprain, meniscus, ligament names — read over the whole event text)
+are never closed by a symptom. Every reader that queries `context_events` straight from SQL (run-day
+pain, the refusal reopen, the health drift signature, evaluation/trajectory confounders, the proposal
+fingerprint, the coach agent's `read_life_context_window`) goes through `injuryClosuresOn` /
+`withSymptomClosures`, which fill in the symptom's resolution date as the event's effective
+`resolved_at`; the Life timeline reads the server's `resolved_by_symptom`. A new raw-SQL injury reader
+must do the same.
 
 **Freshness has two ladders, and picking the wrong one is a shipped bug.** `finishSession` runs
 `inferTrainingSymptomExposures()`, which records a quiet `pain_free`/`inferred` exposure for each

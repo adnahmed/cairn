@@ -275,9 +275,16 @@ test("…and the prompt tells the agent what a backed day licenses, on a backed 
 test("on the production path the subjective rests are shadowed by the protect posture", () => {
   seedPlan();
   db.prepare(`INSERT INTO checkins (date, energy, sleep_feel) VALUES (?, 1, 1)`).run(REF);
+  // A tap alone is a lighter day, still owned by the protect posture...
+  const light = repo.dayRead(REF);
+  assert.equal(light.kind, "easy");
+  assert.equal(light.decision.rule_code, "acute_signal_protection");
+  // ...and a tap on a genuinely short night is the rest it always was.
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(REF);
   const felt = repo.dayRead(REF);
   assert.equal(felt.kind, "rest");
   assert.equal(felt.decision.rule_code, "acute_signal_protection");
+  db.prepare(`DELETE FROM daily_metrics`).run();
 
   seedPlan();
   db.prepare("INSERT INTO garmin_sources (id, provider, mode) VALUES (1, 'garmin', 'unofficial')").run();
@@ -295,9 +302,16 @@ test("...and are still reachable through a scoped state, which is why they stay 
   // rest, and SOFTENABLE_REST_CODES is what lets the outcome loop ease it.
   seedPlan();
   db.prepare(`INSERT INTO checkins (date, energy, sleep_feel) VALUES (?, 1, 1)`).run(REF);
+  // Alone, the scoped tap reads as the lighter day it earns (felt_low_easy)...
+  const light = repo.dayRead(REF, { has_data: false, recovery: {} }, repo.buildUnifiedSignalState(REF, []));
+  assert.equal(light.kind, "easy");
+  assert.equal(light.decision.rule_code, "felt_low_easy");
+  // ...and with last night's short sleep row behind it, the rest code keys a real rest.
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(REF);
   const felt = repo.dayRead(REF, { has_data: false, recovery: {} }, repo.buildUnifiedSignalState(REF, []));
   assert.equal(felt.kind, "rest");
   assert.equal(felt.decision.rule_code, "felt_run_down_rest");
+  db.prepare(`DELETE FROM daily_metrics`).run();
 
   seedPlan();
   const scopedRecovery = {
