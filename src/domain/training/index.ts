@@ -1,4 +1,5 @@
 export * from "../../repo/activities.js";
+export * from "../../repo/activity-effort.js";
 export * from "../../repo/adaptive-session.js";
 export * from "./adaptive-session-use-case.js";
 export * from "./finish-session-use-case.js";

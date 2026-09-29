@@ -17,6 +17,7 @@ import {
   listActivities,
   logSetByName,
   removeActivity,
+  setActivityFeltEffort,
   recentTraining,
   recordExerciseSymptomObservation,
   recordMovementTolerance,
@@ -218,6 +219,17 @@ export function registerTrainingLogTools(server: McpToolRegistrar) {
       notes: z.string().optional().describe("free-form notes kept with the activity"),
     },
     async (activity) => asText(addActivity(activity))
+  );
+
+  server.tool(
+    "set_activity_effort",
+    "State how a logged activity FELT, after the fact — the athlete's own word on it. rpe 1 (nothing) to 10 (all out); conversational / could talk the whole way / no toll is 2-3. A run stated easy (rpe ≤ 4) is no longer graded hard by the watch's training effect, zones or load for harm or easy-running discipline — a bad next morning still counts — and, when the run has heart rate, it is filed as a talk-test observation (three on different days can lift the personal easy ceiling, bounded). null clears it.",
+    {
+      id: z.number().int().describe("activities.id (see list_activities)"),
+      rpe: z.number().min(1).max(10).nullable().describe("felt effort 1-10, or null to clear"),
+      note: z.string().optional().describe("the athlete's own words about how it felt, kept with the talk-test observation"),
+    },
+    async ({ id, rpe, note }) => asText(setActivityFeltEffort(id, { rpe, note }))
   );
 
   server.tool(

@@ -451,7 +451,9 @@ test("MCP modular tool sources are discovered without duplicate names", () => {
   // the MCP mirror of GET /api/today/stones, a pure read.
   // Today is Home (v2 wave 7): +1 (get_day_record) in src/surfaces/mcp/daily-driver.ts —
   // the MCP mirror of GET /api/day-record, a pure read of any day that is not today.
-  assert.equal(tools.length, 284,"tool count changes only for reviewed MCP additions");
+  // Stating how a run felt (v2 wave 7): +1 (set_activity_effort) in
+  // src/surfaces/mcp/training-log.ts — the MCP mirror of PUT /api/activities/:id/effort.
+  assert.equal(tools.length, 285,"tool count changes only for reviewed MCP additions");
   assert.equal(new Set(tools).size, tools.length, "MCP tool names must be unique across modules");
   assert.doesNotMatch(mcp, /server\.tool\(/, "src/mcp.ts should stay a registry, not a tool-definition file");
   assert.doesNotMatch(mcp, /server\.tool\("get_chat_history"/);

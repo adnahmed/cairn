@@ -6,7 +6,7 @@ Cairn serves an MCP server at **`/mcp`** (Streamable HTTP). These tools are thin
 wrappers over the same `src/repo.ts` layer the REST API uses. When `CAIRN_AUTH_TOKEN`
 is set, `/mcp` requires the token (`Authorization: Bearer …`).
 
-**296 tools.**
+**297 tools.**
 
 | Tool | Description |
 |---|---|
@@ -258,6 +258,7 @@ is set, `/mcp` requires the token (`Authorization: Bearer …`).
 | `save_plan_day` | Create or replace one training day and its full exercise list (manual plan edit). Unknown exercises are created. |
 | `search_chat` | Keyword-search the whole coaching history (live + archived turns). Returns matches with a snippet and the session they belong to (session_id for archived, null for live). |
 | `search_health_records` | Search everything on file — lab/vital markers, health documents, visit notes and body readings (weigh-ins, tape sites) — grouped out_of_range (outside the LAB's range first — the lab flagged it, or its value is outside the range the lab printed; then outside-optimal as its own section, never merged into the lab's; then within the lab's range; then readings no lab ranged), panel (clinical panel order), or newest. Every word of q must match; an empty q lists everything. Each marker carries its lab flag, lab_out_of_range, its optimal band and outside-optimal mark, and its reading's age for its own kind of marker. Informational, not medical advice. Mirrors GET /api/records/search. |
+| `set_activity_effort` | State how a logged activity FELT, after the fact — the athlete's own word on it. rpe 1 (nothing) to 10 (all out); conversational / could talk the whole way / no toll is 2-3. A run stated easy (rpe ≤ 4) is no longer graded hard by the watch's training effect, zones or load for harm or easy-running discipline — a bad next morning still counts — and, when the run has heart rate, it is filed as a talk-test observation (three on different days can lift the personal easy ceiling, bounded). null clears it. |
 | `set_endurance_goal` | Set or clear a temporary endurance objective. mode 'race' → a dated event the coach periodizes a ramp + taper toward (needs a real YYYY-MM-DD; optional event, distance_km, target like 'sub-1:45'). mode 'standing' → an ongoing readiness target with NO date. Keep durable priority and capability identity in set_training_intent. |
 | `set_endurance_schedule` | Set or clear the athlete's stated run days. Only weekdays they named — never invent a day. days is [{dow: 0-6 (0=Sunday), kind: easy\|quality\|long\|any}]. Pass days: null to clear. A duplicate weekday keeps the first kind. |
 | `set_equipment` | Set the user's available equipment / training-preference free text (e.g. 'full gym', 'dumbbells + pull-up bar at home'). Variation suggestions rank by it. Pass empty to clear. |

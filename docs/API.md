@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**362 routes** across 125 groups.
+**363 routes** across 125 groups.
 
 ## `/activities`
 
@@ -19,6 +19,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | POST | `/api/activities` |  |
 | DELETE | `/api/activities/:id` | Delete one hand-logged activity. A watch-imported row is refused (409), since the next sync would re-create it. |
 | GET | `/api/activities/:id` | Single activity row (poll fallback for watching enrichment_status). |
+| PUT | `/api/activities/:id/effort` | State how an activity felt, after the fact: `{ rpe: 1-10 \| null, note? }`. A run stated easy (rpe ≤ 4, the talk-test band) is no longer graded hard by the watch's intensity bars — the next morning's physiology still outranks it — and, with heart rate, files a talk-test observation on the HR model's calibration ladder. |
 | GET | `/api/activities/:id/stream` | Live enrichment status for one activity (Server-Sent Events) — the SSE-first path the PWA uses instead of polling; snapshot then transitions, close on terminal. EventSource can't set headers, so the PWA reaches this with ?token=. |
 
 ## `/agent`

@@ -24,6 +24,7 @@ import {
 } from "./exercise-canon.js";
 import { CARDIO_GRADE, HARD_EFFORT } from "./heavy-load.js";
 import { activeRecoveryWeekLedger } from "./recovery-week-ledger.js";
+import { isStatedEasyRpe } from "./stated-effort.js";
 import { addDaysISO, localDateISO } from "./shared.js";
 import { median } from "../lib/numbers.js";
 
@@ -689,7 +690,7 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
     rows = db
       .prepare(
         `SELECT a.date AS date, a.source AS source, a.external_id AS external_id,
-                a.type AS type, a.duration_min AS duration_min, a.distance_km AS distance_km,
+                a.type AS type, a.duration_min AS duration_min, a.distance_km AS distance_km, a.rpe AS rpe,
                 g.aerobic_te AS aerobic_te, g.anaerobic_te AS anaerobic_te,
                 g.te_label AS te_label, g.training_load AS load, g.hr_zones_json AS zones
            FROM activities a LEFT JOIN garmin_activities g ON g.activity_id = a.id
@@ -704,21 +705,28 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
   if (!rows.length) return false;
   const median = loadMedian === undefined ? recentCardioLoadMedian(date) : loadMedian;
   for (const r of rows) {
-    // (a-c) intensity qualifies ANY activity type (a hard hike is still hard).
-    const te = Math.max(Number(r.aerobic_te) || 0, Number(r.anaerobic_te) || 0);
-    const label = String(r.te_label || "").toLowerCase();
-    if (te >= HARD_EFFORT.dayGradeTe || HARD_CARDIO_LABEL.test(label)) return true;
-    let z4 = 0;
-    try {
-      const z = r.zones ? JSON.parse(r.zones) : null;
-      if (Array.isArray(z))
-        for (const it of z) if (Number(it?.zone) >= 4) z4 += Number(it?.secs ?? it?.seconds ?? 0) || 0;
-    } catch {
-      /* malformed zone blob → ignore */
+    // The athlete SAID it was easy (a stated effort in the talk-test band): the
+    // watch's intensity bars do not get to overrule them. Only (d), the plain
+    // duration bar, still reads the day as loading — a long easy run still costs
+    // something. The next morning's physiology is asked separately by the harm read
+    // and still outranks the statement (stated-effort.ts).
+    if (!isStatedEasyRpe(r.rpe)) {
+      // (a-c) intensity qualifies ANY activity type (a hard hike is still hard).
+      const te = Math.max(Number(r.aerobic_te) || 0, Number(r.anaerobic_te) || 0);
+      const label = String(r.te_label || "").toLowerCase();
+      if (te >= HARD_EFFORT.dayGradeTe || HARD_CARDIO_LABEL.test(label)) return true;
+      let z4 = 0;
+      try {
+        const z = r.zones ? JSON.parse(r.zones) : null;
+        if (Array.isArray(z))
+          for (const it of z) if (Number(it?.zone) >= 4) z4 += Number(it?.secs ?? it?.seconds ?? 0) || 0;
+      } catch {
+        /* malformed zone blob → ignore */
+      }
+      if (z4 >= HARD_CARDIO_Z4_SEC) return true;
+      const load = r.load != null ? Number(r.load) : null;
+      if (load != null && median != null && median > 0 && load >= median * HARD_CARDIO_LOAD_MULT) return true;
     }
-    if (z4 >= HARD_CARDIO_Z4_SEC) return true;
-    const load = r.load != null ? Number(r.load) : null;
-    if (load != null && median != null && median > 0 && load >= median * HARD_CARDIO_LOAD_MULT) return true;
     if (intensityOnly) continue;
     // (d) SPORT-AWARE duration bar: a run/ride/swim/row loads at ≥ 40 min; a walk/hike
     // or unknown "other" type needs a much longer effort (~90 min) so an easy hike of

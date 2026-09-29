@@ -86,8 +86,8 @@ import {
   hrZoneLabel,
   type HrZoneKey,
   isEasyHr,
-  RUN_TYPE_SQL,
 } from "./hr-model.js";
+import { isStatedEasyRpe } from "./stated-effort.js";
 import { getRunCompliance, type RunCompliance } from "./sessions.js";
 import { isReadDayReadiness, sensorIsCurrent } from "./sensor-freshness.js";
 import { daysBetweenISO, localDateISO } from "./shared.js";
@@ -2628,17 +2628,21 @@ export function runIntensityDiscipline(date?: string): RunIntensityDiscipline | 
   // query rather than two against the same table for the same rows.
   const chronicSince = isoDaysAgo(d, RUN_INTENSITY_CHRONIC_WINDOW_DAYS - 1);
 
-  let rows: Array<{ date: string; avg_hr: number | null; minutes: number | null }> = [];
+  // `rpe` is the athlete's own stated effort on the linked activity row: a run they
+  // SAID was easy (the talk-test band, stated-effort.ts) is easy running whatever its
+  // average — the athlete's word outranks a line drawn from a model.
+  type IntensityRow = { date: string; avg_hr: number | null; minutes: number | null; rpe: number | null };
+  let rows: IntensityRow[] = [];
   try {
     rows = db
       .prepare(
-        `SELECT date, avg_hr, COALESCE(moving_min, duration_min) AS minutes
-           FROM garmin_activities
-          WHERE ${RUN_TYPE_SQL} AND avg_hr IS NOT NULL AND avg_hr > 0
-            AND date >= ? AND date <= ?
-          ORDER BY date`
+        `SELECT g.date AS date, g.avg_hr AS avg_hr, COALESCE(g.moving_min, g.duration_min) AS minutes, a.rpe AS rpe
+           FROM garmin_activities g LEFT JOIN activities a ON a.id = g.activity_id
+          WHERE LOWER(COALESCE(g.type,'')) LIKE '%run%' AND g.avg_hr IS NOT NULL AND g.avg_hr > 0
+            AND g.date >= ? AND g.date <= ?
+          ORDER BY g.date`
       )
-      .all(chronicSince, d) as Array<{ date: string; avg_hr: number | null; minutes: number | null }>;
+      .all(chronicSince, d) as IntensityRow[];
   } catch {
     return null;
   }
@@ -2654,6 +2658,10 @@ export function runIntensityDiscipline(date?: string): RunIntensityDiscipline | 
       const effort = classifyRunEffort(hr, minutes, model);
       if (effort === "unknown") continue;
       runs_classified += 1;
+      if (isStatedEasyRpe(row.rpe)) {
+        easy_count += 1;
+        continue;
+      }
       if (effort === "easy") easy_count += 1;
       if (!isEasyHr(hr, model)) above_easy_count += 1;
     }
