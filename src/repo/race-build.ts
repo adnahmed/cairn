@@ -53,7 +53,13 @@ import {
   type RaceRampGoal,
 } from "./run-ramp.js";
 import { weekAsPlanned, weeklyRunPlan, type WeeklyRunPlan } from "./run-progression.js";
-import { closedWeekRunHarm, demonstratedLongKm, demonstratedRunCapacity } from "./run-capacity.js";
+import {
+  capacitySetAsideLine,
+  closedWeekRunHarm,
+  demonstratedLongKm,
+  demonstratedRunCapacity,
+} from "./run-capacity.js";
+import type { HarmEvidenceKind } from "./brain/read-adherence.js";
 import { localDateISO } from "./shared.js";
 import { planDayStrengthGroups } from "./training-read.js";
 
@@ -209,6 +215,20 @@ export interface RaceBuild {
     clean: boolean;
   } | null;
   ride: RidePattern | null;
+  /**
+   * What the running has already demonstrated, read at the Sunday this week is planned
+   * from (run-capacity.ts): the week the build climbs from, and the bigger weeks set
+   * aside because the body paid for them. `note` is the one plain-word sentence saying
+   * so, in km ("" when nothing is set aside) — the page restates its figures in the
+   * athlete's run units. Null on a read with no dated race.
+   */
+  capacity: {
+    floor_km: number | null;
+    floor_week_start: string | null;
+    best_week_km: number | null;
+    set_aside: { week_start: string; km: number; kind: HarmEvidenceKind }[];
+    note: string;
+  } | null;
   review: {
     weeks: { week_start: string; km: number; runs: number }[];
     longest_recent_km: number | null;
@@ -1065,6 +1085,7 @@ export function raceBuild(
       leg_map: [],
       strength: null,
       ride: null,
+      capacity: null,
       review: { weeks: [], longest_recent_km: null, volume_word: null },
       why: "",
       reason,
@@ -1293,6 +1314,15 @@ export function raceBuild(
     leg_map,
     strength,
     ride,
+    capacity: shownCapacity
+      ? {
+          floor_km: shownCapacity.floor_km,
+          floor_week_start: shownCapacity.floor_week_start,
+          best_week_km: shownCapacity.best_week_km,
+          set_aside: shownCapacity.set_aside.map((w) => ({ week_start: w.week_start, km: w.km, kind: w.harm.kind })),
+          note: capacitySetAsideLine(shownCapacity, asOf),
+        }
+      : null,
     review,
     why,
     reason: null,

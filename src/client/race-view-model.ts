@@ -262,7 +262,10 @@
       : taper.current
         ? "This week is the taper: the volume comes down so race day finds you fresh."
         : `The taper starts the week of ${taper.date_word}, the week before race week.`;
-    return { rows, max_km: maxKm, taper_text: taperText, units: unitsOf(units) };
+    // A bigger recent week the build does not climb from, and why — the server's one
+    // sentence, its figures restated in the run units. "" when nothing is set aside.
+    const capacityText = runWords(String(build?.capacity?.note || "").trim(), units);
+    return { rows, max_km: maxKm, taper_text: taperText, capacity_text: capacityText, units: unitsOf(units) };
   }
 
   /** The finish estimate against the target: the server's fit word, never a gap as a grade. */

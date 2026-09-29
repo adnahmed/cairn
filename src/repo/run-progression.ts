@@ -65,7 +65,7 @@ import {
   type RaceRampFit,
 } from "./run-ramp.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
-import { harmEvidenceOnDay } from "./brain/read-adherence.js";
+import { harmEvidenceOnDay, withMorningReadiness } from "./brain/read-adherence.js";
 // A function-only cycle (the agenda reads this module's weeklyRunPlan at call time):
 // the morning read asks the agenda's own observation read whether the week's quality
 // is already in, so the two can never disagree about it.
@@ -96,7 +96,12 @@ import { getTrainingIntent, type ResolvedTrainingIntent } from "./training-inten
 import type { CoachPersonalModifier } from "../brain/coach-context-contract.js";
 import { round1 } from "../lib/numbers.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
-import { closedWeekRunHarm, demonstratedRunCapacity, type DemonstratedRunCapacity } from "./run-capacity.js";
+import {
+  capacitySetAsideLine,
+  closedWeekRunHarm,
+  demonstratedRunCapacity,
+  type DemonstratedRunCapacity,
+} from "./run-capacity.js";
 import { isoDaysAgo, mondayOf } from "../lib/dates.js";
 
 function shiftDaysISO(dateISO: string, n: number): string {
@@ -1127,11 +1132,17 @@ export function weeklyRunPlan(
   const statedSchedule = getEnduranceSchedule();
   const trainingIntent = opts?.trainingIntent ?? getTrainingIntent(profile);
   const goal = opts?.goal ?? getEnduranceGoal(d);
+  // Today's readiness is the MORNING's (withMorningReadiness), never the day's last
+  // sync: on a day the athlete has already trained, the stored value is the
+  // post-workout recompute, and read as "readiness low" it turned the whole week
+  // constrained on the strength of the session it was describing. The coach context
+  // already hands its recovery in this way; the routes and the race build now read the
+  // same morning.
   const recovery =
     opts?.recovery ??
     (() => {
       try {
-        return getRecoverySummary(14);
+        return withMorningReadiness(getRecoverySummary(14), localDateISO());
       } catch {
         return null;
       }
@@ -1360,7 +1371,16 @@ export function weeklyRunPlan(
         }
       })()
     );
-    if (pausedKm > closedWeekKm && closedWeekKm >= pausedKm * RESET_TAKEN_FRACTION) {
+    // …and only through a reset the body answered: when the reset week's own running
+    // carried harm (its long run followed by a meaningful overnight miss, a rest-grade
+    // morning), the build steps off the reset rather than jumping back to the paused
+    // level — the same "never pushed through harm" guard the capacity resume below
+    // takes (closedWeekRunHarm, running harm only).
+    if (
+      pausedKm > closedWeekKm &&
+      closedWeekKm >= pausedKm * RESET_TAKEN_FRACTION &&
+      closedWeekRunHarm(volumeAnchor) == null
+    ) {
       anchorKm = pausedKm;
       rationale.push(RESET_RESUME_LINE);
     }
@@ -1530,6 +1550,13 @@ export function weeklyRunPlan(
         pickDayVariant(RUN_CAPACITY_RESUME_VARIANTS, week_start, "run-capacity-resume")(Math.round(shownCapacity.floor_km))
       );
     }
+  }
+  // A bigger recent week the capacity read set aside is said in plain words: which one,
+  // why, and the week the build climbs from instead (run-capacity.ts). Not in the taper,
+  // where the build no longer climbs from anything.
+  if (ramp && !ramp.taper_week && shownCapacity?.set_aside.length) {
+    const setAside = capacitySetAsideLine(shownCapacity, week_start);
+    if (setAside) rationale.push(setAside);
   }
   // A reset week roughly every 4th. With a dated race the ramp owns the cadence — it
   // counts down to the start line, and the race ladder labels its weeks from the same

@@ -4398,6 +4398,7 @@ ul.packet-rows{list-style:none;padding-left:0}
 .race-ladder-foot{font-size:var(--text-xs);color:var(--muted);line-height:1.4}
 .race-ladder-km{font-size:var(--text-sm);font-weight:600;color:var(--ink);white-space:nowrap;font-variant-numeric:lining-nums tabular-nums}
 .race-ladder-taper{margin:var(--space-4) 0 0;font-size:var(--text-xs);color:var(--muted);line-height:1.45}
+.race-ladder-capacity{margin:var(--space-2) 0 var(--space-3);font-size:var(--text-xs);color:var(--muted);line-height:1.45}
 @keyframes race-bar-grow{from{transform:scaleX(0)}
 to{transform:scaleX(1)}
 }
