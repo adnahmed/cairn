@@ -109,7 +109,7 @@ export interface DayRecord {
   run: DayRecordPlannedRun | null;
   /** Neither a lift nor a run is planned. */
   rest: boolean;
-  /** Plain caveats already known for the day (an active trip, an injury still healing). */
+  /** Life-context events active that day, by title (a trip, an illness logged as context). */
   caveats: string[];
 
   /** One athlete-facing line that names the day ("A Pull day and an easy run."). */

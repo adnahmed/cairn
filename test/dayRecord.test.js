@@ -80,6 +80,26 @@ test("a partial food day never speaks a sum an entry did not carry", () => {
   assert.equal(record.intake.meals.find((m) => m.summary === "Wrap").logged_at, null);
 });
 
+test("a rest day with food or a weigh-in logged never says nothing was logged", () => {
+  const date = localDaysAgo(1);
+  seedIntake(1, 900, { protein_g: 60, summary: "Oats & eggs" }, { eatenAt: "08:00" });
+  seedIntake(1, 700, { protein_g: 50, summary: "Salmon bowl" }, { eatenAt: "19:00" });
+  const fed = dayRecord(date);
+  assert.equal(fed.session, null);
+  assert.deepEqual(fed.activities, []);
+  assert.equal(fed.intake.entries, 2);
+  assert.doesNotMatch(fed.line, /nothing/i, `line "${fed.line}"`);
+  assert.equal(fed.line, "A rest day.");
+  assertNoScore(fed);
+
+  const weighed = localDaysAgo(4);
+  seedWeight(weighed, 183.2);
+  const record = dayRecord(weighed);
+  assert.equal(record.intake, null);
+  assert.equal(record.weight_lb, 183.2);
+  assert.equal(record.line, "A rest day.");
+});
+
 test("the day read that stood is on a past day's record", () => {
   const date = localDaysAgo(2);
   db.prepare(
@@ -111,8 +131,21 @@ test("a future day previews the plan strip's own week: the planned lift and run"
     assert.equal(record.rest, !record.lift && !record.run);
     assert.ok(record.line.endsWith("."), record.line);
     assert.doesNotMatch(record.line, /, and (?!a |an )/, "a run is spoken with its article");
+    assert.doesNotMatch(record.line, /^A [AEIOU]/, 'a vowel-led lift takes "An"');
     assertNoScore(record);
   }
+});
+
+test('a vowel-led lift name takes its article: "An Upper A day."', (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-09-22T12:00:00") });
+  seedDemo();
+  db.prepare("UPDATE plan_days SET name = 'Upper A'").run();
+  const today = localDateISO();
+  const liftOnly = planWeek(today).days.filter(
+    (d) => d.date && d.date > today && d.plan_day?.role === "strength" && !d.run
+  );
+  assert.ok(liftOnly.length, "the demo week has a lift-only day ahead");
+  for (const day of liftOnly) assert.equal(dayRecord(day.date).line, "An Upper A day.");
 });
 
 test("dayRecordDate takes only a real calendar day", () => {

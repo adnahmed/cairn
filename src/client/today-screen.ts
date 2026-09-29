@@ -194,7 +194,9 @@ function wireExerciseDecisionUndo(root: Element, repaint: () => Promise<unknown>
 
 async function renderToday(opts: any = {}) {
   // Today only ever renders today (v2 wave 7): a logDate left on another day by Session/Fuel is re-measured.
-  if (todayState.logDate !== localISO())
+  // Only on the Today tab: an async repaint (a cardio sync finishing) that lands here
+  // while Fuel/Session holds a past date must not move that tab's date under it.
+  if (todayState.tab === "today" && todayState.logDate !== localISO())
     Object.assign(todayState, { logDate: localISO(), day: null, dayPicked: false, dayPickedOn: null });
   const enteredDate = todayState.logDate;
   // A soft (background stale-while-revalidate) repaint must feel silent: keep the

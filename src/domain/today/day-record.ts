@@ -176,7 +176,11 @@ function lower(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
-function pastLine(session: DayRecordSession | null, activities: DayRecordActivity[]): string {
+function pastLine(
+  session: DayRecordSession | null,
+  activities: DayRecordActivity[],
+  logged: { intake: DayRecordIntake | null; weight: number | null }
+): string {
   const runs = activities.filter((a) => a.run);
   const other = activities.filter((a) => !a.run);
   const effort = runs.length
@@ -191,6 +195,9 @@ function pastLine(session: DayRecordSession | null, activities: DayRecordActivit
     return effort ? `${lift}, and ${effort}.` : `${lift}.`;
   }
   if (effort) return `${effort.charAt(0).toUpperCase()}${effort.slice(1)}.`;
+  // Food or a weigh-in is still a log: the line speaks only for training, never
+  // "nothing" over a Fuel section that shows the day's meals.
+  if ((logged.intake?.entries ?? 0) > 0 || logged.weight != null) return "A rest day.";
   return "Nothing was logged this day.";
 }
 
@@ -201,7 +208,7 @@ function withArticle(phrase: string): string {
 
 function futureLine(lift: DayRecordPlannedLift | null, run: DayRecordPlannedRun | null): string {
   if (lift && run) return `${lift.title}, then ${withArticle(run.label)}.`;
-  if (lift) return `A ${lift.title} day.`;
+  if (lift) return `${/^[aeiou]/i.test(lift.title) ? "An" : "A"} ${lift.title} day.`;
   if (run) return `${run.label}.`;
   return "A rest day. Nothing is planned.";
 }
@@ -256,6 +263,6 @@ export function dayRecord(date: string, opts: { today?: string } = {}): DayRecor
     run,
     rest: relation !== "past" && !lift && !run,
     caveats: caveatsOf(date),
-    line: relation === "past" ? pastLine(session, activities) : futureLine(lift, run),
+    line: relation === "past" ? pastLine(session, activities, { intake, weight }) : futureLine(lift, run),
   };
 }

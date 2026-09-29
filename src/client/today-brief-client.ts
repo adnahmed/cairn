@@ -187,7 +187,7 @@ type TodayBriefHtmlOptions = {
   // Agent health is no longer the Brief's to say (v2 wave 7): a read that fell back to
   // Cairn's own baseline reads exactly like any other read here, and where the agent
   // layer stands NOW is one quiet line in You > Settings > Agents, which clears itself
-  // once a later run succeeds (agentStateLine, settings-client.ts).
+  // once a later run succeeds (agentStateLine, settings-agents-client.ts).
 
   function todayBriefPeriodizationHtml(read: TodayBriefRead | null | undefined): string {
     const context = read?.periodization_context;
