@@ -298,7 +298,11 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   always the engine's own next step; its `kind` follows the engine's arrival count in CALENDAR
   weeks to race week (`weeks_to_race_week`: peak → taper → race, never peak into race week). A
   reset is recovery, not lost ground, and a long run taken well is held, never re-climbed to
-  (`RESET_TAKEN_FRACTION`, `demonstratedLongKm`). Finish estimates prefer the watch's
+  (`RESET_TAKEN_FRACTION`, `demonstratedLongKm`). **Demonstrated capacity is the floor and the
+  peak is a new high**: the best harm-free closed week of the last 8 (`demonstratedRunCapacity`,
+  `src/repo/run-capacity.ts` — harm is `harmEvidenceOnDay`, never re-derived) sets the ramp's peak
+  target one ~10% step past it and a lighter week resumes toward it inside the ACWR ceiling
+  (`capacityResumeKm`); a harmed week falls back, never pushed through. Finish estimates prefer the watch's
   predictor (≤3 weeks old, Riegel-adjusted) over a Riegel off a training run, and every comparison
   is a `fits`/`stretch`/`beyond_horizon` FIT, never a grade. The weekly ride is a PATTERN read off
   the log (3 of 6 weeks) — no new field. Details in `docs/ARCHITECTURE.md`.
