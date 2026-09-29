@@ -109,6 +109,8 @@ export * from "./repo/run-progression.js"; // the deterministic RUNNING program 
 export * from "./repo/run-ramp.js"; // pure goal-anchored ramp arithmetic behind the weekly run plan
 export * from "./repo/hr-model.js"; // the PERSONAL HR model — observed max, threshold, zone bands (never an age formula)
 export * from "./repo/calibration.js"; // the coach's testing ladder: staleness → suggestion → detection → fold-back
+export * from "./repo/stated-effort.js"; // the athlete's own felt effort on a run outranks the watch's intensity grade
+export * from "./repo/activity-effort.js"; // stating how a run felt after the fact (REST + MCP + chat share it)
 export * from "./repo/movement-risk.js"; // durable per-exercise tolerance memory (hybrid-elite seam)
 export * from "./repo/pain-band.js"; // the per-movement pain traffic light (green/amber/red)
 export * from "./repo/flexible-training-agenda.js"; // rolling run intentions: actual logs, not fixed weekdays, control completion + next window

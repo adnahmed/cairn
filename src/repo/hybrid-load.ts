@@ -3,6 +3,16 @@
 // day after a long/hard run" style coaching. Plain words only, no scores.
 import { db } from "../db.js";
 import { withoutShadowActivities } from "./activities.js";
+import type { HrModel } from "./hr-model.js";
+import {
+  isLongRunForAthlete,
+  personalRunReadForRow,
+  runLengthBars,
+  usablePersonalHrModel,
+  type PersonalRunRead,
+  type RunLengthBars,
+} from "./run-intensity.js";
+import { isStatedEasyRpe } from "./stated-effort.js";
 import { addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
 import {
   canonicalGroup,
@@ -105,21 +115,55 @@ function classifyImpactLoad(
   zones45: number,
   ascent: number | null,
   descent: number | null,
+  athlete: {
+    stated_easy: boolean;
+    personal: PersonalRunRead | null;
+    /** A run's long bar, drawn from his own recent running (run-intensity.ts). */
+    run_length?: { bars: RunLengthBars; date: string } | null;
+  } = { stated_easy: false, personal: null },
 ): Pick<EnduranceImpact, "intensity" | "load" | "why"> {
-  // One shared definition of a hard effort (heavy-load.HARD_EFFORT) — this test
-  // used to carry its own weaker label pattern, so a logged sprint or interval
-  // session read as hard to the day grade and merely moderate here.
-  const hardLabel = HARD_EFFORT.label.test(String(label ?? ""));
-  const hard =
-    hardLabel ||
-    (trainingLoad != null && trainingLoad >= HARD_EFFORT.trainingLoadFloor) ||
-    (anate != null && anate >= HARD_EFFORT.anaerobicTe) ||
-    (ate != null && ate >= HARD_EFFORT.aerobicTe) ||
-    zones45 >= HARD_EFFORT.z4Seconds;
-  const long = (dur != null && dur >= region.heavyMin) || (km != null && km >= region.heavyKm);
+  // A RUN is long against his own ordinary run (runLengthBars: 1.5× his six-week median,
+  // never under the modality's fixed bar, capped), and his long-run-day run or one of 75%
+  // of his longest stays long; every other modality keeps its fixed bar.
+  const runLength = athlete.run_length ?? null;
+  const long = runLength
+    ? isLongRunForAthlete(runLength.bars, { date: runLength.date, minutes: dur, km })
+    : (dur != null && dur >= region.heavyMin) || (km != null && km >= region.heavyKm);
+  // "Most of the way to long" stays on the modality's FIXED bar: it is what makes an
+  // ordinary run a moderate leg session, and only the HEAVY call is his to raise.
   const substantial =
     (dur != null && dur >= region.heavyMin * 0.7) || (km != null && km >= region.heavyKm * 0.7);
-  const moderate = hard || substantial || (ate != null && ate >= 2);
+  // An ordinary session's length is a leg exposure on its own merits — the same bar
+  // `isLoadRelevantEnduranceImpact` holds — and it is what stands in for the watch's
+  // aerobic-effect arm below whenever the athlete's own word or model is the judge.
+  const ordinaryLength =
+    (dur != null && dur >= CARDIO_GRADE.moderateMin) || (km != null && km >= CARDIO_GRADE.moderateKm);
+  let hard: boolean;
+  let moderate: boolean;
+  if (athlete.stated_easy) {
+    // The athlete said it was easy (stated-effort.ts): no intensity from the watch;
+    // the dose is its length alone — a long easy run still loads the legs.
+    hard = false;
+    moderate = substantial || ordinaryLength;
+  } else if (athlete.personal) {
+    // A run with heart rate and a usable personal model is graded by that model and
+    // his own session title (run-intensity.ts), never the watch's effect, label, zones
+    // or load (owner law, 2026-09-25). Duration still carries its own leg dose.
+    hard = athlete.personal.hard;
+    moderate = hard || substantial || athlete.personal.effort !== "easy" || ordinaryLength;
+  } else {
+    // One shared definition of a hard effort (heavy-load.HARD_EFFORT) — this test
+    // used to carry its own weaker label pattern, so a logged sprint or interval
+    // session read as hard to the day grade and merely moderate here.
+    const hardLabel = HARD_EFFORT.label.test(String(label ?? ""));
+    hard =
+      hardLabel ||
+      (trainingLoad != null && trainingLoad >= HARD_EFFORT.trainingLoadFloor) ||
+      (anate != null && anate >= HARD_EFFORT.anaerobicTe) ||
+      (ate != null && ate >= HARD_EFFORT.aerobicTe) ||
+      zones45 >= HARD_EFFORT.z4Seconds;
+    moderate = hard || substantial || (ate != null && ate >= 2);
+  }
   const intensity: EnduranceImpact["intensity"] = hard ? "hard" : moderate ? "moderate" : "easy";
   // `load` is the MUSCULAR dose, `intensity` the metabolic one. Hard alone used to
   // make any effort heavy, so a 25-minute run that drifted into Z4 read as a full leg
@@ -177,7 +221,9 @@ export function recentEnduranceImpacts(days = 3, date = localDateISO()): Enduran
     const acts = db.prepare(
       `SELECT a.date AS date, a.type AS type, a.raw_text AS raw_text, a.notes AS notes,
               a.duration_min AS duration_min, a.distance_km AS distance_km,
-              a.source AS source, a.external_id AS external_id,
+              a.source AS source, a.external_id AS external_id, a.rpe AS rpe,
+              ga.avg_hr AS avg_hr, COALESCE(ga.moving_min, ga.duration_min, a.duration_min) AS hr_minutes,
+              ga.name AS g_name, ga.hr_zones_json AS zones,
               ga.te_label AS te_label, ga.aerobic_te AS ate, ga.anaerobic_te AS anate,
               ga.training_load AS training_load,
               ga.hr_zones_json AS hr_zones_json,
@@ -188,6 +234,18 @@ export function recentEnduranceImpacts(days = 3, date = localDateISO()): Enduran
         WHERE a.date >= ? AND a.date <= ?
         ORDER BY a.date DESC, a.id DESC`
     ).all(since, today) as any[];
+    // The personal model per day, read once and only when a run with heart rate is
+    // there to judge (run-intensity.ts).
+    const models = new Map<string, HrModel | null>();
+    const modelFor = (date: string) => () => {
+      if (!models.has(date)) models.set(date, usablePersonalHrModel(date));
+      return models.get(date) ?? null;
+    };
+    const lengthBars = new Map<string, RunLengthBars>();
+    const barsFor = (date: string, region: EnduranceModality): RunLengthBars => {
+      if (!lengthBars.has(date)) lengthBars.set(date, runLengthBars(date, { min: region.heavyMin, km: region.heavyKm }));
+      return lengthBars.get(date) as RunLengthBars;
+    };
     // A hand-logged shadow of a synced effort is one endurance dose, not two legs
     // of residual for the same run.
     return withoutShadowActivities(acts)
@@ -216,6 +274,18 @@ export function recentEnduranceImpacts(days = 3, date = localDateISO()): Enduran
           z45,
           Number.isFinite(ascent) ? ascent : null,
           Number.isFinite(descent) ? descent : null,
+          (() => {
+            const statedEasy = isStatedEasyRpe(a.rpe);
+            const day = String(a.date).slice(0, 10);
+            return {
+              run_length: region.mode === "run" ? { bars: barsFor(day, region), date: day } : null,
+              stated_easy: statedEasy,
+              personal:
+                statedEasy || region.mode !== "run"
+                  ? null
+                  : personalRunReadForRow({ ...a, type: "run" }, modelFor(String(a.date).slice(0, 10))),
+            };
+          })(),
         );
         const detail = durPhrase(dur, km);
         const aerobicVolume =

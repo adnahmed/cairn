@@ -299,7 +299,11 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   always the engine's own next step; its `kind` follows the engine's arrival count in CALENDAR
   weeks to race week (`weeks_to_race_week`: peak → taper → race, never peak into race week). A
   reset is recovery, not lost ground, and a long run taken well is held, never re-climbed to
-  (`RESET_TAKEN_FRACTION`, `demonstratedLongKm`). Finish estimates prefer the watch's
+  (`RESET_TAKEN_FRACTION`, `demonstratedLongKm`). **Demonstrated capacity is the floor and the
+  peak is a new high**: the best harm-free closed week of the last 8 (`demonstratedRunCapacity`,
+  `src/repo/run-capacity.ts` — harm is `harmEvidenceOnDay`, never re-derived) sets the ramp's peak
+  target one ~10% step past it and a lighter week resumes toward it inside the ACWR ceiling
+  (`capacityResumeKm`); a harmed week falls back, never pushed through. Finish estimates prefer the watch's
   predictor (≤3 weeks old, Riegel-adjusted) over a Riegel off a training run, and every comparison
   is a `fits`/`stretch`/`beyond_horizon` FIT, never a grade. The weekly ride is a PATTERN read off
   the log (3 of 6 weeks) — no new field. Details in `docs/ARCHITECTURE.md`.
@@ -340,7 +344,14 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   threshold. And `trainedWithoutHarm` is `harmEvidenceOnDay(date) == null`: a hard-cardio day, a
   new-longest run (`longestRunNovelty`), or a bad next morning (rest-grade readiness, or last
   night's HRV/RHR past the athlete's OWN band — charged once per episode, at onset) is harm — a run-only day is never "unrated therefore fine", but a hard-cardio
-  day is CLEARED when the next morning positively vouches (fresh readiness ≥ `SUPPORTIVE_READINESS`
+  day is never one the athlete STATED easy (`activities.rpe` ≤ 4, `src/repo/stated-effort.ts` — the
+  watch's effect/zones/load do not overrule their word; the next morning still does), a RUN with HR
+  and a usable personal model is graded by that model and his own session title, never by training
+  effect / `te_label` / Garmin zones / load (`personalRunRead`, `src/repo/run-intensity.ts` — the harm
+  bar, the day grade and hybrid-load's per-muscle dose all ask it; length still makes a long run a
+  heavy leg dose, and "long" is 1.5× his own six-week median run, never easier than the fixed bar —
+  `runLengthBars`), and is
+  CLEARED when the next morning positively vouches (fresh readiness ≥ `SUPPORTIVE_READINESS`
   and no brake firing; absent data never vouches). "Morning readiness" comes from the ledger's own
   snapshot for that morning, since the stored Garmin value is the day's LAST sync and so is
   post-workout on any day the athlete trained; the morning read itself is the last predictive

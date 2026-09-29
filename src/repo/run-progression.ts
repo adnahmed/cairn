@@ -52,6 +52,7 @@ import {
 import { applyPersonalResponseModifier, personalResponseModifierFor } from "./reaction-model.js";
 import {
   acwrCeilingKm,
+  capacityResumeKm,
   easyRunCapKm,
   isRampDownWeekOn,
   raceRamp,
@@ -85,8 +86,8 @@ import {
   hrZoneLabel,
   type HrZoneKey,
   isEasyHr,
-  RUN_TYPE_SQL,
 } from "./hr-model.js";
+import { isStatedEasyRpe } from "./stated-effort.js";
 import { getRunCompliance, type RunCompliance } from "./sessions.js";
 import { isReadDayReadiness, sensorIsCurrent } from "./sensor-freshness.js";
 import { daysBetweenISO, localDateISO } from "./shared.js";
@@ -95,6 +96,7 @@ import { getTrainingIntent, type ResolvedTrainingIntent } from "./training-inten
 import type { CoachPersonalModifier } from "../brain/coach-context-contract.js";
 import { round1 } from "../lib/numbers.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
+import { closedWeekRunHarm, demonstratedRunCapacity, type DemonstratedRunCapacity } from "./run-capacity.js";
 import { isoDaysAgo, mondayOf } from "../lib/dates.js";
 
 function shiftDaysISO(dateISO: string, n: number): string {
@@ -801,6 +803,21 @@ export const RUN_ACWR_CEILING_VARIANTS: readonly [string, ...string[]] = [
   "A little less than the full step this week: the month behind it had a lighter stretch in it, and the build holds up better when the weeks climb evenly.",
 ];
 
+// The week after a reset taken as a lighter week steps off the level it paused.
+export const RESET_RESUME_LINE =
+  "Picking the build back up from where it paused — last week's reset was recovery, not lost ground.";
+
+// The week after ANY lighter week resumes toward the best week already run well
+// (capacityResumeKm, run-ramp.ts). Plain words; the number is the athlete's own week.
+export const RUN_CAPACITY_RESUME_VARIANTS: ReadonlyArray<(km: number) => string> = [
+  (km) =>
+    `Picking the build up from the ~${km} km week you've already run well — a lighter week since doesn't take that ground away.`,
+  (km) =>
+    `You've already carried ~${km} km in a week without it costing you, so the build resumes from there rather than climbing back from the lighter week.`,
+  (km) =>
+    `The lighter week was a pause, not lost ground: the build steps back toward the ~${km} km you've already run well.`,
+];
+
 // Reflecting the athlete's OWN stated run days back at them — never "anchored"/
 // "engine" language, which reads as Cairn narrating its own machinery rather than
 // noticing a fact the athlete already told it.
@@ -1345,7 +1362,7 @@ export function weeklyRunPlan(
     );
     if (pausedKm > closedWeekKm && closedWeekKm >= pausedKm * RESET_TAKEN_FRACTION) {
       anchorKm = pausedKm;
-      rationale.push("Picking the build back up from where it paused — last week's reset was recovery, not lost ground.");
+      rationale.push(RESET_RESUME_LINE);
     }
   }
 
@@ -1442,7 +1459,24 @@ export function weeklyRunPlan(
     const stateLongest = Number(runState?.longest_km_4wk);
     return Number.isFinite(stateLongest) && stateLongest > 0 ? stateLongest : 0;
   })();
-  const ramp: RaceRamp | null = (() => {
+  // What the running has already DEMONSTRATED (run-capacity.ts): the best closed week of
+  // the last few that carried no harm evidence, and the longest recent run taken well.
+  // Read only for a dated race still ahead — it shapes the ramp's peak (a new high past
+  // it, never a peak below it) and the resume below. Anchored like the volume reads.
+  const shownCapacity: DemonstratedRunCapacity | null =
+    goal?.is_race && goal.date && raceStillAhead
+      ? (() => {
+          try {
+            return demonstratedRunCapacity(volumeAnchor);
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+  const rampDemonstrated = shownCapacity
+    ? { week_km: shownCapacity.floor_km, long_km: shownCapacity.long_km }
+    : null;
+  const rampAt = (anchor: number): RaceRamp | null => {
     try {
       // Whether the race has already HAPPENED is a question about today, and it stays
       // on the live plan date. raceRamp answers it against whatever date it is handed,
@@ -1461,11 +1495,42 @@ export function weeklyRunPlan(
       // where a race genuinely does get one week closer, and the ask reads the same from
       // every morning in between. Deliberately mondayOf(d) and NOT volumeAnchorDate:
       // that one is the Sunday BEFORE, which would put the whole timeline a week out.
-      return raceRamp(goal, week_start, anchorKm, prevLongForRamp);
+      return raceRamp(goal, week_start, anchor, prevLongForRamp, null, rampDemonstrated);
     } catch {
       return null;
     }
-  })();
+  };
+  let ramp: RaceRamp | null = rampAt(anchorKm);
+  // Ground already covered is not lost to one light week. When the closed week ran under
+  // the demonstrated floor — a recovery dip, a trip, a cold — the build resumes toward
+  // that floor instead of re-climbing from the light week, inside the ACWR ceiling of the
+  // last month (capacityResumeKm), so the resumed week never reads as a spike. Not in
+  // the taper (it steps down from what was run), not off an empty week, and not when
+  // the closed week itself carried harm evidence: capacity is never pushed through harm.
+  if (
+    ramp &&
+    !ramp.taper_week &&
+    closedWeekKm > 0 &&
+    shownCapacity?.floor_km != null &&
+    shownCapacity.floor_km > anchorKm + 0.05
+  ) {
+    const resumed = capacityResumeKm(
+      anchorKm,
+      shownCapacity.floor_km,
+      [3, 2, 1, 0].map((b) => recordedWeeklyKm(volumeAnchor, b, RUN_SPORT_PATTERNS)),
+      ENDURANCE_CHRONIC_FLOOR_KM
+    );
+    const closedWeekHarm = resumed > anchorKm + 0.05 ? closedWeekRunHarm(volumeAnchor) : null;
+    if (resumed > anchorKm + 0.05 && closedWeekHarm == null) {
+      anchorKm = resumed;
+      ramp = rampAt(anchorKm);
+      const resetLine = rationale.indexOf(RESET_RESUME_LINE);
+      if (resetLine >= 0) rationale.splice(resetLine, 1);
+      rationale.push(
+        pickDayVariant(RUN_CAPACITY_RESUME_VARIANTS, week_start, "run-capacity-resume")(Math.round(shownCapacity.floor_km))
+      );
+    }
+  }
   // A reset week roughly every 4th. With a dated race the ramp owns the cadence — it
   // counts down to the start line, and the race ladder labels its weeks from the same
   // count, so the plan never calls "build" the week the ladder calls "down". The
@@ -2269,7 +2334,19 @@ export function weeklyRunPlan(
     ramp && capacityShape
       ? ((() => {
           try {
-            return raceRamp(goal, week_start, anchorKm, prevLongForRamp, { shape: capacityShape, demonstratedMidweekKm });
+            return raceRamp(
+              goal,
+              week_start,
+              anchorKm,
+              prevLongForRamp,
+              {
+                shape: capacityShape,
+                demonstratedMidweekKm,
+                priorWeeksKm: [3, 2, 1, 0].map((b) => recordedWeeklyKm(volumeAnchor, b, RUN_SPORT_PATTERNS)),
+                chronicFloorKm: ENDURANCE_CHRONIC_FLOOR_KM,
+              },
+              rampDemonstrated
+            );
           } catch {
             return null;
           }
@@ -2551,17 +2628,21 @@ export function runIntensityDiscipline(date?: string): RunIntensityDiscipline | 
   // query rather than two against the same table for the same rows.
   const chronicSince = isoDaysAgo(d, RUN_INTENSITY_CHRONIC_WINDOW_DAYS - 1);
 
-  let rows: Array<{ date: string; avg_hr: number | null; minutes: number | null }> = [];
+  // `rpe` is the athlete's own stated effort on the linked activity row: a run they
+  // SAID was easy (the talk-test band, stated-effort.ts) is easy running whatever its
+  // average — the athlete's word outranks a line drawn from a model.
+  type IntensityRow = { date: string; avg_hr: number | null; minutes: number | null; rpe: number | null };
+  let rows: IntensityRow[] = [];
   try {
     rows = db
       .prepare(
-        `SELECT date, avg_hr, COALESCE(moving_min, duration_min) AS minutes
-           FROM garmin_activities
-          WHERE ${RUN_TYPE_SQL} AND avg_hr IS NOT NULL AND avg_hr > 0
-            AND date >= ? AND date <= ?
-          ORDER BY date`
+        `SELECT g.date AS date, g.avg_hr AS avg_hr, COALESCE(g.moving_min, g.duration_min) AS minutes, a.rpe AS rpe
+           FROM garmin_activities g LEFT JOIN activities a ON a.id = g.activity_id
+          WHERE LOWER(COALESCE(g.type,'')) LIKE '%run%' AND g.avg_hr IS NOT NULL AND g.avg_hr > 0
+            AND g.date >= ? AND g.date <= ?
+          ORDER BY g.date`
       )
-      .all(chronicSince, d) as Array<{ date: string; avg_hr: number | null; minutes: number | null }>;
+      .all(chronicSince, d) as IntensityRow[];
   } catch {
     return null;
   }
@@ -2577,6 +2658,10 @@ export function runIntensityDiscipline(date?: string): RunIntensityDiscipline | 
       const effort = classifyRunEffort(hr, minutes, model);
       if (effort === "unknown") continue;
       runs_classified += 1;
+      if (isStatedEasyRpe(row.rpe)) {
+        easy_count += 1;
+        continue;
+      }
       if (effort === "easy") easy_count += 1;
       if (!isEasyHr(hr, model)) above_easy_count += 1;
     }

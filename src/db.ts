@@ -1637,7 +1637,7 @@ CREATE TABLE IF NOT EXISTS hr_model_state (
 -- re-finish is idempotent instead of stacking duplicate anchors.
 CREATE TABLE IF NOT EXISTS calibration_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  kind TEXT NOT NULL,                    -- lthr_tt | benchmark_run | strength_topset
+  kind TEXT NOT NULL,                    -- lthr_tt | benchmark_run | strength_topset | talk_test
   date TEXT NOT NULL,                    -- the day the test was performed
   target_key TEXT,                       -- lthr | easy_pace | normalized exercise key
   result_json TEXT NOT NULL DEFAULT '{}',

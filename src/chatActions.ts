@@ -54,6 +54,7 @@ export const CHAT_ACTION_TYPES = [
   "report_training_symptom",
   "resolve_training_symptom",
   "log_checkin",
+  "set_activity_effort",
   "flag_training_structure",
   "revert_decision",
 ] as const;
@@ -347,6 +348,19 @@ export interface LogCheckinAction extends ChatActionBase {
   date?: unknown;
 }
 
+// How a run (or other cardio effort) they ALREADY did felt — "kept it conversational,
+// no toll". Lands on that activity's own felt effort (`setActivityFeltEffort`,
+// src/repo/activity-effort.ts): a stated-easy run is not graded hard by the watch's
+// intensity bars, and one with heart rate is a talk-test observation. Resolved by
+// `activity_id` when the agent has it, else the day's run.
+export interface SetActivityEffortAction extends ChatActionBase {
+  type: "set_activity_effort";
+  rpe: number;
+  activity_id?: number | null;
+  date?: string;
+  note?: string | null;
+}
+
 // The athlete asking for a change to the SHAPE of their training — which lifts the
 // program is built around, how the week is split, what the block is for. Chat cannot
 // restructure a plan, and a promise to "flag it to your coach lane" that wrote nothing
@@ -394,6 +408,7 @@ export type ChatAction =
   | ReportTrainingSymptomAction
   | ResolveTrainingSymptomAction
   | LogCheckinAction
+  | SetActivityEffortAction
   | FlagTrainingStructureAction
   | RevertDecisionAction;
 
@@ -736,6 +751,14 @@ export const CHAT_ACTION_PROMPT_SPECS = {
       `Use log_checkin when the athlete tells you how they feel today or how a session felt — "I feel great", "I feel rough", "that session was hard". energy, sleep_feel, soreness, and mood are all 1 (low) to 5 (great) — the same scale the app writes. Omit any field they did not speak to; never guess a missing rating. A note is optional free text and is stored verbatim. date must be a real YYYY-MM-DD on or before today; omit it rather than inventing "yesterday" or a future day. This writes the same check-in the app does — absence of a check-in is silence.`,
     ],
   },
+  set_activity_effort: {
+    type: "set_activity_effort",
+    applyMode: "immediate",
+    shape: `{ "type": "set_activity_effort", "rpe": 1-10, "note": "<their own words, verbatim>", "date": "YYYY-MM-DD|omit", "activity_id": <id from recent_activities|omit> }`,
+    guidance: [
+      `Use set_activity_effort when the athlete tells you how a run or other cardio effort they ALREADY DID felt — "I kept that run conversational, it didn't take a toll", "the long run was brutal", "tempo felt controlled". rpe is their felt effort, 1 (nothing) to 10 (all out): conversational / could talk the whole way / super easy / no toll → 2-3; comfortable but working → 4-5; comfortably hard, tempo → 6-7; hard → 8; all out → 9-10. note is their sentence copied verbatim. date is the day of that effort (omit for today); give activity_id only when that exact activity is in recent_activities. Their word on how it felt outranks the watch's training-effect label and zones — never argue it with the heart rate. How they feel today overall is still log_checkin; emit both when they said both.`,
+    ],
+  },
   flag_training_structure: {
     type: "flag_training_structure",
     applyMode: "immediate",
@@ -1047,6 +1070,21 @@ export function normalizeChatAction(value: unknown): ChatAction | null {
         mood,
         note,
         date: chatCheckinDate(value.date),
+      };
+    }
+    case "set_activity_effort": {
+      // A felt effort is a number the athlete gave (or plainly implied in words the
+      // guidance maps); without one there is nothing to record.
+      if (value.rpe == null || value.rpe === "") return null;
+      const n = Number(value.rpe);
+      if (!Number.isFinite(n) || n < 1 || n > 10) return null;
+      const note = nonBlank(value.note) ? value.note.trim().slice(0, 280) : null;
+      return {
+        type: "set_activity_effort",
+        rpe: Math.round(n * 2) / 2,
+        activity_id: finiteId(value.activity_id) ? Math.trunc(Number(value.activity_id)) : null,
+        date: chatCheckinDate(value.date),
+        note,
       };
     }
     case "flag_training_structure": {

@@ -21,7 +21,11 @@ import { daysBetweenISO, localDateISO, localDayOfStamp } from "./shared.js";
 import { isoDay } from "../lib/dates.js";
 import { finite as num } from "../lib/numbers.js";
 
-export type CalibrationKind = "lthr_tt" | "benchmark_run" | "strength_topset";
+// `talk_test` is the athlete's own word on a run with heart rate — "conversational,
+// no toll" — recorded as an observation of where easy actually sits for them. It never
+// anchors threshold; the HR model reads the pattern of them (`talkTestEasyLine`,
+// hr-model.ts) and only a repeated one moves the easy line, bounded.
+export type CalibrationKind = "lthr_tt" | "benchmark_run" | "strength_topset" | "talk_test";
 
 export type CalibrationEvent = {
   id: number;
@@ -205,6 +209,50 @@ export function recordCalibrationEvent(
   event: Omit<CalibrationEvent, "id" | "created_at">
 ): CalibrationEvent | null {
   return insertEvent(event, null);
+}
+
+/**
+ * The athlete's stated felt effort on a run with heart rate, as a talk-test
+ * observation (source `stated`, keyed by the Garmin activity it was said about).
+ * Re-stating replaces the earlier observation for that run rather than stacking.
+ */
+export function recordTalkTestObservation(input: {
+  date: string;
+  garmin_activity_id: number;
+  activity_id: number;
+  avg_hr: number;
+  minutes: number | null;
+  rpe: number;
+  note?: string | null;
+}): CalibrationEvent | null {
+  const refId = Math.trunc(Number(input.garmin_activity_id));
+  if (!Number.isFinite(refId) || refId <= 0) return null;
+  clearTalkTestObservation(refId);
+  return insertEvent(
+    {
+      kind: "talk_test",
+      date: input.date,
+      target_key: "easy_ceiling",
+      result: {
+        avg_hr: Math.round(input.avg_hr),
+        minutes: input.minutes == null ? null : Math.round(input.minutes),
+        rpe: input.rpe,
+        activity_id: input.activity_id,
+        garmin_activity_id: refId,
+        ...(input.note ? { note: input.note } : {}),
+      },
+      source: "stated",
+    },
+    refId
+  );
+}
+
+/** Withdraw the talk-test observation for one run (its felt effort was changed or cleared). */
+export function clearTalkTestObservation(garminActivityId: number): boolean {
+  const refId = Math.trunc(Number(garminActivityId));
+  if (!Number.isFinite(refId) || refId <= 0) return false;
+  const info = db.prepare(`DELETE FROM calibration_events WHERE kind = 'talk_test' AND ref_id = ?`).run(refId);
+  return Number(info.changes) > 0;
 }
 
 /** The most recent event anchoring a target, at or before a date. */

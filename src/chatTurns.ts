@@ -2625,6 +2625,20 @@ export function applyChatActions(
             }),
           });
           break;
+        case "set_activity_effort": {
+          // The athlete's word on how a run they already did felt: lands on that
+          // activity's own felt effort (id when the agent had it, else the day's run).
+          const activityId =
+            a.activity_id ?? repo.resolveEffortActivityId(chatCheckinDate(a.date, localDateISO()) ?? localDateISO());
+          applied.push({
+            type: a.type,
+            result:
+              activityId == null
+                ? { ok: false, code: "not_found", error: "no logged activity on that day to attach the felt effort to" }
+                : repo.setActivityFeltEffort(activityId, { rpe: a.rpe, note: a.note ?? null }),
+          });
+          break;
+        }
         case "plan_update":
           // Text-only food turns still cannot trigger plan edits. An attached
           // image action is allowed to reach autonomy only because the server

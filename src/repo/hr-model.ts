@@ -11,6 +11,7 @@
 // consumers fall back to neutral language — it never invents a band from age.
 import { db } from "../db.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
+import { readsRestGradeReadiness } from "./readiness-bands.js";
 import { sensorIsCurrent } from "./sensor-freshness.js";
 import { localDateISO } from "./shared.js";
 import { finite as num } from "../lib/numbers.js";
@@ -27,6 +28,14 @@ export type HrModel = {
   zones: { z1_top: number; z2_top: number; z3_top: number; z4_top: number } | null;
   resting: number | null;
   confidence: "anchored" | "estimated" | "insufficient";
+  /**
+   * Where the easy line (z2_top) comes from: the threshold's own fraction, or the
+   * athlete's repeated talk tests raising it (`talkTestEasyLine`). Absent on a model
+   * persisted before the talk-test read existed — read that as "lthr".
+   */
+  easy_basis?: "lthr" | "talk_test";
+  /** How many talk-test observations the raised easy line rests on (0 when none). */
+  talk_test_runs?: number;
   basis_runs: number;
   window_days: number;
   updated_at: string | null;
@@ -186,6 +195,77 @@ function longSteadyFloor(asOf: string): number | null {
   return best == null ? null : Math.round(best);
 }
 
+// ---------- the athlete's talk tests: where easy actually sits ----------
+//
+// Z2's top is a fixed fraction of threshold (0.89 × LTHR), and for some athletes it
+// sits below where their breathing still says easy — the owner's own words
+// (2026-09-29): a run at 157 bpm "kept conversational… it did not take a toll", and
+// "150 would be a super super easy run". A talk test is the oldest field measure of
+// the first ventilatory threshold there is, and the athlete is the only instrument
+// that can take it.
+//
+// So a STATED easy run with heart rate (`recordTalkTestObservation`, calibration.ts)
+// is an observation, and a PATTERN of them moves the easy line — bounded on every side:
+//   • never from one run: at least TALK_TEST_MIN_OBSERVATIONS distinct days inside
+//     TALK_TEST_WINDOW_DAYS, each a genuinely sustained run (TALK_TEST_MIN_MINUTES);
+//   • never past TALK_TEST_Z2_CAP_OF_LTHR of the threshold (0.92 — the top of the
+//     steady band's lower half; tempo lives above it), so easy never becomes tempo;
+//   • never on a run whose next morning read rest-grade: a body that paid for it was
+//     not a talk test passed, whatever it felt like;
+//   • only ever UP — the line the threshold draws is the floor, and a talk test
+//     slower than it says nothing new.
+// The line lands where the observations' median sits once the measurement tolerance
+// is added back (`easyCeiling` = z2_top + EASY_CEILING_TOLERANCE_BPM), so "easy"
+// means the pulse at which this athlete, repeatedly, said easy.
+export const TALK_TEST_WINDOW_DAYS = 42;
+export const TALK_TEST_MIN_OBSERVATIONS = 3;
+export const TALK_TEST_MIN_MINUTES = 30;
+export const TALK_TEST_Z2_CAP_OF_LTHR = 0.92;
+
+export function talkTestEasyLine(asOf: string, lthr: number): { z2_top: number; runs: number } | null {
+  if (!Number.isFinite(lthr) || lthr < 100) return null;
+  let rows: Array<{ date: string; result_json: string; next_readiness: number | null }> = [];
+  try {
+    rows = db
+      .prepare(
+        `SELECT c.date AS date, c.result_json AS result_json,
+                (SELECT m.training_readiness FROM garmin_daily_metrics m
+                  WHERE m.date = date(c.date, '+1 day')) AS next_readiness
+           FROM calibration_events c
+          WHERE c.kind = 'talk_test' AND c.date <= ? AND c.date >= ?
+          ORDER BY c.date`
+      )
+      .all(asOf, shiftISO(asOf, -TALK_TEST_WINDOW_DAYS)) as typeof rows;
+  } catch {
+    return null;
+  }
+  // One observation per day — the gentlest of them, if a day holds two.
+  const byDay = new Map<string, number>();
+  for (const row of rows) {
+    if (readsRestGradeReadiness(row.next_readiness)) continue;
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      parsed = JSON.parse(row.result_json || "{}");
+    } catch {
+      continue;
+    }
+    const hr = num(parsed?.avg_hr);
+    const minutes = num(parsed?.minutes);
+    if (hr == null || hr < 100 || hr > 220) continue;
+    if (minutes == null || minutes < TALK_TEST_MIN_MINUTES) continue;
+    const day = String(row.date).slice(0, 10);
+    const prev = byDay.get(day);
+    byDay.set(day, prev == null ? hr : Math.min(prev, hr));
+  }
+  const values = [...byDay.values()].sort((a, b) => a - b);
+  if (values.length < TALK_TEST_MIN_OBSERVATIONS) return null;
+  const mid = Math.floor(values.length / 2);
+  const median = values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+  const line = Math.floor(median) - EASY_CEILING_TOLERANCE_BPM;
+  const cap = Math.round(lthr * TALK_TEST_Z2_CAP_OF_LTHR);
+  return { z2_top: Math.min(line, cap), runs: values.length };
+}
+
 // ---------- the model ----------
 
 function computeHrModel(asOf: string): HrModel {
@@ -236,13 +316,22 @@ function computeHrModel(asOf: string): HrModel {
     confidence = "estimated";
   }
 
+  const zones = zonesFromLthr(lthr);
+  // The athlete's own talk tests may lift the easy line — never on the fallback rung,
+  // where the threshold the cap is drawn from is itself a guess.
+  const talk = basis === "fallback" ? null : talkTestEasyLine(asOf, lthr);
+  const raised = talk != null && talk.z2_top > zones.z2_top;
+  if (raised) zones.z2_top = talk.z2_top;
+
   return {
     observed_max: observed.max,
     lthr,
     lthr_basis: basis,
-    zones: zonesFromLthr(lthr),
+    zones,
     resting,
     confidence,
+    easy_basis: raised ? "talk_test" : "lthr",
+    talk_test_runs: talk?.runs ?? 0,
     basis_runs: observed.runs,
     window_days: WINDOW_DAYS,
     updated_at: null,
@@ -287,6 +376,16 @@ export function deriveHrModel(dateISO: string): HrModel {
      ON CONFLICT(id) DO UPDATE SET as_of = excluded.as_of, model_json = excluded.model_json, updated_at = datetime('now')`
   ).run(asOf, JSON.stringify({ ...model, updated_at: null }));
   return readPersisted(asOf) ?? model;
+}
+
+/**
+ * Re-derive today's persisted model after an input the nightly derive would otherwise
+ * only see tomorrow (a stated talk test). A day the scheduler has not persisted yet is
+ * left alone — `getHrModel` already derives it fresh.
+ */
+export function refreshPersistedHrModel(dateISO?: string): void {
+  const asOf = String(dateISO || localDateISO()).slice(0, 10);
+  if (readPersisted(asOf)) deriveHrModel(asOf);
 }
 
 export function zonesFromLthr(lthr: number): NonNullable<HrModel["zones"]> {

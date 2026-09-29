@@ -1860,10 +1860,62 @@ harm was one of three days holding the easy ladder shut. Absent or stale data is
 another day's 9.85 km into a readiness of 26 still counts. The rated-session and longest-run arms are facts
 about the day itself and no morning can argue them away — EXCEPT the race build's own prescription
 (2026-09-22): a longest run on a stated long-run weekday (`endurance_schedule`), within the long run a
-dated race build climbs to (`peakLongKm`, `src/repo/run-ramp.ts`), and hard cardio on the stated
+dated race build climbs to (`longPeakTargetKm`, `src/repo/run-ramp.ts` — the race's long-run peak,
+or one milestone step past the previous longest up to 20 km, read off the raw previous longest so
+the law never asks itself), and hard cardio on the stated
 quality weekday are PLANNED DOSE — both the longest-run and hard-cardio arms stand aside and only the
 next-morning physiology arm (and a poorly rated session) can call them harm (`plannedDoseOn`). Of 19
 days trained against the read, 8 had been flagged by the build working as written.
+
+**A run is graded by the personal HR model, never the watch (owner law, 2026-09-25).** For a run
+with an average heart rate and a usable personal model (not `insufficient`, a plausible easy line —
+the bar `runIntensityDiscipline` holds), `personalRunRead` (`src/repo/run-intensity.ts`, the ONE
+answer for every intensity reader: `hardCardioDayCore`, `cardioEffort`/`dayLoad`, the flexible
+agenda's cardio-conflict dates and hybrid-load's per-muscle `classifyImpactLoad`) REPLACES the
+intensity bars: it is hard when `classifyRunEffort` reads it quality against his own
+zones, when he NAMED it quality (`namesQualityRun`, `src/repo/stated-effort.ts` — "Hills",
+"5k+sprints", "5K Fast", "LT HR Test"; a lone place-name "hill" never counts; the title is his input,
+the `te_label` is not), or when `HARD_CARDIO_Z4_SEC` sat in heart-rate bins lying wholly above his
+threshold band (bin floor > `z4_top` — Garmin's bins are drawn on Garmin's zones, so a bin straddling
+his line proves nothing). Training effect, `te_label`, Garmin-zone Z4 minutes and the load-vs-median
+bar no longer speak for such a run: training load is Garmin's EPOC estimate, the quantity training
+effect is computed from, so it is the same judgement by another name (a conversational 157 read load
+219, "hard"). Rides, hikes and runs with no HR or no model keep the old bars. In the day grade a
+run the model reads above easy is `moderate`; in the per-muscle dose a judged (or stated-easy) run
+is moderate by its ordinary length (`CARDIO_GRADE.moderateMin`/`moderateKm`, the bar
+`isLoadRelevantEnduranceImpact` holds) instead of the watch's aerobic effect, and the modality's
+own long bar still makes it HEAVY — a long run stays a real leg dose for `acuteGate` whether or not
+it was hard. Program state's `has_quality` (the "add a quality session" nudge) reads the same
+personal read for runs, falling back to the watch's label / anaerobic effect with no model.
+
+**How long is long is HIS question too (owner ruling, 2026-09-29).** For a RUN, the long bar behind
+the per-muscle HEAVY dose (the modality's 55 min / 9 km) and the day grade's hard-by-length arm
+(`CARDIO_GRADE.hardMin`/`hardKm`, 50 min / 9 km) come from `runLengthBars` (`run-intensity.ts`):
+`OWN_RUN_LONG_MULTIPLE` (1.5) × the median duration / distance of his runs over the
+`OWN_RUN_WINDOW_DAYS` (42) before the day, never below the fixed bar (fewer than
+`OWN_RUN_MIN_RUNS` (4) runs keeps the fixed bar exactly) and never above `OWN_RUN_BAR_CAP`
+(90 min / 16 km). The raised bar never demotes his long run: a run that clears the FIXED bar stays
+long on his stated long-run weekday or at `LONG_RUN_SHARE_OF_LONGEST` (75%) of the window's longest.
+Live read-through: his ordinary run is ~38 min / 6.6 km, so the bar sits at ~56 min / 9.8 km — the
+9.68 km Tuesday run at 157 becomes a moderate leg dose and no longer drives
+`endurance_lower_conflict`; the Sunday 17.7 km long run is heavy as ever. Read through against
+eight weeks of live runs: the 148 treadmill run and the 155–157 steady runs stop grading hard; the LT
+test (164 for 73 min), the 5k test, the 164 runs, "Hills", "5k+sprints" and "5K Fast" stay hard.
+
+**The athlete's stated effort outranks the watch's intensity grade (owner ruling, 2026-09-29).** A run
+the athlete SAYS was easy — `activities.rpe` in the talk-test band, `isStatedEasyRpe` (≤ 4,
+`src/repo/stated-effort.ts`) — skips the intensity bars (training effect, time at Z4+, load above the
+median) in `hardCardioDayCore` (`src/repo/training-read.ts`), so it is never the hard-cardio arm; the
+plain duration bar still makes it a loading day. It also counts as easy running in
+`runIntensityDiscipline` whatever its average. The next-morning physiology arm is untouched and still
+outranks the statement: a rest-grade readiness or last night's HRV/RHR past the athlete's own band is
+harm, felt easy or not. The live case: 9.68 km at 157 bpm, effect 4.5, "kept it conversational… it did
+not take a toll" — graded hard cardio, it kept the run engine's demonstrated-capacity resume shut.
+`rpe` is only ever the athlete's (typed on a log, read from their words by the enricher, or stated
+after the fact); one writer, `setActivityFeltEffort` (`src/repo/activity-effort.ts`), backs
+`PUT /api/activities/:id/effort`, the `set_activity_effort` MCP tool and the chat action of the same
+name (resolved to the day's run when the agent has no id). A felt effort stated on a hand log that
+shadows the watch's row lands on the watch's row, since that is the one the reads count.
 
 **The overnight arms read the athlete's OWN nights, once per episode (2026-09-23).** Only the night
 dated the morning itself answers for the day before it. Its HRV / resting HR is judged against that
@@ -4218,6 +4270,17 @@ steady/threshold, the same four boundaries as `zones` under plain-English names)
 with this athlete's zone numbering can no longer mistake `z1_top` (the recovery line) for the easy
 ceiling — the misread a case-conference opinion once made.
 
+**Talk tests may lift the easy line — bounded, never from one run (2026-09-29).** A run with heart
+rate stated easy (above) files a `talk_test` calibration event (source `stated`, keyed by the Garmin
+activity, the athlete's words in its result; re-stating replaces it, a working rpe or a clear withdraws
+it). `talkTestEasyLine` (`hr-model.ts`) reads the pattern: at least `TALK_TEST_MIN_OBSERVATIONS` (3)
+distinct days in `TALK_TEST_WINDOW_DAYS` (42), each ≥ `TALK_TEST_MIN_MINUTES` (30), none followed by a
+rest-grade morning. The line lands at the observations' median less the easy tolerance (so the spoken
+`easy_ceiling_bpm` sits at that median), capped at `TALK_TEST_Z2_CAP_OF_LTHR` (0.92) × LTHR so easy
+never becomes tempo, only ever UP from the threshold's own 0.89, and never on the fallback rung. The
+threshold itself is untouched; the model reports `easy_basis:"talk_test"` and `talk_test_runs`. A
+statement re-derives today's persisted model at once (`refreshPersistedHrModel`).
+
 `calibration.ts` is the elite-coach testing loop for BOTH domains: what is anchored, how stale it
 is (freshness words, never day counts), and whether a test is worth suggesting — `due` only when a
 stale quantity is actually steering a live decision (a dated race for the run zones; three
@@ -4309,7 +4372,19 @@ demonstrated longest. A scheduled down week HOLDS that longest when it was taken
 steps to 0.85× only when the body paid for it. **A reset is recovery, not lost ground**: the week
 after the ramp's own reset week steps off the level the reset paused (the week before it), provided
 the reset was run as a lighter week (≥ `RESET_TAKEN_FRACTION` of that level — below it, it was an
-absence and the reactive anchor stands). **The arrival is counted in calendar weeks to race week**
+absence and the reactive anchor stands). **Demonstrated capacity is the floor, and the peak is a new
+high** (owner ruling 2026-09-29): `demonstratedRunCapacity` (`src/repo/run-capacity.ts`) reads the
+best closed week of the last `DEMONSTRATED_CAPACITY_WEEKS` (8) whose run days `harmEvidenceOnDay`
+all clear (harm on a day a trip or illness covers, or its next morning, is confounded and not
+charged; a harmed week is `set_aside` and the floor falls back to the best week the body did not pay
+for), plus `demonstratedLongKm` (moved here from race-build). `raceRamp(…, demonstrated)` then aims
+the peak at `peak_target_km` = the race demand or one `NEW_PEAK_STEP` (1.1) past the floor (capped at
+`PEAK_TARGET_CEILING_OF_DEMAND` × the demand, never under the floor), and the long-run peak at
+`longPeakTargetKm` — one `NEW_LONG_PEAK_STEP` past the longest run taken well up to 20 km, never
+under it; `ideal_peak_km`, `needed_build_factor` and the fit stay measured against the demand. A
+lighter closed week (any cause, not only the ramp's reset) RESUMES toward the floor via
+`capacityResumeKm` — bounded by `acwrCeilingKm`, so never a spike, and not at all with no chronic
+base, off an empty week, in the taper, or when the closed week itself carried harm. **The arrival is counted in calendar weeks to race week**
 (`weeks_to_race_week`: race week 0, final taper 1, peak 2, long-run peak ≤3), not ceil(days/7) —
 which read a Sunday race's week as "1 out" and landed peak volume the week immediately before race
 week. The engine's taper is the ramp's `taper_week` (final taper ~0.7 of the peak week, race week
@@ -4325,7 +4400,8 @@ old 5–7 km recovery band, which still caps a lone easy run with no quality bes
 ordinary build week a long run taken well may rise to the race curve's next long run; in a race
 taper the long run is the curve's taper long run and the easy runs come down to meet it. When the
 run count is FIXED (supporting role, stated calendar, set sessions) `goal_feasibility.capacity`
-carries that ordinary week's shape and the fit walk holds each week to `deliverableRunWeek`, so
+carries that ordinary week's shape and the fit walk holds each week to `deliverableRunWeek` (and,
+handed the closed weeks, to `acwrCeilingKm` like the ladder), so
 "race day is shaping up around N km" names what three runs will really prescribe. And **no
 prescribed week trips the engine's own spike brake**: the week is trimmed (never below the level it
 steps off) to `acwrCeilingKm` — 1.4× the mean of the four closed weeks the next Monday's spike read
@@ -4383,7 +4459,12 @@ new profile fields, and `{available:false, reason}` for everyone else. `raceBuil
   The walk mirrors the engine's reset laws: after a down rung it steps off the level the reset
   paused (`priorWeekKm` for the live week), and the long run never plans back up to
   `demonstratedLongKm` — the longest run of 28 days that `harmEvidenceOnDay` clears — which a
-  projected down rung holds rather than steps under. A projected rung is what the engine will
+  projected down rung holds rather than steps under. It passes the same demonstrated read to
+  `raceRamp` (`demonstratedWeekKm`), and a projected pre-taper rung after a lighter one resumes
+  toward the floor through `capacityResumeKm` — the engine's rule, so the ladder never plans its
+  peak under a week already run well. A build or peak rung bigger than every closed week on record
+  (`best_week_km`) and every rung before it carries `new_high`, said in words (`newHighWords`: the
+  peak row reads "A new weekly high"), never a number. A projected rung is what the engine will
   PRESCRIBE: in the engine's own run week (`goal_feasibility.capacity`) it is held to
   `deliverableRunWeek`, and to `acwrCeilingKm` over the logged closed weeks and the rungs before it
   — the engine's own per-run caps and spike headroom, so the ladder never promises a 45 km week

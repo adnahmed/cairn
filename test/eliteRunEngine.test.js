@@ -19,6 +19,7 @@ import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { repo, resetTables } from "./_seed.js";
 import { parseRaceTarget, raceBuild } from "../dist/repo/race-build.js";
+import { demonstratedRunCapacity } from "../dist/repo/run-capacity.js";
 import { RUN_ACWR_CEILING_VARIANTS, TIMELINE_CLOSE_VARIANTS, TIMELINE_FIT_VARIANTS } from "../dist/repo/run-progression.js";
 import {
   deliverableRunWeek,
@@ -239,7 +240,10 @@ test("the taper keeps the race curve's long run, and the easy runs come down to 
   seedSupportingRunner();
   const engine = walkEngine();
   const finalTaper = engine.find((w) => w.monday === "2031-10-20").plan;
-  const rampLong = raceRamp(goal, "2031-10-20", 37, 17.5).required_long_km; // 0.55 × the long-run peak
+  // 0.55 × the long-run peak — which now climbs a step past the longest run taken well
+  // (longPeakTargetKm), so the curve is read with what the engine reads that week.
+  const shownLong = demonstratedRunCapacity("2031-10-19").long_km;
+  const rampLong = raceRamp(goal, "2031-10-20", 37, 17.5, null, { long_km: shownLong }).required_long_km;
   assert.ok(longOf(finalTaper) <= rampLong + 0.05, `taper long ${longOf(finalTaper)} over the curve's ${rampLong}`);
   for (const e of ofKind(finalTaper, "easy")) {
     assert.ok(Number(e.target_distance_km) <= longOf(finalTaper), `easy ${e.target_distance_km} over the long run`);

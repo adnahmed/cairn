@@ -23,6 +23,7 @@ import {
   listActivities,
   logSetByName,
   removeActivity,
+  setActivityFeltEffort,
   recentTraining,
   recordExerciseSymptomObservation,
   recordMovementTolerance,
@@ -435,6 +436,17 @@ trainingLogRouter.delete("/activities/:id", (req, res) => {
   if (result.ok) return res.json(result);
   const status = result.code === "invalid_id" ? 400 : result.code === "not_found" ? 404 : 409;
   res.status(status).json(result);
+});
+
+// State how an activity felt, after the fact: `{ rpe: 1-10 | null, note? }`. A run
+// stated easy (rpe ≤ 4, the talk-test band) is no longer graded hard by the watch's
+// intensity bars — the next morning's physiology still outranks it — and, with heart
+// rate, files a talk-test observation on the HR model's calibration ladder.
+trainingLogRouter.put("/activities/:id/effort", (req, res) => {
+  const b = req.body ?? {};
+  const result = setActivityFeltEffort(req.params.id, { rpe: b.rpe, note: b.note });
+  if (result.ok) return res.json(result);
+  res.status(result.code === "not_found" ? 404 : 400).json(result);
 });
 
 // Live enrichment status for one activity (Server-Sent Events) — the SSE-first

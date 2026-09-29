@@ -36,7 +36,6 @@ import { round1 } from "../lib/numbers.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
 import { weekLayoutRead, type WeekLayoutRead } from "../domain/training/week-layout.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
-import { harmEvidenceOnDay } from "./brain/read-adherence.js";
 import { matchEnduranceModality } from "./heavy-load.js";
 import { easyCeiling, getHrModel } from "./hr-model.js";
 import { recentEnduranceImpacts, type EnduranceImpact } from "./hybrid-load.js";
@@ -46,6 +45,7 @@ import { strengthScheduleRead } from "./strength-schedule.js";
 import { ENDURANCE_CHRONIC_FLOOR_KM } from "./program-state.js";
 import {
   acwrCeilingKm,
+  capacityResumeKm,
   deliverableRunWeek,
   raceRamp,
   RESET_TAKEN_FRACTION,
@@ -53,6 +53,7 @@ import {
   type RaceRampGoal,
 } from "./run-ramp.js";
 import { weekAsPlanned, weeklyRunPlan, type WeeklyRunPlan } from "./run-progression.js";
+import { closedWeekRunHarm, demonstratedLongKm, demonstratedRunCapacity } from "./run-capacity.js";
 import { localDateISO } from "./shared.js";
 import { planDayStrengthGroups } from "./training-read.js";
 
@@ -122,6 +123,11 @@ export interface RaceBuildWeek {
   focus: string;
   /** The same week in a few words, for a row: "Race-pace work", "Longest long run". */
   focus_short: string;
+  /**
+   * The rung is bigger than any closed week on record (`best_week_km`, run-capacity.ts)
+   * and every rung before it — a genuine new milestone, said in words, never a score.
+   */
+  new_high: boolean;
   /**
    * How the lifting and the running fit this week, in words: heavy-leg days against the
    * key runs on the week's ring, and the taper / race-week / key-run-eve trims the
@@ -565,6 +571,15 @@ export function liftingLine(week: Pick<RaceBuildWeek, "kind" | "phase">, legMap:
  * athlete took WELL (`demonstratedLongKm`): capacity already shown, which the long-run
  * ladder never plans back up to. Both mirror weeklyRunPlan: the week after a reset
  * steps off the level the reset paused, and a reset holds a well-taken long run.
+ *
+ * `opts.demonstratedWeekKm` is the best closed week of the capacity window run without
+ * harm (`demonstratedRunCapacity().floor_km`): the ramp aims its peak one step past it
+ * (`peakTargetKm`), and a projected build rung that follows a lighter one resumes toward
+ * it inside the engine's own ACWR ceiling (`capacityResumeKm`) — weeklyRunPlan's rule,
+ * so the ladder never re-climbs ground already covered. `opts.bestWeekKm` is the biggest
+ * closed week on record, which a rung has to pass to be a new weekly high. With
+ * `opts.currentWeekHarmed` next week's rung does not resume: the engine will not resume
+ * through a week that carried harm, so neither does the ladder.
  */
 export function projectRaceBuildWeeks(
   goal: RaceRampGoal & { date: string; distance_km: number },
@@ -578,6 +593,10 @@ export function projectRaceBuildWeeks(
     demonstratedLongKm?: number | null;
     capacity?: RaceRampCapacity | null;
     closedWeeksKm?: readonly number[] | null;
+    demonstratedWeekKm?: number | null;
+    bestWeekKm?: number | null;
+    /** This week's running already carries harm evidence: next week does not resume through it. */
+    currentWeekHarmed?: boolean;
   }
 ): RaceBuildWeek[] {
   const out: RaceBuildWeek[] = [];
@@ -599,10 +618,28 @@ export function projectRaceBuildWeeks(
   // last week's logged volume, which the walk's own anchor (this week's prescription)
   // is not.
   let prevRungKm = Number(opts?.priorWeekKm) > 0 ? Number(opts?.priorWeekKm) : 0;
+  const shown = {
+    week_km: Number(opts?.demonstratedWeekKm) > 0 ? Number(opts?.demonstratedWeekKm) : null,
+    long_km: demonstrated || null,
+  };
   let guard = 0;
   while (monday <= raceMonday && guard++ < 60) {
-    const r = raceRamp(goal, monday, anchor, long);
+    let r = raceRamp(goal, monday, anchor, long, null, shown);
     if (!r) break;
+    const isLive =
+      (monday === currentMonday && !!thisWeek && thisWeek.km > 0) ||
+      (monday === nextMonday && !!nextWeek && nextWeek.km > 0);
+    // A projected rung before the taper that follows a lighter one resumes toward the
+    // demonstrated floor, inside the ACWR ceiling of the weeks before it — the same
+    // rule weeklyRunPlan anchors a real week with (capacityResumeKm).
+    const afterHarm = monday === nextMonday && opts?.currentWeekHarmed === true;
+    if (!isLive && !afterHarm && r.weeks_to_race_week >= 2) {
+      const resumed = capacityResumeKm(anchor, shown.week_km, history, ENDURANCE_CHRONIC_FLOOR_KM);
+      if (resumed > anchor) {
+        anchor = resumed;
+        r = raceRamp(goal, monday, anchor, long, null, shown) ?? r;
+      }
+    }
     // The ladder is read by CALENDAR week: the week that holds race day is race week,
     // whatever weekday the start line falls on — and so is the engine's taper now
     // (`weeks_to_race_week`), so the label and the prescription are one count.
@@ -662,6 +699,7 @@ export function projectRaceBuildWeeks(
       strength_hint: kind === "race" ? STRENGTH_HINT.race_week : STRENGTH_HINT[phase],
       focus: weekFocus(kind, phase),
       focus_short: weekFocusShort(kind, phase),
+      new_high: false,
       // Filled by raceBuild once the week's ring is read; the pure walk has no ring.
       with_lifting: "",
       current: monday === currentMonday,
@@ -679,7 +717,40 @@ export function projectRaceBuildWeeks(
     if (!next) break;
     monday = next;
   }
+  markNewHighs(out, opts?.bestWeekKm);
   return out;
+}
+
+const NEW_HIGH_PEAK_FOCUS =
+  "A new weekly high: the biggest week you have run, with the long run at its top, so the other runs stay truly easy.";
+const NEW_HIGH_SHORT = "A new weekly high";
+
+/** A rung's words once it is a new weekly high. Idempotent; a taper or race week never is one. */
+export function newHighWords(week: RaceBuildWeek): void {
+  if (!week.new_high) return;
+  if (week.kind === "peak") {
+    week.focus = NEW_HIGH_PEAK_FOCUS;
+    week.focus_short = NEW_HIGH_SHORT;
+  } else if (week.focus && !week.focus.startsWith(NEW_HIGH_SHORT)) {
+    week.focus = `${NEW_HIGH_SHORT} — ${week.focus[0].toLowerCase()}${week.focus.slice(1)}`;
+  }
+}
+
+/**
+ * Mark the rungs that would be the biggest week on record: above `bestWeekKm` and
+ * above every rung before them. Only a building rung (a build or the peak) can be one;
+ * a reset, the taper and race week are lighter by design.
+ */
+export function markNewHighs(weeks: RaceBuildWeek[], bestWeekKm: number | null | undefined): void {
+  let high = Number(bestWeekKm) > 0 ? Number(bestWeekKm) : 0;
+  if (!(high > 0)) return;
+  for (const week of weeks) {
+    if ((week.kind === "build" || week.kind === "peak") && week.km > high + 0.05) {
+      week.new_high = true;
+      high = week.km;
+      newHighWords(week);
+    }
+  }
 }
 
 /** The fit of an estimate against a target: a band, never a grade. */
@@ -806,28 +877,10 @@ function runPrediction(distanceKm: number, runs: RunRow[]): RacePrediction | nul
   };
 }
 
-/**
- * The longest run of the last 28 days the athlete took WELL — `harmEvidenceOnDay`
- * clears its day (no poor rating, not past the build's own ceiling, no bad next
- * morning). That is capacity already demonstrated: the ladder holds it on a reset and
- * steps off it on a build, and never plans a climb back up to it. A longest the body
- * paid for is not counted; the next-longest that it took well is. Null when none.
- */
-export function demonstratedLongKm(asOf: string, runs: { date: string; km: number }[]): number | null {
-  const recent = runs
-    .filter((r) => r.km > 0 && r.date <= asOf && (daysBetweenISO(asOf, r.date) ?? 99) <= 28)
-    .sort((a, b) => b.km - a.km);
-  for (const r of recent) {
-    let harmed = false;
-    try {
-      harmed = harmEvidenceOnDay(r.date) != null;
-    } catch {
-      harmed = false;
-    }
-    if (!harmed) return round1(r.km);
-  }
-  return null;
-}
+// The longest run of the last 28 days taken well lives with the rest of what the running
+// has demonstrated (run-capacity.ts); re-exported here for the callers that read it off
+// the race build.
+export { demonstratedLongKm };
 
 function weeklyReview(asOf: string, runs: RunRow[]): RaceBuild["review"] {
   const thisMonday = mondayOf(asOf);
@@ -1096,6 +1149,9 @@ export function raceBuild(
   const nextKm = round1(nextRuns.reduce((s, r) => s + (r.target_distance_km != null ? Number(r.target_distance_km) : 0), 0));
   const nextLong = nextRuns.find((r) => r.kind_label === "long");
   const priorWeekKm = review.weeks.find((w) => w.week_start === addDaysISO(thisMonday, -7))?.km ?? null;
+  // What the running has already shown, read at the same closed week the engine plans
+  // this week from (the Sunday before this Monday).
+  const shownCapacity = safe(() => demonstratedRunCapacity(addDaysISO(thisMonday, -1) ?? asOf));
   const weeks = projectRaceBuildWeeks(
     rampGoal,
     asOf,
@@ -1107,6 +1163,9 @@ export function raceBuild(
       priorWeekKm,
       closedWeeksKm: review.weeks.map((w) => w.km),
       demonstratedLongKm: demonstratedLongKm(asOf, logRuns),
+      demonstratedWeekKm: shownCapacity?.floor_km ?? null,
+      bestWeekKm: shownCapacity?.best_week_km ?? null,
+      currentWeekHarmed: safe(() => closedWeekRunHarm(asOf)) != null,
       // The engine's own run week, when its run count is fixed — so a projected rung is
       // what the engine will prescribe in those runs, not a volume they cannot carry.
       capacity: plan?.goal_feasibility?.capacity
@@ -1172,6 +1231,7 @@ export function raceBuild(
       const named = qualityWeekFocus(currentRung.kind, currentRung.phase, qualityRun.label || plan.quality_focus);
       if (named) Object.assign(currentRung, named);
     }
+    newHighWords(currentRung);
   }
   // A ring with nothing on it (no run placed, nothing lifted, no ride) is no map: it
   // goes out empty rather than as seven blank columns.
