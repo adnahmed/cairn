@@ -1336,6 +1336,8 @@ export interface ClientRaceBuildWeek {
   focus: string;
   /** The same week in a few words, for a ladder row. */
   focus_short: string;
+  /** The rung would be the biggest week on record — said in `focus`/`focus_short`, never a score. */
+  new_high?: boolean;
   /** How lifting and running fit this week, in words; "" with no lifting or no running. */
   with_lifting: string;
   current: boolean;

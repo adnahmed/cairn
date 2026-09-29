@@ -68,6 +68,80 @@ const LONG_PEAK_WEEKS_OUT = 3;
 const LONG_PEAK_OF_DISTANCE = 0.85;
 const LONG_PEAK_CEILING_KM = 20;
 
+// ---- demonstrated capacity: the floor under the build, and the next milestone ----
+// A build that walks only from last week's volume forgets what the athlete has already
+// done: one light week (a recovery dip, a trip, a cold) and the ladder re-climbs from
+// there, so its peak can land BELOW a week the athlete ran weeks ago — the plan visibly
+// backing off (owner ruling, 2026-09-29: "plan on pushing me forward, new peaks, new
+// milestones"). So the ramp is handed what the athlete has DEMONSTRATED — the best
+// closed week of the last few that carried no harm evidence (`demonstratedRunCapacity`,
+// run-capacity.ts, over `harmEvidenceOnDay`), and the longest recent run taken well —
+// and treats it as ground already covered: a floor under the peak and a base the build
+// resumes from, never a quota.
+
+/** How many closed Mon–Sun weeks back demonstrated weekly capacity is read over. */
+export const DEMONSTRATED_CAPACITY_WEEKS = 8;
+/**
+ * The peak week's milestone: one ordinary ~10% step past the best harm-free week. The
+ * race distance's own demand (`peakWeeklyKm`) still sets the peak when it is higher;
+ * this only keeps an athlete already past that demand from being planned back under
+ * what they have run. The weekly step ceiling, the ACWR ceiling and the capacity of the
+ * runs in the week still decide whether the walk actually gets there.
+ */
+export const NEW_PEAK_STEP = 1.1;
+/**
+ * The milestone step never carries the target past this multiple of the race's own
+ * demand: a new high each build is the point, a volume the distance has no use for is
+ * not. It never lowers the target under the demonstrated week itself.
+ */
+export const PEAK_TARGET_CEILING_OF_DEMAND = 1.5;
+/**
+ * The long run's milestone: one ~10% step past the longest run taken well, up to
+ * `LONG_PEAK_CEILING_KM` — and never below that demonstrated run itself (a long run
+ * taken well is held, never re-climbed to). The one-safe-step rule per week still holds.
+ */
+export const NEW_LONG_PEAK_STEP = 1.1;
+
+/** What the athlete has already shown, handed to `raceRamp`. Absent fields are neutral. */
+export interface RaceRampDemonstrated {
+  /** The best closed week of the capacity window run without harm evidence, km. */
+  week_km?: number | null;
+  /** The longest recent run taken well (`demonstratedLongKm`), km. */
+  long_km?: number | null;
+}
+
+const positive = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+/**
+ * The peak week the build climbs toward: the race distance's own demand, or one
+ * `NEW_PEAK_STEP` past the best harm-free week when that is higher (the step capped at
+ * `PEAK_TARGET_CEILING_OF_DEMAND` × the demand, never under the week itself). Null when
+ * the distance has no volume ramp at all (`peakWeeklyKm`).
+ */
+export function peakTargetKm(distanceKm: number, demonstratedWeekKm?: number | null): number | null {
+  const demand = peakWeeklyKm(distanceKm);
+  if (demand == null) return null;
+  const shown = positive(demonstratedWeekKm);
+  const milestone = Math.min(shown * NEW_PEAK_STEP, demand * PEAK_TARGET_CEILING_OF_DEMAND);
+  return round1(Math.max(demand, shown, milestone));
+}
+
+/**
+ * The long run the build climbs toward: the race distance's own long-run peak, one
+ * `NEW_LONG_PEAK_STEP` past the longest run taken well (up to the 20 km ceiling), and
+ * never under that run itself.
+ */
+export function longPeakTargetKm(distanceKm: number, demonstratedLongKm?: number | null): number {
+  const race = peakLongKm(distanceKm);
+  const shown = positive(demonstratedLongKm);
+  if (!shown) return race;
+  const milestone = Math.min(shown * NEW_LONG_PEAK_STEP, Math.max(race, LONG_PEAK_CEILING_KM));
+  return round1(Math.max(race, milestone, shown));
+}
+
 // ---- how a week's volume is carried by its runs ------------------------------
 // weeklyRunPlan distributes a week's kilometres across its runs within per-run caps,
 // and the race ladder and the fit read have to know what those caps let a week hold —
@@ -182,11 +256,48 @@ export function acwrCeilingKm(priorWeeksKm: readonly number[], chronicFloorKm: n
   return round1(chronic * PRESCRIBED_ACWR_CEILING);
 }
 
+/**
+ * The level a week steps off when the week before it ran LIGHTER than the athlete's
+ * demonstrated capacity: ground already covered is not lost to one light week, so the
+ * build resumes toward `floorKm` (the best harm-free week) instead of re-climbing from
+ * the light week at ~10% a week — the RESET_TAKEN_FRACTION rule, widened from the
+ * ramp's own reset week to any lighter week.
+ *
+ * Bounded by the one brake a resume could trip: the engine's own ACWR ceiling over
+ * `priorWeeksKm` (the closed weeks before the week being sized, most recent last) —
+ * so the resumed level never reads as a spike the Monday after. With no real chronic
+ * base (`acwrCeilingKm` null: a stretch too thin or too empty for a ratio to mean
+ * anything — weeks off sick, a long trip) there is no resume at all and the ordinary
+ * reactive anchor stands; the floor itself is untouched and returns with the running.
+ * Never lowers the anchor.
+ */
+export function capacityResumeKm(
+  anchorKm: number,
+  floorKm: number | null | undefined,
+  priorWeeksKm: readonly number[],
+  chronicFloorKm: number
+): number {
+  const anchor = positive(anchorKm);
+  const floor = positive(floorKm);
+  if (!(floor > anchor)) return anchorKm;
+  const ceiling = acwrCeilingKm(priorWeeksKm, chronicFloorKm);
+  if (ceiling == null) return anchorKm;
+  return round1(Math.max(anchor, Math.min(floor, ceiling)));
+}
+
 /** What `raceRamp` needs to say where the build lands in the runs the week really has. */
 export interface RaceRampCapacity {
   shape: RunWeekShape;
   /** The longest recent run that was not its week's long run, km. */
   demonstratedMidweekKm?: number | null;
+  /**
+   * The closed weeks before this one, most recent last, and the chronic floor under
+   * which no ratio is read. With them the walk also holds each step inside the ACWR
+   * ceiling (`acwrCeilingKm`) the engine and the ladder apply, so the fit says where
+   * the build really lands; without them the walk ignores that ceiling.
+   */
+  priorWeeksKm?: readonly number[] | null;
+  chronicFloorKm?: number;
 }
 
 /** The minimal shape of an endurance goal this module needs. */
@@ -230,9 +341,18 @@ export interface RaceRamp {
   ideal_required_km: number;
   /** The weekly volume the race distance usually leans on, km. */
   ideal_peak_km: number;
+  /**
+   * The peak week the build climbs toward, km: `ideal_peak_km`, or one ordinary step
+   * past the best harm-free week when that is higher (`peakTargetKm`). What the walk
+   * and the peak rung aim at; the fit is still read against `ideal_peak_km`.
+   */
+  peak_target_km: number;
   /** Where the fastest SAFE build from today's anchor actually lands by race week, km. */
   constrained_peak_km: number;
-  /** The longest single run the ideal curve climbs toward, km. */
+  /**
+   * The longest single run the ideal curve climbs toward, km — the race's own long-run
+   * peak, or a step past the longest run taken well (`longPeakTargetKm`).
+   */
   peak_long_km: number;
   /** Is this a scheduled reset week on the ramp's own cadence? */
   down_week: boolean;
@@ -372,12 +492,16 @@ export function raceRamp(
   todayISO: string,
   anchorKm: number,
   prevLongKm: number,
-  capacity?: RaceRampCapacity | null
+  capacity?: RaceRampCapacity | null,
+  demonstrated?: RaceRampDemonstrated | null
 ): RaceRamp | null {
   if (!goal || goal.is_race === false) return null;
   const distance = Number(goal.distance_km);
   const peak = Number.isFinite(distance) ? peakWeeklyKm(distance) : null;
   if (peak == null) return null;
+  // The peak the build aims at: the race's demand, or a new high past what the athlete
+  // has run well (see peakTargetKm). `peak` stays the demand the fit is read against.
+  const target = peakTargetKm(distance, demonstrated?.week_km) ?? peak;
 
   const fromDate = goal.date ? weeksBetween(todayISO, goal.date) : null;
   const weeks = fromDate ?? (Number.isFinite(Number(goal.weeks_to_race)) ? Number(goal.weeks_to_race) : null);
@@ -391,7 +515,7 @@ export function raceRamp(
   if (weeks < 0) return null;
 
   const anchor = Number.isFinite(anchorKm) && anchorKm > 0 ? anchorKm : 6;
-  const longPeak = peakLongKm(distance);
+  const longPeak = longPeakTargetKm(distance, demonstrated?.long_km);
   const downWeek = isRampDownWeek(weeks);
   // The arrival — race week, the final taper week, the peak — is shaped in CALENDAR
   // weeks to race week (see weeksToRaceWeek), and so is the feasibility walk below.
@@ -407,11 +531,12 @@ export function raceRamp(
   // --- the sustained weekly step arriving on time would take ---
   // Solved over the weeks that build: the resets in the span pause the build, they
   // do not take ground away (see the note above).
+  const buildSteps = Math.max(1, stepWeeks.filter((w) => !isRampDownWeek(w)).length);
   let needed = 1;
-  if (out > PEAK_WEEKS_OUT && peak > anchor) {
-    const buildSteps = Math.max(1, stepWeeks.filter((w) => !isRampDownWeek(w)).length);
-    needed = (peak / anchor) ** (1 / buildSteps);
-  }
+  if (out > PEAK_WEEKS_OUT && peak > anchor) needed = (peak / anchor) ** (1 / buildSteps);
+  // The ideal curve climbs to the TARGET (a new high when the athlete is already past
+  // the race's demand); feasibility and the fit stay measured against the demand.
+  const neededToTarget = out > PEAK_WEEKS_OUT && target > anchor ? (target / anchor) ** (1 / buildSteps) : 1;
   const needed_build_factor = Math.round(needed * 1000) / 1000;
   const feasible = needed_build_factor <= SUSTAINABLE_WEEKLY_BUILD_FACTOR + 1e-9;
 
@@ -424,8 +549,8 @@ export function raceRamp(
       : out === 1
         ? round1(peak * FINAL_TAPER_FRACTION)
         : out === PEAK_WEEKS_OUT
-          ? round1(peak)
-          : round1(anchor * (downWeek ? DOWN_WEEK_FRACTION : needed));
+          ? round1(target)
+          : round1(anchor * (downWeek ? DOWN_WEEK_FRACTION : Math.max(needed, neededToTarget)));
 
   // --- the CONSTRAINED trajectory: the fastest SAFE path from where they are ---
   // Every week takes the largest step the body is allowed (or a scheduled reset),
@@ -443,29 +568,38 @@ export function raceRamp(
   // week at its share of it) rather than walked forward from a taper week.
   const longBase = Number.isFinite(prevLongKm) && prevLongKm > 0 ? prevLongKm : Math.max(3, anchor * 0.3);
   const constrained_peak_km = (() => {
-    if (out <= 0) return round1(Math.min(peak, anchor / FINAL_TAPER_FRACTION));
-    if (out === 1) return round1(Math.min(peak, anchor));
+    if (out <= 0) return round1(Math.min(target, anchor / FINAL_TAPER_FRACTION));
+    if (out === 1) return round1(Math.min(target, anchor));
     let level = anchor;
     let long = longBase;
     let shownMidweek = Number(capacity?.demonstratedMidweekKm) > 0 ? Number(capacity?.demonstratedMidweekKm) : 0;
+    const history = capacity?.priorWeeksKm ? [...capacity.priorWeeksKm] : null;
     stepWeeks.forEach((w, i) => {
-      if (isRampDownWeek(w)) return;
+      if (isRampDownWeek(w)) {
+        history?.push(round1(level * DOWN_WEEK_FRACTION));
+        return;
+      }
       long = longRunStep(long, out - i, longPeak);
-      let km = Math.min(peak, level * SUSTAINABLE_WEEKLY_BUILD_FACTOR);
+      let km = Math.min(target, level * SUSTAINABLE_WEEKLY_BUILD_FACTOR);
+      if (history) {
+        const ceiling = acwrCeilingKm(history, capacity?.chronicFloorKm ?? 0);
+        if (ceiling != null) km = Math.min(km, Math.max(level, ceiling));
+      }
       if (capacity) {
         const carried = deliverableRunWeek(km, long, capacity.shape, shownMidweek || null);
         km = Math.min(km, carried.km);
         shownMidweek = Math.max(shownMidweek, carried.easy_km, carried.quality_km);
       }
+      history?.push(round1(km));
       level = km;
     });
-    return round1(Math.min(peak, capacity ? level : Math.max(anchor, level)));
+    return round1(Math.min(target, capacity ? level : Math.max(anchor, level)));
   })();
 
   // How the two compare, in three plain bands. This is a FIT, never a grade: an
   // athlete whose life will not hold 40 km weeks is not failing at anything, and
   // the only thing this decides is which sentence gets said.
-  const reach = peak > 0 ? constrained_peak_km / peak : 1;
+  const reach = peak > 0 ? Math.min(1, constrained_peak_km / peak) : 1;
   const fit: RaceRampFit = reach >= 1 - 1e-9 ? "fits" : reach >= 0.85 ? "stretch" : "beyond_horizon";
 
   // --- this week's ask, from the CONSTRAINED trajectory ---
@@ -496,6 +630,7 @@ export function raceRamp(
     required_long_km,
     ideal_required_km,
     ideal_peak_km: round1(peak),
+    peak_target_km: round1(target),
     constrained_peak_km,
     peak_long_km: longPeak,
     down_week: downWeek,

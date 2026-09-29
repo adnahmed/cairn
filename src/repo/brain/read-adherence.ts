@@ -43,7 +43,7 @@ import {
 import { getEnduranceGoal, getEnduranceSchedule, isoDow } from "../profile.js";
 import { withoutShadowActivities } from "../activity-shadow.js";
 import { activeRecoveryWeek } from "../recovery-week.js";
-import { peakLongKm } from "../run-ramp.js";
+import { longPeakTargetKm } from "../run-ramp.js";
 import { readinessBand, readsRestGradeReadiness, SUPPORTIVE_READINESS } from "../readiness-bands.js";
 import { RECOVERY_BASELINE_MIN_POINTS } from "../baseline-bands.js";
 import { sampleSd } from "../recovery-science.js";
@@ -1781,9 +1781,15 @@ function nextMorningAbsorbedIt(date: string): boolean {
 // grow, and the stated quality day's hard effort. Counting those as cost kept the easy
 // ladder shut on the plan working as written. What the athlete stated
 // (`endurance_schedule`) says which weekday carries which dose; the race build's
-// long-run ceiling (`peakLongKm` — the longest run the build climbs to) bounds a planned
-// long run. Outside a dated race build there is no build ceiling, so the arm stands.
-function plannedDoseOn(date: string): { long: boolean; quality: boolean; long_ceiling_km: number | null } {
+// long-run ceiling (`longPeakTargetKm` — the longest run the build climbs to: the race's
+// own long-run peak, or one step past the longest run before this one, up to 20 km)
+// bounds a planned long run. The step is read off the raw previous longest, not the
+// harm-filtered one, so this law never asks itself. Outside a dated race build there is
+// no build ceiling, so the arm stands.
+function plannedDoseOn(
+  date: string,
+  previousLongestKm?: number | null
+): { long: boolean; quality: boolean; long_ceiling_km: number | null } {
   const none = { long: false, quality: false, long_ceiling_km: null };
   try {
     const days = getEnduranceSchedule()?.days ?? [];
@@ -1796,7 +1802,7 @@ function plannedDoseOn(date: string): { long: boolean; quality: boolean; long_ce
     return {
       long: kinds.has("long"),
       quality: kinds.has("quality"),
-      long_ceiling_km: building ? peakLongKm(distance) : null,
+      long_ceiling_km: building ? longPeakTargetKm(distance, previousLongestKm) : null,
     };
   } catch {
     return none;
@@ -1826,8 +1832,8 @@ export function harmEvidenceOnDay(date: string): HarmEvidence | null {
     /* an unreadable sessions table is not evidence of harm */
   }
   try {
-    const planned = plannedDoseOn(date);
     const novelty = longestRunNovelty(date);
+    const planned = plannedDoseOn(date, novelty?.previous_longest_km ?? null);
     // A longest run the race build is climbing toward, on the athlete's own long-run
     // day, is the build's DOSE, not news about the body: only the next morning below
     // can say it cost them. A run past the build's ceiling, or on another day, stays.

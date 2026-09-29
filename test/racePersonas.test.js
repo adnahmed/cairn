@@ -386,7 +386,12 @@ test("(d) the current week's focus agrees with the quality run the week holds", 
   assert.equal(current.kind, "build");
   const named = qualityWeekFocus(current.kind, current.phase, label);
   assert.ok(named, label);
-  assert.equal(current.focus, named.focus);
+  // This week's prescription is also bigger than any week on record, so the sentence
+  // leads with that milestone — the session it names is unchanged.
+  const expected = current.new_high
+    ? `A new weekly high — ${named.focus[0].toLowerCase()}${named.focus.slice(1)}`
+    : named.focus;
+  assert.equal(current.focus, expected);
   assert.equal(current.focus_short, named.focus_short);
   // Never the phase's either/or once the week has chosen.
   assert.doesNotMatch(current.focus, /threshold or tempo/);
