@@ -11,7 +11,8 @@
   }
 
   function planEnduranceContrib(label: string, state: string, tone: "ok" | "watch" | "quiet"): string {
-    if (!label.trim() && !state.trim()) return "";
+    // A row with nothing to say is not drawn (a rested run has no setup or neighbours).
+    if (!state.trim()) return "";
     const t = tone === "ok" || tone === "watch" ? tone : "quiet";
     const labelHtml = label.trim() ? `<span class="read-contrib-label">${escHtml(label)}</span>` : "";
     const stateHtml = state.trim() ? `<span class="read-contrib-state">${escHtml(state)}</span>` : "";

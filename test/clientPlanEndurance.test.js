@@ -404,6 +404,69 @@ test("plan endurance briefing faces the next open run and next week once this we
   assert.doesNotMatch(bankedHtml, /Oct 4/);
 });
 
+test("a run the morning turned into rest keeps its words, never a distance, pace or its old day's neighbours", () => {
+  const endurance = loadPlanEnduranceClient();
+  const briefing = endurance.buildBriefing({
+    today: "2026-09-29",
+    agenda: {
+      available: true,
+      intents: [
+        {
+          kind: "easy",
+          label: "Rest or an easy walk",
+          status: "open",
+          // Planned for Monday, moved to Tuesday, then rested by this morning's read.
+          provisional_day_number: 1,
+          provisional_date: "2026-09-28",
+          suggested_date: "2026-09-29",
+          target_distance_km: null,
+          completion: null,
+          adjustment: { dose: "rest", why: "That sore spot is still active, so the run can wait." },
+        },
+        {
+          kind: "easy",
+          label: "Easy run",
+          status: "open",
+          provisional_day_number: 4,
+          provisional_date: "2026-10-01",
+          suggested_date: "2026-10-01",
+          target_distance_km: 5.8,
+          completion: null,
+        },
+      ],
+    },
+    runPlan: {
+      available: true,
+      week_start: "2026-09-28",
+      runs: [
+        { day_number: 1, kind_label: "easy", label: "Easy run", target_distance_km: 5.8, note: "Easy aerobic.", interval: null },
+        { day_number: 4, kind_label: "easy", label: "Easy run", target_distance_km: 5.8, note: "Easy aerobic.", interval: null },
+      ],
+    },
+    raceBuild: {
+      available: true,
+      paces: { bands: [{ key: "easy", label: "Easy", text: "6:55–7:25 /km", fast_sec_per_km: 415, slow_sec_per_km: 445 }] },
+      leg_map: [
+        { day_number: 1, weekday: "Monday", run: { kind: "easy" }, strength: null, ride: false, hard: false },
+        { day_number: 2, weekday: "Tuesday", run: null, strength: { name: "Pull", heavy_lower: false }, ride: false, hard: false },
+        { day_number: 4, weekday: "Thursday", run: { kind: "easy" }, strength: { name: "Lower B", heavy_lower: true }, ride: false, hard: true },
+      ],
+    },
+  });
+  const rested = briefing.next;
+  assert.equal(rested?.label, "Rest or an easy walk");
+  assert.match(rested?.morning || "", /run can wait/);
+  assert.equal(rested?.prescription, "", "no distance or pace on a rested run");
+  assert.equal(rested?.setup, "");
+  assert.equal(rested?.expect, "");
+  assert.equal(rested?.sitsBy, "");
+  const html = endurance.sessionsHtml(briefing);
+  assert.doesNotMatch(html.split("is-ahead")[0], /5\.8 km|6:55|Setup|Sits by/);
+  // A run keeps the neighbours of the day it now sits on, not the day it was first planned for.
+  const thursday = briefing.remaining.find((session) => session.date === "2026-10-01");
+  assert.match(thursday?.sitsBy || "", /Lower B/);
+});
+
 test("the race page without a race: THIS WEEK still stands for a runner, never a ladder or an estimate", () => {
   const document = createDocument();
   const view = createHost(document, { html: `<div id="endPlanBody"></div>` });

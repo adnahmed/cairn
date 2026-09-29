@@ -262,10 +262,9 @@ function planEnduranceSitsBy(
   const map = raceBuild && Array.isArray(raceBuild.leg_map) ? raceBuild.leg_map : [];
   if (!map.length) return "";
   const weekday = planEnduranceWeekdayName(date, dayNumber);
-  const idx = map.findIndex((day) => {
-    if (dayNumber != null && Number(day.day_number) === Number(dayNumber)) return true;
-    return weekday && String(day.weekday || "") === weekday;
-  });
+  const idx = map.findIndex((day) =>
+    weekday ? String(day.weekday || "") === weekday : dayNumber != null && Number(day.day_number) === Number(dayNumber)
+  );
   if (idx < 0) return "";
   const day = map[idx] as PlanEnduranceLegDay;
   if (day.strength) {
@@ -399,20 +398,21 @@ function planEnduranceSessionFromParts(
     raceBuild: PlanEnduranceRaceBuild | null | undefined;
     units?: unknown;
     morning?: string;
+    rest?: boolean; // the morning's call made this run a rest: its words stand, no distance or pace
   }
 ): PlanEnduranceBriefingSession {
   const pace = planEndurancePaceBand(opts.kind, opts.label, opts.raceBuild);
-  const setup = planEnduranceSetup(opts.kind, opts.interval, opts.note);
+  const setup = opts.rest ? "" : planEnduranceSetup(opts.kind, opts.interval, opts.note);
   return {
     kind: opts.kind,
     label: opts.label,
     when: planEnduranceWhen(opts.date, opts.today, opts.dayNumber),
     date: opts.date,
     day_number: opts.dayNumber,
-    prescription: planEndurancePrescription(opts.km, opts.min, opts.interval, opts.zone, pace, opts.units),
+    prescription: opts.rest ? "" : planEndurancePrescription(opts.km, opts.min, opts.interval, opts.zone, pace, opts.units),
     setup,
-    expect: planEnduranceExpect(opts.kind, opts.note, pace, setup),
-    sitsBy: planEnduranceSitsBy(opts.dayNumber, opts.date, opts.raceBuild),
+    expect: opts.rest ? "" : planEnduranceExpect(opts.kind, opts.note, pace, setup),
+    sitsBy: opts.rest ? "" : planEnduranceSitsBy(opts.dayNumber, opts.date, opts.raceBuild),
     status: opts.status,
     ...(opts.morning ? { morning: opts.morning } : {}),
   };
@@ -461,6 +461,7 @@ function planEnduranceSessionsFromAgenda(
         raceBuild,
         units,
         morning,
+        rest: !done && intent.adjustment?.dose === "rest",
       });
     })
     .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
