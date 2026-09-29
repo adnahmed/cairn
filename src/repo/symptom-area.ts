@@ -61,6 +61,8 @@ const AREA_TERMS: ReadonlyArray<{ re: RegExp; label: string }> = [
   { re: /\bplantar\b/, label: "plantar fascia" },
   { re: /\bfoot\b|\bfeet\b/, label: "foot" },
   { re: /\bshin\b|\bshins\b|\btib(?:ialis)?\b/, label: "shin" },
+  // The flank is TRUNK, and its own place: an oblique note is never read as "back".
+  { re: /\bobliques?\b|\bflanks?\b|\bintercostals?\b/, label: "oblique" },
   { re: /\bsternum\b/, label: "sternum" },
   { re: /\brib\b|\bribs\b/, label: "rib" },
   { re: /\bpec\w*\b/, label: "chest" },

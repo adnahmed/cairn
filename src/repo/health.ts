@@ -7,6 +7,7 @@ import { activeTimeZone } from "../tz.js";
 import { contextTagLabel, isContextTagKey } from "../contextTags.js";
 import { safeUploadPath } from "../uploadPaths.js";
 import { invalidateDayRead } from "./intelligence.js";
+import { injuriesResolvedBySymptoms, type SymptomResolution } from "./injury-symptom-link.js";
 import { sensorAgeDays } from "./sensor-freshness.js";
 import { daysBetweenISO, localDateISO } from "./shared.js";
 import { listExercises } from "./exercises.js";
@@ -2035,7 +2036,14 @@ export function listContextEvents(opts: { activeOnly?: boolean; on?: string } = 
       .prepare(`SELECT * FROM context_events ORDER BY (start_date IS NULL), start_date DESC, id DESC`)
       .all() as any[];
   }
-  return rows.map((r) => annotateHealing(hydrateContextEvent(r), opts.on));
+  const on = /^\d{4}-\d{2}-\d{2}$/.test(String(opts.on ?? "")) ? String(opts.on) : localDateISO();
+  const events = rows.map((r) => hydrateContextEvent(r));
+  // An injury whose twin training symptom the athlete resolved reads as resolved
+  // (injury-symptom-link.ts) — and so drops out of the ACTIVE set like any closed one.
+  const closedBySymptom = injuriesResolvedBySymptoms(events, on);
+  return events
+    .filter((ev) => !(opts.activeOnly && closedBySymptom.has(Number(ev?.id))))
+    .map((ev) => annotateHealing(ev, opts.on, closedBySymptom.get(Number(ev?.id))));
 }
 
 /**
@@ -2070,7 +2078,9 @@ export function planningContextEvents(date: string): any[] {
 
 export function getContextEvent(id: number) {
   const row = db.prepare(`SELECT * FROM context_events WHERE id = ?`).get(id) as any;
-  return row ? annotateHealing(hydrateContextEvent(row)) : null;
+  if (!row) return null;
+  const ev = hydrateContextEvent(row);
+  return annotateHealing(ev, undefined, injuriesResolvedBySymptoms([ev], localDateISO()).get(Number(ev.id)));
 }
 
 export function updateContextEvent(id: number, patch: ContextEventInput) {
@@ -2454,9 +2464,22 @@ export function contextEventHealing(ev: any, today = localDateISO()): ContextEve
 
 // Attach the healing read to a hydrated context event (additive, null-safe). Non-injury
 // events get resolved/likely_resolved=false and stay untouched.
-function annotateHealing(ev: any, on?: string) {
+// An injury the athlete closed through its twin training symptom reads resolved, with
+// the symptom named so the timeline can say why; `resolved_at` itself is untouched.
+function annotateHealing(ev: any, on?: string, closedBySymptom?: SymptomResolution) {
   if (!ev || typeof ev !== "object") return ev;
   const h = contextEventHealing(ev, on);
+  if (closedBySymptom && ev.kind === "injury" && !h.resolved) {
+    return {
+      ...ev,
+      resolved: true,
+      past_window: h.past_window,
+      likely_resolved: h.likely_resolved,
+      needs_recheck: false,
+      constraint_level: "resolved" as const,
+      resolved_by_symptom: closedBySymptom,
+    };
+  }
   return {
     ...ev,
     resolved: h.resolved,
@@ -2509,7 +2532,18 @@ const BODY_AREAS: BodyArea[] = [
   {
     key: "lower_back",
     label: "lower back",
-    injury: ["lower back", "low back", "lumbar", "spine", "disc", "si joint", "sciatic", "back strain"],
+    injury: [
+      "lower back",
+      "low back",
+      "lumbar",
+      "spine",
+      "spinal",
+      "disc",
+      "si joint",
+      "sciatic",
+      "sciatica",
+      "back strain",
+    ],
     load: [
       "deadlift",
       "romanian",
@@ -2556,14 +2590,23 @@ const BODY_AREAS: BodyArea[] = [
   {
     key: "chest",
     label: "chest",
-    injury: ["chest", "pec", "sternum", "rib"],
+    injury: ["chest", "pec", "pectoral", "sternum", "rib"],
     load: ["chest", "bench", "incline", "press", "fly", "dip", "push-up"],
   },
   {
     key: "neck",
     label: "neck",
-    injury: ["neck", "cervical", "trap"],
+    injury: ["neck", "cervical", "trap", "trapezius"],
     load: ["overhead", "shrug", "press", "deadlift", "row", "face pull"],
+  },
+  {
+    // The flank: an oblique or side strain is a TRUNK area. It loads the rotation and
+    // anti-rotation work that provoked it, never a whole back or leg day — "discomfort
+    // below my right side after a Pallof press" is not a lower-back injury.
+    key: "oblique",
+    label: "oblique",
+    injury: ["oblique", "flank", "side strain", "intercostal"],
+    load: ["oblique", "pallof", "side plank", "woodchop", "wood chop", "russian twist", "rotation", "landmine twist"],
   },
 ];
 
@@ -2590,11 +2633,25 @@ function injuryText(ev: any): string {
   return `${ev?.title ?? ""} ${ev?.detail ?? ""} ${area ?? ""}`.toLowerCase();
 }
 
+// An injury word names a place only as a WHOLE word (a trailing plural allowed).
+// A substring test read "discomfort" as a DISC and filed a flank strain under the
+// lower back, excluding every hinge, squat and row for as long as the note stood;
+// "ship" is not a hip and "strap" is not a trap either.
+const injuryWordRes = new Map<string, RegExp>();
+function namesInjuryWord(text: string, word: string): boolean {
+  let re = injuryWordRes.get(word);
+  if (!re) {
+    re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:e?s)?\\b`);
+    injuryWordRes.set(word, re);
+  }
+  return re.test(text);
+}
+
 // Which body-areas an injury names (an injury can implicate more than one — e.g.
 // "knee and hip" — though usually one). Returns the matched BodyArea rows.
 function injuryAreas(ev: any): BodyArea[] {
   const text = injuryText(ev);
-  return BODY_AREAS.filter((a) => a.injury.some((w) => text.includes(w)));
+  return BODY_AREAS.filter((a) => a.injury.some((w) => namesInjuryWord(text, w)));
 }
 
 // Does this injury load-affect this exercise? True when any matched area's
@@ -2749,7 +2806,7 @@ export function getInjuryImpacts(on?: string): InjuryImpactsRead {
             areas.some(
               (a) =>
                 String(ex.constraint_note).toLowerCase().includes(a.label) ||
-                a.injury.some((w) => String(ex.constraint_note).toLowerCase().includes(w))
+                a.injury.some((w) => namesInjuryWord(String(ex.constraint_note).toLowerCase(), w))
             ))
       )
       .map(({ ex, days }) => ({

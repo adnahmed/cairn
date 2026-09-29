@@ -5,6 +5,7 @@ import { dayRead } from "./intelligence.js";
 import { computeGoalCheck } from "./profile.js";
 import { getAppState, setAppState } from "./app-state.js";
 import { localDateISO } from "./shared.js";
+import { listContextEvents } from "./health.js";
 import {
   type FocusCandidate,
   type FocusDomain,
@@ -353,15 +354,22 @@ function produceRecheck(): Candidate | null {
 
 // LIFE — an active context effect (a trip / injury / life event that should bend
 // today). Plain, calm, low-leverage (it's a "plan around this", not a directive).
+//
+// The ACTIVE set is listContextEvents' own — this producer used to run its own query
+// that forgot `resolved_at`, so an injury the athlete had closed (or closed through its
+// twin training symptom) kept asking them to "work around the injury". A one-tap
+// context tag is a note about the day, not something to plan around.
 function produceLife(date: string): Candidate | null {
-  const row = db.prepare(
-    `SELECT id, kind, title FROM context_events
-      WHERE archived = 0
-        AND (start_date IS NULL OR start_date <= ?)
-        AND (end_date IS NULL OR end_date >= ?)
-      ORDER BY (kind = 'injury') DESC, (start_date IS NULL), start_date DESC, id DESC
-      LIMIT 1`
-  ).get(date, date) as any;
+  const active = (listContextEvents({ activeOnly: true, on: date }) as any[]).filter(
+    (event) => event && event.kind !== "tag"
+  );
+  const row = active.sort(
+    (a, b) =>
+      Number(b.kind === "injury") - Number(a.kind === "injury") ||
+      Number(a.start_date == null) - Number(b.start_date == null) ||
+      String(b.start_date ?? "").localeCompare(String(a.start_date ?? "")) ||
+      Number(b.id) - Number(a.id)
+  )[0];
   if (!row) return null;
   const kind = String(row.kind || "life_event");
   const label = row.title ? String(row.title) : kind === "injury" ? "an injury" : kind === "trip" ? "a trip" : "something going on";

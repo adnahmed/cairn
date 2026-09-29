@@ -11,6 +11,8 @@ const JOINT_GROUP_MAP: Array<{ re: RegExp; groups: MuscleGroup[] }> = [
   { re: /lower ?back|lumbar|\bback\b|spine|\bsi\b|sacro/, groups: ["back", "hamstrings", "quads"] },
   { re: /\bhip\b|groin|glute/, groups: ["glutes", "hamstrings", "quads"] },
   { re: /ankle|achilles|\bcalf\b|\bfoot\b|shin|tib/, groups: ["calves", "quads"] },
+  // A flank/oblique note loads the trunk and nothing else — never the back or the legs.
+  { re: /oblique|flank|intercostal/, groups: ["core"] },
 ];
 
 const JOINT_MOVEMENT_MAP: Array<{ re: RegExp; movements: RegExp }> = [
@@ -30,6 +32,10 @@ const JOINT_MOVEMENT_MAP: Array<{ re: RegExp; movements: RegExp }> = [
   },
   { re: /\bhip\b|groin|glute/, movements: /\b(squat|lunge|deadlift|hinge|hip thrust|step[ -]?up)\b/ },
   { re: /ankle|achilles|\bcalf\b|\bfoot\b|shin|tib/, movements: /\b(calf|squat|lunge|step[ -]?up|run|jump)\b/ },
+  {
+    re: /oblique|flank|intercostal/,
+    movements: /\b(pallof|side plank|wood ?chop|russian twist|rotation|oblique|landmine twist)\b/,
+  },
 ];
 
 // The gate that makes this file's promise true. These maps run SUBSTRING regexes,

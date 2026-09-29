@@ -248,6 +248,24 @@ test("life: an active injury context event surfaces a work-around step", () => {
   assert.equal(step.step_key.startsWith("life:injury:"), true);
 });
 
+// It used to run its own query that forgot `resolved_at`: an injury the athlete had
+// closed kept asking them to "work around the injury". The active set is
+// listContextEvents' own now — closed directly, or through its twin training symptom.
+test("life: a resolved injury, or one closed through its training symptom, asks nothing", () => {
+  db.prepare(
+    `INSERT INTO context_events (kind, title, detail, start_date, end_date, archived, resolved_at)
+     VALUES ('injury', 'Left shoulder', 'overhead aggravates it', ?, NULL, 0, ?)`
+  ).run(TODAY, TODAY);
+  assert.equal(nextBestStep(TODAY), null, "a closed injury is not a next step");
+
+  db.prepare(`DELETE FROM context_events`).run();
+  const symptom = repo.reportTrainingSymptom({ area_text: "right lateral", onset_on: TODAY });
+  repo.addContextEvent({ kind: "injury", title: "Right lateral / oblique discomfort", start_date: TODAY });
+  assert.equal(nextBestStep(TODAY)?.domain, "life", "precondition: the open pair surfaces");
+  repo.resolveTrainingSymptom(symptom.id, TODAY);
+  assert.equal(nextBestStep(TODAY), null, "resolved means resolved");
+});
+
 test("never throws on missing/empty data", () => {
   // No profile, no labs, no food, no events — must be a clean null, not a throw.
   assert.doesNotThrow(() => {
