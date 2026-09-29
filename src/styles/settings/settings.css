@@ -23,6 +23,15 @@
   background:var(--stone-deep);color:#ece6da;text-align:left;white-space:pre-wrap;word-break:break-word;
   font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 
+/* where the agent layer stands NOW (Settings > Agents): one quiet line under the
+   heading, a small dot in the state's tone. It moved here from the Brief. */
+.agent-state{display:flex;align-items:baseline;gap:8px;margin:0 0 var(--space-5);
+  font-size:var(--text-sm);line-height:1.45;color:var(--ink2)}
+.agent-state-dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--sage);
+  transform:translateY(-1px)}
+.agent-state.is-failing .agent-state-dot{background:var(--gold)}
+.agent-state.is-none .agent-state-dot{background:var(--line-strong)}
+
 /* agent-health card — the coaching brain's quiet pulse (ok-rate + per-agent
    latency). Mirrors the art-spend card; ledger rows, no scores. */
 .agenthealth-rows{margin-top:9px;border-top:1px solid var(--line);padding-top:8px}

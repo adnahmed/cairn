@@ -113,3 +113,4 @@
   letter-spacing:.14em;text-transform:uppercase;color:var(--on-accent);background:var(--gold);
   border-radius:var(--radius-pill);padding:2px 8px;vertical-align:2px}
 
+.detail-actions .ed-day{flex:1 0 100%;text-align:center;font-size:var(--text-sm);color:var(--ink2)}

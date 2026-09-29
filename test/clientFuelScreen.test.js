@@ -46,6 +46,12 @@ function load({ logDate = "", firstPaint = () => null } = {}) {
       root.querySelector("[data-home-back]")?.addEventListener("click", (e) => tabs.push(e.currentTarget.dataset.homeBack)),
     pollToken: 0,
     headerTitle: { textContent: "" },
+    CairnUiHeader: {
+      shortDate: (iso) => `short(${iso})`,
+      setEyebrowTitle: (el, text) => {
+        el.textContent = text;
+      },
+    },
     segBar: (active) => `<div class="seg" data-active="${active}"></div>`,
     planSeg: () => [],
     wireSeg: () => {},
@@ -90,7 +96,8 @@ test("Fuel paints its shell under Today and mounts every component into its slot
   win.renderFoodJournal();
   assert.equal(state.planSeg, "food");
   // Fuel lives under Today: its own title, no Plan seg bar, one quiet way back.
-  assert.equal(win.headerTitle.textContent, "Fuel");
+  // v2 wave 7: Fuel wears the Today home's mono eyebrow and names the day it shows.
+  assert.equal(win.headerTitle.textContent, `Fuel · short(${TODAY})`);
   assert.equal(view.querySelector(".seg"), null);
   const back = view.querySelector("[data-home-back]");
   assert.equal(back.getAttribute("data-home-back"), "today");

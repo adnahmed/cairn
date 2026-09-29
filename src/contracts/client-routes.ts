@@ -37,6 +37,8 @@ export const CLIENT_ROUTE_DEFINITIONS = {
   viewHomes: {
     today: "today",
     session: "today",
+    // Any day that is not today, read-only: a past day's record, a future day's preview.
+    day: "today",
     progress: "train",
     plan: "train",
     horizon: "horizon",
@@ -53,7 +55,7 @@ export const CLIENT_ROUTE_DEFINITIONS = {
     meals: "today",
     coach: "ask",
   },
-  tabs: ["today", "session", "stand", "plan", "progress", "chat", "me", "settings", "horizon", "you"],
+  tabs: ["today", "session", "stand", "plan", "progress", "chat", "me", "settings", "horizon", "you", "day"],
   sections: {
     plan: ["edit", "endurance", "food", "meals", "coach"],
     progress: ["overview", "trend", "volume", "endurance", "weight", "measurements", "calendar", "sessions", "program", "intake", "energy"],

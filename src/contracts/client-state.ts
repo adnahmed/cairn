@@ -50,6 +50,9 @@ export type ClientAppState = {
   // Horizon's sub-view (null = the one timeline) and You's (null = the landing;
   // "stone" = one stone's detail, keyed by youStone, which rides in ?id=).
   horizonSeg?: ClientHorizonSection | null;
+  // The day the "day" view shows (/app/today/day?date=): any day that is not today,
+  // read-only. Today itself never rides here; Today always renders today.
+  dayDate?: string | null;
   youSeg?: ClientYouSection | null;
   youStone?: string | null;
   pendingHealthScroll?: "hbDirectives" | string | null;

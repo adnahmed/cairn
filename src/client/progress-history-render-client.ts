@@ -73,6 +73,7 @@ function progressHistorySessionEditHtml(session: HistorySession): string {
       <div class="detail-actions">
         <button class="pillbtn pill-accent" id="edSave">Save changes</button>
         <button class="pillbtn" data-close>Close</button>
+        ${/^\d{4}-\d{2}-\d{2}$/.test(String(session.date || "")) ? `<button class="linkbtn linkbtn-plain ed-day" type="button" data-open-day="${escAttr(session.date)}">The whole day ›</button>` : ""}
       </div>`;
 }
 

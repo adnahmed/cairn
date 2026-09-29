@@ -19,6 +19,7 @@ import type {
 } from "./client.js";
 import type { ClientFuelIdeas, ClientIntakeBand } from "./fuel.js";
 import type { TodayStonesRead } from "./today-stones.js";
+import type { DayRecord } from "./day-record.js";
 import type {
   ClientEvidenceWantedRead,
   ClientHealthReportJson,
@@ -319,6 +320,13 @@ export interface ClientAgentStats {
   ok_rate?: number | null;
   by_agent?: Array<Record<string, unknown>>;
   recent?: Array<Record<string, unknown>>;
+  /** Where the agent layer stands now: the newest attempt decides (src/repo/agent-telemetry.ts). */
+  current?: {
+    state: "ok" | "failing" | "idle";
+    last_ok_at: string | null;
+    failing_since: string | null;
+    error_class: string | null;
+  };
   [key: string]: unknown;
 }
 
@@ -3598,6 +3606,7 @@ export interface ClientApiResponses {
   "/api/today-agenda/ack": ClientTodayAgendaAckResponse;
   "/api/today-agenda/dismiss": ClientTodayAgendaDismissResponse;
   "/api/today/stones": TodayStonesRead;
+  "/api/day-record": DayRecord;
   "/api/what-if": ClientWhatIfQueuedResponse;
   "/api/what-if/do": ClientWhatIfDoResponse;
   "/api/learned-timeline": ClientLearnedTimeline;

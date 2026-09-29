@@ -1,5 +1,5 @@
 // @ts-check
-// Shared Today header/date-picker behavior for the legacy UI shell.
+// Shared Today header behavior (the date eyebrow, the condensed band on scroll).
 
 type UiHeaderState = {
   tab?: unknown;
@@ -21,6 +21,8 @@ type UiHeaderDeps = {
 
 type UiHeaderClientApi = {
   setTodayHeaderTitle(deps: UiHeaderDeps): void;
+  setEyebrowTitle(el: HTMLElement, text: string): void;
+  shortDate(iso: string): string;
   updateHeaderCondense(deps: { state: UiHeaderState }): void;
   installHeaderCondenseScroll(depsFor: () => { state: UiHeaderState }): void;
 };
@@ -28,40 +30,35 @@ type UiHeaderClientApi = {
 (() => {
   let scrollInstalled = false;
 
-  // Atelier v2: on Today the header is a mono date eyebrow ("Sat 26 Sep"), so the
-  // Brief's voice line is the page's one focal point. A past day keeps its relative
-  // word ahead of the date ("Yesterday · Fri 25 Sep") so it never reads as today.
-  function headerDateText(deps: UiHeaderDeps): string {
-    const iso = deps.state.logDate || deps.localISO();
-    const [yr, mo, da] = iso.split("-").map(Number);
+  // Today is Home (v2 wave 7): Today only ever shows today, so its header is a plain
+  // mono eyebrow that says so, "Today · Tue 29 Sep", never a date picker. The Brief's
+  // voice line below stays the page's one focal point. Another day is its own
+  // destination (the day view, day-record-client.ts), reached from a day in a week.
+  // "Tue 29 Sep" — the one short date every Today-home header prints (Today, a day, Fuel).
+  function shortDate(iso: string): string {
+    const [yr, mo, da] = String(iso || "").split("-").map(Number);
     const when = new Date(yr, (mo || 1) - 1, da || 1);
-    const date = Number.isNaN(when.getTime())
-      ? iso
+    return Number.isNaN(when.getTime())
+      ? String(iso || "")
       : `${when.toLocaleDateString(undefined, { weekday: "short" })} ${when.getDate()} ${when.toLocaleDateString(undefined, { month: "short" })}`;
-    const rel = deps.dateLabel(iso);
-    if (rel === "Today") return date;
-    return rel === "Yesterday" ? `Yesterday · ${date}` : date;
+  }
+
+  function headerDateText(deps: UiHeaderDeps): string {
+    return `Today · ${shortDate(deps.localISO())}`;
+  }
+
+  // The Today home's sub-views (a day, Fuel) wear the same mono eyebrow as Today:
+  // "Fuel · Tue 29 Sep", "Mon 28 Sep". Plain text, never a control.
+  function setEyebrowTitle(el: HTMLElement, text: string): void {
+    el.textContent = text;
+    el.classList.remove("hdr-tappable");
+    el.classList.add("hdr-eyebrow");
   }
 
   function setTodayHeaderTitle(deps: UiHeaderDeps): void {
-    deps.headerTitle.innerHTML =
-      `<span class="hdr-date">${deps.escapeHtml(headerDateText(deps))}</span><span class="hdr-chev" aria-hidden="true">▾</span>` +
-      `<input type="date" class="hdr-datepick" aria-label="Choose a date to view or log a past workout">`;
-    deps.headerTitle.classList.add("hdr-tappable");
-    const inp = deps.headerTitle.querySelector<HTMLInputElement>(".hdr-datepick");
-    if (!inp) return;
-    inp.value = deps.state.logDate || deps.localISO();
-    inp.max = deps.localISO();
-    inp.addEventListener("click", () => { try { inp.showPicker?.(); } catch { /* unsupported → native focus */ } });
-    inp.addEventListener("change", () => {
-      if (!inp.value) return;
-      deps.state.logDate = inp.value;
-      deps.state.day = null;
-      deps.state.dayPicked = false;
-      deps.state.dayPickedOn = null;
-      deps.syncRouteFromState();
-      deps.renderToday();
-    });
+    deps.headerTitle.innerHTML = `<span class="hdr-date">${deps.escapeHtml(headerDateText(deps))}</span>`;
+    deps.headerTitle.classList.remove("hdr-tappable");
+    deps.headerTitle.classList.add("hdr-eyebrow");
   }
 
   function updateHeaderCondense(deps: { state: UiHeaderState }): void {
@@ -77,6 +74,8 @@ type UiHeaderClientApi = {
 
   const CAIRN_UI_HEADER: UiHeaderClientApi = {
     installHeaderCondenseScroll,
+    setEyebrowTitle,
+    shortDate,
     setTodayHeaderTitle,
     updateHeaderCondense,
   };

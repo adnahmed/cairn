@@ -12,7 +12,14 @@ import { allGuidelines, guidelineFor } from "../domain/health/index.js";
 import {
   todayStrengthLine,
 } from "../domain/training/index.js";
-import { markTodayAgendaSeen, todayAggregate, todayDateParam, todayStones } from "../domain/today/index.js";
+import {
+  dayRecord,
+  dayRecordDate,
+  markTodayAgendaSeen,
+  todayAggregate,
+  todayDateParam,
+  todayStones,
+} from "../domain/today/index.js";
 import { ensureWeekAheadJob } from "../agentJobs.js";
 import { memoizedRead, memoizedValue } from "./response-memo.js";
 import { publicTodayPlanDay, sessionSurfaceResponses, todaySurfaceResponses } from "./today-responses.js";
@@ -107,6 +114,17 @@ todayRouter.get("/today-strength-line", (req, res) => {
 // with nothing fresh reads "quiet", never low; no score. A pure read.
 todayRouter.get("/today/stones", (req, res) => {
   res.json(todayStones(req.query.date));
+});
+
+// Any day that is not today, read-only (v2 wave 7: Today is Home). A past day is its
+// record (the session, runs and rides, the food summary, a weigh-in, the day read that
+// stood); a future day is its preview (the planned lift and run, and what is already
+// known to shape it). Composed from the existing reads in
+// src/domain/today/day-record.ts; changes nothing. ?date=YYYY-MM-DD is required.
+todayRouter.get("/day-record", (req, res) => {
+  const date = dayRecordDate(req.query.date);
+  if (!date) return res.status(400).json({ error: "date (YYYY-MM-DD) required" });
+  res.json(dayRecord(date));
 });
 
 // The Today salience arbiter: ONE ranking + budget pass over the whole Today

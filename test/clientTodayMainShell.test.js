@@ -16,7 +16,7 @@ function loadMainShell() {
   return context.CairnTodayMainShell;
 }
 
-test("Today lead keeps bodyweight capture reachable and omits standalone typed, mic, and goal controls", () => {
+test("Today lead omits standalone typed, mic, and goal controls; the weigh-in rides the week row", () => {
   const shell = loadMainShell();
   const html = shell.leadHtml(
     {
@@ -28,11 +28,29 @@ test("Today lead keeps bodyweight capture reachable and omits standalone typed, 
     { escapeHtml: String }
   );
 
-  assert.match(html, /id="wtChipMini"/);
-  assert.match(html, /id="wtInlineInput"/);
-  assert.match(html, /172\.4<span class="wt-mini-unit">lb/);
+  // v2 wave 7: the bodyweight chip moved onto the week row, so the lead says it nowhere.
+  assert.doesNotMatch(html, /id="wtChipMini"|id="wtInlineInput"/);
   assert.doesNotMatch(html, /id="qlInput"|id="qlMic"|id="qlBtn"/);
   assert.doesNotMatch(html, /id="goalSlot"|id="goalLine"/);
+  // Today only ever shows today: there is no way back to it from inside itself.
+  assert.doesNotMatch(html, /backToday|Back to today/);
+});
+
+test("the week row is ONE line: This week, its recap, and the weigh-in chip that never toggles the fold", () => {
+  const shell = loadMainShell();
+  const html = shell.weekFoldHtml(
+    { weekRecap: "2 lifts", cellsHtml: "" },
+    { escapeHtml: String },
+    { currentWeight: 172.4 }
+  );
+  const summary = /<summary class="weekfold-sum">([\s\S]*?)<\/summary>/.exec(html)?.[1] || "";
+  assert.match(summary, /This week/);
+  assert.match(summary, /2 lifts/);
+  assert.match(summary, /<button id="wtChipMini"[^>]*data-keep-fold[^>]*>172\.4<span class="wt-mini-unit">lb/);
+  // The weight input opens under the row, outside the fold, so it works while it is closed.
+  assert.ok(html.indexOf('id="wtInlineInput"') > html.indexOf("</details>"));
+  // No weight said twice: no weigh-in tile inside the fold.
+  assert.doesNotMatch(html, /id="wtChip"/);
 });
 
 test("Today lead leaves the check-in to the Brief and keeps the tag chips, without the retired frequents strip", () => {
@@ -81,7 +99,7 @@ test("This week owns trajectory stats without rendering a standalone pace offer"
     { escapeHtml: String }
   );
 
-  assert.match(html, /^<details class="weekfold"/);
+  assert.match(html, /^<div class="weekrow">\s*<details class="weekfold"/);
   assert.match(html, /pace-fast/);
   assert.doesNotMatch(html, /paceOffer|ask the coach/);
 });

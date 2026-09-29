@@ -102,20 +102,29 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
   function applyRouteState(route: AppRoute | null | undefined, options: ApplyRouteOptions): ClientTabName {
     if (!route) return "today";
     const { state } = options;
-    const tab = tabKey(route.tab);
-    if (route.date) {
-      state.logDate = route.date;
-    } else if (tab === "today") {
-      // A dateless Today URL IS today — that is exactly why currentRouteState omits
-      // the date for it. Leaving logDate on the day we came from meant Back out of a
-      // ?date= day landed on the Today tab still showing that day, with no way back
-      // through history. Re-measure, and drop the pick it belonged to.
-      const today = localToday();
+    const requested = tabKey(route.tab);
+    // Today is Home: it only ever renders today. Another day is its own read-only
+    // destination (the "day" view) — so an old /app/today?date=<day> link opens that
+    // day's record or preview, never Today wearing another date, and a day link that
+    // names today IS Today.
+    const today = localToday();
+    const dayWanted = requested === "day" || (requested === "today" && !!route.date && !isLocalToday(route.date));
+    const tab: ClientTabName =
+      dayWanted && route.date && !isLocalToday(route.date) ? "day" : requested === "day" ? "today" : requested;
+    if (tab === "day") {
+      state.dayDate = route.date;
+      return tab;
+    }
+    if (tab === "today") {
+      // Re-measure, and drop the pick it belonged to: leaving logDate on the day we
+      // came from would paint Today as another day.
       if (today) {
         state.logDate = today;
         state.dayPicked = false;
         state.dayPickedOn = null;
       }
+    } else if (route.date) {
+      state.logDate = route.date;
     }
 
     if (tab === "plan") {
@@ -166,7 +175,9 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
     const tab = tabKey(state.tab);
     const route: Partial<AppRoute> = { tab };
     if (tab === "today") {
-      if (state.logDate && !isLocalToday(state.logDate)) route.date = state.logDate;
+      // Today never carries a date: it is always today.
+    } else if (tab === "day") {
+      if (state.dayDate) route.date = state.dayDate;
     } else if (tab === "session") {
       if (state.logDate) route.date = state.logDate;
     } else if (tab === "plan") {

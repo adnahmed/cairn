@@ -291,17 +291,36 @@ and ONE idea for later — no meters on an unlogged day (absent, never low), eve
 which replaces the rail's `fuel` card on today's column. The slot is transplanted across the
 Brief's in-place upgrade, and carries `aria-live="off"` so the Brief's polite live region never
 announces it painting in; a failed day read removes the fuel slot, so the rail keeps its own
-`fuel` card. Around today reads as hairline ROWS, never cards: `.brief-around` (a
-`<details>` folding the forward look, block clock and arc), the provenance line, the life-context
-line (`.ctxbanner`, which drops an injury the NOW card already names), the block thread
-(`.cfocus-thread`), the capture row (bodyweight chip + context tags on ONE sideways-scrolling
-line), today's run and the week fold. Housekeeping and one-off reads (the install note, a Garmin
+`fuel` card. Fuel today is a section, not a card: a mast and hairline rows. Around today reads as
+hairline ROWS, never cards, under its own mast: `.brief-around` (a `<details>` folding the forward
+look, block clock and arc; `.brief-around-plain`, the same mast without a chevron, when there is
+nothing to fold), the provenance line, the life-context line (`.ctxbanner`, which drops an injury
+the NOW card already names), the block thread (`.cfocus-thread`), the capture row (the context
+tags on ONE sideways-scrolling line), today's run and the week row (`.weekrow`: "This week", its
+recap and the bodyweight chip on ONE line; the chip never toggles the fold, and the weight input
+opens under the row). Housekeeping and one-off reads (the install note, a Garmin
 merge, the ranked agenda reads, the "n more" disclosure) sit in ONE quiet group at the foot,
 `.today-rail` under a single "Worth a look" `.rail-mast`, as hairline rows (the Garmin reconcile
 note and agenda rows behind "n more" included); the fuller reads there (what changed, the week, the
 week ahead, a connection) keep a hairline card, no spine, no shadow; a health card whose
 subject the block thread already names is left out (`CairnTodayAgenda.threadEchoIds`). Only the
-NOW card and the Fuel card are surfaces on Today. Today-only components whose base rules still
+NOW card is a surface on Today. ONE vertical rhythm holds the column (v2 wave 7): every section
+(the NOW card's steer, Fuel, Around today, Worth a look) sits `--today-gap` below the last, every
+mast is a 44px row with its mono label on the baseline and a hairline under it, and every row is
+`--today-row` of padding over ONE hairline at its foot, so rows never draw a doubled rule.
+
+**Today is Home (v2 wave 7).** Today only ever shows today: its header is a plain mono eyebrow
+(`Today · Tue 29 Sep`, `.hdr-eyebrow`), never a date picker, and "tap to see why" sits right under
+the why it explains. Any other day is its own read-only destination under the Today home, the
+day view (`/app/today/day?date=`, lazy `bundle-12-day`, `.dayrec`): a past day's record
+(training, fuel, the read that stood, a weigh-in) or a future day's preview (the planned lift and
+run in the athlete's run units, and known caveats), each a serif line over hairline sections, with
+a ‹ › stepper and a back link that names where the day was opened from. Any element carrying
+`data-open-day` opens its day (`day-open-client.ts`, eager): Train's plan strip, the Train
+calendar, the history sheet and Horizon's week rows. The day view and Fuel wear the same eyebrow
+(`Mon 28 Sep`, `Fuel · Tue 29 Sep`). Agent health is not Today's to say: it is one quiet
+`.agent-state` line in You › Settings › Agents that follows the newest agent attempt, so it clears
+itself after the next good run. Today-only components whose base rules still
 live in older partials (the block thread, agenda cards, the run line, the context tags) take the v2
 look in `today/pebbles.css`, scoped to `.today-wrap`.
 

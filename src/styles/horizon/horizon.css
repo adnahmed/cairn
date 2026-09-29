@@ -140,6 +140,12 @@
 .horizon-day.is-today{background:var(--dawn-wash);border-radius:14px;padding-inline:var(--space-4);
   margin-inline:calc(-1 * var(--space-4));border-top-color:transparent}
 .horizon-day.is-today+.horizon-day{border-top-color:transparent}
+/* a dated day opens: the row is the tap target, a quiet chevron says so (v2 wave 7) */
+.horizon-day.is-open{grid-template-columns:44px minmax(0,1fr) auto;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:background var(--dur-1) var(--ease)}
+.horizon-day.is-open:active{background:var(--surface2)}
+@media (hover:hover){.horizon-day.is-open:hover .horizon-day-go{color:var(--ink)}}
+.horizon-day-go{align-self:center;color:var(--faint);font-size:1.05rem;line-height:1;padding-left:var(--space-2)}
 .horizon-day-when{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
   color:var(--muted);line-height:1.5}
 .horizon-day-when b{display:block;font-family:var(--font-display);font-weight:400;font-size:1.05rem;letter-spacing:0;color:var(--ink)}

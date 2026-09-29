@@ -19,7 +19,7 @@
     const seq = ++renderSeq;
     const lazy = <T>(bundle: ClientLazyBundleName, render: () => T) =>
       withBundle(bundle, () => (seq === renderSeq ? render() : undefined));
-    headerTitle.classList.remove("hdr-tappable");
+    headerTitle.classList.remove("hdr-tappable", "hdr-eyebrow");
     document.getElementById("hdrChatActions")?.remove();
     document.body.classList.remove("chat-mode");
     if (tab !== "chat") document.body.classList.remove("kb-open", "kb-geometry-open");
@@ -39,6 +39,8 @@
     }
 
     if (tab === "today") return renderToday();
+    // Any day that is not today, a record or a preview: the lazy "day" bundle.
+    if (tab === "day") return lazy("day", () => renderDay());
     if (tab === "session") {
       // Session paints only after its loads settle, and switchTab skips the skeleton
       // when the plan cache is warm. On a deep link #view starts EMPTY, so without

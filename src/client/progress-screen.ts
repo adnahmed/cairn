@@ -396,16 +396,8 @@ function paintCalendarBody(data: ProgressRecord) {
   const legend = `<div class="cal-legend"><span>Less</span><i class="cl0"></i><i class="cl1"></i><i class="cl2"></i><i class="cl3"></i><i class="cl4"></i><span>More</span></div>`;
   view.innerHTML = head + hero + grids + legend;
   wireSeg(PROGRESS_HANDLERS);
-  // tap a day with data → open it on Today
-  view.querySelectorAll<HTMLElement>(".cal-day[data-goto]").forEach((el) =>
-    el.addEventListener("click", () => {
-      state.logDate = el.dataset.goto || state.logDate;
-      state.day = null;
-      state.dayPicked = false;
-      state.dayPickedOn = null;
-      activateTab("today");
-    })
-  );
+  // A day with data opens that day's record (today opens Today itself): each square
+  // carries data-open-day, which the day view's one delegated opener handles.
 }
 
 // ---------- Progress: Energy Balance (adaptive, MacroFactor-style) ----------

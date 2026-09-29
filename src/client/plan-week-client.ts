@@ -171,7 +171,7 @@ type PlanWeekRole = import("../contracts/client.js").ClientPlanWeekRole;
     const aria = [dayKey(day), label, (status || (day.status === "upcoming" ? "later this week" : "")).toLowerCase()]
       .filter((part) => part && part !== "—")
       .join(", ");
-    return `<button type="button" class="pweek-day pweek-${escAttr(kind)}${day.hard ? " is-hard" : ""}${day.status === "today" ? " is-today" : ""}${day.status === "done" ? " is-done" : ""}${day.status === "rest" ? " is-rest" : ""}${on ? " is-selected" : ""}" style="${stagger(index)}" data-pweek-i="${escAttr(index)}"${dayNumber != null ? ` data-pweek-day="${escAttr(dayNumber)}"` : ""} aria-pressed="${on ? "true" : "false"}" aria-label="${escAttr(aria)}">
+    return `<button type="button" class="pweek-day pweek-${escAttr(kind)}${day.hard ? " is-hard" : ""}${day.status === "today" ? " is-today" : ""}${day.status === "done" ? " is-done" : ""}${day.status === "rest" ? " is-rest" : ""}${on ? " is-selected" : ""}" style="${stagger(index)}" data-pweek-i="${escAttr(index)}"${dayNumber != null ? ` data-pweek-day="${escAttr(dayNumber)}"` : ""}${day.date && day.status !== "today" ? ` data-pweek-date="${escAttr(day.date)}"` : ""} aria-pressed="${on ? "true" : "false"}" aria-label="${escAttr(aria)}">
       <span class="pweek-day-k">${escHtml(dayKey(day))}</span>
       <span class="pweek-glyph" aria-hidden="true">${roleGlyph(role, day.run)}</span>
       <span class="pweek-token" aria-hidden="true">${tokenGlyph(day)}</span>
@@ -190,7 +190,8 @@ type PlanWeekRole = import("../contracts/client.js").ClientPlanWeekRole;
     index: number,
     days: PlanWeekDay[],
     selected: number,
-    todayLine: string
+    todayLine: string,
+    asOf = ""
   ): string {
     const isToday = day.status === "today";
     const kicker = isToday ? (day.weekday ? `Today · ${day.weekday}` : "Today") : dayKey(day);
@@ -199,8 +200,13 @@ type PlanWeekRole = import("../contracts/client.js").ClientPlanWeekRole;
       isToday && todayLine
         ? todayLine
         : `<span class="pweek-detail-name">${escHtml(cellLabel(day))}</span>${status ? `<span class="pweek-detail-status">${escHtml(status)}</span>` : ""}`;
+    // Any other dated day is a destination (v2 wave 7): its record, or its preview.
+    const date = !isToday && typeof day.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day.date) ? day.date : "";
+    const open = date
+      ? `<button type="button" class="pweek-open linkbtn linkbtn-plain" data-open-day="${escAttr(date)}">${day.status === "done" || (asOf && date < asOf) ? "The day's record ›" : "Preview the day ›"}</button>`
+      : "";
     return `<div class="pweek-detail" data-pweek-panel="${escAttr(index)}"${index === selected ? "" : " hidden"}>
-      <span class="pweek-detail-k lbl">${escHtml(kicker)}</span>${body}
+      <span class="pweek-detail-k lbl">${escHtml(kicker)}</span>${body}${open}
     </div>`;
   }
 
@@ -233,7 +239,7 @@ type PlanWeekRole = import("../contracts/client.js").ClientPlanWeekRole;
     return `<div class="pweek reveal" style="${stagger(0)}" data-plan-week data-pweek-week="${escAttr(key)}" data-pweek-default="${escAttr(defaultIndex(days, calendar))}">
       <div class="pweek-h"><span class="lbl">${calendar ? "This week" : "Your week"}</span></div>
       <div class="pweek-map${calendar ? "" : " pweek-map-template"}">${days.map((day, index) => cellHtml(day, index, days, selected)).join("")}</div>
-      <div class="pweek-details" aria-live="polite">${days.map((day, index) => detailHtml(day, index, days, selected, todayDetailLine)).join("")}</div>
+      <div class="pweek-details" aria-live="polite">${days.map((day, index) => detailHtml(day, index, days, selected, todayDetailLine, String(read.as_of ?? ""))).join("")}</div>
       ${todayLine ? `<div class="pweek-today">${todayLine}</div>` : ""}
       ${progressLine ? `<div class="pweek-progress">${escHtml(progressLine)}</div>` : ""}
       ${note ? `<div class="pweek-note">${escHtml(note)}</div>` : ""}
@@ -282,7 +288,13 @@ type PlanWeekRole = import("../contracts/client.js").ClientPlanWeekRole;
       const btn = target?.closest("[data-pweek-i]");
       const root = btn?.closest("[data-plan-week]");
       if (!btn || !root) return;
-      if (!isMobilePweekLayout()) return;
+      // Wide screens print every day's words in its cell already, so a tap there opens
+      // the day itself (its record, or its preview); today's cell stays put.
+      if (!isMobilePweekLayout()) {
+        const date = btn.getAttribute("data-pweek-date");
+        if (date && typeof openDay === "function") openDay(date);
+        return;
+      }
       const index = Number(btn.getAttribute("data-pweek-i"));
       if (Number.isFinite(index)) pickDay(root, index);
     });

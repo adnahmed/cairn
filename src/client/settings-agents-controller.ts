@@ -74,6 +74,7 @@ function renderSettingsAgents(deps: ClientSettingsAgentsControllerDeps): void {
     agentHealthHtml: deps.agentHealthHtml,
     agentActivityHtml: deps.agentActivityHtml,
     noticedHtml: deps.noticedHtml,
+    agentStateHtml: deps.agentStateHtml || "",
     coachDay: deps.workingModel.coach_day,
     coachHour: deps.workingModel.coach_hour,
     timeZone: deps.workingModel.time_zone,

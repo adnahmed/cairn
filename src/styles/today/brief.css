@@ -124,10 +124,6 @@
 .brief-around-body .brief-forward,.brief-around-body .brief-clocks{margin-top:0;padding-top:0;border-top:0}
 .brief-around-body .prov-slot:empty{display:none}
 .brief-around[open] .brief-around-body{animation:in var(--dur-in) var(--ease)}
-/* the offline note is a footnote under the read: no well, a small dot, muted */
-.brief > .agent-offline{margin:var(--space-6) 0 0;background:none;border:0;border-radius:0;padding:0;
-  font-size:var(--text-xs);color:var(--muted)}
-.brief > .agent-offline .agent-offline-dot{width:6px;height:6px}
 @media (prefers-reduced-motion:reduce){
   .brief-around-chev{transition:none}
   .brief-around[open] .brief-around-body{animation:none}
@@ -152,24 +148,6 @@
    §04d — self-styled) or the calm prose fallback (.brief-signals). */
 .brief-why-panel{margin:12px 0 0}
 .brief-signals{font-size:.82rem;color:var(--muted);line-height:1.5;margin:0;font-style:italic}
-
-/* Honest degradation — one calm, dismissible line when no coaching agent is
-   reachable. A quiet hairline aside (NOT the warn band): muted ink on an inset
-   well, a small gold dot, never red. Used under the Brief + where a draft was
-   expected. Overflow-clamps to the offline-bar's tone only in intent, not color. */
-.agent-offline{
-  display:flex;align-items:center;gap:9px;margin:0 0 12px;
-  background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-sm);
-  padding:9px 11px;color:var(--ink-2);font-size:.78rem;line-height:1.4;
-}
-.agent-offline-dot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:var(--gold)}
-.agent-offline-text{flex:1;min-width:0}
-.agent-offline-x{
-  flex:0 0 auto;position:relative;background:none;border:none;color:var(--muted);
-  font-size:.95rem;line-height:1;padding:6px;margin:-6px -4px -6px 0;cursor:pointer;border-radius:8px;
-}
-.agent-offline-x:hover{color:var(--ink)}
-.agent-offline-x:active{transform:var(--press-xs)}
 
 /* "Steer line" — the calm, subordinate "tell me different" row. Each option is a
    light text-button (not a pill) so the day's primary action stays the visual
@@ -353,8 +331,6 @@
 
 /* the around-today rows follow one another as hairline rows, never a doubled rule */
 .brief-around + .prov-slot .prov-line{margin-top:0}
-.brief > .agent-offline + .brief-updated + .brief-why-more,
-.brief > .agent-offline + .brief-why-more{margin-top:var(--space-4)}
 
 /* capture on Today: the bodyweight chip and the context tags hold ONE line that
    scrolls sideways (a soft fade says there is more), instead of wrapping into a

@@ -19,55 +19,77 @@ type TodayMainShellDeps = {
 type TodayMainShellApi = {
   carryBriefSlots(from: Element): (into: Element) => void;
   leadHtml(options: TodayMainShellLeadOptions, deps: TodayMainShellDeps): string;
-  weekFoldHtml(compass: TodayMainShellCompass, deps: Pick<TodayMainShellDeps, "escapeHtml">): string;
+  weekFoldHtml(
+    compass: TodayMainShellCompass,
+    deps: Pick<TodayMainShellDeps, "escapeHtml">,
+    options?: { currentWeight?: unknown }
+  ): string;
   wrapHtml(content: string, options: { railHtml: string }): string;
 };
 
 (() => {
-  function weightChipLabel(currentWeight: unknown): string {
-    return currentWeight != null ? `${currentWeight}<span class="wt-mini-unit">lb</span>` : "weight";
+  function weightChipLabel(currentWeight: unknown, escapeHtml: (value: unknown) => string): string {
+    return currentWeight != null ? `${escapeHtml(currentWeight)}<span class="wt-mini-unit">lb</span>` : "weight";
   }
 
-  function captureRowHtml(currentWeight: unknown, isToday: boolean): string {
-    // tagsSlot renders only when its loader has something to show (the quiet tag
-    // chip row) — an empty <div> here that stays quiet (`:empty{display:none}`)
-    // until post-render wiring fills it. Food frequents moved into the Chat
-    // composer (prefill, not one-tap re-log) — capture stays in Chat.
-    //
-    // The morning check-in is NOT here any more. It belongs under the sentence that
-    // asks how the body is, not in a footer three surfaces below it, so the Brief
-    // itself mounts `#checkinSlot` on the rest/easy reads where the question is
-    // actually being asked (today-brief-client.ts).
-    return `<div class="capture-row reveal" style="--i:1">
-      <div class="wt-inline" id="wtInline" hidden>
-        <input id="wtInlineInput" type="number" inputmode="decimal" step="0.1" placeholder="Weight (lb)">
-        <button id="wtInlineGo" class="logbtn">+</button>
-      </div>
-      <button id="wtChipMini" class="wt-mini" type="button" title="Log bodyweight">${weightChipLabel(currentWeight)}<span class="stat-plus">+</span></button>
-      ${isToday ? `<div id="tagsSlot" class="tags-slot"></div>` : ""}
-    </div>`;
+  // The capture row now carries only the quiet context-tag chips (rendered when its
+  // loader has something to show; `:empty{display:none}` until then). The bodyweight
+  // chip moved onto the week row (weekFoldHtml): "This week" and the weigh-in are one
+  // tidy line, and the weight is said once. Food frequents live in the Chat composer.
+  //
+  // The morning check-in is NOT here any more. It belongs under the sentence that
+  // asks how the body is, so the Brief mounts `#checkinSlot` on the rest/easy reads
+  // where the question is actually being asked (today-brief-client.ts).
+  function captureRowHtml(isToday: boolean): string {
+    return isToday
+      ? `<div class="capture-row reveal" style="--i:1"><div id="tagsSlot" class="tags-slot"></div></div>`
+      : "";
   }
 
   function leadHtml(options: TodayMainShellLeadOptions, deps: TodayMainShellDeps): string {
     void deps;
-    return `${options.isToday ? "" : `<button id="backToday" class="ghostbtn back-today">← Back to today</button>`}
-    ${options.briefHtml}
+    return `${options.briefHtml}
     <div id="ctxBanner"><div id="ctxEvents"></div><div id="ctxHealth"></div></div>
     ${options.conductorHtml ? `<div class="cfocus-slot cfocus-thread-slot" id="cfocusSlot">${options.conductorHtml}</div>` : `<div class="cfocus-slot" id="cfocusSlot"></div>`}
     <div id="attentionLead" class="card-stack"></div>
     <div id="sugSlot" class="sug-slot"></div>
-    ${captureRowHtml(options.currentWeight, options.isToday)}`;
+    ${captureRowHtml(options.isToday)}`;
   }
 
-  function weekFoldHtml(compass: TodayMainShellCompass, deps: Pick<TodayMainShellDeps, "escapeHtml">): string {
-    return `<details class="weekfold" id="weekFold">
-      <summary class="weekfold-sum"><span class="lbl">This week</span>${compass.weekRecap ? `<span class="weekfold-recap">${deps.escapeHtml(compass.weekRecap)}</span>` : ""}<span class="weekfold-chev" aria-hidden="true">▾</span></summary>
+  // The week row: "This week" and its recap on the left, the weigh-in chip on the
+  // right, one line. The chip sits inside the summary but never toggles the fold
+  // (its click is kept from the summary below); the weight input opens under the row.
+  function weekFoldHtml(
+    compass: TodayMainShellCompass,
+    deps: Pick<TodayMainShellDeps, "escapeHtml">,
+    options: { currentWeight?: unknown } = {}
+  ): string {
+    return `<div class="weekrow">
+    <details class="weekfold" id="weekFold">
+      <summary class="weekfold-sum"><span class="lbl">This week</span>${compass.weekRecap ? `<span class="weekfold-recap">${deps.escapeHtml(compass.weekRecap)}</span>` : ""}<button id="wtChipMini" class="wt-mini" type="button" title="Log bodyweight" data-keep-fold>${weightChipLabel(options.currentWeight, deps.escapeHtml)}<span class="stat-plus">+</span></button><span class="weekfold-chev" aria-hidden="true">▾</span></summary>
       <div class="statstrip statstrip-compass">
         ${compass.cellsHtml || ""}
       </div>
       <div id="wearStrip"></div>
       <div id="wearBands"></div>
-    </details>`;
+    </details>
+    <div class="wt-inline" id="wtInline" hidden>
+      <input id="wtInlineInput" type="number" inputmode="decimal" step="0.1" placeholder="Weight (lb)" aria-label="Bodyweight in lb">
+      <button id="wtInlineGo" class="logbtn" type="button" aria-label="Log bodyweight">+</button>
+    </div>
+    </div>`;
+  }
+
+  // A control inside the week row's summary acts on its own, never toggling the fold.
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener(
+      "click",
+      (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest("summary [data-keep-fold]")) event.preventDefault();
+      },
+      true
+    );
   }
 
   // The fuel glance is mounted INTO the Brief by its own controller (voice → NOW →

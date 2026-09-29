@@ -97,8 +97,12 @@ type TodayBriefNowParts = {
   // never folded: it stays in view under the fold, and fills only when a finding
   // shapes the day.
   function aroundHtml(parts: { forward: string; periodization: string; arc: string; provenance: string; isToday?: boolean }): string {
-    if (!parts.forward && !parts.periodization && !parts.arc) return parts.provenance;
     const label = parts.isToday === false ? "Around this day" : "Around today";
+    // With nothing to fold, the group still opens under the same mast (no chevron), so
+    // the rows below it always read as one section (today/pebbles.css "ONE vertical rhythm").
+    if (!parts.forward && !parts.periodization && !parts.arc) {
+      return `<div class="brief-around brief-around-plain"><div class="brief-around-sum"><span class="lbl">${label}</span></div></div>${parts.provenance}`;
+    }
     return `<details class="brief-around"><summary class="brief-around-sum"><span class="lbl">${label}</span><span class="brief-around-chev" aria-hidden="true">▾</span></summary><div class="brief-around-body">${parts.forward}${parts.periodization}${parts.arc}</div></details>${parts.provenance}`;
   }
 

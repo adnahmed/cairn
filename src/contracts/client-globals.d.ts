@@ -885,6 +885,8 @@ declare global {
     agentHealthHtml: string;
     agentActivityHtml: string;
     noticedHtml: string;
+    /** Settings > Agents: one quiet line for where the agent layer stands NOW. */
+    agentStateHtml?: string;
     dayNames: string[];
     api(path: string, opts?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
     toast(message: string): void;
@@ -1844,6 +1846,22 @@ declare global {
   declare function defaultProgressSeg(): string;
   declare function renderTab(tab: string): unknown;
   declare function renderToday(): unknown;
+  /** Today is Home (v2 wave 7): open any day — today opens Today, another day its record or preview. */
+  declare function openDay(date: unknown): void;
+  /** Eager (day-open-client.ts): opening a day, and where it was opened from. */
+  declare const CairnDayOpen: {
+    openDay(date: unknown): void;
+    origin(): { tab: ClientTabName; label: string } | null;
+    takeOrigin(): { tab: ClientTabName; label: string } | null;
+  };
+  /** LAZY "day" bundle (day-record-client.ts): reach only through withBundle("day"). */
+  declare function renderDay(): Promise<void>;
+  declare const CairnDayRecord: {
+    dayHtml(record: import("./day-record.js").DayRecord, opts: { backLabel: string }): string;
+    relativeWords(iso: string, today: string): string;
+    shortDate(iso: string): string;
+    renderDay(): Promise<void>;
+  };
   declare function renderSession(opts?: Record<string, unknown>): unknown;
   declare function openSession(
     date?: string | null,
@@ -2076,7 +2094,7 @@ declare global {
   declare function primeArtManifest(): Promise<void>;
   declare function jobReconnect(opts?: { reuseWithinMs?: number }): Promise<void>;
   /** Names of the bundles index.html does NOT load eagerly (see build-client's BUNDLES). */
-  declare type ClientLazyBundleName = "me-health" | "train" | "horizon" | "ask" | "settings";
+  declare type ClientLazyBundleName = "me-health" | "train" | "horizon" | "ask" | "settings" | "day";
   /** Inject a lazily-loaded app-shell bundle (and its dependencies) once; resolves after they have executed. */
   declare function ensureBundle(name: ClientLazyBundleName): Promise<void>;
   declare function bundleLoaded(name: ClientLazyBundleName): boolean;
@@ -2773,6 +2791,10 @@ declare global {
         syncRouteFromState(): unknown;
         renderToday(): unknown;
       }): void;
+      /** The Today home's mono eyebrow on a sub-view header ("Fuel · Tue 29 Sep"). */
+      setEyebrowTitle(el: HTMLElement, text: string): void;
+      /** "Tue 29 Sep" for a YYYY-MM-DD. */
+      shortDate(iso: string): string;
       updateHeaderCondense(deps: { state: { tab?: unknown } }): void;
       installHeaderCondenseScroll(depsFor: () => { state: { tab?: unknown } }): void;
     };
@@ -3709,6 +3731,8 @@ declare global {
     };
 
     CairnSettingsAgents: {
+      /** Settings > Agents: where the agent layer stands NOW, one quiet line. */
+      agentStateLine(stats: unknown, agents: ReadonlyArray<Record<string, unknown>>, now?: Date): string;
       agentsSliceHtml(options: {
         agentStrategy: string;
         routeSummary: string;
@@ -3716,6 +3740,7 @@ declare global {
         agentHealthHtml: string;
         agentActivityHtml: string;
         noticedHtml: string;
+        agentStateHtml?: string;
         coachDay: number;
         coachHour: number;
         timeZone: string;
@@ -4406,7 +4431,8 @@ declare global {
       ): string;
       weekFoldHtml(
         compass: { weekRecap?: string | null; cellsHtml?: string },
-        deps: { escapeHtml(value: unknown): string }
+        deps: { escapeHtml(value: unknown): string },
+        options?: { currentWeight?: unknown }
       ): string;
       wrapHtml(content: string, options: { railHtml: string }): string;
     };
@@ -4733,8 +4759,6 @@ declare global {
       }): Array<{ intent: string; label: string }>;
       attentionPrimary(read: Partial<ClientDayRead> | null | undefined): string;
       yieldsLead(read: Partial<ClientDayRead> | null | undefined): boolean;
-      agentOffline(status: unknown): boolean;
-      agentOfflineNoticeHtml(status: unknown, dismissed?: boolean): string;
       briefHtml(
         read:
           | (Partial<ClientDayRead> & { _provisional?: unknown; _failed?: unknown; override?: unknown })
@@ -4748,7 +4772,6 @@ declare global {
           activeOverride?: unknown;
           morph?: boolean;
           reducedMotion?: boolean;
-          offlineDismissed?: boolean;
           tradeRefused?: boolean;
           planDayName?: unknown;
           session?: {
@@ -4787,7 +4810,6 @@ declare global {
     };
 
     CairnTodayBriefActionsClient: {
-      offlineDismissed(): boolean;
       // True once the server has refused a rest-trade on that date, so the Brief
       // stops re-offering it on every repaint.
       tradeRefusedOn(date: unknown): boolean;
@@ -5037,6 +5059,8 @@ declare global {
           isToday?: unknown;
           isEndurance?: unknown;
           isHybrid?: unknown;
+          /** false when the weigh-in chip already rides the week row (Today). */
+          weightTile?: boolean;
         }
       ): {
         planned: number;

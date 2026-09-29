@@ -26,6 +26,7 @@ type SettingsAgentsSliceOptions = {
   agentHealthHtml: string;
   agentActivityHtml: string;
   noticedHtml: string;
+  agentStateHtml?: string;
   coachDay: number;
   coachHour: number;
   timeZone: string;
@@ -113,6 +114,7 @@ function settingsAgentsSliceHtml(options: SettingsAgentsSliceOptions): string {
         <p class="set-group-sub">The agent brain. Cairn ships lean: install only the provider tools you use, connect your account, then Auto rotates across the agents you enable here.</p>
 
         <h1 class="lbl" style="margin:18px 0 8px">Agents</h1>
+        ${options.agentStateHtml || ""}
         <div id="agentlist"></div>
         ${options.noticedHtml}
 
@@ -223,7 +225,64 @@ function settingsAgentListHtml(options: SettingsAgentsListOptions): string {
   return options.order.map((name, index) => settingsAgentCardHtml(options, name, index)).join("");
 }
 
+// "Tue 9:12", "yesterday 18:40", "9:12" — when an agent attempt happened, in words.
+function settingsWhen(iso: unknown, now: Date): string {
+  const t = typeof iso === "string" ? Date.parse(iso) : Number.NaN;
+  if (!Number.isFinite(t)) return "";
+  const at = new Date(t);
+  const clock = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((day(now) - day(at)) / 86_400_000);
+  if (days <= 0) return `today ${clock}`;
+  if (days === 1) return `yesterday ${clock}`;
+  if (days < 7) return `${at.toLocaleDateString(undefined, { weekday: "short" })} ${clock}`;
+  return at.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+// What a failing attempt was, in plain words (the operator's error class stays in
+// the "Under the hood" card).
+const SETTINGS_AGENT_FAIL_WORDS: Record<string, string> = {
+  auth_required: "an agent needs its sign-in renewed",
+  quota_exhausted: "an agent reached its usage limit",
+  rate_limited: "an agent was busy",
+  payment_required: "an agent's plan needs credit",
+  timeout: "an agent took too long",
+};
+
+// Settings > Agents: ONE quiet line for where the agent layer stands NOW. It used to
+// be a notice on the Brief that stayed after the moment passed; here it reflects the
+// newest attempt (`current` on /agent-stats), so a bad morning clears itself as soon
+// as a later read succeeds. No connected agent is its own calm state, not a fault.
+function agentStateLine(
+  stats: unknown,
+  agents: ReadonlyArray<Record<string, unknown>>,
+  now: Date = new Date()
+): string {
+  const list = Array.isArray(agents) ? agents : [];
+  const usable = list.some((a) => a && a.usable !== false && a.enabled !== false && a.configured !== false);
+  const row = stats && typeof stats === "object" ? (stats as Record<string, unknown>) : null;
+  const current = row?.current && typeof row.current === "object" ? (row.current as Record<string, unknown>) : null;
+  const line = (tone: string, text: string) =>
+    `<p class="agent-state is-${tone}" role="status"><span class="agent-state-dot" aria-hidden="true"></span><span>${escHtml(text)}</span></p>`;
+  if (!usable)
+    return line("none", "No agent is connected yet. Cairn reads your day with its own reliable baseline until one is.");
+  if (current?.state === "failing") {
+    const when = settingsWhen(current.failing_since, now);
+    const cause = SETTINGS_AGENT_FAIL_WORDS[String(current.error_class || "")] || "";
+    return line(
+      "failing",
+      `Agents haven't answered since ${when || "a little while ago"}${cause ? ` (${cause})` : ""}. Cairn's own read stands in, and this clears by itself after the next good run.`
+    );
+  }
+  if (current?.state === "ok") {
+    const when = settingsWhen(current.last_ok_at, now);
+    return line("ok", `Agents are answering${when ? ` · last good run ${when}` : ""}.`);
+  }
+  return line("ok", "Agents are connected. Nothing has run yet.");
+}
+
 const CAIRN_SETTINGS_AGENTS = {
+  agentStateLine,
   agentsSliceHtml: settingsAgentsSliceHtml,
   agentListHtml: settingsAgentListHtml,
 };

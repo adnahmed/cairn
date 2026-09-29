@@ -106,6 +106,8 @@ function renderSettingsBundle(bundle: SettingsScreenBundle): void {
     agentActivityCard(agentStats) +
     CairnSettingsClient.brainDiagnosticsCard(brainDiagnostics);
   const noticedHtml = noticedCard(learnings);
+  // Where the agent layer stands NOW, one quiet line (the Brief no longer carries it).
+  const agentStateHtml = CairnSettingsAgents.agentStateLine(agentStats, agents as unknown as Record<string, unknown>[]);
   const artSpendHtml = artStats ? CairnSettingsSurface.artSpendCardHtml(artStats) : "";
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -190,6 +192,7 @@ function renderSettingsBundle(bundle: SettingsScreenBundle): void {
       agentHealthHtml,
       agentActivityHtml,
       noticedHtml,
+      agentStateHtml,
       dayNames,
       api,
       toast,

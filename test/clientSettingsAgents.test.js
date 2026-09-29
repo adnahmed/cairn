@@ -237,3 +237,48 @@ test("an uninstalled provider is always Off and cannot be enabled before install
   assert.match(html, /data-install="antigravity">Install/);
   assert.doesNotMatch(html, /data-connect="antigravity"/);
 });
+
+// v2 wave 7: where the agent layer stands NOW lives here, one quiet line, not on the
+// Brief. It follows the newest attempt (/agent-stats `current`), so it clears itself.
+test("Settings > Agents speaks the agent layer's current state and clears itself", () => {
+  const settings = loadSettingsAgents();
+  const now = new Date("2026-09-29T15:00:00Z");
+  const connected = [{ name: "claude", usable: true, enabled: true, configured: true }];
+
+  const none = settings.agentStateLine({}, [{ name: "claude", usable: false }], now);
+  assert.match(none, /agent-state is-none/);
+  assert.match(none, /No agent is connected yet/);
+
+  const failing = settings.agentStateLine(
+    {
+      current: {
+        state: "failing",
+        failing_since: "2026-09-29T08:30:00Z",
+        last_ok_at: "2026-09-28T09:00:00Z",
+        error_class: "auth_required",
+      },
+    },
+    connected,
+    now
+  );
+  assert.match(failing, /is-failing/);
+  assert.match(failing, /needs its sign-in renewed/);
+  assert.match(failing, /clears by itself after the next good run/);
+  assert.doesNotMatch(failing, /✕|dismiss/i, "a state, never a notice to dismiss");
+
+  const ok = settings.agentStateLine(
+    { current: { state: "ok", failing_since: null, last_ok_at: "2026-09-29T14:00:00Z", error_class: null } },
+    connected,
+    now
+  );
+  assert.match(ok, /is-ok/);
+  assert.match(ok, /Agents are answering · last good run today/);
+  assert.doesNotMatch(ok, /haven't answered/);
+
+  const escaped = settings.agentStateLine(
+    { current: { state: "failing", failing_since: "<x>", error_class: "<b>" } },
+    connected,
+    now
+  );
+  assert.doesNotMatch(escaped, /<b>|<x>/);
+});
