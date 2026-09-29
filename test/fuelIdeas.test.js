@@ -137,10 +137,20 @@ test("a food that is not a protein food is never spoken as a protein step", () =
     ...STAPLES,
     Cantaloupe: { kcal: 18, protein_g: 0, carbs_g: 4, fat_g: 0 },
     "Apple crumble": { kcal: 174, protein_g: 3, carbs_g: 28, fat_g: 6, fiber_g: 4 },
+    "Trail mix": { kcal: 70, protein_g: 2, carbs_g: 7, fat_g: 5 },
   });
   seedBand();
   seedIntake(0, 1500, { protein_g: 10 }, { eatenAt: "12:00" });
-  const out = fuelIdeas(undefined, { hour: 13, exclude: ["chicken salad", "greek yogurt bowl"] });
+  const out = fuelIdeas(undefined, { hour: 13, exclude: ["chicken salad", "greek yogurt bowl", "trail mix"] });
+  const mix = fuelIdeas(undefined, {
+    hour: 13,
+    exclude: ["chicken salad", "greek yogurt bowl", "toast with jam", "cantaloupe", "apple crumble"],
+  }).ideas.find((i) => /trail mix/i.test(i.title));
+  assert.match(
+    mix.why,
+    /^Mostly fat, about \d+ g — not a protein food/,
+    "a handful of trail mix is not 'light and filling'"
+  );
   const byTitle = Object.fromEntries(out.ideas.map((idea) => [idea.title, idea]));
   const need = out.room.protein_g;
 

@@ -550,7 +550,9 @@ interface WhyContext {
 const PROTEIN_FOOD_MIN_G = 8;
 const PROTEIN_FOOD_MIN_SHARE = 0.2; // of its kcal, from protein, with at least 4 g
 const FIBER_NOTE_MIN_G = 3;
-const LIGHT_IDEA_KCAL = 80;
+// Only a truly light food (a few melon cubes) is "light and filling"; a 70 kcal handful
+// of trail mix is spoken by its macro instead.
+const LIGHT_IDEA_KCAL = 40;
 
 function isProteinFood(s: Sized): boolean {
   if (s.protein >= PROTEIN_FOOD_MIN_G) return true;
