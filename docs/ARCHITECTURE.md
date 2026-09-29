@@ -1867,6 +1867,21 @@ quality weekday are PLANNED DOSE — both the longest-run and hard-cardio arms s
 next-morning physiology arm (and a poorly rated session) can call them harm (`plannedDoseOn`). Of 19
 days trained against the read, 8 had been flagged by the build working as written.
 
+**The athlete's stated effort outranks the watch's intensity grade (owner ruling, 2026-09-29).** A run
+the athlete SAYS was easy — `activities.rpe` in the talk-test band, `isStatedEasyRpe` (≤ 4,
+`src/repo/stated-effort.ts`) — skips the intensity bars (training effect, time at Z4+, load above the
+median) in `hardCardioDayCore` (`src/repo/training-read.ts`), so it is never the hard-cardio arm; the
+plain duration bar still makes it a loading day. It also counts as easy running in
+`runIntensityDiscipline` whatever its average. The next-morning physiology arm is untouched and still
+outranks the statement: a rest-grade readiness or last night's HRV/RHR past the athlete's own band is
+harm, felt easy or not. The live case: 9.68 km at 157 bpm, effect 4.5, "kept it conversational… it did
+not take a toll" — graded hard cardio, it kept the run engine's demonstrated-capacity resume shut.
+`rpe` is only ever the athlete's (typed on a log, read from their words by the enricher, or stated
+after the fact); one writer, `setActivityFeltEffort` (`src/repo/activity-effort.ts`), backs
+`PUT /api/activities/:id/effort`, the `set_activity_effort` MCP tool and the chat action of the same
+name (resolved to the day's run when the agent has no id). A felt effort stated on a hand log that
+shadows the watch's row lands on the watch's row, since that is the one the reads count.
+
 **The overnight arms read the athlete's OWN nights, once per episode (2026-09-23).** Only the night
 dated the morning itself answers for the day before it. Its HRV / resting HR is judged against that
 athlete's nights in the 28 days before it (`RECOVERY_BASELINE_MIN_POINTS` of them): mean ∓ one of
@@ -4219,6 +4234,17 @@ prompt key — carries this ceiling explicitly as `easy_ceiling_bpm`, plus `band
 steady/threshold, the same four boundaries as `zones` under plain-English names): a reader unfamiliar
 with this athlete's zone numbering can no longer mistake `z1_top` (the recovery line) for the easy
 ceiling — the misread a case-conference opinion once made.
+
+**Talk tests may lift the easy line — bounded, never from one run (2026-09-29).** A run with heart
+rate stated easy (above) files a `talk_test` calibration event (source `stated`, keyed by the Garmin
+activity, the athlete's words in its result; re-stating replaces it, a working rpe or a clear withdraws
+it). `talkTestEasyLine` (`hr-model.ts`) reads the pattern: at least `TALK_TEST_MIN_OBSERVATIONS` (3)
+distinct days in `TALK_TEST_WINDOW_DAYS` (42), each ≥ `TALK_TEST_MIN_MINUTES` (30), none followed by a
+rest-grade morning. The line lands at the observations' median less the easy tolerance (so the spoken
+`easy_ceiling_bpm` sits at that median), capped at `TALK_TEST_Z2_CAP_OF_LTHR` (0.92) × LTHR so easy
+never becomes tempo, only ever UP from the threshold's own 0.89, and never on the fallback rung. The
+threshold itself is untouched; the model reports `easy_basis:"talk_test"` and `talk_test_runs`. A
+statement re-derives today's persisted model at once (`refreshPersistedHrModel`).
 
 `calibration.ts` is the elite-coach testing loop for BOTH domains: what is anchored, how stale it
 is (freshness words, never day counts), and whether a test is worth suggesting — `due` only when a

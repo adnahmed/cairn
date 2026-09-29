@@ -343,7 +343,9 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   threshold. And `trainedWithoutHarm` is `harmEvidenceOnDay(date) == null`: a hard-cardio day, a
   new-longest run (`longestRunNovelty`), or a bad next morning (rest-grade readiness, or last
   night's HRV/RHR past the athlete's OWN band — charged once per episode, at onset) is harm — a run-only day is never "unrated therefore fine", but a hard-cardio
-  day is CLEARED when the next morning positively vouches (fresh readiness ≥ `SUPPORTIVE_READINESS`
+  day is never one the athlete STATED easy (`activities.rpe` ≤ 4, `src/repo/stated-effort.ts` — the
+  watch's effect/zones/load do not overrule their word; the next morning still does), and is
+  CLEARED when the next morning positively vouches (fresh readiness ≥ `SUPPORTIVE_READINESS`
   and no brake firing; absent data never vouches). "Morning readiness" comes from the ledger's own
   snapshot for that morning, since the stored Garmin value is the day's LAST sync and so is
   post-workout on any day the athlete trained; the morning read itself is the last predictive
