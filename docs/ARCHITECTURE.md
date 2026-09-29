@@ -341,8 +341,9 @@ plan date is today) is then re-decided from that morning's evidence:
   day — easy days included, and through the locks except race day — to `dose:"rest"`: no distance, rest
   or optional easy movement. The Brief's `stated_run_day` reads `rest` with no focus, so the Brief, the
   Today run line and Endurance's "This morning" row say the same thing.
-- **Floors** (last night's HRV/RHR past the athlete's OWN band — `personalBand` over the summary's
-  VERIFIED series only, so a contradicted or unwitnessed reading neither brakes nor supports — a short
+- **Floors** (last night's HRV/RHR MEANINGFULLY past the athlete's OWN band, or past it on two
+  consecutive readings — `overnight-band.ts`, the harm arms' own rule; a lone marginal night is
+  neutral — over the summary's VERIFIED series only, so a contradicted or unwitnessed reading neither brakes nor supports — a short
   night, a run-down check-in, high soreness, legs DEEP in lifting, non-physiological harm on yesterday's
   work, and the Brief's own running-volume spike, `runVolumeSpikeRead`) make quality easy and shorten a
   long run by `LONG_FLOOR_FACTOR`. Nothing outranks a floor, the athlete's word included.
@@ -1922,10 +1923,30 @@ dated the morning itself answers for the day before it. Its HRV / resting HR is 
 athlete's nights in the 28 days before it (`RECOVERY_BASELINE_MIN_POINTS` of them): mean ∓ one of
 their own SDs, never narrower than `recoveryTrendBars`. With too few nights the watch's own verdicts
 stand in (the `hrv_status` word; resting HR ≥ the row's `hr_7d_avg` + 5). Either way a brake is
-charged only at its ONSET: when the reading before it (within the signal's age bound) already sat past
-the same line, the dip predates the work and the day is not charged. A seven-day LOW verdict three
+charged only at its ONSET: when the reading before it (within the signal's age bound) already braked,
+the dip predates the work and the day is not charged. A seven-day LOW verdict three
 mornings running used to be three harms. The vouch that clears a hard-cardio day
-still needs NO overnight brake at all, onset or not.
+still needs NO overnight arm at all, onset or not, marginal or not.
+
+**A brake is a MEANINGFUL miss, never a hair past the line (owner ruling, 2026-09-29).** The band
+formula and the per-night verdict live in ONE module, `src/repo/overnight-band.ts`, read by the harm
+arms (`read-adherence.ts`) and the run morning's floor (`lastNightOwnBand`, `run-day-intensity.ts`),
+so the two cannot disagree. `personalBand` returns the mean, the `line` (mean ∓ `width`, where
+`width` = max(their own SD, `recoveryTrendBars`)) and a `meaningful_line` one smallest worthwhile
+change further out (`SWC_SD_FRACTION` = 0.5 × `width`). `nightPastBand` calls last night
+`meaningful`, `marginal` or neither, and `overnightBrakes` brakes on a meaningful miss alone, or on a
+marginal one the reading before it corroborates (two consecutive READINGS past the line — the newest
+earlier one still current, `sensorIsCurrent`, each judged against the band as it stood on its own
+morning). A lone marginal night is a caveat: no harm, no floor, no vouch either. The grounding is the
+HRV-guided training literature: act on meaningful deviations from a rolling personal baseline — the
+smallest worthwhile change of about half an SD (Hopkins; Plews et al., whose guided decisions read the
+rolling average against it) and the athlete's own band (Kiviniemi et al.) — because single nights are
+noisy; sustained suppression over consecutive readings is the other honest signal. Live case: HRV 41
+against a line of 41.2 was charged as harm and set a 32.5 km week aside, two days before
+a 17.7 km long run. The last-night law is unchanged: only the night dated the morning speaks, and the
+reading before it can corroborate a miss but never brake a morning alone. The day read's own
+recovery observations (`signal-state.ts`) already needed a meaningful excursion — two verified
+readings past a band wider than the SWC — or a median trend, so nothing changed there.
 
 **"Morning readiness" is not the stored Garmin value on a training day.**
 `garmin_daily_metrics.training_readiness` holds the LAST value synced for the date and the watch
@@ -1933,10 +1954,22 @@ recomputes it through the day, so on any date the athlete trained it is a post-w
 a row read 11, synced after that day's 10.4 km run, and marked the previous day's 5/5-rated
 session as harmful. One helper answers the question for both the brake and the absorption test: the
 ledger's own morning snapshot first (`signals.fatigue.readiness` on that morning's chosen decision,
-used only when `current_date` matches and the read called it `fresh`), and the Garmin row only on a
-morning carrying no training at all. Otherwise the readiness arm is skipped as unknowable. The HRV
-and resting-HR arms read the wearable row directly as they always have: both are overnight
-measurements and do not drift with the next day's work.
+used only when `current_date` matches, the read called it `fresh`, and the read was written before the
+date's first training), then the WATCH'S OWN WAKE-UP READING (2026-09-29, `watchWakeReadiness`): Garmin
+keeps every readiness recompute of the day in `raw_json.trainingReadiness`, stamped (`timestamp`, GMT)
+and tagged (`inputContext`), and the latest `AFTER_WAKEUP_RESET` entry stamped strictly before the
+date's first training instant (a logged set or set-less session, `firstTrainingInstantByDate`; a
+synced activity's `beginTimestamp`/`startTimeGMT`) is the morning — never an
+`AFTER_POST_EXERCISE_RESET` or `UPDATE_REALTIME_VARIABLES` value, and never with a same-day activity
+whose start cannot be placed (a hand log carries only a date: unknowable is absent). Then a ledger read
+written after the work, then the Garmin row only on a morning carrying no training at all. Otherwise
+the readiness arm is skipped as unknowable. The same ladder patches the recovery summary after
+training (`withMorningReadiness`), which the weekly run engine now applies to its own default read
+too: its "fresh strain" (`readinessLow`) had read the post-workout sync — 32 after a 07:30 lift,
+against a 06:22 wake-up of 77 — and constrained the whole week. Live case for the harm arm: a hard
+Tuesday whose Wednesday carried a 06:17 wake-up readiness of 64 stayed harm because Cairn's only read
+of that date was its midnight precompute. The HRV and resting-HR arms read the wearable row directly
+as they always have: both are overnight measurements and do not drift with the next day's work.
 
 `dayRead()` applies it as one rule-outcome step down, rest → easy, and only for the four
 accumulation-style rest codes in `SOFTENABLE_REST_CODES` (`accumulated_load_rest` /
@@ -4372,12 +4405,32 @@ demonstrated longest. A scheduled down week HOLDS that longest when it was taken
 steps to 0.85× only when the body paid for it. **A reset is recovery, not lost ground**: the week
 after the ramp's own reset week steps off the level the reset paused (the week before it), provided
 the reset was run as a lighter week (≥ `RESET_TAKEN_FRACTION` of that level — below it, it was an
-absence and the reactive anchor stands). **Demonstrated capacity is the floor, and the peak is a new
+absence and the reactive anchor stands) and its own running carried no harm (`closedWeekRunHarm`, the
+same guard the capacity resume takes, 2026-09-29: a reset whose long run was followed by a meaningful
+overnight miss steps off the reset, never jumps back through the cost). **Demonstrated capacity is the floor, and the peak is a new
 high** (owner ruling 2026-09-29): `demonstratedRunCapacity` (`src/repo/run-capacity.ts`) reads the
 best closed week of the last `DEMONSTRATED_CAPACITY_WEEKS` (8) whose run days `harmEvidenceOnDay`
 all clear (harm on a day a trip or illness covers, or its next morning, is confounded and not
 charged; a harmed week is `set_aside` and the floor falls back to the best week the body did not pay
-for), plus `demonstratedLongKm` (moved here from race-build). `raceRamp(…, demonstrated)` then aims
+for), plus `demonstratedLongKm` (moved here from race-build). **Capacity is judged by the RUNNING
+(2026-09-29)**: the run days are asked `harmEvidenceOnDay(date, { domain: "running" })`
+(`runningHarmOnDay`) — a lifting session rated under par is a fact about the lifting and never voids a
+running week (it stays harm for every recovery read), and the hard-effort arm asks only whether a RUN
+graded hard (`hardCardioDayIntense(…, { sport: "run" })`); the longest-run and next-morning arms are
+unchanged. The same scoping holds for `demonstratedLongKm` and for `closedWeekRunHarm` (the ladder's
+`currentWeekHarmed`, the engine's resume guard). **The body answered**: harm earlier in a week is
+cleared for capacity (listed in `answered`, never deleted) when a LATER key run that week — a run on the
+stated long or quality weekday — carries no running harm of its own and its next morning spoke clean
+(`nextMorningClean`: a readiness or a night on record, not rest-grade, no overnight brake onset or
+carried over; silence never vouches). A Thursday dip answered by a Sunday long run taken well is a
+week carried, as a coach reads it; harm on the last key run itself, or a key run whose own morning
+paid, clears nothing. **Said on the plan**: `capacitySetAsideLine` names the biggest set-aside week,
+why in plain words (`setAsideReason` — "had a rough night after it, with HRV well under your usual",
+never the harm kind, a number from the body or a score) and the week the build climbs from, through a
+`pickDayVariant` set; it rides the race build as `capacity.note` (with `floor_km`, `set_aside`
+`{week_start, km, kind}`) — printed above the race ladder through `runWords`, so the figures follow
+the run units — and the engine's `rationale` when the week still climbs. Nothing set aside, nothing
+said. `raceRamp(…, demonstrated)` then aims
 the peak at `peak_target_km` = the race demand or one `NEW_PEAK_STEP` (1.1) past the floor (capped at
 `PEAK_TARGET_CEILING_OF_DEMAND` × the demand, never under the floor), and the long-run peak at
 `longPeakTargetKm` — one `NEW_LONG_PEAK_STEP` past the longest run taken well up to 20 km, never

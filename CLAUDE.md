@@ -301,9 +301,12 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   reset is recovery, not lost ground, and a long run taken well is held, never re-climbed to
   (`RESET_TAKEN_FRACTION`, `demonstratedLongKm`). **Demonstrated capacity is the floor and the
   peak is a new high**: the best harm-free closed week of the last 8 (`demonstratedRunCapacity`,
-  `src/repo/run-capacity.ts` — harm is `harmEvidenceOnDay`, never re-derived) sets the ramp's peak
+  `src/repo/run-capacity.ts` — harm is `harmEvidenceOnDay(date, {domain:"running"})`, never
+  re-derived: a lifting session rated under par never voids a running week) sets the ramp's peak
   target one ~10% step past it and a lighter week resumes toward it inside the ACWR ceiling
-  (`capacityResumeKm`); a harmed week falls back, never pushed through. Finish estimates prefer the watch's
+  (`capacityResumeKm`); a harmed week falls back, never pushed through (the reset resume takes the
+  same guard) — unless a LATER stated key run that week was taken clean (`nextMorningClean`: the body
+  answered). A set-aside week is SAID on the plan (`capacitySetAsideLine`, race build `capacity.note`). Finish estimates prefer the watch's
   predictor (≤3 weeks old, Riegel-adjusted) over a Riegel off a training run, and every comparison
   is a `fits`/`stretch`/`beyond_horizon` FIT, never a grade. The weekly ride is a PATTERN read off
   the log (3 of 6 weeks) — no new field. Details in `docs/ARCHITECTURE.md`.
@@ -343,7 +346,9 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   inclusive = its own REST rule, softenable only to easy movement) — never hardcode a readiness
   threshold. And `trainedWithoutHarm` is `harmEvidenceOnDay(date) == null`: a hard-cardio day, a
   new-longest run (`longestRunNovelty`), or a bad next morning (rest-grade readiness, or last
-  night's HRV/RHR past the athlete's OWN band — charged once per episode, at onset) is harm — a run-only day is never "unrated therefore fine", but a hard-cardio
+  night's HRV/RHR MEANINGFULLY past the athlete's OWN band — by the smallest worthwhile change, or on
+  two consecutive readings; a lone hair-past night is a caveat, `src/repo/overnight-band.ts`, shared
+  with the run morning's floor — charged once per episode, at onset) is harm — a run-only day is never "unrated therefore fine", but a hard-cardio
   day is never one the athlete STATED easy (`activities.rpe` ≤ 4, `src/repo/stated-effort.ts` — the
   watch's effect/zones/load do not overrule their word; the next morning still does), a RUN with HR
   and a usable personal model is graded by that model and his own session title, never by training
@@ -353,9 +358,12 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   `runLengthBars`), and is
   CLEARED when the next morning positively vouches (fresh readiness ≥ `SUPPORTIVE_READINESS`
   and no brake firing; absent data never vouches). "Morning readiness" comes from the ledger's own
-  snapshot for that morning, since the stored Garmin value is the day's LAST sync and so is
-  post-workout on any day the athlete trained; the morning read itself is the last predictive
-  `brain_decisions` row before the first logged training of the date, never the midnight recompute.
+  snapshot for that morning, else the watch's own wake-up reading (`watchWakeReadiness`: the raw
+  payload's `AFTER_WAKEUP_RESET` stamped before the first training), since the stored Garmin value is
+  the day's LAST sync and so is post-workout on any day the athlete trained — the run engine's
+  default recovery read goes through the same `withMorningReadiness`; the morning read itself is the
+  last predictive `brain_decisions` row before the first logged training of the date, never the
+  midnight recompute.
   Check-in `energy`/
   `sleep_feel` still brake at ≤2 and support at ≥4, but a `3` is genuinely NEUTRAL (it still emits an
   observation, so a tapped-in athlete never reads as untracked) — never round it to a brake or a
