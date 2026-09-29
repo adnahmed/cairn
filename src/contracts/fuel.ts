@@ -152,9 +152,10 @@ export interface ClientFuelIdea {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  fiber_g: number | null;
   /** True when it fits ONE MEAL's share of today's energy room; null when there is no room to claim. */
   fits_band: boolean | null;
-  /** Spoken reason it was offered (protein first, then the idea as one meal of the day). */
+  /** Spoken reason it was offered (what it brings — protein toward what is owed only when it is a protein food — then the idea as one meal of the day). */
   why: string;
   /** Text "Start from this" drops into the composer — never logged by itself. */
   prefill: string;

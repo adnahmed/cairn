@@ -529,31 +529,78 @@ const BOUND_WORDS: Record<ClientFuelEnergyBound, { fits: string; past: string }>
 
 const COUNT_WORDS = ["no", "one", "two", "three", "four", "five"];
 
+// The protein anchor is a goal to aim at, not a line to hit: within this many grams
+// of it the day reads as "about there" — nothing is still to go, and no idea is sized
+// or ranked around the last few grams. The client's Fuel card holds the same rule
+// (fuel-today-model.ts).
+export const PROTEIN_ABOUT_THERE_G = 10;
+
 interface WhyContext {
   proteinNeed: number | null;
+  /** True when protein is short of the anchor but within PROTEIN_ABOUT_THERE_G of it. */
+  aboutThere?: boolean;
   energyRoom: number | null;
   mealsAhead: number;
   boundKind: ClientFuelEnergyBound | null;
 }
 
-// The spoken reason: protein toward what is still owed, then the idea as ONE meal of
-// the day. The day's whole room is never quoted as if this meal should use it; every
-// number carries its unit; no score.
+// Whether an idea is a protein food at all. Below this it is never spoken as a step
+// toward the protein still owed: a melon or a crumble is offered for what it does
+// bring (fiber, fullness for few calories, carbs), never as "0 g toward the 2 g".
+const PROTEIN_FOOD_MIN_G = 8;
+const PROTEIN_FOOD_MIN_SHARE = 0.2; // of its kcal, from protein, with at least 4 g
+const FIBER_NOTE_MIN_G = 3;
+const LIGHT_IDEA_KCAL = 80;
+
+function isProteinFood(s: Sized): boolean {
+  if (s.protein >= PROTEIN_FOOD_MIN_G) return true;
+  return s.protein >= 4 && s.kcal > 0 && (s.protein * 4) / s.kcal >= PROTEIN_FOOD_MIN_SHARE;
+}
+
+// What a non-protein idea brings, in words: fiber when it is a real source, else
+// fullness for few calories, else the macro carrying its energy. Null with no numbers.
+function whatItBrings(s: Sized): string | null {
+  const fiber = (s.staple.fiber_g ?? 0) * s.portion;
+  const carbs = s.staple.carbs_g == null ? null : s.staple.carbs_g * s.portion;
+  const fat = s.staple.fat_g == null ? null : s.staple.fat_g * s.portion;
+  const light = s.kcal < LIGHT_IDEA_KCAL;
+  if (fiber >= FIBER_NOTE_MIN_G)
+    return `About ${Math.round(fiber)} g fiber${light ? ", filling for few calories" : ""}`;
+  if (light) return "Light and filling for few calories";
+  if (carbs == null && fat == null) return null;
+  return (carbs ?? 0) * 4 >= (fat ?? 0) * 9
+    ? `Mostly carbs, about ${Math.round(carbs ?? 0)} g`
+    : `Mostly fat, about ${Math.round(fat ?? 0)} g`;
+}
+
+// The spoken reason: what the idea brings toward the day — protein toward what is
+// still owed when it IS a protein food, otherwise what it does bring and that it is
+// not one — then the idea as ONE meal of the day. The day's whole room is never
+// quoted as if this meal should use it; every number carries its unit; no score.
 function ideaWhy(s: Sized, ctx: WhyContext): string {
   const { proteinNeed, energyRoom, mealsAhead } = ctx;
   const words = BOUND_WORDS[ctx.boundKind ?? "observed_ceiling"];
   const protein = Math.round(s.protein);
   const kcal = Math.round(s.kcal);
   const owed = proteinNeed != null && proteinNeed > 0;
+  const proteinFood = isProteinFood(s);
+  const brings = proteinFood ? null : whatItBrings(s);
   let lead: string;
   const need = Math.round(proteinNeed ?? 0);
-  if (owed && protein >= need) lead = `About ${protein} g protein, enough for the ${need} g still to go`;
+  if (brings && owed)
+    lead = `${brings} — not a protein food, so pair it with one for the ${need} g protein still to go`;
+  else if (brings && proteinNeed != null)
+    lead = `${brings}; protein is ${ctx.aboutThere ? "about there" : "already met"} today`;
+  else if (brings) lead = `One of your staples, not a protein food: ${brings[0].toLowerCase()}${brings.slice(1)}`;
+  else if (owed && protein >= need) lead = `About ${protein} g protein, enough for the ${need} g still to go`;
   else if (owed) lead = `About ${protein} g protein toward the ${need} g still to go`;
-  else if (proteinNeed != null) lead = `Protein is already met today; this adds about ${protein} g`;
+  else if (proteinNeed != null)
+    lead = `Protein is ${ctx.aboutThere ? "about there" : "already met"} today; this adds about ${protein} g`;
   else if (s.staple.source === "components") lead = `Built from foods you log often, about ${protein} g protein`;
   else lead = `One of your staples, about ${protein} g protein`;
   const meals = `the ${COUNT_WORDS[mealsAhead] ?? mealsAhead} meals still ahead`;
-  const first = owed ? "; protein comes first" : "";
+  // Only a protein food earns its place past the energy room on protein's account.
+  const first = owed && proteinFood ? "; protein comes first" : "";
   if (s.fits === true) {
     return mealsAhead > 1
       ? `${lead}. At about ${kcal} kcal it is one of ${meals}, and leaves room for the rest of the day.`
@@ -697,7 +744,9 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
   // never a zero standing in for the unknown meal.
   const proteinKnown = !day.count || day.known?.protein_g === true;
   const kcalKnown = !day.count || day.known?.kcal === true;
-  const proteinNeed = anchor && proteinKnown ? Math.max(0, anchor.protein_g - totals.protein_g) : null;
+  const shortfall = anchor && proteinKnown ? Math.max(0, anchor.protein_g - totals.protein_g) : null;
+  const aboutThere = shortfall != null && shortfall > 0 && shortfall <= PROTEIN_ABOUT_THERE_G;
+  const proteinNeed = aboutThere ? 0 : shortfall;
   let target: ReturnType<typeof dayIntakeTarget> = null;
   try {
     target = dayIntakeTarget(goal);
@@ -768,8 +817,9 @@ export function fuelIdeas(date: string = localDateISO(), opts: FuelIdeasOptions 
       protein_g: round(s.protein),
       carbs_g: s.staple.carbs_g == null ? null : Math.round(s.staple.carbs_g * s.portion),
       fat_g: s.staple.fat_g == null ? null : Math.round(s.staple.fat_g * s.portion),
+      fiber_g: s.staple.fiber_g == null ? null : Math.round(s.staple.fiber_g * s.portion),
       fits_band: s.fits,
-      why: ideaWhy(s, { proteinNeed, energyRoom, mealsAhead, boundKind: bound.kind }),
+      why: ideaWhy(s, { proteinNeed, aboutThere, energyRoom, mealsAhead, boundKind: bound.kind }),
       prefill: s.portion === 1 ? base : `${base} (${portion_words})`,
       times_logged: s.staple.times_logged,
       last_logged: s.staple.last_logged,

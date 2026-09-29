@@ -23,6 +23,7 @@ function idea(key, overrides = {}) {
     protein_g: 38,
     carbs_g: 30,
     fat_g: 12,
+    fiber_g: 2,
     fits_band: true,
     why: `About 38 g protein toward the 90 g still to go, and it fits the 900 kcal your weight held at.`,
     prefill: key,
@@ -56,7 +57,7 @@ test("an idea reads as an idea: protein first, the server's reason, two plain ac
   const first = cards[0];
   assert.equal(first.querySelector(".idea-card-kind").textContent, "Idea");
   assert.equal(first.querySelector(".idea-card-title").textContent, "Greek yogurt");
-  assert.equal(first.querySelector(".idea-card-nums").textContent, "38 g protein · ~420 kcal");
+  assert.equal(first.querySelector(".idea-card-nums").textContent, "38 g protein · 30 g carbs · 12 g fat · ~420 kcal");
   assert.match(first.querySelector(".idea-card-why").textContent, /toward the 90 g still to go/);
   const buttons = first.querySelectorAll("button").map((b) => [b.getAttribute("type"), b.textContent]);
   assert.deepEqual(buttons, [
@@ -68,6 +69,20 @@ test("an idea reads as an idea: protein first, the server's reason, two plain ac
   for (const card of cards) assert.doesNotMatch(card.textContent, /\beaten\b|✓|\blog it\b|Use this plan|planned/i);
   assert.equal(host.querySelector("[data-mlog], [data-fooditem]"), null);
   assert.equal(cards[1].style.getPropertyValue("--i"), "2", "the first paint staggers in");
+});
+
+test("an idea's numbers are its own macros: no zero protein on a melon, fiber when it is a real source", () => {
+  const win = load();
+  const nums = win.CairnIdeaCard.numsText;
+  assert.equal(
+    nums(idea("Cantaloupe", { kcal: 9, protein_g: 0, carbs_g: 2, fat_g: 0, fiber_g: 0 })),
+    "2 g carbs · ~9 kcal"
+  );
+  assert.equal(
+    nums(idea("Apple crumble", { kcal: 174, protein_g: 3, carbs_g: 28, fat_g: 6, fiber_g: 4 })),
+    "3 g protein · 28 g carbs · 6 g fat · 4 g fiber · ~174 kcal"
+  );
+  assert.equal(nums(idea("Unknown", { kcal: null, protein_g: null, carbs_g: null, fat_g: null, fiber_g: null })), "");
 });
 
 test("no staples yet: the server's line, and no empty cards", () => {

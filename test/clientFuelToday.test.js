@@ -53,17 +53,36 @@ function paint(win, d, b = null) {
 
 // ---------- model + renderer ----------
 
-test("protein comes first, and every number carries its unit", () => {
+test("protein comes first, then energy and every macro, each number with its unit", () => {
   const win = load();
   const host = paint(win, day(), band());
   const labels = host.querySelectorAll(".fuel-today-num dt").map((dt) => dt.textContent);
-  assert.deepEqual(labels, ["Protein", "Energy", "Fiber"]);
+  assert.deepEqual(labels, ["Protein", "Energy", "Carbs", "Fat", "Fiber"]);
   const values = host.querySelectorAll(".fuel-today-value").map((v) => v.textContent.replace(/\s+/g, " ").trim());
-  assert.deepEqual(values, ["78 g", "844 kcal", "9 g"]);
+  assert.deepEqual(values, ["78 g", "844 kcal", "90 g", "25 g", "9 g"]);
   assert.ok(host.querySelector(".fuel-today-num").classList.contains("is-anchor"));
   assert.equal(host.querySelector(".fuel-today-sub").textContent, "of about 170 g", "the band read's anchor");
   assert.equal(host.querySelector(".fuel-today-togo").textContent, "92 g protein to go");
   assert.doesNotMatch(host.textContent, /\bscore\b|\/100|%/i, "no score, no percentage");
+});
+
+test("the protein anchor is a goal, not a line: within 10 g it reads about there, never a few grams to go", () => {
+  const win = load();
+  const near = paint(
+    win,
+    day({ totals: { kcal: 1898, protein_g: 168, carbs_g: 180, fat_g: 60, fiber_g: 30 } }),
+    band()
+  );
+  assert.equal(near.querySelector(".fuel-today-togo").textContent, "About there");
+  assert.doesNotMatch(near.textContent, /g protein to go/);
+  const far = paint(win, day({ totals: { kcal: 1500, protein_g: 150, carbs_g: 150, fat_g: 50, fiber_g: 20 } }), band());
+  assert.equal(far.querySelector(".fuel-today-togo").textContent, "20 g protein to go");
+  const past = paint(
+    win,
+    day({ totals: { kcal: 2000, protein_g: 175, carbs_g: 180, fat_g: 60, fiber_g: 30 } }),
+    band()
+  );
+  assert.equal(past.querySelector(".fuel-today-togo"), null, "met: nothing to say");
 });
 
 test("a day still being eaten reads in progress — never low", () => {
@@ -86,7 +105,7 @@ test("an unknown sum prints no number, never a zero standing in for it", () => {
     band()
   );
   const unknown = host.querySelectorAll(".fuel-today-value.is-unknown");
-  assert.equal(unknown.length, 3);
+  assert.equal(unknown.length, 5);
   assert.equal(unknown[0].querySelector(".sr-only").textContent, "not estimated yet");
   assert.equal(host.querySelector("[data-cu]"), null);
   assert.equal(host.querySelector(".fuel-today-togo"), null, "no 'to go' against an unknown");

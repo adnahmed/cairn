@@ -1,7 +1,8 @@
 // @ts-check
 // Idea cards (docs/V2-PLAN.md wave 2, "idea-card"). The view: up to three ideas for
 // the rest of today from GET /api/fuel/ideas, each built from the athlete's own
-// staples, sized protein first, with the server's own sentence for why it was offered.
+// staples, sized protein first, its macros in one line, with the server's own
+// sentence for why it was offered.
 // An idea is never shown as eaten and never as a plan: it is labelled an idea, has no
 // done state, and its only actions are "Start from this" (fills the composer for
 // editing — nothing is logged until the athlete sends it) and "Another idea".
@@ -9,10 +10,20 @@
   type Idea = import("../contracts/fuel.js").ClientFuelIdea;
   type Ideas = import("../contracts/fuel.js").ClientFuelIdeas;
 
-  /** "38 g protein · ~420 kcal" — protein first; "" when neither is known. */
+  /**
+   * "38 g protein · 20 g carbs · 12 g fat · ~420 kcal" — the idea's own macros in one
+   * fixed order, fiber only when it is a real source, and a zero macro left out (a
+   * melon never reads "0 g protein"). "" when nothing is known.
+   */
   function numsText(idea: Idea): string {
     const bits: string[] = [];
-    if (idea.protein_g != null) bits.push(`${Math.round(idea.protein_g)} g protein`);
+    const grams = (value: number | null | undefined, label: string, min = 1) => {
+      if (value != null && Math.round(value) >= min) bits.push(`${Math.round(value)} g ${label}`);
+    };
+    grams(idea.protein_g, "protein");
+    grams(idea.carbs_g, "carbs");
+    grams(idea.fat_g, "fat");
+    grams(idea.fiber_g, "fiber", 3);
     if (idea.kcal != null) bits.push(`~${Math.round(idea.kcal)} kcal`);
     return bits.join(" · ");
   }

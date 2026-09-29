@@ -132,6 +132,48 @@ test("ideas never trade protein away to fit the band", () => {
   }
 });
 
+test("a food that is not a protein food is never spoken as a protein step", () => {
+  seedStaples({
+    ...STAPLES,
+    Cantaloupe: { kcal: 18, protein_g: 0, carbs_g: 4, fat_g: 0 },
+    "Apple crumble": { kcal: 174, protein_g: 3, carbs_g: 28, fat_g: 6, fiber_g: 4 },
+  });
+  seedBand();
+  seedIntake(0, 1500, { protein_g: 10 }, { eatenAt: "12:00" });
+  const out = fuelIdeas(undefined, { hour: 13, exclude: ["chicken salad", "greek yogurt bowl"] });
+  const byTitle = Object.fromEntries(out.ideas.map((idea) => [idea.title, idea]));
+  const need = out.room.protein_g;
+
+  const toast = byTitle["Toast with jam"];
+  assert.match(
+    toast.why,
+    /^Mostly carbs, about \d+ g — not a protein food, so pair it with one for the \d+ g protein still to go\./
+  );
+  const melon = byTitle.Cantaloupe;
+  assert.match(melon.why, /^Light and filling for few calories — not a protein food/);
+  const crumble = byTitle["Apple crumble"];
+  assert.match(crumble.why, /^About \d+ g fiber — not a protein food/);
+  for (const idea of [toast, melon, crumble]) {
+    assert.doesNotMatch(idea.why, /g protein toward|enough for the|protein comes first/, idea.why);
+    assert.ok(idea.why.includes(`${need} g protein still to go`));
+    assertUnits(idea.why);
+  }
+  assert.equal(crumble.fiber_g, Math.round(4 * crumble.portion));
+});
+
+test("a few grams short of the protein anchor is about there: nothing still to go, no sizing around it", () => {
+  seedStaples({ ...STAPLES, Cantaloupe: { kcal: 18, protein_g: 0, carbs_g: 4, fat_g: 0 } });
+  seedBand();
+  const anchor = fuelIdeas(undefined, { hour: 13 }).protein_anchor.protein_g;
+  seedIntake(0, 1200, { protein_g: anchor - 2 }, { eatenAt: "12:00" });
+  const out = fuelIdeas(undefined, { hour: 13 });
+  assert.equal(out.room.protein_g, 0, "2 g short is not protein still owed");
+  for (const idea of out.ideas) {
+    assert.doesNotMatch(idea.why, /still to go|protein comes first/, idea.why);
+    assert.match(idea.why, /[Pp]rotein is about there today/, idea.why);
+  }
+});
+
 test("sizing: one meal, never above the usual portion, shrinking only when the meal's protein share is kept", () => {
   const s = staple();
   // Nothing that fits keeps the 30 g owed: the smallest portion that still carries it.

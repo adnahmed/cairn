@@ -1,6 +1,6 @@
 // @ts-check
 // Fuel — today so far (docs/V2-PLAN.md wave 2, "fuel-today"). The view: protein
-// first as the anchor, then energy and fiber, each a number with its unit and never
+// first as the anchor, then energy, carbs, fat and fiber, each a number with its unit and never
 // a score; the day's state in words ("in progress" — never "low"); the athlete's own
 // observed intake band in the server's words when there is one; and, today only, the
 // quiet big-day and carb-range lines. Pure renderers over CairnFuelTodayModel.
@@ -150,7 +150,9 @@
     const toGo =
       m.protein.toGo != null
         ? `<dd class="fuel-today-togo"><span class="numeral">${m.protein.toGo}</span> g protein to go</dd>`
-        : "";
+        : m.protein.aboutThere
+          ? `<dd class="fuel-today-togo">About there</dd>`
+          : "";
     const band = m.bandWords ? `<p class="fuel-today-line fuel-today-band">${escHtml(m.bandWords)}</p>` : "";
     return `<section class="fuel-today reveal" style="--i:0" aria-label="Today's food">
       ${headHtml(m)}
@@ -162,6 +164,8 @@
           after: toGo,
         })}
         ${numHtml("Energy", m.energy.value, "kcal", "", { countUp })}
+        ${numHtml("Carbs", m.carbs.value, "g", "", { countUp })}
+        ${numHtml("Fat", m.fat.value, "g", "", { countUp })}
         ${numHtml("Fiber", m.fiber.value, "g", "", { countUp })}
       </dl>
       ${pending}${band}${demandHtml(m)}${carbsHtml(m)}

@@ -5567,8 +5567,10 @@ declare global {
     count: number;
     pending: number;
     state: ClientFuelDayState;
-    protein: ClientFuelMacro & { anchor: number | null; toGo: number | null };
+    protein: ClientFuelMacro & { anchor: number | null; toGo: number | null; aboutThere: boolean };
     energy: ClientFuelMacro;
+    carbs: ClientFuelMacro;
+    fat: ClientFuelMacro;
     fiber: ClientFuelMacro;
     bandWords: string | null;
     demand: import("./client.js").ClientDayFuelDemand | null;

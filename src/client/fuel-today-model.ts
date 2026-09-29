@@ -27,6 +27,11 @@
 
   const NUTRIENTS = ["kcal", "protein_g", "carbs_g", "fat_g", "fiber_g"] as const;
 
+  // The protein anchor is a goal, not a line to hit: within this many grams of it the
+  // day reads "about there", never "2 g to go". Same rule as the server's ideas
+  // (PROTEIN_ABOUT_THERE_G, repo/fuel-ideas.ts).
+  const PROTEIN_ABOUT_THERE_G = 10;
+
   function record(value: unknown): Record<string, unknown> {
     return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   }
@@ -91,8 +96,9 @@
     const protein = macro(day, "protein_g", count);
     // Protein comes first: the anchor the band read carries, else the day's target.
     const anchor = rounded(band.protein_anchor?.protein_g) ?? rounded(record(day.target).protein_g);
-    const toGo =
-      isToday && anchor != null && protein.value != null && anchor - protein.value > 0 ? anchor - protein.value : null;
+    const short = isToday && anchor != null && protein.value != null ? anchor - protein.value : null;
+    const toGo = short != null && short > PROTEIN_ABOUT_THERE_G ? short : null;
+    const aboutThere = short != null && short > 0 && short <= PROTEIN_ABOUT_THERE_G;
     // The band's own sentence, only when there is a band. With too few complete days
     // there is none, and the surface stays quiet rather than guessing one.
     const bandWords = band.status === "ok" && band.band && typeof band.words === "string" ? band.words : null;
@@ -102,8 +108,10 @@
       count,
       pending: entries.filter((e) => active(e?.enrichment_status)).length,
       state: dayState(count, isToday),
-      protein: { ...protein, anchor, toGo },
+      protein: { ...protein, anchor, toGo, aboutThere },
       energy: macro(day, "kcal", count),
+      carbs: macro(day, "carbs_g", count),
+      fat: macro(day, "fat_g", count),
       fiber: macro(day, "fiber_g", count),
       bandWords,
       demand: isToday ? (day.fuel_demand ?? null) : null,
