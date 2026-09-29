@@ -1869,8 +1869,10 @@ days trained against the read, 8 had been flagged by the build working as writte
 
 **A run is graded by the personal HR model, never the watch (owner law, 2026-09-25).** For a run
 with an average heart rate and a usable personal model (not `insufficient`, a plausible easy line —
-the bar `runIntensityDiscipline` holds), `personalRunGradesHard` (`src/repo/training-read.ts`)
-REPLACES the intensity bars: it is hard when `classifyRunEffort` reads it quality against his own
+the bar `runIntensityDiscipline` holds), `personalRunRead` (`src/repo/run-intensity.ts`, the ONE
+answer for every intensity reader: `hardCardioDayCore`, `cardioEffort`/`dayLoad`, the flexible
+agenda's cardio-conflict dates and hybrid-load's per-muscle `classifyImpactLoad`) REPLACES the
+intensity bars: it is hard when `classifyRunEffort` reads it quality against his own
 zones, when he NAMED it quality (`namesQualityRun`, `src/repo/stated-effort.ts` — "Hills",
 "5k+sprints", "5K Fast", "LT HR Test"; a lone place-name "hill" never counts; the title is his input,
 the `te_label` is not), or when `HARD_CARDIO_Z4_SEC` sat in heart-rate bins lying wholly above his
@@ -1878,7 +1880,12 @@ threshold band (bin floor > `z4_top` — Garmin's bins are drawn on Garmin's zon
 his line proves nothing). Training effect, `te_label`, Garmin-zone Z4 minutes and the load-vs-median
 bar no longer speak for such a run: training load is Garmin's EPOC estimate, the quantity training
 effect is computed from, so it is the same judgement by another name (a conversational 157 read load
-219, "hard"). Rides, hikes and runs with no HR or no model keep the old bars. Read through against
+219, "hard"). Rides, hikes and runs with no HR or no model keep the old bars. In the day grade a
+run the model reads above easy is `moderate`; in the per-muscle dose a judged (or stated-easy) run
+is moderate by its ordinary length (`CARDIO_GRADE.moderateMin`/`moderateKm`, the bar
+`isLoadRelevantEnduranceImpact` holds) instead of the watch's aerobic effect, and the modality's
+own long bar still makes it HEAVY — a long run stays a real leg dose for `acuteGate` whether or not
+it was hard (9.68 km at 157 is heavy by distance; 8.64 km at 148 is moderate). Read through against
 eight weeks of live runs: the 148 treadmill run and the 155–157 steady runs stop grading hard; the LT
 test (164 for 73 min), the 5k test, the 164 runs, "Hills", "5k+sprints" and "5K Fast" stay hard.
 

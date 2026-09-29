@@ -346,7 +346,9 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   day is never one the athlete STATED easy (`activities.rpe` ≤ 4, `src/repo/stated-effort.ts` — the
   watch's effect/zones/load do not overrule their word; the next morning still does), a RUN with HR
   and a usable personal model is graded by that model and his own session title, never by training
-  effect / `te_label` / Garmin zones / load (`personalRunGradesHard`, `training-read.ts`), and is
+  effect / `te_label` / Garmin zones / load (`personalRunRead`, `src/repo/run-intensity.ts` — the harm
+  bar, the day grade and hybrid-load's per-muscle dose all ask it; length still makes a long run a
+  heavy leg dose), and is
   CLEARED when the next morning positively vouches (fresh readiness ≥ `SUPPORTIVE_READINESS`
   and no brake firing; absent data never vouches). "Morning readiness" comes from the ledger's own
   snapshot for that morning, since the stored Garmin value is the day's LAST sync and so is
