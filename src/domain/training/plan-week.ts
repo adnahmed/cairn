@@ -604,8 +604,11 @@ export function planWeek(date?: string): PlanWeek {
     runs_done: runLog.length,
     run_km: Math.round(runKm * 10) / 10,
     longest_run_km: longest == null ? null : Math.round(longest * 10) / 10,
+    // A run this morning rested is not "still open": the read already answered it
+    // (no run today), and listing "rest or an easy walk Tuesday" beside the week's
+    // real openings read as a run still owed. It simply drops out of the line.
     runs_open: intents
-      .filter((i) => i.status === "open")
+      .filter((i) => i.status === "open" && i.adjustment?.dose !== "rest")
       .map((i) => ({
         kind: String(i.kind),
         label: String(i.label || `${i.kind} run`),
