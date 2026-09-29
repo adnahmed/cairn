@@ -23,15 +23,16 @@ function setupWeightChip(): void {
   const save = async (): Promise<void> => {
     const w = +input.value;
     if (!w) { input.focus(); return; }
+    const weighIn = { weight_lb: w, date: localISO() }; // dated: an offline replay keeps its day
     try {
-      await api("/bodyweight", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weight_lb: w }) });
+      await api("/bodyweight", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(weighIn) });
     } catch (error) {
       if (!captureFailureIsTransient(error)) {
         toast("Couldn't log that — try again.");
         return;
       }
       // Offline — queue the weigh-in and reflect it optimistically; it syncs on reconnect.
-      const saved = await outboxEnqueue("weight", "/bodyweight", { weight_lb: w });
+      const saved = await outboxEnqueue("weight", "/bodyweight", weighIn);
       if (!saved) {
         toast("Couldn’t save that on this device — free storage and try again.");
         return;
@@ -284,7 +285,9 @@ async function drainCheckinSaves(onRefused: (saved: CheckinPicked) => void): Pro
   while (_checkinPending) {
     const next = _checkinPending;
     _checkinPending = null;
-    const body = JSON.stringify({ ...next.picked });
+    // Dated, so a save queued offline and replayed after midnight lands on its own day.
+    const dated = { date: next.iso, ...next.picked };
+    const body = JSON.stringify(dated);
     try {
       const saved = await api("/checkins", {
         method: "POST", headers: { "Content-Type": "application/json" }, body,
@@ -294,7 +297,7 @@ async function drainCheckinSaves(onRefused: (saved: CheckinPicked) => void): Pro
       landed = true;
     } catch (error) {
       if (captureFailureIsTransient(error) && typeof outboxEnqueue === "function") {
-        const queued = await outboxEnqueue("checkin", "/checkins", { ...next.picked }).catch(() => null);
+        const queued = await outboxEnqueue("checkin", "/checkins", dated).catch(() => null);
         if (queued) { _checkinSaved = next; continue; }
       }
       _checkinPending = null;
@@ -319,8 +322,10 @@ function checkinLanded(): void {
       CairnWriteInvalidation?: { targetsForChatAction?(type: string): readonly string[]; invalidate?(targets: readonly string[], opts?: { keep?: readonly string[] }): unknown };
     }).CairnWriteInvalidation;
     const targets = invalidation?.targetsForChatAction?.("log_checkin");
-    // The Brief on screen is kept: it is reconciled in place just below.
-    if (targets) invalidation?.invalidate?.(targets, { keep: ["@brief"] });
+    // The Brief on screen is kept: it is reconciled in place just below. The day's
+    // composition and prescription caches go too, so the next quiet repaint of the
+    // plan surface reads a composition this check-in may have moved.
+    if (targets) invalidation?.invalidate?.([...targets, "today:daily-session:", "today:session:"], { keep: ["@brief"] });
   } catch { /* cache hygiene is best-effort */ }
   scheduleCheckinBriefRefresh(checkinDraftComplete(_checkinDraft) || !_checkinDraft ? 450 : CHECKIN_SETTLE_MS);
 }
@@ -338,20 +343,11 @@ function scheduleCheckinBriefRefresh(delayMs: number): void {
 }
 
 // A row changing height (the three scales folding into one sentence) eases from
-// its old height to its new one instead of snapping everything below it upward.
+// its old height to its new one (Today's shared helper) instead of snapping.
 function settleCheckinHeight(slot: HTMLElement, write: () => void): void {
-  const motion = typeof reducedMotion === "function" ? !reducedMotion() : false;
-  const from = motion && typeof slot.getBoundingClientRect === "function" ? slot.getBoundingClientRect().height : 0;
-  write();
-  if (!from || typeof slot.animate !== "function") return;
-  const to = slot.getBoundingClientRect().height;
-  if (Math.abs(to - from) < 2) return;
-  try {
-    slot.animate(
-      [{ height: `${from}px`, overflow: "hidden" }, { height: `${to}px`, overflow: "hidden" }],
-      { duration: 260, easing: "cubic-bezier(.2,.7,.2,1)" },
-    );
-  } catch { /* the new height stands */ }
+  const hold = (globalThis as { CairnTodaySlotHold?: { settleHeight(slot: HTMLElement, write: () => void): void } }).CairnTodaySlotHold;
+  if (hold) hold.settleHeight(slot, write);
+  else write();
 }
 
 const FEEL_FACES = ["·", "◦", "○", "◍", "●"]; // 1→5, quiet glyphs, no emoji

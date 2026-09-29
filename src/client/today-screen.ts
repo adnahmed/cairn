@@ -724,16 +724,54 @@ async function renderToday(opts: any = {}) {
 // Brief, check-in line, rail cards and all — not the bare frame the first write
 // carries, or every entry would paint the frame and then visibly fill in. Saved once
 // the async slots have had a moment to land, and only from a settled surface (no
-// held slot, no Brief mid-upgrade) of the render that is still current.
+// held slot, no Brief mid-upgrade) of the render that is still current. A tap that
+// settles in place (a fueling read, a check-in, a tag, a weekly read waved off)
+// re-saves it shortly after, and a click outside Today (the tab bar, leaving it) or
+// the page going to the background first saves what is on screen — so coming back never
+// paints the question that was already answered. Nodes marked `data-ephemeral` (a
+// one-off acknowledgement) are left out.
 const TODAY_SNAPSHOT_SETTLE_MS = 1500;
-function saveHydratedSnapshot(date: string, token: number): void {
+const TODAY_SNAPSHOT_TAP_MS = 900;
+let todaySnapshotFor: { date: string; token: number } | null = null;
+let todaySnapshotTimer: ReturnType<typeof setTimeout> | null = null;
+function saveHydratedNow(): void {
+  if (todaySnapshotTimer) clearTimeout(todaySnapshotTimer);
+  todaySnapshotTimer = null;
+  const at = todaySnapshotFor;
+  if (!at || todayState.tab !== "today" || todayState.logDate !== at.date || pollToken !== at.token) return;
+  if (!todayView.querySelector(".today-wrap")) return;
+  if (todayView.querySelector("[data-held], .brief.is-thinking, .skel, [class*='skel']")) return;
+  const copy = todayView.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll("[data-ephemeral]").forEach((el) => el.remove());
+  todaySaveSurfaceSnapshot(at.date, copy.innerHTML);
+}
+function scheduleHydratedSave(ms: number): void {
   if (typeof setTimeout !== "function") return;
-  setTimeout(() => {
-    if (todayState.tab !== "today" || todayState.logDate !== date || pollToken !== token) return;
-    const wrap = todayView.querySelector(".today-wrap");
-    if (!wrap || todayView.querySelector("[data-held], .brief.is-thinking, .skel, [class*='skel']")) return;
-    todaySaveSurfaceSnapshot(date, todayView.innerHTML);
-  }, TODAY_SNAPSHOT_SETTLE_MS);
+  if (todaySnapshotTimer) clearTimeout(todaySnapshotTimer);
+  todaySnapshotTimer = setTimeout(saveHydratedNow, ms);
+}
+let todaySnapshotWatch = false;
+function saveHydratedSnapshot(date: string, token: number): void {
+  todaySnapshotFor = { date, token };
+  scheduleHydratedSave(TODAY_SNAPSHOT_SETTLE_MS);
+  if (todaySnapshotWatch || typeof document === "undefined" || typeof document.addEventListener !== "function") return;
+  todaySnapshotWatch = true;
+  document.addEventListener(
+    "click",
+    (e: Event) => {
+      if (todayState.tab !== "today") return;
+      const target = e.target as Element | null;
+      // Outside Today (the tab bar): it may be leaving — save first. Inside, never on
+      // the tap's own path: a button tap just (re)schedules the save.
+      if (!todayView.contains(target)) {
+        if (todaySnapshotTimer) saveHydratedNow();
+      } else if (target?.closest?.("button")) scheduleHydratedSave(TODAY_SNAPSHOT_TAP_MS);
+    },
+    { capture: true },
+  );
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveHydratedNow();
+  });
 }
 
 // ---------- The focused Session destination (its own route, isolated from Today) ----------

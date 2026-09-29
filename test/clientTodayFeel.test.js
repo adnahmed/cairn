@@ -128,6 +128,59 @@ test("a held slot nobody writes back expires into the empty slot it would have b
   assert.equal(hold.heldCount(root), 0);
 });
 
+test("a card that counts up or grows late is still the SAME card: quiet, and its numbers snap", async () => {
+  const { hold, document } = loadSlotHold();
+  const root = createHost(document, { html: FRAME() });
+  // What the athlete saw: the numeral already counted up, the wins already inserted.
+  root.querySelector("#ctxEvents").innerHTML =
+    `<div class="wearstrip reveal"><span class="wear-n" data-cu="8421" data-cufmt="k">8,421</span>` +
+    `<div class="weekly-wins" data-late><span>Wins</span></div></div>`;
+  const snapshot = hold.capture(root);
+  root.innerHTML = FRAME();
+  hold.apply(root, snapshot);
+
+  const ctx = root.querySelector("#ctxEvents");
+  // The loader writes its card the way it always does: "0", no wins yet.
+  ctx.innerHTML = `<div class="wearstrip reveal"><span class="wear-n" data-cu="8421" data-cufmt="k">0</span></div>`;
+  assert.equal(hold.quiet(ctx.querySelector("[data-cu]")), true, "runCountUps snaps it instead of recounting");
+  await flush();
+  assert.ok(ctx.classList.contains("slot-quiet"), "no entrance re-played for an unchanged card");
+  assert.equal(hold.quiet(ctx.querySelector("[data-cu]")), true, "still quiet until the next genuine write");
+
+  ctx.innerHTML = `<div class="wearstrip reveal"><span class="wear-n" data-cu="9100" data-cufmt="k">0</span></div>`;
+  assert.equal(hold.quiet(ctx.querySelector("[data-cu]")), false, "a changed number counts up as designed");
+  await flush();
+  assert.equal(ctx.classList.contains("slot-quiet"), false);
+
+  const other = createHost(document, { html: FRAME() });
+  other.querySelector("#ctxEvents").innerHTML = `<span data-cu="5">5</span>`;
+  const snap2 = hold.capture(other);
+  other.innerHTML = FRAME();
+  hold.apply(other, snap2);
+  other.querySelector("#ctxEvents").innerHTML = `<span data-cu="6">0</span>`;
+  assert.equal(hold.quiet(other.querySelector("[data-cu]")), false, "a different value is a real change");
+});
+
+test("a failed read settles the hold at once: a plain card stays live, one with controls clears", () => {
+  const { hold, document } = loadSlotHold();
+  const root = createHost(document, { html: FRAME() });
+  root.querySelector("#ctxEvents").innerHTML = `<div class="wearstrip">8,421 steps</div>`;
+  root.querySelector("#cfocusSlot").innerHTML =
+    `<div class="thread"><button type="button">Plan the week</button></div>`;
+  const snapshot = hold.capture(root);
+  root.innerHTML = FRAME();
+  hold.apply(root, snapshot);
+
+  const ctx = root.querySelector("#ctxEvents");
+  const cfocus = root.querySelector("#cfocusSlot");
+  hold.settleFailed(ctx);
+  hold.settleFailed(cfocus);
+  assert.match(ctx.innerHTML, /8,421 steps/, "a control-free card keeps standing");
+  assert.equal(ctx.hasAttribute("inert"), false, "and is live again, not a dead copy");
+  assert.equal(cfocus.innerHTML, "", "a card whose buttons lost their listeners never lingers inert");
+  assert.equal(hold.heldCount(root), 0, "decided now, not EXPIRE_MS later");
+});
+
 test("the hold never covers a slot the agenda moves or the frame paints itself", () => {
   const { hold } = loadSlotHold();
   for (const id of ["attentionLead", "changesLineSlot", "todayFuelSlot", "todayRunSlot", "checkinSlot"]) {
@@ -225,6 +278,38 @@ test("a fueling tap on a dead connection is queued, and a refusal brings the opt
   assert.equal(refused.slot.querySelectorAll(".fueling-opt").length, 3, "the options come back");
   assert.equal(refused.slot.querySelector(".fueling-opt.is-picked"), null);
   assert.deepEqual(plain(refused.toasts), ["Couldn't save that — try again."]);
+});
+
+test("a fueling read is dated to the day it was asked, and an answered card never enters the instant paint", async () => {
+  const timers = createFakeTimers();
+  const win = loadRailLoaders(timers);
+  win.localISO = () => "2026-09-29";
+  const queued = [];
+  win.outboxEnqueue = async (kind, path, body) => {
+    queued.push({ kind, path, body });
+    return { id: "x" };
+  };
+  win.CairnApiCache = { isTransientApiFailure: (e) => e && e.kind === "network" };
+  const { deps, slot } = fuelingDeps(win.document, (path) =>
+    path === "/nutrition/fueling-followup" ? Promise.resolve({ due: true }) : Promise.reject({ kind: "network" })
+  );
+  await win.CairnTodayRailLoaders.loadFuelingFollowup(deps);
+  const tap = slot.querySelector('.fueling-opt[data-energy="2"]').click();
+  assert.ok(slot.querySelector(".fueling-card").hasAttribute("data-ephemeral"), "picked: left out of the snapshot");
+  timers.tick(500);
+  await tap;
+  assert.deepEqual(plain(queued[0].body), { date: "2026-09-29", energy: 2 }, "a replay after midnight keeps its day");
+  assert.ok(slot.querySelector(".fueling-done").hasAttribute("data-ephemeral"), "the acknowledgement is one-off too");
+});
+
+test("a failed rail read releases its held card at once", async () => {
+  const timers = createFakeTimers();
+  const win = loadRailLoaders(timers);
+  const settled = [];
+  win.CairnTodaySlotHold = { settleFailed: (el) => settled.push(el.id) };
+  const { deps } = fuelingDeps(win.document, () => Promise.reject(new Error("offline")));
+  await win.CairnTodayRailLoaders.loadFuelingFollowup(deps);
+  assert.deepEqual(plain(settled), ["fuelingSlot"]);
 });
 
 // ---------- the Brief reconciles in place after a check-in ----------
@@ -388,6 +473,20 @@ test("the keyboard is up only for a focused text field, real geometry, and no pi
   );
 });
 
+test("a composer under the keyboard is scrolled by the measured overlap, never aligned to the layout viewport", () => {
+  const win = loadClientModule("app-mobile-viewport");
+  const { revealDelta } = win.CairnKeyboardState;
+  // iOS: layout viewport 844 tall, keyboard up — only 0..500 is visible.
+  assert.equal(revealDelta({ top: 300, bottom: 420 }, 0, 500), 0, "already in view: nothing moves");
+  assert.equal(revealDelta({ top: 600, bottom: 700 }, 0, 500), 212, "bottom lands 12px above the keyboard");
+  assert.equal(revealDelta({ top: 40, bottom: 640 }, 0, 500), 28, "taller than what is visible: its top leads");
+  assert.equal(
+    revealDelta({ top: -80, bottom: 20 }, 0, 500),
+    -468,
+    "scrolled above: brought back to sit on the keyboard"
+  );
+});
+
 // ---------- the SWR soft repaint waits for the athlete's hands ----------
 
 test("a background soft repaint waits while the athlete is touching the screen", async () => {
@@ -432,5 +531,25 @@ test("Today stamps each write with its date and never shows another date's Today
   assert.match(source, /todayView\.querySelector\("\.today-wrap"\)\?\.setAttribute\("data-date", enteredDate\)/);
   assert.match(source, /paintedDate && paintedDate !== enteredDate[\s\S]{0,200}todayView\.innerHTML = skeleton\(\)/);
   // The quiet same-date rewrite holds slots only for THIS date's surface.
-  assert.match(source, /const sameDateOnScreen =\s*!!todayView\.querySelector\("\.today-wrap"\) && \(paintedSnapshot \|\| todayPaintedRealFor === enteredDate\)/);
+  assert.match(
+    source,
+    /const sameDateOnScreen =\s*!!todayView\.querySelector\("\.today-wrap"\) && \(paintedSnapshot \|\| todayPaintedRealFor === enteredDate\)/
+  );
+});
+
+test("a tap that settles in place re-saves the instant paint, and leaving Today saves first", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../src/client/today-screen.ts", import.meta.url), "utf8");
+  assert.match(
+    source,
+    /if \(!todayView\.contains\(target\)\) \{\s*if \(todaySnapshotTimer\) saveHydratedNow\(\);/,
+    "a click outside Today (it may be leaving) flushes a pending save"
+  );
+  assert.match(
+    source,
+    /else if \(target\?\.closest\?\.\("button"\)\) scheduleHydratedSave\(TODAY_SNAPSHOT_TAP_MS\)/,
+    "a tap inside Today only reschedules — never serializes on the tap's own path"
+  );
+  assert.match(source, /visibilityState === "hidden"\) saveHydratedNow\(\)/);
+  assert.match(source, /querySelectorAll\("\[data-ephemeral\]"\)\.forEach\(\(el\) => el\.remove\(\)\)/);
 });

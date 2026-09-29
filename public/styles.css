@@ -1352,7 +1352,7 @@ body.resting .savebar{bottom:calc(114px + max(env(safe-area-inset-bottom),6px) +
 .tab.active::after{background:var(--dawn);transform:scale(1)}
 .tab.active .tab-lbl{font-weight:650}
 .brand{display:none}
-html.kb-up .tabbar{transform:translateY(110%);visibility:hidden;pointer-events:none;transition:none}
+html.kb-up body:not(.chat-mode) .tabbar{transform:translateY(110%);visibility:hidden;pointer-events:none;transition:none}
 html.kb-up .savebar{bottom:calc(8px + var(--vvb,0px))}
 html.kb-up :is(.fuel-log-composer,.chatbar,[data-composer]){scroll-margin-bottom:12px}
 @media (hover:hover){.daybtn:hover{border-color:var(--ink);color:var(--ink)}

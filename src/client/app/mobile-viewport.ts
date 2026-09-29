@@ -19,6 +19,18 @@
     return !!input.geometryOpen && !!input.textFocused && !zoomed;
   }
 
+  // How far to scroll the page so a composer box sits inside the visible viewport
+  // (layout-viewport coordinates, as getBoundingClientRect reports them): its bottom
+  // just above the keyboard, or — when it is taller than what is visible — its top
+  // at the top. 0 when it is already in view.
+  function revealDelta(rect: { top: number; bottom: number }, visibleTop: number, visibleHeight: number): number {
+    const margin = 12;
+    const visibleBottom = visibleTop + visibleHeight;
+    if (rect.bottom <= visibleBottom - 8 && rect.top >= visibleTop) return 0;
+    if (rect.bottom - rect.top > visibleHeight - 2 * margin) return Math.round(rect.top - visibleTop - margin);
+    return Math.round(rect.bottom - visibleBottom + margin);
+  }
+
   function installMobileViewportGuards(): void {
     if (installed) return;
     installed = true;
@@ -120,11 +132,13 @@
       const box = (el.closest?.(".chatbar, .fuel-log-composer, [data-composer], form") as HTMLElement | null) || el;
       if (typeof box.getBoundingClientRect !== "function") return;
       const rect = box.getBoundingClientRect();
-      const visibleTop = vv.offsetTop;
-      const visibleBottom = vv.offsetTop + vv.height;
-      if (rect.bottom <= visibleBottom - 8 && rect.top >= visibleTop) return;
+      // Scroll by the MEASURED overlap with the visual viewport, never
+      // scrollIntoView({block:"end"}): iOS WebKit keeps the layout viewport at full
+      // height under the keyboard, so "end" lines the composer up behind it.
+      const delta = revealDelta(rect, vv.offsetTop, vv.height);
+      if (!delta) return;
       try {
-        box.scrollIntoView({ block: rect.height > vv.height - 24 ? "start" : "end", behavior: "auto" });
+        window.scrollBy(0, delta);
       } catch {}
     };
     const syncKeyboardUp = (geometryOpen: boolean) => {
@@ -198,7 +212,7 @@
   }
 
   Object.assign(globalThis, { installMobileViewportGuards });
-  Object.assign(globalThis, { CairnKeyboardState: { keyboardUpState } });
+  Object.assign(globalThis, { CairnKeyboardState: { keyboardUpState, revealDelta } });
 
   if (typeof window !== "undefined") {
     window.installMobileViewportGuards = installMobileViewportGuards;

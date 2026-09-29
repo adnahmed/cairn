@@ -4925,7 +4925,7 @@ of ordered `public/js/bundle-*.js` bundles (the `BUNDLES` manifest is the source
 order); `index.html` loads just those bundles (`/art.js` still first) while `sw.js` precaches them —
 with one exception: a bundle carrying `lazy: "<name>"` in the manifest is **not** in `index.html`.
 Only the Today / You / Fuel / capture shell is eager (bundles 01–04 and 07; with `art.js` and
-`cairn-body-figure.js` beside them, every script `index.html` loads is held to ≤220 KB brotli in
+`cairn-body-figure.js` beside them, every script `index.html` loads is held to ≤225 KB brotli in
 total by `scripts/bundle-budget.json`'s `eager` ceilings). Train (`bundle-08-train`: every Train
 view, the plan editor and its week strip, body metrics), Horizon (`bundle-09-horizon`, depends on
 train), Ask (`bundle-10-ask`: the thread, the ripple card, Changes) and Settings
@@ -5070,7 +5070,12 @@ What the build emits, and what a deploy ships:
   reconciles only the Brief, in place (`refreshBriefInPlace`), once the answer settles. The same
   read touches nothing but the stamp. A changed read rewrites only the Brief and carries the
   `#checkinSlot` NODE across. Only a changed kind of day earns one quiet soft repaint. It never
-  calls `reshapeToday()`.
+  calls `reshapeToday()`. This is a deliberate trade: a check-in that moves the day's composition
+  or reach WITHOUT changing its kind leaves the plan surface below the Brief as it is until the
+  next render. The `today:daily-session:` and `today:session:` caches are dropped on landing, so
+  that next render (a resume, an SWR repaint) reads the moved composition. Every queued body
+  carries its `date` (check-in, fueling read, weigh-in), so an outbox replay after midnight lands
+  on the day it was asked, never the next one.
 - **A view transition never waits on the network.** `withViewTransition` holds rendering for at most
   one short frame budget (`SWAP_BUDGET_MS`). A swap still loading after that lands without the
   crossfade. Before this, `startViewTransition(() => renderToday())` froze the whole screen for
@@ -5078,8 +5083,14 @@ What the build emits, and what a deploy ships:
 - **A same-date rewrite of Today is quiet.** A resume, an SWR refresh or a Brief kind change used to
   rebuild everything. Now the entrance stagger is off (`today-soft`), the scroll is kept, and every
   async slot keeps its content (`today-slot-hold.ts`: held copies are `inert` until the slot's own
-  loader writes it, an identical write stays `slot-quiet`, and a never-rewritten hold expires to
-  empty). The sessionStorage snapshot is the HYDRATED surface, saved once phase two settles. The
+  loader writes it, and a never-rewritten hold expires to empty). "Identical" is judged on a
+  signature with a card's after-write motion taken out (`data-cu` count-up text, `data-late`
+  insertions such as the weekly wins), so an unchanged card stays `slot-quiet` and its count-ups
+  snap (`runCountUps` asks `CairnTodaySlotHold.quiet`). A loader whose read FAILED calls
+  `settleFailed` at once: a control-free card stays up and live, and one with controls clears.
+  The sessionStorage snapshot is the HYDRATED surface. It is saved once phase two settles, again
+  shortly after any in-place tap, and before a click that may leave Today or the page hiding.
+  `data-ephemeral` nodes (an answered fueling card, its one-off acknowledgement) are left out. The
   check-in line paints in the Brief's own frame from a date-keyed memo (`cairn.checkin.paint.v1`).
   Each write stamps `.today-wrap[data-date]`, and a wrap for another date gives way to the
   skeleton, so yesterday's Today never stands in for today's. A background soft repaint waits
@@ -5087,8 +5098,11 @@ What the build emits, and what a deploy ships:
 - **One app-wide keyboard state.** `html.kb-up` (`app/mobile-viewport.ts`, `keyboardUpState`)
   requires a focused text field on a soft-keyboard device, visual-viewport geometry that shows an
   occluding keyboard, and no pinch zoom. It hides the tab bar on every surface (Chat keeps its own
-  body classes for its column). Without it, `bottom: var(--vvb)` rode the bar up onto the keyboard.
-  Once the keyboard settles, the focused composer is brought fully into view.
+  body classes and its own slide-away, so the `kb-up` snap skips `body.chat-mode`). Without it,
+  `bottom: var(--vvb)` rode the bar up onto the keyboard. Once the keyboard settles, the focused
+  composer is scrolled into view by its MEASURED overlap with the visual viewport
+  (`revealDelta`), never `scrollIntoView({block:"end"})`: iOS keeps the layout viewport full height
+  under the keyboard, so "end" would align the composer behind it.
 
 ### Runs are not plan items (client)
 

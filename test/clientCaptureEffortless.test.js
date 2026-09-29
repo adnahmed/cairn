@@ -171,8 +171,9 @@ test("tapping the word-scales writes energy, sleep and soreness through the exis
   assert.equal(calls[0][0], "/checkins");
   assert.equal(calls[0][1].method, "POST");
   // Each tap sends everything answered so far; the last carries all three fields.
-  assert.deepEqual(JSON.parse(calls[0][1].body), { energy: 4 });
-  assert.deepEqual(JSON.parse(calls[2][1].body), { energy: 4, sleep_feel: 5, soreness: 2 });
+  // Dated to the morning asked, so a replay never lands on another day.
+  assert.deepEqual(JSON.parse(calls[0][1].body), { date: "2026-08-24", energy: 4 });
+  assert.deepEqual(JSON.parse(calls[2][1].body), { date: "2026-08-24", energy: 4, sleep_feel: 5, soreness: 2 });
 });
 
 // A slot whose innerHTML write really replaces its children: `.feel-dot` lookups
@@ -253,7 +254,7 @@ test("one tap does not collapse the check-in — the other scales stay askable",
   await dots[2]._listeners.click();
 
   assert.equal(posts.length, 3);
-  assert.deepEqual(posts[2], { energy: 4, sleep_feel: 5, soreness: 2 });
+  assert.deepEqual(posts[2], { date: "2026-08-24", energy: 4, sleep_feel: 5, soreness: 2 });
   assert.match(slot.innerHTML, /feeling good · slept deeply · a little sore/, "all three answered ends in the sentence");
   assert.doesNotMatch(slot.innerHTML, /data-feel/, "and only then does it stop asking");
 });
@@ -394,7 +395,11 @@ test("check-in taps never rebuild Today: no reshapeToday, the Brief is reconcile
 
   assert.equal(reshapes, 0, "a tap never rebuilds Today");
   assert.ok(posts.length <= 2, "taps landing while a save is out fold into the next save");
-  assert.deepEqual(posts.at(-1), { energy: 4, sleep_feel: 2, soreness: 1 }, "the last save carries the whole answer");
+  assert.deepEqual(
+    posts.at(-1),
+    { date: "2026-08-24", energy: 4, sleep_feel: 2, soreness: 1 },
+    "the last save carries the whole answer, dated to the day it was asked"
+  );
   const refresh = timers.find((t) => t.ms < 1000);
   assert.ok(refresh, "the Brief refresh is scheduled a beat after the answer settles");
   refresh.fn();
@@ -418,7 +423,7 @@ test("a check-in on a dead connection queues in the outbox; a refusal puts the m
   });
   await capture.loadCheckin();
   await dots[0]._listeners.click();
-  assert.deepEqual(JSON.parse(JSON.stringify(queued)), [{ kind: "checkin", path: "/checkins", body: { energy: 2 } }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(queued)), [{ kind: "checkin", path: "/checkins", body: { date: "2026-08-24", energy: 2 } }]);
   assert.match(slot.innerHTML, /low energy/, "the answer stands on screen — it syncs on reconnect");
   assert.deepEqual(toasts, []);
 

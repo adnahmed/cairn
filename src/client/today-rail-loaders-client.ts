@@ -37,11 +37,17 @@ type TodayRailLoadersApi = {
     garminUnreconciled: "/garmin/unreconciled",
   } as const;
 
+  // A failed read settles a held copy of the card at once (today-slot-hold.ts) —
+  // never an inert card that collapses 10 s later.
+  function holdFailed(slot: Element): void {
+    (globalThis as { CairnTodaySlotHold?: TodaySlotHoldApi }).CairnTodaySlotHold?.settleFailed(slot);
+  }
+
   async function loadFuelToday(date: string, deps: ClientTodayRailControllerDeps): Promise<void> {
     const slot = deps.root.querySelector<HTMLElement>("#fuelSlot");
     if (!slot) return;
     let day: unknown = null;
-    try { day = await railGet(deps, RAIL_PATHS.fuel(date || deps.state.logDate)); } catch { return; }
+    try { day = await railGet(deps, RAIL_PATHS.fuel(date || deps.state.logDate)); } catch { holdFailed(slot); return; }
     if (!isCurrentToday(deps) || !slot.isConnected) return;
     const count = day && typeof day === "object" ? Number((day as { count?: unknown }).count) : 0;
     if (!(count > 0)) { slot.innerHTML = ""; return; }
@@ -77,7 +83,7 @@ type TodayRailLoadersApi = {
   }
 
   const FUELING_DONE_HTML =
-    `<div class="fueling-done settle-in"><span class="fueling-done-mark" aria-hidden="true">✓</span> Noted — thanks for the read.</div>`;
+    `<div class="fueling-done settle-in" data-ephemeral><span class="fueling-done-mark" aria-hidden="true">✓</span> Noted — thanks for the read.</div>`;
 
   function isTransientFailure(error: unknown): boolean {
     const classify = (globalThis as { CairnApiCache?: { isTransientApiFailure?(value: unknown): boolean } })
@@ -85,42 +91,35 @@ type TodayRailLoadersApi = {
     return typeof classify === "function" ? classify(error) : false;
   }
 
-  // The slot eases from its old height to its new one around a write, so the rail
-  // below never snaps upward when the card folds into its one line.
+  // The slot eases to its new height around a write (Today's shared helper), so the
+  // rail below never snaps upward when the card folds into its one line.
   function settleSlotHeight(slot: HTMLElement, write: () => void): void {
-    const reduce = (globalThis as { reducedMotion?: () => boolean }).reducedMotion;
-    const motion = typeof reduce === "function" ? !reduce() : false;
-    const from = motion && typeof slot.getBoundingClientRect === "function" ? slot.getBoundingClientRect().height : 0;
-    write();
-    if (!from || typeof slot.animate !== "function") return;
-    const to = slot.getBoundingClientRect().height;
-    if (Math.abs(to - from) < 2) return;
-    try {
-      slot.animate(
-        [{ height: `${from}px`, overflow: "hidden" }, { height: `${to}px`, overflow: "hidden" }],
-        { duration: 260, easing: "cubic-bezier(.2,.7,.2,1)" },
-      );
-    } catch { /* the new height stands */ }
+    const hold = (globalThis as { CairnTodaySlotHold?: TodaySlotHoldApi }).CairnTodaySlotHold;
+    if (hold) hold.settleHeight(slot, write);
+    else write();
   }
 
-  function wireFuelingCard(slot: HTMLElement, deps: ClientTodayRailControllerDeps): void {
+  function wireFuelingCard(slot: HTMLElement, deps: ClientTodayRailControllerDeps, date?: string): void {
     slot.querySelector("#fuelingSkip")?.addEventListener("click", () => { slot.innerHTML = ""; });
     slot.querySelectorAll<HTMLButtonElement>(".fueling-opt").forEach((btn) =>
       btn.addEventListener("click", () => {
         if (slot.querySelector(".fueling-opt.is-picked")) return Promise.resolve();
         const energy = Number(btn.dataset.energy);
         // This frame: the choice is marked, the rest step back, nothing is re-drawn.
+        // (An answered card is never part of Today's next instant paint.)
+        slot.querySelector(".fueling-card")?.setAttribute("data-ephemeral", "");
         slot.querySelectorAll<HTMLButtonElement>(".fueling-opt").forEach((b) => {
           const picked = b === btn;
           b.classList.toggle("is-picked", picked);
           b.setAttribute("aria-pressed", picked ? "true" : "false");
           b.disabled = true;
         });
-        const body = { energy };
+        // Dated: a read queued offline and replayed after midnight lands on its own day.
+        const body = date ? { date, energy } : { energy };
         const restore = () => {
           if (!slot.isConnected) return;
           slot.innerHTML = fuelingCardHtml();
-          wireFuelingCard(slot, deps);
+          wireFuelingCard(slot, deps, date);
           deps.toast("Couldn't save that — try again.");
         };
         const saving = deps
@@ -159,19 +158,19 @@ type TodayRailLoadersApi = {
     const slot = deps.root.querySelector<HTMLElement>("#fuelingSlot");
     if (!slot) return;
     let followup: unknown = null;
-    try { followup = await railGet(deps, RAIL_PATHS.fuelingFollowup); } catch { return; }
+    try { followup = await railGet(deps, RAIL_PATHS.fuelingFollowup); } catch { holdFailed(slot); return; }
     if (!isCurrentToday(deps) || !slot.isConnected) return;
     const due = followup && typeof followup === "object" && (followup as { due?: unknown }).due === true;
     if (!due) { slot.innerHTML = ""; return; }
     slot.innerHTML = fuelingCardHtml();
-    wireFuelingCard(slot, deps);
+    wireFuelingCard(slot, deps, (globalThis as { localISO?: () => string }).localISO?.());
   }
 
   async function loadWeekAhead(deps: ClientTodayRailControllerDeps): Promise<void> {
     const slot = deps.root.querySelector<HTMLElement>("#weekAheadSlot");
     if (!slot) return;
     let response: unknown = null;
-    try { response = await railGet(deps, RAIL_PATHS.weekAhead); } catch { return; }
+    try { response = await railGet(deps, RAIL_PATHS.weekAhead); } catch { holdFailed(slot); return; }
     if (!isCurrentToday(deps) || !slot.isConnected) return;
     slot.innerHTML = CairnTodayWeekAhead.cardHtml(response);
   }
