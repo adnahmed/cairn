@@ -19,6 +19,7 @@ import { latestUserVetoAt } from "./brain-decisions.js";
 import { contextEventReadsAsIllness } from "./context-effect.js";
 import { getActiveBlock } from "./program-blocks.js";
 import { addDaysISO, localDateISO } from "./shared.js";
+import { runDownCheckinCorroboratedOn } from "./felt-brake.js";
 import { withSymptomClosures } from "./injury-symptom-link.js";
 
 // With no active block to scope to, a refusal still has to mean something. Four
@@ -59,8 +60,9 @@ export function recoveryWeekRefusedOn(today = localDateISO()): string | null {
  *   • an illness or injury that started after it and is still open,
  *   • a firm TRAINING health directive derived after it (the clinical lane — see the
  *     exclusions on that query; a resurfaced or lab-lever row is not new news),
- *   • a fresh subjective brake — a low check-in, or a session logged with high
- *     soreness or a named sore joint.
+ *   • a fresh subjective brake — a run-down check-in an objective signal corroborated
+ *     (a lone tap only eases a day, so alone it is not news), or a session logged
+ *     with high soreness or a named sore joint.
  * Ordinary fatigue, a flat week, or the same fuel read saying the same thing are
  * deliberately NOT on this list: none of them is new information.
  */
@@ -100,15 +102,24 @@ export function newSafetyGradeSignalSince(since: string, today = localDateISO())
     )
   )
     return true;
-  if (
-    one(
-      `SELECT 1 FROM checkins
-        WHERE date > ? AND date <= ? AND (energy <= 2 OR sleep_feel <= 2) LIMIT 1`,
-      since,
-      today
-    )
-  )
-    return true;
+  // A run-down check-in is news only when it CARRIED its day. Under the tap law (owner
+  // ruling, 2026-09-29) a lone tap eases the day and never rests it, so on its own it
+  // cannot reopen a structural "no" the athlete already gave either: it must be
+  // corroborated by something objective about the same 24 hours — the one predicate
+  // the day read uses (runDownCheckinCorroboratedOn, felt-brake.ts). Illness keeps its
+  // own arm below and needs no witness.
+  try {
+    const lowTapDates = db
+      .prepare(
+        `SELECT DISTINCT date FROM checkins
+          WHERE date > ? AND date <= ? AND (energy <= 2 OR sleep_feel <= 2)
+          ORDER BY date DESC`
+      )
+      .all(since, today) as Array<{ date: string }>;
+    if (lowTapDates.some((row) => isDate(row.date) && runDownCheckinCorroboratedOn(row.date))) return true;
+  } catch {
+    /* unreadable check-ins → no claim from this shape */
+  }
   if (
     one(
       `SELECT 1 FROM sessions

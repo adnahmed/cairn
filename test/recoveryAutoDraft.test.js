@@ -51,6 +51,11 @@ test("the athlete's standing 'no' to a recovery week stops the auto-draft until 
   ).run(refusedOn, JSON.stringify({ held_by_user: true, held_by_user_on: refusedOn }), `${refusedOn} 08:00:00`);
   assert.equal(shouldAutoDraftRecoveryWeek(asking), false, "deload-due alone does not argue with the refusal");
 
-  db.prepare(`INSERT INTO checkins (date, energy, sleep_feel) VALUES (?, 2, 3)`).run(addDaysISO(localDateISO(), -1));
-  assert.equal(shouldAutoDraftRecoveryWeek(asking), true, "a low check-in since is news the refusal did not answer");
+  const yesterday = addDaysISO(localDateISO(), -1);
+  // A tap alone only eases a day (owner ruling, 2026-09-29), so alone it is not news.
+  db.prepare(`INSERT INTO checkins (date, energy, sleep_feel) VALUES (?, 2, 3)`).run(yesterday);
+  assert.equal(shouldAutoDraftRecoveryWeek(asking), false, "a lone low tap does not argue with the refusal");
+  // Corroborated by something objective about the same 24 hours, it is.
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 270)`).run(yesterday);
+  assert.equal(shouldAutoDraftRecoveryWeek(asking), true, "a corroborated low check-in since is news the refusal did not answer");
 });

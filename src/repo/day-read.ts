@@ -80,7 +80,6 @@ import {
   dimensionIsAdviceOnly,
   hasFreshBrake,
   FELT_CHECKIN_FIELDS,
-  hasFeltRestCorroboration,
   hasFreshDecidingBrake,
   freshDecidingBrakeFields,
   lifeCapacityIsCommitment,
@@ -115,6 +114,7 @@ import {
   recentCardioLoadMedian,
   recoverySessionDose,
 } from "./training-read.js";
+import { feltRestCorroborated as feltRestCorroboratedBy, isRunDownCheckin } from "./felt-brake.js";
 import { readsLowReadiness, readsRestGradeReadiness, SUPPORTIVE_READINESS } from "./readiness-bands.js";
 import { withFlexibleRunLookahead } from "./hybrid-run-lookahead.js";
 import { dayFuelState } from "./fuel-state.js";
@@ -1590,13 +1590,9 @@ function computeDayRead(
   // A low sleep-feel on a morning the athlete ALSO tapped good energy is MIXED — a
   // poor night they feel fine after — and is not a run-down check-in at all (the
   // signal state speaks it as a caveat, `sleep_feel_mixed`).
+  // (isRunDownCheckin, felt-brake.ts — one definition for every reader of a tap.)
   const feltEnergyLow = !!checkin && checkin.energy != null && Number(checkin.energy) <= 2;
-  const feltSleepLow =
-    !!checkin &&
-    checkin.sleep_feel != null &&
-    Number(checkin.sleep_feel) <= 2 &&
-    !(checkin.energy != null && Number(checkin.energy) >= 4);
-  const lowSubjective = feltEnergyLow || feltSleepLow;
+  const lowSubjective = isRunDownCheckin(checkin);
 
   // ---- predictive deload anticipation ----
   // Don't wait for 3 hard days to already be logged: read the acute-vs-chronic
@@ -2092,15 +2088,15 @@ function computeDayRead(
   // (FELT_REST_CORROBORATION, signal-state.ts). Otherwise it is a lighter day
   // (`felt_low_easy`), and it cannot on its own corroborate the stacked-days rest
   // either — that would hand the tap back the weight this ruling takes off it.
+  // One predicate (felt-brake.ts), shared with the recovery-week refusal's "is this news".
   const feltRestCorroborated =
     lowSubjective &&
-    (restGradeReadiness ||
-      (lastNight?.total_min != null && Number(lastNight.total_min) > 0 && Number(lastNight.total_min) < 300) ||
-      hasFeltRestCorroboration(signalState.dimensions) ||
-      (() => {
-        const yesterday = addDaysISO(d, -1);
-        return !!yesterday && signalInput(() => harmEvidenceOnDay(yesterday) != null, false);
-      })());
+    feltRestCorroboratedBy({
+      date: d,
+      dimensions: signalState.dimensions,
+      restGradeReadiness,
+      lastNightMin: lastNight?.total_min ?? null,
+    });
   const stackedLoadingRest = consec >= 3 && !recoveryWeek;
   const FELT_LIGHT_VOICE_KEYS: ReadonlySet<string> = new Set(["felt_energy_light", "sleep_feel_light"]);
   // ---- the stack IS the week (owner ruling, 2026-09-29, the day-read half of 2026-09-23) ----

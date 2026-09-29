@@ -16,7 +16,16 @@ const today = () => localDateISO();
 const since = () => addDaysISO(today(), -3);
 
 beforeEach(() => {
-  resetTables("health_directives", "brain_decisions", "checkins", "sessions", "training_symptom_events", "context_events");
+  resetTables(
+    "health_directives",
+    "brain_decisions",
+    "checkins",
+    "sessions",
+    "training_symptom_events",
+    "context_events",
+    "daily_metrics",
+    "garmin_daily_metrics"
+  );
 });
 
 function directive(fields = {}) {
@@ -141,4 +150,76 @@ test("the newest refusal wins, not the newest proposal", () => {
   ).run(recent, JSON.stringify({ held_by_user: true, held_by_user_on: old }), `${recent} 08:00:00`);
 
   assert.equal(recoveryWeekRefusedOn(today()), recent, "the newest refusal date is the one on record");
+});
+
+// ---- the tap law (owner ruling, 2026-09-29): a lone check-in tap eases a day, it
+// never rests it — so on its own it is not news that reopens a refused recovery week.
+// It reopens only when something objective agrees about the same 24 hours, by the
+// same predicate the day read uses (felt-brake.ts). Illness needs no witness.
+
+function tap(date, fields) {
+  db.prepare(`INSERT INTO checkins (date, energy, sleep_feel) VALUES (?, ?, ?)`).run(
+    date,
+    fields.energy ?? null,
+    fields.sleep_feel ?? null
+  );
+}
+
+test("a lone run-down tap since the refusal does not reopen it", () => {
+  tap(addDaysISO(today(), -1), { energy: 1, sleep_feel: 3 });
+  assert.equal(newSafetyGradeSignalSince(since()), false, "one energy-1 tap with nothing objective beside it only eases");
+  resetTables("checkins");
+  tap(today(), { energy: 2, sleep_feel: 2 });
+  assert.equal(newSafetyGradeSignalSince(since()), false, "nor does a run-down tap this morning alone");
+});
+
+test("a poor sleep-feel beside good energy is mixed, never news", () => {
+  tap(addDaysISO(today(), -1), { energy: 5, sleep_feel: 1 });
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 250)`).run(addDaysISO(today(), -1));
+  assert.equal(
+    newSafetyGradeSignalSince(since()),
+    false,
+    "a poor night they feel fine after is not a run-down check-in, short night or not"
+  );
+});
+
+test("a run-down tap an objective signal corroborates DOES reopen it", () => {
+  const day = addDaysISO(today(), -1);
+  tap(day, { energy: 2, sleep_feel: 2 });
+  assert.equal(newSafetyGradeSignalSince(since()), false, "alone, the tap is slight input");
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 270)`).run(day);
+  assert.equal(newSafetyGradeSignalSince(since()), true, "felt low AND that night was genuinely short");
+});
+
+test("a short night with no run-down tap is not the tap arm's news", () => {
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 270)`).run(addDaysISO(today(), -1));
+  tap(addDaysISO(today(), -1), { energy: 3, sleep_feel: 3 });
+  assert.equal(newSafetyGradeSignalSince(since()), false);
+});
+
+test("a tap before the refusal is something the athlete already answered", () => {
+  const before = addDaysISO(today(), -5);
+  tap(before, { energy: 1, sleep_feel: 1 });
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 240)`).run(before);
+  assert.equal(newSafetyGradeSignalSince(since()), false);
+});
+
+test("illness still reopens on its own, tap or no tap", () => {
+  tap(addDaysISO(today(), -1), { energy: 2 });
+  db.prepare(`INSERT INTO context_events (kind, title, start_date) VALUES ('illness', 'Head cold', ?)`).run(
+    addDaysISO(today(), -1)
+  );
+  assert.equal(newSafetyGradeSignalSince(since()), true, "I'm sick is not a tap");
+});
+
+test("recoveryWeekMayBeAnnounced: a lone tap keeps the refusal, a corroborated one lifts it", () => {
+  const refusedOn = addDaysISO(today(), -3);
+  db.prepare(
+    `INSERT INTO brain_decisions (effective_date, kind, domain, summary, status, autonomy_tier, risk_class, context_json, created_at)
+     VALUES (?, 'training_structure', 'recovery', 'Recovery week', 'canceled', 'announce', 'structural', ?, ?)`
+  ).run(refusedOn, JSON.stringify({ held_by_user: true, held_by_user_on: refusedOn }), `${refusedOn} 08:00:00`);
+  tap(today(), { energy: 2, sleep_feel: 2 });
+  assert.deepEqual(recoveryWeekMayBeAnnounced(today()), { allowed: false, refused_on: refusedOn });
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 260)`).run(today());
+  assert.equal(recoveryWeekMayBeAnnounced(today()).allowed, true);
 });

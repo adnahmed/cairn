@@ -865,9 +865,14 @@ test("a recovery week the athlete declined is not re-announced on the same evide
     "nothing new is announced",
   );
 
-  // A NEW safety-grade signal is information the refusal could not have been about,
-  // so the week may be offered again.
+  // A lone run-down tap only eases a day, so on its own it reopens nothing.
   db.prepare(`INSERT INTO checkins (date, energy, sleep_feel) VALUES (?, 1, 2)`).run(addDaysISO(today(), -1));
+  const tapOnly = runUnderfuelingControlLoop(today(), { read: read("persistent_strain", "decline-tap") });
+  assert.equal(tapOnly.recovery, null, "a lone tap is slight input, not news");
+
+  // A NEW safety-grade signal is information the refusal could not have been about,
+  // so the week may be offered again: the same tap, on a genuinely short night.
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 270)`).run(addDaysISO(today(), -1));
   const reopened = runUnderfuelingControlLoop(today(), { read: read("persistent_strain", "decline-3") });
   assert.ok(reopened.recovery, "a fresh brake reopens it");
   assert.equal(reopened.recovery.announced, true);
