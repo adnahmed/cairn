@@ -2,6 +2,23 @@
 {
   let installed = false;
 
+  // ONE app-wide keyboard state (`html.kb-up`): the soft keyboard is on screen for a
+  // focused text field, on any surface. Chat keeps its own finer-grained body classes
+  // for its column; this one is what everything else keys off — above all the tab
+  // bar, which is `position:fixed; bottom: var(--vvb)` and would otherwise ride up
+  // on top of the keyboard and sit over the very composer being typed into (the Fuel
+  // log on an installed iPhone PWA). Standard iOS behavior: the bar steps away while
+  // typing and comes back when the keyboard does.
+  //
+  // Pure, so it is testable without a DOM: the keyboard is "up" only when the
+  // viewport geometry says a keyboard is occluding the page AND a text field has
+  // focus on a soft-keyboard device AND the page is not pinch-zoomed (a zoom shrinks
+  // the visual viewport exactly like a keyboard does).
+  function keyboardUpState(input: { geometryOpen: boolean; textFocused: boolean; scale?: number | null }): boolean {
+    const zoomed = typeof input.scale === "number" && Number.isFinite(input.scale) && input.scale > 1.05;
+    return !!input.geometryOpen && !!input.textFocused && !zoomed;
+  }
+
   function installMobileViewportGuards(): void {
     if (installed) return;
     installed = true;
@@ -88,6 +105,40 @@
       const rawVvb = window.innerHeight - (vv.offsetTop + vv.height);
       root.style.setProperty("--vvb", `${Math.round(Math.max(0, rawVvb))}px`);
     };
+    // The focused field (and its composer) stays in view above the keyboard. The
+    // browser scrolls a focused field into view as the keyboard rises, but it measures
+    // before the tab bar steps away and does not know about a composer's send row, so
+    // once the keyboard has settled the whole composer is brought into view if any of
+    // it is still hidden. Chat owns its own column (measureChatTop), so it is skipped.
+    let kbUp = false;
+    let revealTimer: ReturnType<typeof setTimeout> | 0 = 0;
+    const revealFocusedComposer = () => {
+      const active = document.activeElement;
+      if (!textInputEl(active)) return;
+      const el: HTMLElement = active;
+      if (el.closest?.(".chatview")) return;
+      const box = (el.closest?.(".chatbar, .fuel-log-composer, [data-composer], form") as HTMLElement | null) || el;
+      if (typeof box.getBoundingClientRect !== "function") return;
+      const rect = box.getBoundingClientRect();
+      const visibleTop = vv.offsetTop;
+      const visibleBottom = vv.offsetTop + vv.height;
+      if (rect.bottom <= visibleBottom - 8 && rect.top >= visibleTop) return;
+      try {
+        box.scrollIntoView({ block: rect.height > vv.height - 24 ? "start" : "end", behavior: "auto" });
+      } catch {}
+    };
+    const syncKeyboardUp = (geometryOpen: boolean) => {
+      const up = keyboardUpState({ geometryOpen, textFocused: focusedTextInput(), scale: vv.scale });
+      root.classList?.toggle("kb-up", up);
+      if (up && !kbUp) {
+        if (revealTimer) clearTimeout(revealTimer);
+        revealTimer = setTimeout(() => {
+          revealTimer = 0;
+          if (root.classList?.contains("kb-up")) revealFocusedComposer();
+        }, 320);
+      }
+      kbUp = up;
+    };
     const sync = () => {
       if (vv.height > vvMax) vvMax = vv.height;
       const geometryOpen = keyboardGeometryOpen();
@@ -102,6 +153,7 @@
       // cheap cosmetic prep only and drives nothing structural.
       document.body.classList.toggle("kb-geometry-open", geometryOpen);
       document.body.classList.toggle("kb-open", kbOpen);
+      syncKeyboardUp(geometryOpen);
       applyVvb();
       syncChatViewport();
     };
@@ -146,6 +198,7 @@
   }
 
   Object.assign(globalThis, { installMobileViewportGuards });
+  Object.assign(globalThis, { CairnKeyboardState: { keyboardUpState } });
 
   if (typeof window !== "undefined") {
     window.installMobileViewportGuards = installMobileViewportGuards;

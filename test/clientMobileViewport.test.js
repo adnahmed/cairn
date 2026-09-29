@@ -77,7 +77,10 @@ function loadMobileViewport(options = {}) {
   const document = {
     activeElement: body,
     body,
-    documentElement: { style: { setProperty: (name, value) => style.set(name, value) } },
+    documentElement: {
+      style: { setProperty: (name, value) => style.set(name, value) },
+      classList: new FakeClassList(),
+    },
     visibilityState: "visible",
     addEventListener: addListener(documentListeners),
   };
@@ -98,7 +101,7 @@ function loadMobileViewport(options = {}) {
     },
     document,
     globalThis: null,
-    matchMedia: () => ({ matches: false }),
+    matchMedia: () => ({ matches: options.hover ?? false }),
     measureChatTop: () => {
       measureCount += 1;
     },
@@ -210,4 +213,41 @@ test("mobile viewport suppresses post-picker chat intent until geometry opens", 
   env.fireViewport("resize");
   assert.equal(env.body.classList.contains("kb-open"), true);
   assert.equal(env.body.classList.contains("kb-geometry-open"), true);
+});
+
+test("one app-wide keyboard state: the tab bar steps away for any focused field, not only Chat", () => {
+  const env = loadMobileViewport({ viewportHeight: 800, tab: "plan" });
+  env.context.window.installMobileViewportGuards();
+  const html = env.document.documentElement.classList;
+  // The Fuel log composer: a plain textarea outside the chat column.
+  const fuelLog = new FakeElement("TEXTAREA");
+  env.document.activeElement = fuelLog;
+  env.fireDocument("focusin", { target: fuelLog });
+  assert.equal(html.contains("kb-up"), false, "a focus with no keyboard on screen yet never moves the bar");
+
+  env.visualViewport.height = 470; // the keyboard rises
+  env.fireViewport("resize");
+  assert.equal(html.contains("kb-up"), true, "keyboard up on Fuel: html.kb-up hides the tab bar");
+
+  env.document.activeElement = env.body; // done typing
+  env.fireDocument("focusout", {});
+  assert.equal(html.contains("kb-up"), false, "the bar comes back the moment the field lets go");
+});
+
+test("a pinch zoom or a desktop pointer never reads as the keyboard", () => {
+  const zoom = loadMobileViewport({ viewportHeight: 800 });
+  zoom.context.window.installMobileViewportGuards();
+  const field = new FakeElement("INPUT", { type: "text" });
+  zoom.document.activeElement = field;
+  zoom.visualViewport.scale = 2;
+  zoom.visualViewport.height = 400;
+  zoom.fireViewport("resize");
+  assert.equal(zoom.document.documentElement.classList.contains("kb-up"), false);
+
+  const desktop = loadMobileViewport({ viewportHeight: 800, hover: true });
+  desktop.context.window.installMobileViewportGuards();
+  desktop.document.activeElement = new FakeElement("TEXTAREA");
+  desktop.visualViewport.height = 400;
+  desktop.fireViewport("resize");
+  assert.equal(desktop.document.documentElement.classList.contains("kb-up"), false);
 });
