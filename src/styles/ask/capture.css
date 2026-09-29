@@ -74,6 +74,8 @@
 .brief-checkin{margin:13px 0 0}
 .feel-row{display:flex;align-items:center;gap:9px}
 .feel-lbl{color:var(--muted)}
+/* one label column, so the three scales' dots line up under each other */
+.checkin-form .feel-lbl{min-width:6.5em}
 .feel-dots{display:inline-flex;gap:3px}
 /* the word an answered scale says back, next to its dots */
 .feel-said{color:var(--muted);font-size:.78rem;margin-left:2px}

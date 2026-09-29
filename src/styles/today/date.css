@@ -20,7 +20,9 @@ body:is([data-tab="today"],[data-tab="day"]) header{padding-bottom:0}
    without crowding the read. */
 body[data-tab="today"] header{
   position:sticky;top:0;z-index:var(--z-header);
-  transition:padding var(--dur-2) var(--ease);
+  /* padding-TOP only: the condense eases, but the at-rest padding-bottom:0 this tab
+     sets on arrival must land at once, or the view slides up under the reader. */
+  transition:padding-top var(--dur-2) var(--ease);
 }
 body[data-tab="today"] header::after{
   content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
@@ -29,7 +31,9 @@ body[data-tab="today"] header::after{
   border-bottom:1px solid var(--line);
   opacity:0;transition:opacity var(--dur-2) var(--ease);
 }
-body[data-tab="today"] header #header-title{transition:font-size var(--dur-2) var(--ease)}
+/* No font-size transition on the title: the eyebrow is .7rem at rest AND condensed,
+   and on a (re)load body[data-tab] lands after the header's first paint, so one
+   animated the boot-time h1 size down and dragged Today up ~60px under the reader. */
 body[data-tab="today"] header.condensed{
   padding-top:calc(env(safe-area-inset-top) + 6px);padding-bottom:4px;
 }
