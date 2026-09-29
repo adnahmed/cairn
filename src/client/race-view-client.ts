@@ -31,7 +31,8 @@
 
   /**
    * The week's volume as one figure: "9.7 of 19.5 km" once something is run, else the
-   * week's volume alone ("19.5 km this week"), never a zero. `cls` is the surface's prefix.
+   * week's volume named as the PLAN ("19.5 km planned") — a bare "19.5 km this week"
+   * over an empty bar read as done — and never a zero. `cls` is the surface's prefix.
    */
   function volumeFigureHtml(week: ClientRaceThisWeek | null | undefined, cls: string): string {
     if (!week) return "";
@@ -40,7 +41,7 @@
     }
     const alone = week.done_text || week.target_text;
     if (!alone) return "";
-    return `<span class="${cls}-num numeral">${escHtml(alone)}<span class="${cls}-of"> ${week.done_text ? "run" : "this week"}</span></span>`;
+    return `<span class="${cls}-num numeral">${escHtml(alone)}<span class="${cls}-of"> ${week.done_text ? "run" : "planned"}</span></span>`;
   }
 
   /**

@@ -184,7 +184,9 @@ test("a banked week says so; nothing run yet says nothing (never a zero)", () =>
   assert.ok(banked.querySelector(".race-week-fill.is-banked"));
   assert.equal(Number(banked.querySelector(".race-ladder-logged").style.getPropertyValue("--frac")), 0.835);
   const none = paint(win, build({ this_week: { ...build().this_week, logged_km: 0 } }));
-  assert.equal(none.querySelector(".race-week-num").textContent, "32 km this week");
+  // The target is named as the plan, never "32 km this week" over an empty bar (which
+  // read as done).
+  assert.equal(none.querySelector(".race-week-num").textContent, "32 km planned");
   assert.equal(none.querySelector(".race-ladder-logged"), null);
   assert.doesNotMatch(none.querySelector(".race-week").textContent, /\b0 (of|km)\b/);
   assert.doesNotMatch(none.querySelector(".is-current").textContent, /\b0 km\b/);
