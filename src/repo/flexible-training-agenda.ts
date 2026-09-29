@@ -5,6 +5,9 @@ import { applyRunDayIntensity, type RunDayIntensity, runDayIntensity } from "./r
 import { activitySportWhere, RUN_SPORT_PATTERNS } from "./endurance-sports.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
 import { cardioEffort, sessionLoad } from "./training-read.js";
+import type { HrModel } from "./hr-model.js";
+import { personalRunReadForRow, usablePersonalHrModel } from "./run-intensity.js";
+import { isStatedEasyRpe } from "./stated-effort.js";
 import { addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
 import { mondayOf } from "../lib/dates.js";
 import {
@@ -378,11 +381,15 @@ function cardioConflictDates(start: string, through: string): Set<string> {
   try {
     const rows = db
       .prepare(
-        `SELECT a.id, a.date, a.type, a.duration_min, a.distance_km,
+        `SELECT a.id, a.date, a.type, a.duration_min, a.distance_km, a.rpe, a.raw_text,
                 MAX(g.training_effect) AS training_effect,
                 MAX(g.aerobic_te) AS aerobic_te,
                 MAX(g.anaerobic_te) AS anaerobic_te,
-                MAX(g.te_label) AS te_label
+                MAX(g.te_label) AS te_label,
+                MAX(g.avg_hr) AS avg_hr,
+                MAX(COALESCE(g.moving_min, g.duration_min)) AS hr_minutes,
+                MAX(g.name) AS g_name,
+                MAX(g.hr_zones_json) AS zones
            FROM activities a
            LEFT JOIN garmin_activities g ON g.activity_id = a.id
           WHERE a.date >= ? AND a.date <= ?
@@ -390,8 +397,15 @@ function cardioConflictDates(start: string, through: string): Set<string> {
       )
       .all(start, through) as any[];
     const dates = new Set<string>();
+    // A run is graded by the athlete's own model, not the watch (run-intensity.ts).
+    const models = new Map<string, HrModel | null>();
+    const modelFor = (date: string) => () => {
+      if (!models.has(date)) models.set(date, usablePersonalHrModel(date));
+      return models.get(date) ?? null;
+    };
     for (const row of rows) {
-      const load = cardioEffort(row);
+      const date = String(row.date);
+      const load = cardioEffort(row, isStatedEasyRpe(row.rpe) ? null : personalRunReadForRow(row, modelFor(date)));
       if (load === "moderate" || load === "hard") dates.add(String(row.date));
     }
     return dates;

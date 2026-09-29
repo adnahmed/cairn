@@ -24,8 +24,9 @@ import {
 } from "./exercise-canon.js";
 import { CARDIO_GRADE, HARD_EFFORT } from "./heavy-load.js";
 import { activeRecoveryWeekLedger } from "./recovery-week-ledger.js";
-import { classifyRunEffort, getHrModel, type HrModel } from "./hr-model.js";
-import { isStatedEasyRpe, namesQualityRun } from "./stated-effort.js";
+import type { HrModel } from "./hr-model.js";
+import { personalRunReadForRow, usablePersonalHrModel, type PersonalRunRead } from "./run-intensity.js";
+import { isStatedEasyRpe } from "./stated-effort.js";
 import { addDaysISO, localDateISO } from "./shared.js";
 import { median } from "../lib/numbers.js";
 
@@ -538,15 +539,26 @@ const LOAD_RANK: Record<TrainingLoad, number> = { easy: 1, moderate: 2, hard: 3 
 // One cardio effort's load, by duration/distance. Walks/hikes are easy unless
 // genuinely long; runs/rides/swims grade by how much was covered. null when
 // there's no duration AND no distance to judge.
-export function cardioEffort(a: {
-  type?: string | null;
-  duration_min?: number | null;
-  distance_km?: number | null;
-  training_effect?: number | null;
-  aerobic_te?: number | null;
-  anaerobic_te?: number | null;
-  te_label?: string | null;
-}): TrainingLoad | null {
+//
+// A run's INTENSITY comes from the athlete, never the watch (run-intensity.ts): a run
+// stated easy (rpe ≤ 4) skips the intensity arm, and a run with heart rate and a usable
+// personal model is graded by it — hard when it reads hard there, moderate when its
+// average sat above the easy line — instead of by training effect or te_label. The
+// duration/distance arms below stand for every effort: a long run still loads.
+// `personal` is that read when the caller has one; otherwise the row's own fields decide.
+export function cardioEffort(
+  a: {
+    type?: string | null;
+    duration_min?: number | null;
+    distance_km?: number | null;
+    training_effect?: number | null;
+    aerobic_te?: number | null;
+    anaerobic_te?: number | null;
+    te_label?: string | null;
+    rpe?: number | null;
+  },
+  personal?: PersonalRunRead | null
+): TrainingLoad | null {
   const type = String(a.type || "").toLowerCase();
   const dur = a.duration_min != null ? Number(a.duration_min) : null;
   const dist = a.distance_km != null ? Number(a.distance_km) : null;
@@ -557,15 +569,22 @@ export function cardioEffort(a: {
       ? "moderate"
       : "easy";
   }
-  const trainingEffect = Math.max(
-    Number(a.training_effect) || 0,
-    Number(a.aerobic_te) || 0,
-    Number(a.anaerobic_te) || 0
-  );
-  const label = String(a.te_label || "").toLowerCase();
-  if (trainingEffect >= 4 || /\b(?:vo2(?:[\s_-]*max)?|maximal|anaerobic|sprint|interval|threshold)\b/.test(label))
-    return "hard";
-  if (trainingEffect >= 3 || /\btempo\b/.test(label)) return "moderate";
+  if (isStatedEasyRpe(a.rpe)) {
+    // Their word on the intensity; only the length below still speaks.
+  } else if (personal) {
+    if (personal.hard) return "hard";
+    if (personal.effort !== "easy") return "moderate";
+  } else {
+    const trainingEffect = Math.max(
+      Number(a.training_effect) || 0,
+      Number(a.aerobic_te) || 0,
+      Number(a.anaerobic_te) || 0
+    );
+    const label = String(a.te_label || "").toLowerCase();
+    if (trainingEffect >= 4 || /\b(?:vo2(?:[\s_-]*max)?|maximal|anaerobic|sprint|interval|threshold)\b/.test(label))
+      return "hard";
+    if (trainingEffect >= 3 || /\btempo\b/.test(label)) return "moderate";
+  }
   if ((dur != null && dur >= CARDIO_GRADE.hardMin) || (dist != null && dist >= CARDIO_GRADE.hardKm)) return "hard";
   if ((dur != null && dur >= CARDIO_GRADE.moderateMin) || (dist != null && dist >= CARDIO_GRADE.moderateKm))
     return "moderate";
@@ -595,18 +614,24 @@ export function dayLoad(
     // shadow can never contribute a grade of its own.
     const rows = db
       .prepare(
-        `SELECT a.date, a.source, a.external_id, a.type, a.duration_min, a.distance_km,
+        `SELECT a.date, a.source, a.external_id, a.type, a.duration_min, a.distance_km, a.rpe, a.raw_text,
               MAX(ga.training_effect) AS training_effect,
               MAX(ga.aerobic_te) AS aerobic_te,
               MAX(ga.anaerobic_te) AS anaerobic_te,
-              MAX(ga.te_label) AS te_label
+              MAX(ga.te_label) AS te_label,
+              MAX(ga.avg_hr) AS avg_hr,
+              MAX(COALESCE(ga.moving_min, ga.duration_min)) AS hr_minutes,
+              MAX(ga.name) AS g_name,
+              MAX(ga.hr_zones_json) AS zones
          FROM activities a LEFT JOIN garmin_activities ga ON ga.activity_id = a.id
         WHERE a.date = ?
         GROUP BY a.id`
       )
       .all(date) as any[];
+    let model: HrModel | null | undefined;
+    const personalModel = (): HrModel | null => (model === undefined ? (model = usablePersonalHrModel(date)) : model);
     for (const a of withoutShadowActivities(rows)) {
-      bump(cardioEffort(a));
+      bump(cardioEffort(a, isStatedEasyRpe(a.rpe) ? null : personalRunReadForRow(a, personalModel)));
     }
   }
   return best ?? "none";
@@ -707,28 +732,19 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
   rows = withoutShadowActivities(rows);
   if (!rows.length) return false;
   const median = loadMedian === undefined ? recentCardioLoadMedian(date) : loadMedian;
-  // The personal model as of that day, read once and only if a run with heart rate
-  // is there to judge (see personalRunGradesHard).
+  // A RUN with heart rate is graded by the personal model, never the watch's effect,
+  // label, zones or load (run-intensity.ts). The model is read once, and only when a
+  // run with heart rate is there to judge.
   let model: HrModel | null | undefined;
-  const personalModel = (): HrModel | null => {
-    if (model === undefined) {
-      try {
-        const m = getHrModel(date);
-        model = m.confidence !== "insufficient" && m.zones && m.lthr != null && m.zones.z2_top >= 100 ? m : null;
-      } catch {
-        model = null;
-      }
-    }
-    return model;
-  };
+  const personalModel = (): HrModel | null => (model === undefined ? (model = usablePersonalHrModel(date)) : model);
   for (const r of rows) {
     // The athlete SAID it was easy (a stated effort in the talk-test band): the
     // watch's intensity bars do not get to overrule them. Only (d), the plain
     // duration bar, still reads the day as loading — a long easy run still costs
     // something. The next morning's physiology is asked separately by the harm read
     // and still outranks the statement (stated-effort.ts).
-    const personal = isStatedEasyRpe(r.rpe) ? null : personalRunGradesHard(r, personalModel);
-    if (personal === true) return true;
+    const personal = isStatedEasyRpe(r.rpe) ? null : personalRunReadForRow(r, personalModel);
+    if (personal?.hard) return true;
     if (personal == null && !isStatedEasyRpe(r.rpe)) {
       // (a-c) intensity qualifies ANY activity type (a hard hike is still hard) — for
       // every effort the personal model cannot judge (below).
@@ -758,51 +774,6 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
     if (dur >= (isEnduranceSession ? HARD_CARDIO_MIN : CARDIO_GRADE.walkHikeModerateMin)) return true;
   }
   return false;
-}
-
-// A RUN is graded by the athlete's own physiology, never the watch's (owner law,
-// 2026-09-25: "Garmin te_label must never classify his runs; use the personal HR
-// model"). For a run with an average heart rate and a usable personal model — the same
-// bar runIntensityDiscipline holds (not insufficient, a plausible easy line) — the
-// intensity bars are replaced, not added to:
-//   • `classifyRunEffort` reads it as QUALITY against his own zones (above the steady
-//     band for 12+ minutes, or 75+ minutes held in it) — the LT test at 164 for 73 min,
-//     a 5k test at 165;
-//   • the athlete NAMED it quality ("Hills", "5k+sprints", "5K Fast" — namesQualityRun,
-//     stated-effort.ts): an interval day's recoveries pull its average into the steady
-//     band, and his title is his own input;
-//   • HARD_CARDIO_Z4_SEC of measured time in heart-rate bins lying wholly ABOVE his
-//     threshold band (bin floor > z4_top). The watch's bins are the only time-in-HR
-//     record there is, but they are drawn on Garmin's zones, so only a bin entirely
-//     past his own line is evidence; a bin straddling it proves nothing either way.
-// What no longer speaks for a run: the training-effect number, the te_label, time in
-// Garmin's Z4, and the training load against its median. The load is Garmin's EPOC
-// estimate — the quantity the training effect itself is computed from, off Garmin's
-// own HR model — so it is the same TE judgement by another name, and on a 54-minute
-// conversational run at 157 it reads 219 and "hard".
-// Returns null when the personal model cannot judge (no HR, not a run, no model): the
-// caller keeps the old bars for those — rides, hikes, and runs before any model exists.
-function personalRunGradesHard(r: any, personalModel: () => HrModel | null): boolean | null {
-  if (canonicalEnduranceSport(r.type).key !== "run") return null;
-  const avg = Number(r.avg_hr);
-  if (!Number.isFinite(avg) || avg <= 0) return null;
-  const model = personalModel();
-  if (!model?.zones) return null;
-  const minutes = r.hr_minutes != null ? Number(r.hr_minutes) : null;
-  if (classifyRunEffort(avg, minutes, model) === "quality") return true;
-  if (namesQualityRun(r.g_name) || namesQualityRun(r.raw_text)) return true;
-  let above = 0;
-  try {
-    const z = r.zones ? JSON.parse(r.zones) : null;
-    if (Array.isArray(z))
-      for (const it of z) {
-        const floor = Number(it?.low_hr);
-        if (Number.isFinite(floor) && floor > model.zones.z4_top) above += Number(it?.secs ?? it?.seconds ?? 0) || 0;
-      }
-  } catch {
-    /* malformed zone blob → no time evidence */
-  }
-  return above >= HARD_CARDIO_Z4_SEC;
 }
 
 // ---------- the longest run they have ever done (lately) ----------

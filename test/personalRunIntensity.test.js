@@ -13,7 +13,8 @@
 import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { db, repo, resetTables } from "./_seed.js";
-import { hardCardioDay, hardCardioDayIntense } from "../dist/repo/training-read.js";
+import { dayLoad, hardCardioDay, hardCardioDayIntense } from "../dist/repo/training-read.js";
+import { recentEnduranceImpacts } from "../dist/repo/hybrid-load.js";
 import { harmEvidenceOnDay } from "../dist/repo/brain/read-adherence.js";
 import { recordCalibrationEvent } from "../dist/repo/calibration.js";
 import { getHrModel } from "../dist/repo/hr-model.js";
@@ -210,4 +211,65 @@ test("a ride is not a run: its bars are unchanged", () => {
     te: 4.5,
   });
   assert.equal(hardCardioDayIntense(REF), true);
+});
+
+// ── the per-muscle dose and the day grade read the same way ─────────────────────
+
+const impactOn = (date) => recentEnduranceImpacts(1, date).find((i) => i.date === date);
+
+test("per-muscle dose: the 148 treadmill run is a moderate leg dose, not a hard heavy one", () => {
+  fieldTested();
+  watch({
+    date: REF,
+    type: "treadmill_running",
+    name: "Treadmill Running",
+    km: 8.64,
+    minutes: 54.4,
+    avgHr: 148,
+    te: 4.2,
+    label: "LACTATE_THRESHOLD",
+    load: 193,
+  });
+  const impact = impactOn(REF);
+  assert.equal(impact.intensity, "moderate");
+  assert.equal(impact.load, "moderate");
+});
+
+test("per-muscle dose: a long run still loads the legs heavily even when it was not hard", () => {
+  fieldTested();
+  watch({ date: REF, km: 9.68, minutes: 53.9, avgHr: 157, te: 4.5, label: "LACTATE_THRESHOLD", load: 219 });
+  const impact = impactOn(REF);
+  assert.equal(impact.intensity, "moderate", "not hard by his own zones");
+  assert.equal(impact.load, "heavy", "9.7 km is past the run's distance bar — the legs did that work");
+});
+
+test("per-muscle dose: the LT test is hard and heavy; a short easy jog is light", () => {
+  fieldTested();
+  watch({ date: REF, name: "LT HR Test", km: 12.96, minutes: 73.2, avgHr: 164, te: 5 });
+  assert.deepEqual([impactOn(REF).intensity, impactOn(REF).load], ["hard", "heavy"]);
+  const jog = shift(REF, -2);
+  watch({ date: jog, km: 2.5, minutes: 16, avgHr: 138, te: 2.4 });
+  assert.deepEqual([impactOn(jog).intensity, impactOn(jog).load], ["easy", "light"]);
+});
+
+test("per-muscle dose: a stated-easy run carries its length, not the watch's intensity — model or not", () => {
+  const id = watch({ date: REF, km: 8.64, minutes: 54.4, avgHr: 148, te: 4.2, label: "LACTATE_THRESHOLD" });
+  assert.equal(getHrModel(REF).confidence, "insufficient");
+  assert.equal(impactOn(REF).intensity, "hard", "no model, no statement: the watch's bars");
+  setActivityFeltEffort(id, { rpe: 3 });
+  assert.deepEqual([impactOn(REF).intensity, impactOn(REF).load], ["moderate", "moderate"]);
+});
+
+test("day grade: a 30-minute run at 150 with effect 4.2 is moderate, not hard; at 163 it is hard", () => {
+  fieldTested();
+  watch({ date: REF, km: 5, minutes: 30, avgHr: 150, te: 4.2, label: "LACTATE_THRESHOLD" });
+  assert.equal(dayLoad(REF, { countsCardio: true }), "moderate");
+  const quality = shift(REF, -2);
+  watch({ date: quality, km: 5.5, minutes: 30, avgHr: 163, te: 3.4 });
+  assert.equal(dayLoad(quality, { countsCardio: true }), "hard");
+});
+
+test("day grade: no model keeps the watch's effect bar", () => {
+  watch({ date: REF, km: 5, minutes: 30, avgHr: 150, te: 4.2 });
+  assert.equal(dayLoad(REF, { countsCardio: true }), "hard");
 });
