@@ -211,6 +211,33 @@ test("progress energy read stays calm and honest when the picture is loose or st
   assert.equal(loose.lead, "The picture's a little loose this week — a few more logged days will sharpen it.");
   assert.equal(loose.tone, "read");
 
+  // The lead and the contributor rows read ONE coverage read: steady logging never
+  // sits under a headline asking for more logged days.
+  const steadyLog = { tdee: 2500, confidence: "low", intake_avg_kcal: 2100, trend_lb_wk: -0.4, points: 14, window_days: 21 };
+  const thinScale = energy.energyRead({ ...steadyLog, coverage: { intake_days: 14, weigh_in_days: 2 } });
+  assert.match(thinScale.lead, /a few more weigh-ins will sharpen the trend/);
+  assert.doesNotMatch(thinScale.lead, /logged days/);
+  const partial = energy.energyRead({ ...steadyLog, coverage: { intake_days: 14, weigh_in_days: 8 }, quality: { intake: "partial" } });
+  assert.match(partial.lead, /a few logged days read as partial/);
+  const settling = energy.energyRead({ ...steadyLog, coverage: { intake_days: 14, weigh_in_days: 8 } });
+  assert.match(settling.lead, /the log is steady/);
+  for (const exp of [
+    { ...steadyLog, coverage: { intake_days: 14, weigh_in_days: 2 } },
+    { ...steadyLog, coverage: { intake_days: 14, weigh_in_days: 8 } },
+    { ...steadyLog, coverage: { intake_days: 14, weigh_in_days: 8 }, quality: { intake: "partial" } },
+    { ...steadyLog, points: 4, coverage: { intake_days: 4, weigh_in_days: 2 } },
+  ]) {
+    const card = energy.energyCardHtml(exp);
+    const lead = energy.energyRead(exp).lead;
+    const saysSteady = /steady this week — plenty to read/.test(card);
+    assert.ok(!(saysSteady && /logged days will sharpen/.test(lead)), `${lead} beside a steady-logging row`);
+    assert.equal(/logged days will sharpen/.test(lead), /light this week/.test(card), lead);
+    if (exp.quality) assert.match(card, /a few days read as partial/);
+  }
+  // A starting estimate with the log already steady asks for weigh-ins, not logging.
+  const seedSteady = energy.energyRead({ tdee: 2450, confidence: "none", tdee_basis: "profile_seed", points: 14 });
+  assert.match(seedSteady.lead, /with the log steady, a few weigh-ins/);
+
   // Starting estimate (profile seed) — a few weeks of logging turns it real.
   const seed = energy.energyRead({ tdee: 2450, confidence: "none", tdee_basis: "profile_seed" });
   assert.match(seed.lead, /Starting around 2,450 kcal\/day — a few weeks of logging/);
