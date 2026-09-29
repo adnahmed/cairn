@@ -730,11 +730,23 @@ export function hardCardioDay(date: string, loadMedian?: number | null): boolean
 // only `harmEvidenceOnDay` (src/repo/brain/read-adherence.ts) takes this stricter
 // reading, and the next-morning physiology arm there still catches an easy-LOOKING
 // run the body disagreed with.
-export function hardCardioDayIntense(date: string, loadMedian?: number | null): boolean {
-  return hardCardioDayCore(date, loadMedian, true);
+//
+// `opts.sport: "run"` narrows the question to the day's RUNS (a hard ride or hike that
+// day is not asked about): the running-capacity read (run-capacity.ts) asks it that way.
+export function hardCardioDayIntense(
+  date: string,
+  loadMedian?: number | null,
+  opts?: { sport?: "run" }
+): boolean {
+  return hardCardioDayCore(date, loadMedian, true, opts?.sport ?? null);
 }
 
-function hardCardioDayCore(date: string, loadMedian: number | null | undefined, intensityOnly: boolean): boolean {
+function hardCardioDayCore(
+  date: string,
+  loadMedian: number | null | undefined,
+  intensityOnly: boolean,
+  onlySport: "run" | null = null
+): boolean {
   let rows: any[] = [];
   try {
     rows = db
@@ -754,6 +766,7 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
   }
   // A hand-logged shadow of a synced effort must not vote for "hard" alongside it.
   rows = withoutShadowActivities(rows);
+  if (onlySport) rows = rows.filter((r) => canonicalEnduranceSport(r.type).key === onlySport);
   if (!rows.length) return false;
   const median = loadMedian === undefined ? recentCardioLoadMedian(date) : loadMedian;
   // A RUN with heart rate is graded by the personal model, never the watch's effect,

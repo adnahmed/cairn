@@ -47,11 +47,11 @@ import { pickDayVariant } from "./brain/day-read-rules.js";
 import {
   harmEvidenceOnDay,
   LEARNED_TRAIN_WINDOW_DAYS,
-  personalBand,
   readAdherenceModel,
   trainsAnywayWithoutHarm,
   withMorningReadiness,
 } from "./brain/read-adherence.js";
+import { nightPastBand, overnightBrakes, personalBand } from "./overnight-band.js";
 import { RECOVERY_BASELINE_MAX_POINTS } from "./baseline-bands.js";
 import { getCheckinByDate, getRecoverySummary } from "./coach.js";
 import { acuteGates, strengthLegLoad } from "./hybrid-load.js";
@@ -61,7 +61,7 @@ import { LOW_READINESS, readsRestGradeReadiness, SUPPORTIVE_READINESS } from "./
 import { SHORT_NIGHT_MIN } from "./recovery-science.js";
 import { recoveryTrendBars } from "./recovery-trend.js";
 import { runDaySteer, runDaySteerKey } from "./run-day-steer.js";
-import { isLastNight, isReadDayReadiness, SENSOR_MAX_AGE_DAYS } from "./sensor-freshness.js";
+import { isLastNight, isReadDayReadiness, SENSOR_MAX_AGE_DAYS, sensorIsCurrent } from "./sensor-freshness.js";
 import { addDaysISO } from "./shared.js";
 import { injuryClosuresOn } from "./injury-symptom-link.js";
 import { activeRelevantTrainingSymptoms, activeSystemicTrainingSymptoms } from "./training-symptoms.js";
@@ -210,11 +210,14 @@ function positive(value: unknown): number | null {
 }
 
 // Last night's HRV and resting HR against the athlete's OWN nights before it — the
-// same line the harm arms charge a bad morning against (personalBand in
-// read-adherence.ts: their mean less/plus one of their own standard deviations, never
-// narrower than recoveryTrendBars). Below the line brakes; at or above their own mean
-// supports; between the two is neutral. Only the night dated the read day speaks (the
-// one-night law).
+// same band and the same meaningful-miss rule the harm arms charge a bad morning with
+// (overnight-band.ts: their mean less/plus one of their own standard deviations, never
+// narrower than recoveryTrendBars). A night past the line by the smallest worthwhile
+// change brakes, and so does a marginal one the reading before it corroborates (two
+// consecutive readings past the line); a lone marginal night is a caveat and reads
+// neutral. At or above their own mean supports; between is neutral. Only the night
+// dated the read day speaks (the one-night law) — the reading before it can only
+// corroborate it, never brake the morning alone.
 //
 // Both sides read the recovery summary's VERIFIED series (coach.ts READING_TRUST): only
 // a verified reading may open a caution, and a contradicted one — the provisional
@@ -224,7 +227,6 @@ function lastNightOwnBand(
   date: string,
   rec: any
 ): { hrv: "below" | "usual" | null; rhr: "above" | "usual" | null; tonight: boolean } {
-  const from = addDaysISO(date, -(OWN_BAND_NIGHTS + SENSOR_MAX_AGE_DAYS.hrv));
   const read = (field: "hrv_ms" | "resting_hr") => {
     const byDate = new Map<string, number>();
     for (const reading of Array.isArray(rec?.verified?.[field]?.readings) ? rec.verified[field].readings : []) {
@@ -233,18 +235,37 @@ function lastNightOwnBand(
       if (!day || value == null || byDate.has(day)) continue;
       byDate.set(day, value);
     }
-    const prior = [...byDate.entries()].filter(([day]) => day < date && (!from || day >= from)).map(([, v]) => v);
-    return { tonight: byDate.get(date) ?? null, band: personalBand(prior, field) };
+    // The band as it stood on `at`'s morning: the readings in its own window before it.
+    const bandAt = (at: string) => {
+      const atFrom = addDaysISO(at, -(OWN_BAND_NIGHTS + SENSOR_MAX_AGE_DAYS.hrv));
+      return personalBand(
+        [...byDate.entries()].filter(([day]) => day < at && (!atFrom || day >= atFrom)).map(([, v]) => v),
+        field
+      );
+    };
+    const band = bandAt(date);
+    const tonight = byDate.get(date) ?? null;
+    // The newest earlier verified reading still current for this morning, judged against
+    // the band as it stood on its own morning.
+    const signal = field === "hrv_ms" ? "hrv" : "resting_hr";
+    const previous = [...byDate.entries()]
+      .filter(([day]) => day < date && sensorIsCurrent(signal, day, date))
+      .sort(([a], [b]) => (a < b ? 1 : -1))[0];
+    const brakes = overnightBrakes(
+      nightPastBand(tonight, band, field),
+      previous ? nightPastBand(previous[1], bandAt(previous[0]), field) : null
+    );
+    return { tonight, band, brakes };
   };
   const hrvRead = read("hrv_ms");
   const rhrRead = read("resting_hr");
   let hrv: "below" | "usual" | null = null;
   if (hrvRead.tonight != null && hrvRead.band) {
-    hrv = hrvRead.tonight < hrvRead.band.line ? "below" : hrvRead.tonight >= hrvRead.band.mean ? "usual" : null;
+    hrv = hrvRead.brakes ? "below" : hrvRead.tonight >= hrvRead.band.mean ? "usual" : null;
   }
   let rhr: "above" | "usual" | null = null;
   if (rhrRead.tonight != null && rhrRead.band) {
-    rhr = rhrRead.tonight > rhrRead.band.line ? "above" : rhrRead.tonight <= rhrRead.band.mean ? "usual" : null;
+    rhr = rhrRead.brakes ? "above" : rhrRead.tonight <= rhrRead.band.mean ? "usual" : null;
   }
   return { hrv, rhr, tonight: hrvRead.tonight != null || rhrRead.tonight != null };
 }
@@ -802,8 +823,7 @@ export const RUN_DAY_REST_FLOOR_VARIANTS: readonly Say[] = [
     `${cap(cause)} — no run today; an easy walk if you'd like to move, and ${session} will keep.`,
   (cause, day, session) =>
     `${cap(cause)}, so there's no run ${day} — gentle movement only if it feels good; ${session} can wait.`,
-  (cause, _day, session) =>
-    `${cap(cause)} — no running today, an easy walk at most; ${session} will keep.`,
+  (cause, _day, session) => `${cap(cause)} — no running today, an easy walk at most; ${session} will keep.`,
 ];
 export const RUN_DAY_LONG_SHORTEN_VARIANTS: readonly Say[] = [
   (cause) => `${cap(cause)} — keep the long run, but shorter and fully easy today.`,
