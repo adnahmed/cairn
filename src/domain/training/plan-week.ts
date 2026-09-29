@@ -89,6 +89,13 @@ export interface PlanWeekDay {
   session: PlanWeekSession | null;
   run: PlanWeekRun | null;
   hard: boolean;
+  /**
+   * TODAY's cell only: the day read's suggestion, carried from the one strength line
+   * so the strip and the Brief say the same thing about one day ("Pull · lighter
+   * today"). A caveat on the plan day, never a replacement title; absent once the day
+   * is logged, and on every other cell.
+   */
+  suggestion?: { kind: "easy" | "rest"; label: string; caveat: string | null };
 }
 
 export interface PlanWeek {
@@ -613,6 +620,33 @@ export function planWeek(date?: string): PlanWeek {
           ? "Your training week in plan order — say which weekdays you lift and the strip will sit on the calendar."
           : null;
 
+  const strengthLine = (() => {
+    try {
+      return todayStrengthLine(asOf);
+    } catch {
+      return null;
+    }
+  })();
+  // One day, one voice: the cell that IS today carries the line's own suggestion. The
+  // line has already decided whether one applies (a lift not yet logged, a quiet read).
+  if (strengthLine?.suggestion && strengthLine.suggestion_label) {
+    const todayCell = days.find(
+      (cell) =>
+        cell.status === "today" &&
+        (cell.date === asOf ||
+          (cell.date == null &&
+            cell.plan_day?.day_number != null &&
+            cell.plan_day.day_number === strengthLine.day_number))
+    );
+    if (todayCell) {
+      todayCell.suggestion = {
+        kind: strengthLine.suggestion,
+        label: strengthLine.suggestion_label,
+        caveat: strengthLine.caveat,
+      };
+    }
+  }
+
   return {
     as_of: asOf,
     week_start: weekStart,
@@ -624,12 +658,6 @@ export function planWeek(date?: string): PlanWeek {
       suggestion: layoutRead?.suggestion ?? null,
     },
     schedule,
-    strength_line: (() => {
-      try {
-        return todayStrengthLine(asOf);
-      } catch {
-        return null;
-      }
-    })(),
+    strength_line: strengthLine,
   };
 }

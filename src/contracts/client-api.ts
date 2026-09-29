@@ -745,6 +745,8 @@ export interface ClientPlanWeekDay {
   session: ClientPlanWeekSession | null;
   run: ClientPlanWeekRun | null;
   hard: boolean;
+  /** Today's cell only: the day read's suggestion, from the one strength line. */
+  suggestion?: { kind: "easy" | "rest"; label: string; caveat: string | null };
 }
 
 /**
@@ -762,6 +764,8 @@ export interface ClientTodayStrengthLine {
   state: "not_started" | "in_progress" | "logged" | "rest_day" | "no_lift" | "none";
   /** A rest/easy read, carried as a caveat on the plan day — never a replacement title. */
   suggestion: "easy" | "rest" | null;
+  /** The suggestion in a few words beside the name ("lighter today"). */
+  suggestion_label?: string | null;
   caveat: string | null;
   run_in: { km: number | null } | null;
   reshaped: boolean;
