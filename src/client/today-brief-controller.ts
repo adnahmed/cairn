@@ -121,6 +121,27 @@ type TodayBriefControllerDeps = {
     return CairnTodayBrief.provisionalRead();
   }
 
+  // The one /today-read fetch: a failed or malformed answer becomes a terminal
+  // placeholder (`_failed`), and a real canonical read is remembered for the next
+  // open's instant paint.
+  async function fetchDayRead(
+    date: string,
+    override: string,
+    deps: TodayBriefControllerDeps,
+  ): Promise<TodayBriefControllerDayRead> {
+    let read: TodayBriefControllerDayRead | null = null;
+    try {
+      const qs = new URLSearchParams({ date, agent: "auto" });
+      if (override) qs.set("override", override);
+      read = await deps.api("/today-read?" + qs.toString()) as TodayBriefControllerDayRead;
+    } catch {
+      read = null;
+    }
+    if (!read || !read.kind) read = { ...provisionalRead(date), _failed: true };
+    persistCachedBrief(date, override || "", read);
+    return read;
+  }
+
   async function loadBrief(
     date: string,
     override: string,
@@ -136,19 +157,7 @@ type TodayBriefControllerDeps = {
       cached && cached.date === date && cached.override === (override || "") && !cached.read._provisional
         ? cached.read
         : null;
-    const fetchRead: Promise<TodayBriefControllerDayRead> = (async () => {
-      let read: TodayBriefControllerDayRead | null = null;
-      try {
-        const qs = new URLSearchParams({ date, agent: "auto" });
-        if (override) qs.set("override", override);
-        read = await deps.api("/today-read?" + qs.toString()) as TodayBriefControllerDayRead;
-      } catch {
-        read = null;
-      }
-      if (!read || !read.kind) read = { ...provisionalRead(date), _failed: true };
-      persistCachedBrief(date, override || "", read);
-      return read;
-    })();
+    const fetchRead = fetchDayRead(date, override, deps);
 
     if (opts.fast) {
       // Instant truth: if we've seen today's REAL read before (and there's no
@@ -283,15 +292,46 @@ type TodayBriefControllerDeps = {
       live.classList.remove("is-thinking");
       return;
     }
-    fresh.classList.add(deps.reducedMotion() ? "" : "brief-settle");
+    // (An empty token throws in a real DOMTokenList — reduced motion adds nothing.)
+    if (!deps.reducedMotion()) fresh.classList.add("brief-settle");
     // The fuel glance lives INSIDE the Brief: carry it across the swap.
     const carry = (globalThis as { CairnTodayMainShell?: Window["CairnTodayMainShell"] }).CairnTodayMainShell?.carryBriefSlots?.(live);
+    // So does the check-in: the SAME node (its marks, its listeners, the finger on
+    // it) moves into the new Brief whenever the new read still asks it, instead of
+    // being torn down and re-asked a round trip later.
+    const checkin = live.querySelector("#checkinSlot");
+    const checkinHome = fresh.querySelector("#checkinSlot");
     live.replaceWith(fresh);
     carry?.(fresh);
+    const carriedCheckin = !!(checkin && checkinHome && checkin.innerHTML);
+    if (carriedCheckin) checkinHome!.replaceWith(checkin!);
     wireBrief(read, { isToday }, deps);
-    remountCheckin();
+    if (!carriedCheckin) remountCheckin();
     deps.runCountUps(fresh);
     if (showPlan) deps.loadTrainingProvenance(isToday);
+  }
+
+  // A small signal just landed (a check-in tap): reconcile the Brief IN PLACE rather
+  // than rebuilding Today. The painted read is treated as a cached one, so the fresh
+  // /today-read either confirms it (nothing moves but the stamp), rewrites only the
+  // Brief (a settle, with the check-in node carried across), or — when the kind of
+  // day itself changed — earns one quiet soft repaint. An active steer is left alone:
+  // re-asking its override would recompute the reshape, and dropping it would undo
+  // what the athlete asked for; the check-in reaches the next canonical read.
+  async function refreshBriefInPlace(deps: TodayBriefControllerDeps): Promise<void> {
+    if (deps.state.tab !== "today") return;
+    const date = deps.state.logDate;
+    const current = deps.state.brief && deps.state.brief.date === date ? deps.state.brief : null;
+    if (current?.override) return;
+    const briefEl = deps.root.querySelector(".brief");
+    if (!current || !briefEl || current.read._provisional) {
+      await deps.renderToday({ soft: true });
+      return;
+    }
+    const isToday = date === deps.localISO();
+    deps.state.brief = { date, override: "", read: { ...current.read, _cached: true } };
+    deps.state._briefInflight = { date, override: "", promise: fetchDayRead(date, "", deps) };
+    await upgradeBriefInPlace(date, isToday, deps);
   }
 
   async function reshapeToday(deps: TodayBriefControllerDeps): Promise<void> {
@@ -397,6 +437,7 @@ type TodayBriefControllerDeps = {
     paintBriefReshaping,
     provisionalRead,
     reconnectDayReadOverride,
+    refreshBriefInPlace,
     reshapeToday,
     upgradeBriefInPlace,
     wireBrief,

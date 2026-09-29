@@ -178,9 +178,11 @@ function fmtK(n: unknown): string {
 }
 
 function runCountUps(scope?: ParentNode | null, { snap = false }: UiFeedbackSnapOptions = {}): void {
+  // A card re-written unchanged over Today's slot hold shows its value, not a recount.
+  const quiet = (globalThis as { CairnTodaySlotHold?: { quiet?(el: Element): boolean } }).CairnTodaySlotHold?.quiet;
   (scope || view).querySelectorAll<HTMLElement>("[data-cu]").forEach((el) => {
     const fmt = el.dataset.cufmt === "k" ? fmtK : (x: number) => Math.round(x).toLocaleString();
-    if (snap) {
+    if (snap || quiet?.(el)) {
       el.textContent = fmt(Number(el.dataset.cu) || 0);
       return;
     }

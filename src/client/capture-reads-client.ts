@@ -79,7 +79,7 @@ function captureWeekWinsItems(
 function captureWeekWinsHtml(items: string[]): string {
   if (!items.length) return "";
   const rows = items.map((item) => `<li class="weekly-wins-item">${item}</li>`).join("");
-  return `<div class="weekly-wins">
+  return `<div class="weekly-wins" data-late>
       <span class="weekly-wins-lbl lbl">This week's wins</span>
       <ul class="weekly-wins-list">${rows}</ul>
     </div>`;

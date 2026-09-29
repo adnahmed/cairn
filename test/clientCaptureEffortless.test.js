@@ -171,8 +171,9 @@ test("tapping the word-scales writes energy, sleep and soreness through the exis
   assert.equal(calls[0][0], "/checkins");
   assert.equal(calls[0][1].method, "POST");
   // Each tap sends everything answered so far; the last carries all three fields.
-  assert.deepEqual(JSON.parse(calls[0][1].body), { energy: 4 });
-  assert.deepEqual(JSON.parse(calls[2][1].body), { energy: 4, sleep_feel: 5, soreness: 2 });
+  // Dated to the morning asked, so a replay never lands on another day.
+  assert.deepEqual(JSON.parse(calls[0][1].body), { date: "2026-08-24", energy: 4 });
+  assert.deepEqual(JSON.parse(calls[2][1].body), { date: "2026-08-24", energy: 4, sleep_feel: 5, soreness: 2 });
 });
 
 // A slot whose innerHTML write really replaces its children: `.feel-dot` lookups
@@ -253,7 +254,7 @@ test("one tap does not collapse the check-in — the other scales stay askable",
   await dots[2]._listeners.click();
 
   assert.equal(posts.length, 3);
-  assert.deepEqual(posts[2], { energy: 4, sleep_feel: 5, soreness: 2 });
+  assert.deepEqual(posts[2], { date: "2026-08-24", energy: 4, sleep_feel: 5, soreness: 2 });
   assert.match(slot.innerHTML, /feeling good · slept deeply · a little sore/, "all three answered ends in the sentence");
   assert.doesNotMatch(slot.innerHTML, /data-feel/, "and only then does it stop asking");
 });
@@ -358,4 +359,154 @@ test("Today post-render wiring surfaces the check-in and tag chips (frequents li
   context.CairnTodayPostRenderWiring.wirePostRender(deps);
 
   assert.deepEqual(calls, ["loadCheckin", "loadTagChips"]);
+});
+
+// ---------- the check-in answers in the same frame and never rebuilds Today ----------
+
+test("check-in taps never rebuild Today: no reshapeToday, the Brief is reconciled in place once", async () => {
+  const dots = [
+    elementStub({ dataset: { feel: "energy", val: "4" } }),
+    elementStub({ dataset: { feel: "sleep_feel", val: "2" } }),
+    elementStub({ dataset: { feel: "soreness", val: "1" } }),
+  ];
+  const slot = checkinSlotStub(dots);
+  const posts = [];
+  let reshapes = 0;
+  const refreshes = [];
+  const timers = [];
+  const capture = loadCapture({
+    view: { querySelector: (sel) => (sel === "#checkinSlot" ? slot : null) },
+    toast: () => {},
+    reshapeToday: async () => { reshapes += 1; },
+    refreshTodayBrief: async () => { refreshes.push(true); },
+    setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
+    clearTimeout: () => {},
+    api: async (_path, opts) => {
+      if (!opts) return null;
+      posts.push(JSON.parse(opts.body));
+      return { ...JSON.parse(opts.body), error: false };
+    },
+  });
+  await capture.loadCheckin();
+  // Three taps in the same moment, none awaited — the athlete's thumb, not a test loop.
+  const saves = dots.map((dot) => dot._listeners.click());
+  assert.match(slot.innerHTML, /feeling good · slept rough · nothing sore/, "folds into the sentence at once");
+  await Promise.all(saves);
+
+  assert.equal(reshapes, 0, "a tap never rebuilds Today");
+  assert.ok(posts.length <= 2, "taps landing while a save is out fold into the next save");
+  assert.deepEqual(
+    posts.at(-1),
+    { date: "2026-08-24", energy: 4, sleep_feel: 2, soreness: 1 },
+    "the last save carries the whole answer, dated to the day it was asked"
+  );
+  const refresh = timers.find((t) => t.ms < 1000);
+  assert.ok(refresh, "the Brief refresh is scheduled a beat after the answer settles");
+  refresh.fn();
+  assert.equal(refreshes.length, 1, "and it is the in-place Brief refresh");
+});
+
+test("a check-in on a dead connection queues in the outbox; a refusal puts the marks back", async () => {
+  const dots = [elementStub({ dataset: { feel: "energy", val: "2" } })];
+  const slot = checkinSlotStub(dots);
+  const queued = [];
+  const toasts = [];
+  const capture = loadCapture({
+    view: { querySelector: (sel) => (sel === "#checkinSlot" ? slot : null) },
+    toast: (m) => toasts.push(m),
+    CairnApiCache: { isTransientApiFailure: (e) => e && e.kind === "network" },
+    outboxEnqueue: async (kind, path, body) => { queued.push({ kind, path, body }); return { id: "q1" }; },
+    api: async (_path, opts) => {
+      if (!opts) return null;
+      throw { kind: "network" };
+    },
+  });
+  await capture.loadCheckin();
+  await dots[0]._listeners.click();
+  assert.deepEqual(JSON.parse(JSON.stringify(queued)), [{ kind: "checkin", path: "/checkins", body: { date: "2026-08-24", energy: 2 } }]);
+  assert.match(slot.innerHTML, /low energy/, "the answer stands on screen — it syncs on reconnect");
+  assert.deepEqual(toasts, []);
+
+  const refusedDots = [elementStub({ dataset: { feel: "energy", val: "5" } })];
+  const refusedSlot = checkinSlotStub(refusedDots);
+  const refused = loadCapture({
+    view: { querySelector: (sel) => (sel === "#checkinSlot" ? refusedSlot : null) },
+    toast: (m) => toasts.push(m),
+    CairnApiCache: { isTransientApiFailure: () => false },
+    api: async (_path, opts) => {
+      if (!opts) return null;
+      throw { kind: "http", status: 400 };
+    },
+  });
+  await refused.loadCheckin();
+  await refusedDots[0]._listeners.click();
+  assert.deepEqual(toasts, ["Couldn't save that — try again."]);
+  assert.doesNotMatch(refusedSlot.innerHTML, /feeling strong/, "the unsaved word is taken back");
+});
+
+test("the check-in line paints in the Brief's own frame from what this device last knew today", async () => {
+  const slot = checkinSlotStub([]);
+  const store = new Map([["cairn.checkin.paint.v1", JSON.stringify({ iso: "2026-08-24", answered: { energy: 4, sleep_feel: 4, soreness: 1 } })]]);
+  let answer;
+  const capture = loadCapture({
+    view: { querySelector: (sel) => (sel === "#checkinSlot" ? slot : null) },
+    localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
+    api: () => new Promise((resolve) => { answer = resolve; }),
+  });
+  const loading = capture.loadCheckin();
+  assert.match(slot.innerHTML, /feeling good · slept well · nothing sore/, "painted before the read returns — no pop-in below the Brief");
+  answer({ energy: 4, sleep_feel: 4, soreness: 1 });
+  await loading;
+  assert.match(slot.innerHTML, /feeling good · slept well · nothing sore/);
+
+  // Yesterday's memo never paints on today's Brief.
+  const stale = checkinSlotStub([]);
+  const old = loadCapture({
+    view: { querySelector: (sel) => (sel === "#checkinSlot" ? stale : null) },
+    localStorage: { getItem: () => JSON.stringify({ iso: "2026-08-23", answered: { energy: 1 } }), setItem: () => {} },
+    api: () => new Promise(() => {}),
+  });
+  void old.loadCheckin();
+  assert.equal(stale.innerHTML, "");
+});
+
+test("a context tag chip flips in the same frame; the server settles it, a failure flips it back", async () => {
+  const names = new Set();
+  const attrs = {};
+  const chip = {
+    dataset: { tag: "travel" },
+    classList: {
+      contains: (n) => names.has(n),
+      toggle: (n, on) => (on ? names.add(n) : names.delete(n)),
+    },
+    setAttribute: (k, v) => { attrs[k] = v; },
+    addEventListener(_type, handler) { this.onclick = handler; },
+  };
+  const slot = elementStub({ querySelectorAll: (sel) => (sel === "[data-tag]" ? [chip] : []) });
+  let answer;
+  const toasts = [];
+  const capture = loadCapture({
+    view: { querySelector: (sel) => (sel === "#tagsSlot" ? slot : null) },
+    toast: (m) => toasts.push(m),
+    api: (path) =>
+      path === "/context-tags/vocab"
+        ? Promise.resolve([{ key: "travel", label: "travel" }])
+        : path.startsWith("/context-tags?")
+          ? Promise.resolve([])
+          : new Promise((resolve, reject) => { answer = { resolve, reject }; }),
+  });
+  await capture.loadTagChips();
+  const pending = chip.onclick();
+  assert.equal(names.has("tag-chip-on"), true, "on at once, before the network answers");
+  assert.equal(attrs["aria-pressed"], "true");
+  answer.resolve({ on: true });
+  await pending;
+  assert.equal(names.has("tag-chip-on"), true);
+
+  const again = chip.onclick();
+  assert.equal(names.has("tag-chip-on"), false, "off at once");
+  answer.reject(new Error("offline"));
+  await again;
+  assert.equal(names.has("tag-chip-on"), true, "a failed toggle flips back");
+  assert.deepEqual(toasts, ["Couldn't save that — try again."]);
 });

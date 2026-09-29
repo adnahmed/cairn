@@ -734,6 +734,7 @@ declare global {
     ): Promise<ClientDayRead & { _provisional?: boolean; _failed?: boolean; override?: string | null }>;
     upgradeBriefInPlace(date: string, isToday: boolean): Promise<void>;
     reshapeToday(): Promise<void>;
+    refreshBriefInPlace(): Promise<void>;
     briefHtml(
       read:
         | (Partial<ClientDayRead> & { _provisional?: unknown; _failed?: unknown; override?: unknown })
@@ -1841,6 +1842,7 @@ declare global {
   declare function hybridLoadCardHtml(hybrid: ClientProgramState["hybrid"], idx?: number): string;
   declare const HR_ZONE_COLORS: string[] | undefined;
   declare function reshapeToday(): Promise<void>;
+  declare function refreshTodayBrief(): Promise<void>;
   declare function setDiscipline(discipline: unknown): string;
   declare function setEnduranceGoalSet(present: unknown): boolean;
   declare function defaultProgressSeg(): string;
@@ -4830,6 +4832,8 @@ declare global {
       ): Promise<ClientDayRead & { _provisional?: boolean; _failed?: boolean; override?: string | null }>;
       upgradeBriefInPlace(date: string, isToday: boolean, deps: ClientTodayBriefControllerDeps): Promise<void>;
       reshapeToday(deps: ClientTodayBriefControllerDeps): Promise<void>;
+      /** Reconcile the Brief in place after a small signal (a check-in tap). */
+      refreshBriefInPlace(deps: ClientTodayBriefControllerDeps): Promise<void>;
       briefHtml(
         read:
           | (Partial<ClientDayRead> & { _provisional?: unknown; _failed?: unknown; override?: unknown })

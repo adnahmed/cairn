@@ -88,6 +88,15 @@ body.resting .savebar{bottom:calc(114px + max(env(safe-area-inset-bottom),6px) +
    tab reads without relying on the terracotta tint alone (colour-blind safe). */
 .tab.active .tab-lbl{font-weight:650}
 .brand{display:none}
+/* Keyboard up on any surface (html.kb-up, app/mobile-viewport.ts): the bar steps
+   away while typing instead of riding up on the keyboard (bottom:var(--vvb) IS the
+   keyboard's height then) and sitting over the composer — the standard iOS
+   behavior Ask already had (Ask keeps its own slide-away, so it is left out). A
+   save bar docks on the keyboard in its place. */
+html.kb-up body:not(.chat-mode) .tabbar{transform:translateY(110%);visibility:hidden;pointer-events:none;transition:none}
+html.kb-up .savebar{bottom:calc(8px + var(--vvb,0px))}
+/* the composer brought into view above the keyboard keeps a breath under it */
+html.kb-up :is(.fuel-log-composer,.chatbar,[data-composer]){scroll-margin-bottom:12px}
 
 /* -------------------------------------------------------------------
    25 · Global hover polish

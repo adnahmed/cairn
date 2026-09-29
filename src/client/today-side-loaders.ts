@@ -182,6 +182,10 @@ type TodaySideComposite = Record<string, unknown>;
   }
 
   // Today: slim Garmin wearable strip under the compass.
+  function holdFailed(slot: Element): void {
+    (globalThis as { CairnTodaySlotHold?: { settleFailed(slot: Element): void } }).CairnTodaySlotHold?.settleFailed(slot);
+  }
+
   async function loadWearable(isToday: unknown, deps: TodaySideLoaderDeps): Promise<void> {
     const slot = deps.root.querySelector<HTMLElement>("#wearStrip");
     if (!slot || !isToday) return;
@@ -190,14 +194,16 @@ type TodaySideComposite = Record<string, unknown>;
     void loadRecoveryBands(deps);
     let rows: unknown = await sideValue(deps, "garmin_daily");
     if (rows === undefined) {
-      try { rows = await deps.api("/garmin/daily?limit=1"); } catch { return; }
+      // A failed read settles a held copy at once (today-slot-hold.ts), never 10 s later.
+      try { rows = await deps.api("/garmin/daily?limit=1"); } catch { holdFailed(slot); return; }
     }
     if (!isCurrentToday(deps) || !slot.isConnected) return;
     const m = Array.isArray(rows) ? rows[0] as Record<string, unknown> : null;
-    if (!m || !m.date) return;
+    // Nothing to show is an answer: the slot is written empty (a held copy clears now).
+    if (!m || !m.date) { slot.innerHTML = ""; return; }
     const yest = new Date();
     yest.setDate(yest.getDate() - 1);
-    if (m.date !== deps.localISO() && m.date !== deps.localISO(yest)) return;
+    if (m.date !== deps.localISO() && m.date !== deps.localISO(yest)) { slot.innerHTML = ""; return; }
     const cells: string[] = [];
     if (m.steps != null) {
       cells.push(`<span class="wear-cell"><span class="wear-n numeral" data-cu="${Number(m.steps) || 0}" data-cufmt="k">0</span><span class="wear-l lbl">steps</span></span>`);
@@ -218,7 +224,7 @@ type TodaySideComposite = Record<string, unknown>;
     if (m.body_battery_avg != null && cells.length < 4) {
       cells.push(`<span class="wear-cell"><span class="wear-n numeral" data-cu="${Math.round(Number(m.body_battery_avg)) || 0}">0</span><span class="wear-l lbl">battery</span></span>`);
     }
-    if (!cells.length) return;
+    if (!cells.length) { slot.innerHTML = ""; return; }
     slot.innerHTML = `<div class="wearstrip reveal" style="${deps.stagger(0)}">
       <span class="wear-kicker lbl">Garmin${m.date !== deps.localISO() ? " · yest" : ""}</span>
       ${cells.join("")}

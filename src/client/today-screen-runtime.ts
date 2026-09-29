@@ -83,6 +83,7 @@ type TodayScreenRuntimeContext = {
   loadBrief(date: string, override: string, opts?: { fast?: boolean }): Promise<TodayScreenRuntimeDayRead>;
   upgradeBriefInPlace(date: string, isToday: boolean): Promise<void>;
   reshapeToday(): Promise<void>;
+  refreshBriefInPlace(): Promise<void>;
   briefHtml(
     read: (Partial<TodayScreenRuntimeDayRead> & { _provisional?: unknown; override?: unknown }) | null | undefined,
     options: { showPlan?: unknown; showDone?: unknown; isToday?: unknown; nothingToStart?: unknown },
@@ -247,6 +248,10 @@ function createTodayScreenRuntime(input: TodayScreenRuntimeInput): TodayScreenRu
     await CairnTodayBriefController.reshapeToday(bridge().briefDeps());
   }
 
+  async function refreshBriefInPlace() {
+    await CairnTodayBriefController.refreshBriefInPlace(bridge().briefDeps());
+  }
+
   function briefHtml(
     read: (Partial<TodayScreenRuntimeDayRead> & { _provisional?: unknown; override?: unknown }) | null | undefined,
     options: { showPlan?: unknown; showDone?: unknown; isToday?: unknown; nothingToStart?: unknown },
@@ -300,6 +305,7 @@ function createTodayScreenRuntime(input: TodayScreenRuntimeInput): TodayScreenRu
     loadBrief,
     upgradeBriefInPlace,
     reshapeToday,
+    refreshBriefInPlace,
     briefHtml,
     briefSignalsText,
     revealPlanThen,

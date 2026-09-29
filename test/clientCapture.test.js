@@ -23,6 +23,7 @@ function loadCapture() {
     Math,
     isNaN,
     localStorage: { getItem: () => null, setItem: () => {} },
+    localISO: () => "2026-09-29",
     window: {},
     escHtml,
     escAttr: (v) => escHtml(v).replace(/"/g, "&quot;"),
@@ -95,6 +96,11 @@ test("weight capture only enqueues transient failures", async () => {
   assert.equal(input.value, "181.5", "the rejected weight remains editable");
   assert.equal(queued.length, 0);
   assert.deepEqual(toasts, ["Couldn't log that — try again."]);
+  // A transient failure queues the weigh-in WITH its day, so a replay after midnight
+  // never files it on the next one.
+  capture.api = async () => { throw new Error("offline"); };
+  await saveWeight();
+  assert.deepEqual(JSON.parse(JSON.stringify(queued.at(-1))), ["weight", "/bodyweight", { weight_lb: 181.5, date: "2026-09-29" }]);
 });
 
 test("bodyweight quick-add updates both the always-reachable chip and folded tile", async () => {

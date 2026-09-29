@@ -147,6 +147,8 @@ const PERSISTED_KEYS = {
   "cairn.turnwatch.v1": ["write-invalidation-client"],
   "cairn.train.v1": ["progress-overview-snapshot-client"],
   "cairn.checkin.dismissed.v1": ["capture"],
+  // The Brief's check-in line as it last stood today, painted in the Brief's own frame (v2 wave 7).
+  "cairn.checkin.paint.v1": ["capture"],
   "cairn.diagnostics.v1": ["client-diagnostics"],
   "cairn.records.evw": ["evidence-wanted-controller"],
   "cairn.records.group": ["records-search-controller"],

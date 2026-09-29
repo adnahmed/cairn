@@ -98,6 +98,7 @@ const {
   invalidateTodayProgression: _invalidateTodayProgression,
   loadBrief,
   reshapeToday: todayRuntimeReshapeToday,
+  refreshBriefInPlace: todayRuntimeRefreshBriefInPlace,
   briefHtml,
 } = todayRuntime;
 
@@ -115,6 +116,11 @@ function reconnectDayReadOverride(job?: unknown): unknown {
 
 async function reshapeToday(): Promise<void> {
   await todayRuntimeReshapeToday();
+}
+
+// A small signal (a check-in tap) reconciles the Brief in place — never a rebuild.
+async function refreshTodayBrief(): Promise<void> {
+  await todayRuntimeRefreshBriefInPlace();
 }
 
 // ---------- sync trust: a quiet freshness line where a runner needs the mileage ----------
@@ -157,6 +163,10 @@ function todayRailDeps() {
 // settles on the true content, so this is purely an earlier, best-effort paint —
 // never a substitute for it.
 const TODAY_PLAN_SNAP_KEY = "cairn.today.plan.v2";
+// Reached at call time (today-slot-hold.ts loads earlier in the same bundle).
+function todaySlotHold(): TodaySlotHoldApi | undefined {
+  return (globalThis as unknown as { CairnTodaySlotHold?: TodaySlotHoldApi }).CairnTodaySlotHold;
+}
 let todayPaintedRealFor: string | null = null; // date last given the REAL (non-snapshot) write this session
 
 function todaySaveSurfaceSnapshot(date: string, html: string): void {
@@ -210,9 +220,22 @@ async function renderToday(opts: any = {}) {
   // OVER a live, fresher surface — the same hazard class as the instant-paint
   // Stand/Train guards).
   const showingFreshToday = todayPaintedRealFor === enteredDate && !!todayView.querySelector(".today-wrap");
+  let paintedSnapshot = false;
+  // A Today painted for ANOTHER date (a resume across midnight, a date switch) must
+  // not stand in for this one while its data loads — that is yesterday's plan read
+  // as today's. Its date-bound content gives way to the skeleton at once.
+  const paintedWrap = todayView.querySelector(".today-wrap");
+  const paintedDate = paintedWrap?.getAttribute("data-date");
+  if (paintedWrap && paintedDate && paintedDate !== enteredDate && todayState.tab === "today") {
+    const skeleton = (globalThis as { todaySkeleton?: () => string }).todaySkeleton;
+    if (typeof skeleton === "function") todayView.innerHTML = skeleton();
+  }
   if (!opts?.soft && !showingFreshToday && todayState.tab === "today") {
     const snap = todayLoadSurfaceSnapshot(enteredDate);
-    if (snap) todayView.innerHTML = snap;
+    if (snap) {
+      todayView.innerHTML = snap;
+      paintedSnapshot = true;
+    }
   }
 
   // ---- Request order: start everything independent at once, await late ----
@@ -558,20 +581,34 @@ async function renderToday(opts: any = {}) {
   // structure + loaders in phase two once the agenda resolves.
   // The class must be on an ancestor when innerHTML mounts the cards (the CSS `rise`
   // fires on insertion); toggle() clears it on the next hard render.
-  todayView.classList.toggle("today-soft", !!soft);
+  //
+  // QUIET: this date's Today is already on screen — its real content (a resume after
+  // a few minutes away, a Brief whose day kind moved, an SWR refresh) or the
+  // snapshot this render just painted. Then the rewrite must read as the same
+  // screen settling, never as a rebuild: no entrance stagger replayed, the scroll
+  // kept, and every async slot keeps what it showed until its own loader writes it
+  // again (CairnTodaySlotHold) instead of blanking and refilling one by one.
+  const sameDateOnScreen =
+    !!todayView.querySelector(".today-wrap") && (paintedSnapshot || todayPaintedRealFor === enteredDate);
+  const quietPaint = !!soft || sameDateOnScreen;
+  todayView.classList.toggle("today-soft", quietPaint);
   const todayWrappedHtml = todayMainShell.wrapHtml(html, {
     railHtml: `<aside class="today-rail" aria-busy="true"></aside>`,
   });
+  const slotHold = sameDateOnScreen ? todaySlotHold()?.capture(todayView) ?? null : null;
   // Cold path: the data loader paints a skeleton before we get here, so this
   // capture is empty on that path by design — drafts only survive a warm repaint.
   const todayDrafts = CairnTodaySessionSetActions.captureExDrafts(todayView);
   todayView.innerHTML = todayWrappedHtml;
-  if (soft) {
+  todayView.querySelector(".today-wrap")?.setAttribute("data-date", enteredDate);
+  if (slotHold) todaySlotHold()?.apply(todayView, slotHold, { rail: true });
+  if (quietPaint) {
     try {
       window.scrollTo(0, prevY);
     } catch {}
   }
-  // Snapshot this REAL write for next entry's instant paint (see above).
+  // Snapshot this REAL write for next entry's instant paint (see above); the
+  // hydrated surface replaces it once phase two has settled (saveHydratedSnapshot).
   todayPaintedRealFor = enteredDate;
   todaySaveSurfaceSnapshot(enteredDate, todayWrappedHtml);
 
@@ -606,7 +643,7 @@ async function renderToday(opts: any = {}) {
       read,
       isToday,
       showPlan,
-      soft,
+      soft: quietPaint,
       conductorLeads: true,
       deferRail: true,
       agenda: null,
@@ -669,6 +706,10 @@ async function renderToday(opts: any = {}) {
     railEl.outerHTML = railAgenda
       ? CairnTodayRailController.railHtml(railAgenda, agendaGeneric)
       : CairnTodayRailController.fallbackRailHtml(isToday);
+    // The rail's cards keep what they showed until their loaders answer (see the
+    // quiet write above) — the same hold, now for the slots the new rail brings.
+    const liveRail = todayView.querySelector(".today-rail");
+    if (slotHold && liveRail) todaySlotHold()?.apply(liveRail, slotHold);
     // The LEAD arbitration (read.attention, server-owned): move whichever surface
     // earned today's position of prominence out of the rail and into the main
     // column BEFORE the loaders run, so each loader still finds its slot by id
@@ -679,6 +720,61 @@ async function renderToday(opts: any = {}) {
     else CairnTodayRailController.runFallbackRail(isToday, todayRailDeps());
   }
   CairnTodayWorth.mountInstallRow(todayView); // the install note, first row of "Worth a look"
+  saveHydratedSnapshot(renderedDate, railToken);
+}
+
+// The next entry's instant paint should be the screen as the athlete last SAW it —
+// Brief, check-in line, rail cards and all — not the bare frame the first write
+// carries, or every entry would paint the frame and then visibly fill in. Saved once
+// the async slots have had a moment to land, and only from a settled surface (no
+// held slot, no Brief mid-upgrade) of the render that is still current. A tap that
+// settles in place (a fueling read, a check-in, a tag, a weekly read waved off)
+// re-saves it shortly after, and a click outside Today (the tab bar, leaving it) or
+// the page going to the background first saves what is on screen — so coming back never
+// paints the question that was already answered. Nodes marked `data-ephemeral` (a
+// one-off acknowledgement) are left out.
+const TODAY_SNAPSHOT_SETTLE_MS = 1500;
+const TODAY_SNAPSHOT_TAP_MS = 900;
+let todaySnapshotFor: { date: string; token: number } | null = null;
+let todaySnapshotTimer: ReturnType<typeof setTimeout> | null = null;
+function saveHydratedNow(): void {
+  if (todaySnapshotTimer) clearTimeout(todaySnapshotTimer);
+  todaySnapshotTimer = null;
+  const at = todaySnapshotFor;
+  if (!at || todayState.tab !== "today" || todayState.logDate !== at.date || pollToken !== at.token) return;
+  if (!todayView.querySelector(".today-wrap")) return;
+  if (todayView.querySelector("[data-held], .brief.is-thinking, .skel, [class*='skel']")) return;
+  const copy = todayView.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll("[data-ephemeral]").forEach((el) => el.remove());
+  todaySaveSurfaceSnapshot(at.date, copy.innerHTML);
+}
+function scheduleHydratedSave(ms: number): void {
+  if (typeof setTimeout !== "function") return;
+  if (todaySnapshotTimer) clearTimeout(todaySnapshotTimer);
+  todaySnapshotTimer = setTimeout(saveHydratedNow, ms);
+}
+let todaySnapshotWatch = false;
+function saveHydratedSnapshot(date: string, token: number): void {
+  todaySnapshotFor = { date, token };
+  scheduleHydratedSave(TODAY_SNAPSHOT_SETTLE_MS);
+  if (todaySnapshotWatch || typeof document === "undefined" || typeof document.addEventListener !== "function") return;
+  todaySnapshotWatch = true;
+  document.addEventListener(
+    "click",
+    (e: Event) => {
+      if (todayState.tab !== "today") return;
+      const target = e.target as Element | null;
+      // Outside Today (the tab bar): it may be leaving — save first. Inside, never on
+      // the tap's own path: a button tap just (re)schedules the save.
+      if (!todayView.contains(target)) {
+        if (todaySnapshotTimer) saveHydratedNow();
+      } else if (target?.closest?.("button")) scheduleHydratedSave(TODAY_SNAPSHOT_TAP_MS);
+    },
+    { capture: true },
+  );
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveHydratedNow();
+  });
 }
 
 // ---------- The focused Session destination (its own route, isolated from Today) ----------
@@ -1621,6 +1717,7 @@ Object.assign(globalThis, {
   renderSession,
   renderToday,
   reshapeToday,
+  refreshTodayBrief,
 });
 
 if (typeof window !== "undefined") {
@@ -1632,5 +1729,6 @@ if (typeof window !== "undefined") {
     renderSession,
     renderToday,
     reshapeToday,
+    refreshTodayBrief,
   });
 }

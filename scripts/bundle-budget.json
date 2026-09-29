@@ -3,7 +3,7 @@
   "margin": 0.03,
   "eager": {
     "js": {
-      "brotli": 225280
+      "brotli": 230400
     },
     "styles": {
       "brotli": 71680
@@ -32,12 +32,12 @@
     },
     "public/js/bundle-03-capture.js": {
       "measured": {
-        "raw": 39708,
-        "brotli": 8970
+        "raw": 44628,
+        "brotli": 10064
       },
       "budget": {
-        "raw": 40960,
-        "brotli": 10240
+        "raw": 46080,
+        "brotli": 11264
       }
     },
     "public/js/bundle-04-coach-meals.js": {

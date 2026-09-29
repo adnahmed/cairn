@@ -30,6 +30,10 @@ declare const CairnOutboxUi: OutboxUiApi;
         return "Food";
       case "weight":
         return "Weight";
+      case "checkin":
+        return "Check-in";
+      case "fueling":
+        return "Fueling read";
       case "set":
         return "Training set";
       case "finish":
@@ -52,6 +56,8 @@ declare const CairnOutboxUi: OutboxUiApi;
     if (item.kind === "weight" && Number.isFinite(Number(body.weight_lb))) {
       return `${Number(body.weight_lb)} lb`;
     }
+    if (item.kind === "checkin") return "How the morning feels";
+    if (item.kind === "fueling") return "How fueling feels";
     if (item.kind === "food") {
       const meal = boundedOutboxText(body.meal, 24);
       const text = boundedOutboxText(body.text);
