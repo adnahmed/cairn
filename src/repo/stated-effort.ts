@@ -34,3 +34,21 @@ export function isStatedEasyRpe(rpe: unknown): boolean {
   const value = Number(rpe);
   return Number.isFinite(value) && value >= 1 && value <= STATED_EASY_RPE_MAX;
 }
+
+// ---------- the athlete's own NAME for a session ----------
+//
+// The same law, one input over: an athlete who titles a run "Hills", "5k+sprints",
+// "LT HR Test" or "5K Fast" has told us it was quality work, whatever its average
+// heart rate (an interval session's recoveries pull the average into the steady band).
+// Read off the activity's own title only — never the watch's training-effect label,
+// which is the classification the owner law retired. A place name is not a session
+// word, so a lone "hill" (Beacon Hill, Mission Hill) never counts; "hills" or "hill
+// repeats" does.
+const NAMED_QUALITY_RUN =
+  /\b(?:hills|hill\s+(?:repeats?|sprints?|intervals?)|repeats|sprints?|intervals?|fartlek|race|time\s*trial|fast|test|tempo|threshold|vo2\s*max|vo2|track)\b/i;
+
+/** Did the athlete NAME this session as quality work? */
+export function namesQualityRun(name: unknown): boolean {
+  if (typeof name !== "string" || !name.trim()) return false;
+  return NAMED_QUALITY_RUN.test(name.replace(/[_+-]+/g, " "));
+}

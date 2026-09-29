@@ -24,7 +24,8 @@ import {
 } from "./exercise-canon.js";
 import { CARDIO_GRADE, HARD_EFFORT } from "./heavy-load.js";
 import { activeRecoveryWeekLedger } from "./recovery-week-ledger.js";
-import { isStatedEasyRpe } from "./stated-effort.js";
+import { classifyRunEffort, getHrModel, type HrModel } from "./hr-model.js";
+import { isStatedEasyRpe, namesQualityRun } from "./stated-effort.js";
 import { addDaysISO, localDateISO } from "./shared.js";
 import { median } from "../lib/numbers.js";
 
@@ -691,6 +692,8 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
       .prepare(
         `SELECT a.date AS date, a.source AS source, a.external_id AS external_id,
                 a.type AS type, a.duration_min AS duration_min, a.distance_km AS distance_km, a.rpe AS rpe,
+                a.raw_text AS raw_text, g.name AS g_name, g.avg_hr AS avg_hr,
+                COALESCE(g.moving_min, g.duration_min, a.duration_min) AS hr_minutes,
                 g.aerobic_te AS aerobic_te, g.anaerobic_te AS anaerobic_te,
                 g.te_label AS te_label, g.training_load AS load, g.hr_zones_json AS zones
            FROM activities a LEFT JOIN garmin_activities g ON g.activity_id = a.id
@@ -704,14 +707,31 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
   rows = withoutShadowActivities(rows);
   if (!rows.length) return false;
   const median = loadMedian === undefined ? recentCardioLoadMedian(date) : loadMedian;
+  // The personal model as of that day, read once and only if a run with heart rate
+  // is there to judge (see personalRunGradesHard).
+  let model: HrModel | null | undefined;
+  const personalModel = (): HrModel | null => {
+    if (model === undefined) {
+      try {
+        const m = getHrModel(date);
+        model = m.confidence !== "insufficient" && m.zones && m.lthr != null && m.zones.z2_top >= 100 ? m : null;
+      } catch {
+        model = null;
+      }
+    }
+    return model;
+  };
   for (const r of rows) {
     // The athlete SAID it was easy (a stated effort in the talk-test band): the
     // watch's intensity bars do not get to overrule them. Only (d), the plain
     // duration bar, still reads the day as loading — a long easy run still costs
     // something. The next morning's physiology is asked separately by the harm read
     // and still outranks the statement (stated-effort.ts).
-    if (!isStatedEasyRpe(r.rpe)) {
-      // (a-c) intensity qualifies ANY activity type (a hard hike is still hard).
+    const personal = isStatedEasyRpe(r.rpe) ? null : personalRunGradesHard(r, personalModel);
+    if (personal === true) return true;
+    if (personal == null && !isStatedEasyRpe(r.rpe)) {
+      // (a-c) intensity qualifies ANY activity type (a hard hike is still hard) — for
+      // every effort the personal model cannot judge (below).
       const te = Math.max(Number(r.aerobic_te) || 0, Number(r.anaerobic_te) || 0);
       const label = String(r.te_label || "").toLowerCase();
       if (te >= HARD_EFFORT.dayGradeTe || HARD_CARDIO_LABEL.test(label)) return true;
@@ -738,6 +758,51 @@ function hardCardioDayCore(date: string, loadMedian: number | null | undefined, 
     if (dur >= (isEnduranceSession ? HARD_CARDIO_MIN : CARDIO_GRADE.walkHikeModerateMin)) return true;
   }
   return false;
+}
+
+// A RUN is graded by the athlete's own physiology, never the watch's (owner law,
+// 2026-09-25: "Garmin te_label must never classify his runs; use the personal HR
+// model"). For a run with an average heart rate and a usable personal model — the same
+// bar runIntensityDiscipline holds (not insufficient, a plausible easy line) — the
+// intensity bars are replaced, not added to:
+//   • `classifyRunEffort` reads it as QUALITY against his own zones (above the steady
+//     band for 12+ minutes, or 75+ minutes held in it) — the LT test at 164 for 73 min,
+//     a 5k test at 165;
+//   • the athlete NAMED it quality ("Hills", "5k+sprints", "5K Fast" — namesQualityRun,
+//     stated-effort.ts): an interval day's recoveries pull its average into the steady
+//     band, and his title is his own input;
+//   • HARD_CARDIO_Z4_SEC of measured time in heart-rate bins lying wholly ABOVE his
+//     threshold band (bin floor > z4_top). The watch's bins are the only time-in-HR
+//     record there is, but they are drawn on Garmin's zones, so only a bin entirely
+//     past his own line is evidence; a bin straddling it proves nothing either way.
+// What no longer speaks for a run: the training-effect number, the te_label, time in
+// Garmin's Z4, and the training load against its median. The load is Garmin's EPOC
+// estimate — the quantity the training effect itself is computed from, off Garmin's
+// own HR model — so it is the same TE judgement by another name, and on a 54-minute
+// conversational run at 157 it reads 219 and "hard".
+// Returns null when the personal model cannot judge (no HR, not a run, no model): the
+// caller keeps the old bars for those — rides, hikes, and runs before any model exists.
+function personalRunGradesHard(r: any, personalModel: () => HrModel | null): boolean | null {
+  if (canonicalEnduranceSport(r.type).key !== "run") return null;
+  const avg = Number(r.avg_hr);
+  if (!Number.isFinite(avg) || avg <= 0) return null;
+  const model = personalModel();
+  if (!model?.zones) return null;
+  const minutes = r.hr_minutes != null ? Number(r.hr_minutes) : null;
+  if (classifyRunEffort(avg, minutes, model) === "quality") return true;
+  if (namesQualityRun(r.g_name) || namesQualityRun(r.raw_text)) return true;
+  let above = 0;
+  try {
+    const z = r.zones ? JSON.parse(r.zones) : null;
+    if (Array.isArray(z))
+      for (const it of z) {
+        const floor = Number(it?.low_hr);
+        if (Number.isFinite(floor) && floor > model.zones.z4_top) above += Number(it?.secs ?? it?.seconds ?? 0) || 0;
+      }
+  } catch {
+    /* malformed zone blob → no time evidence */
+  }
+  return above >= HARD_CARDIO_Z4_SEC;
 }
 
 // ---------- the longest run they have ever done (lately) ----------
