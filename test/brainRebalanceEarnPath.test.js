@@ -508,9 +508,11 @@ test("a run-down check-in is never opened into a session, by either mechanism", 
   for (const back of [2, 4, 6]) seedOverriddenEasy(dayBefore(REF, back));
   repo.addCheckin(REF, { energy: 2, sleep_feel: 3, mood: 3, soreness: 2 });
 
+  // Since the 2026-09-29 ruling a tap with nothing objective behind it reads as a
+  // LIGHTER day (felt_low_easy) rather than rest — and it is still never opened.
   const r = repo.dayRead(REF, thinSleep(), openState(REF));
-  assert.equal(r.kind, "rest");
-  assert.equal(r.decision.rule_code, "felt_run_down_rest");
+  assert.equal(r.kind, "easy");
+  assert.equal(r.decision.rule_code, "felt_low_easy");
   assert.equal(r.signals.easy_outcome_feedback.applied, false);
 });
 

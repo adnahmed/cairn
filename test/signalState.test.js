@@ -117,9 +117,54 @@ test("fresh user-reported fatigue overrides benign wearable evidence and preserv
 
   assert.equal(state.dimensions.recovery_capacity.status, "constrained");
   assert.equal(state.dimensions.recovery_capacity.conflicts.length, 1);
-  assert.equal(state.action.posture, "rest");
+  // The tap still outranks the benign reading — the day is protected — but a tap
+  // with nothing objective behind it earns a LIGHTER day, not a rest day (owner
+  // ruling, 2026-09-29: a check-in is slight input).
+  assert.equal(state.action.posture, "easy");
   assert.equal(state.action.readiness, "protect");
   assert.match(state.action.reason, /exhausted/i);
+});
+
+test("a felt tap takes the whole day only when last night's physiology agrees", () => {
+  const date = localDaysAgo(0);
+  const felt = {
+    dimension: "recovery_capacity",
+    field: "felt_energy",
+    date,
+    source: "user_checkin",
+    direction: "constraint",
+    summary: "The athlete reports being exhausted today.",
+    voice: { key: "felt_energy_low" },
+    safety_override: true,
+    max_age_days: 0,
+  };
+  const hrv = (extra = {}) => ({
+    dimension: "recovery_capacity",
+    field: "hrv",
+    date,
+    source: "garmin",
+    direction: "caution",
+    summary: "HRV is below the athlete's recent norm.",
+    max_age_days: 1,
+    ...extra,
+  });
+
+  const alone = repo.buildUnifiedSignalState(date, [felt]);
+  assert.equal(alone.action.posture, "easy");
+  assert.equal(alone.action.voice.key, "felt_energy_light", "the lighter day speaks as a lighter day");
+  for (const line of repo.signalVoice(alone.action.voice)) assert.doesNotMatch(line, /\brest\b/i);
+
+  const corroborated = repo.buildUnifiedSignalState(date, [felt, hrv()]);
+  assert.equal(corroborated.action.posture, "rest");
+  assert.equal(corroborated.action.voice.key, "felt_energy_low");
+
+  // An HRV reading that rides only as context (not last night's) cannot corroborate.
+  const contextOnly = repo.buildUnifiedSignalState(date, [felt, hrv({ advisory_brake: true, advice_only: true })]);
+  assert.equal(contextOnly.action.posture, "easy");
+
+  // Yesterday's harm evidence is the other objective witness.
+  const harmed = repo.buildUnifiedSignalState(date, [felt], { harmYesterday: "rated_poorly" });
+  assert.equal(harmed.action.posture, "rest");
 });
 
 test("stale evidence lowers confidence and cannot manufacture readiness", () => {
@@ -230,7 +275,9 @@ test("the machine-facing summaries are untouched and the athlete voice sits besi
   const date = localDaysAgo(0);
   const state = repo.planningSignalState({
     date,
-    checkin: { energy: 4, sleep_feel: 1, soreness: 5 },
+    // Energy 3 (neutral), so the poor night is not answered by a good-energy tap; the
+    // short recorded night below is the objective witness that lets it own the day.
+    checkin: { energy: 3, sleep_feel: 1, soreness: 5 },
     recovery: {
       recovery: { sleep_min: 280, training_readiness: 20 },
       delta: { hrv: -9, rhr: 6 },
@@ -253,7 +300,7 @@ test("the machine-facing summaries are untouched and the athlete voice sits besi
     summaryOf("recovery_capacity", "sleep_feel"),
     "The athlete feels poorly recovered despite any wearable reading."
   );
-  assert.equal(summaryOf("recovery_capacity", "felt_energy"), "The athlete reports feeling good today.");
+  assert.equal(summaryOf("recovery_capacity", "felt_energy"), "The athlete reports steady energy today.");
   assert.equal(summaryOf("training_load_tolerance", "felt_soreness"), "The athlete reports high soreness today.");
 
   // The two prose fields renderSignalState actually prints are still the summary.
@@ -275,7 +322,8 @@ test("the machine-facing summaries are untouched and the athlete voice sits besi
 
 test("the low-energy check-in observes in the machine register and prescribes only in its voice", () => {
   const date = localDaysAgo(0);
-  const state = repo.planningSignalState({ date, checkin: { energy: 1 } });
+  // Corroborated by last night's HRV below the athlete's band, so the tap owns the day.
+  const state = repo.planningSignalState({ date, checkin: { energy: 1 }, recovery: hrvRecovery(date, -9) });
   const felt = state.dimensions.recovery_capacity.evidence.find((item) => item.field === "felt_energy");
 
   // A low-energy check-in reaches the athlete through two paths: this protect posture
@@ -292,6 +340,16 @@ test("the low-energy check-in observes in the machine register and prescribes on
   assert.equal(state.action.reason, felt.summary);
   // The athlete-facing sentence is unchanged and still carries the judgement.
   assert.ok(repo.signalVoice(state.action.voice).includes("You're feeling run-down today — rest is the smart call."));
+
+  // The same tap ALONE is a lighter day, and its words never say rest.
+  const alone = repo.planningSignalState({ date, checkin: { energy: 1 } });
+  assert.equal(alone.action.posture, "easy");
+  assert.equal(alone.action.voice.key, "felt_energy_light");
+  assert.equal(
+    alone.dimensions.recovery_capacity.evidence.find((item) => item.field === "felt_energy").summary,
+    "The athlete reports feeling run-down today.",
+    "the machine register is untouched by the re-voicing"
+  );
 });
 
 // ---------- the sentence may not outrun its evidence window ----------
@@ -536,7 +594,7 @@ test("a voice-less observation degrades to an athlete-facing floor, never to the
     },
   ]);
 
-  assert.equal(state.action.posture, "rest");
+  assert.equal(state.action.posture, "easy");
   assert.equal(state.action.reason, "The athlete reports being exhausted today.");
   assert.equal(state.action.voice.key, "unvoiced_protect");
   for (const line of repo.signalVoice(state.action.voice)) assert.doesNotMatch(line, /\bthe athlete\b/i);
@@ -774,14 +832,16 @@ test("coach context, deterministic Brief, and prompt consume the same planning p
   ).run(date);
   repo.addCheckin(date, { energy: 1, sleep_feel: 1, soreness: 2 });
 
+  // Two low taps against a good night and a high readiness reading: nothing objective
+  // agrees, so every consumer reads the same LIGHTER day (a tap is slight input).
   const ctx = repo.getCoachContext();
-  assert.equal(ctx.signal_state.action.posture, "rest");
-  assert.equal(ctx.day_read.signals.signal_state.action.posture, "rest");
-  assert.equal(ctx.day_read.kind, "rest");
+  assert.equal(ctx.signal_state.action.posture, "easy");
+  assert.equal(ctx.day_read.signals.signal_state.action.posture, "easy");
+  assert.equal(ctx.day_read.kind, "easy");
   assert.ok(ctx.signal_state.dimensions.recovery_capacity.conflicts.length > 0);
   const prompt = buildDayReadPrompt(ctx, { date });
   assert.match(prompt, /UNIFIED DAILY PLANNING STATE/);
-  assert.match(prompt, /POSTURE: REST/);
+  assert.match(prompt, /POSTURE: EASY/);
 });
 
 // ---------- the felt-protect rung is for TODAY-dated felt signals ----------
@@ -811,13 +871,17 @@ test("a week-old low-performance rating eases the day rather than owning it", ()
   assert.equal(state.action.readiness, "protect");
 });
 
-test("today's felt signals still own the rest rung, and the severity is no longer inverted", () => {
+test("today's felt signals still own the rest rung when corroborated, and the severity is no longer inverted", () => {
   const date = localDaysAgo(0);
-  const runDown = repo.planningSignalState({ date, checkin: { energy: 1 } });
-  assert.equal(runDown.action.posture, "rest", "the athlete saying they are run-down today is what this rung is for");
+  const runDown = repo.planningSignalState({ date, checkin: { energy: 1 }, recovery: hrvRecovery(date, -9) });
+  assert.equal(runDown.action.posture, "rest", "run-down today, and last night's HRV agrees: this rung is for that");
 
-  const unrested = repo.planningSignalState({ date, checkin: { sleep_feel: 1 } });
+  const unrested = repo.planningSignalState({ date, checkin: { sleep_feel: 1 }, recovery: hrvRecovery(date, -9) });
   assert.equal(unrested.action.posture, "rest");
+
+  // The same taps with nothing objective behind them ease the day instead.
+  assert.equal(repo.planningSignalState({ date, checkin: { energy: 1 } }).action.posture, "easy");
+  assert.equal(repo.planningSignalState({ date, checkin: { sleep_feel: 1 } }).action.posture, "easy");
 
   const ill = repo.planningSignalState({
     date,
@@ -1834,10 +1898,29 @@ test("a performance rating of 4 on yesterday's completed session emits fresh sup
   assert.equal(quality.max_age_days, 1);
 });
 
-test("energy 1 and sleep_feel 1 still own the rest rung", () => {
+test("energy 1 and sleep_feel 2 own the rest rung only with an objective witness", () => {
   const date = localDaysAgo(0);
-  assert.equal(repo.planningSignalState({ date, checkin: { energy: 1 } }).action.posture, "rest");
-  assert.equal(repo.planningSignalState({ date, checkin: { sleep_feel: 2 } }).action.posture, "rest");
+  assert.equal(repo.planningSignalState({ date, checkin: { energy: 1 } }).action.posture, "easy");
+  assert.equal(repo.planningSignalState({ date, checkin: { sleep_feel: 2 } }).action.posture, "easy");
+  const witnessed = { recovery: hrvRecovery(date, -9) };
+  assert.equal(repo.planningSignalState({ date, checkin: { energy: 1 }, ...witnessed }).action.posture, "rest");
+  assert.equal(repo.planningSignalState({ date, checkin: { sleep_feel: 2 }, ...witnessed }).action.posture, "rest");
+});
+
+// The morning the owner described: "woke at 4:30 instead of 6 — sleep was not awesome
+// but I feel good". A low sleep-feel beside a good-energy tap is MIXED: the night rides
+// as a caveat and never brakes the day.
+test("a poor night the athlete feels good after is a caveat, not a brake", () => {
+  const date = localDaysAgo(0);
+  const state = repo.planningSignalState({ date, checkin: { energy: 5, sleep_feel: 2, soreness: 1 } });
+  const sleepFeel = state.dimensions.recovery_capacity.evidence.find((item) => item.field === "sleep_feel");
+  assert.equal(sleepFeel.direction, "caution");
+  assert.notEqual(sleepFeel.safety_override, true);
+  assert.equal(sleepFeel.voice.key, "sleep_feel_mixed");
+  assert.equal(state.action.posture, "train", "a good-energy morning keeps its planned day");
+  // Energy 2 is still a run-down tap whatever the sleep tap says.
+  const runDown = repo.planningSignalState({ date, checkin: { energy: 2, sleep_feel: 5 } });
+  assert.equal(runDown.action.posture, "easy");
 });
 
 // HRV and resting HR only exist on nights the watch was worn. A caution whose reading is

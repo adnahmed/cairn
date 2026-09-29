@@ -260,6 +260,8 @@ test("coach context keeps the conductor aligned with the protective day read", (
     { exercise: "Overhead Press", sets: 3, rep_low: 5, rep_high: 8, target_weight: 100 },
   ]);
   repo.addCheckin(today, { energy: 1, sleep_feel: 1, soreness: 2 });
+  // A short night is the objective witness a check-in tap needs to own a rest (2026-09-29).
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(today);
 
   const ctx = repo.getCoachContext();
   assert.equal(ctx.signal_state.action.posture, "rest");
@@ -318,6 +320,8 @@ test("the Brief and the conductor say ONE sentence about one signal", () => {
   // same rotation key, same date ⇒ one signal reads as one observation.
   const today = localDaysAgo(0);
   repo.addCheckin(today, { sleep_feel: 1, energy: 3, mood: 3 });
+  // A short night is the objective witness a check-in tap needs to own a rest (2026-09-29).
+  db.prepare(`INSERT INTO daily_metrics (source, date, sleep_min) VALUES ('apple', ?, 280)`).run(today);
 
   const ctx = repo.getCoachContext();
   assert.equal(ctx.day_read.kind, "rest");

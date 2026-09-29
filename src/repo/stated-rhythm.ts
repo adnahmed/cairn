@@ -1,0 +1,71 @@
+import { harmEvidenceOnDay } from "./brain/read-adherence.js";
+import { isStatedRunDay, isoDow } from "./profile.js";
+import { addDaysISO } from "./shared.js";
+import { strengthScheduleRead } from "./strength-schedule.js";
+
+// THE ATHLETE'S OWN WEEK, read against a date — one read for the daily decision (the
+// `stated_rhythm` license, daily-decision.ts) and the day read's stacked-days ceiling
+// (day-read.ts), so the two can never disagree about whether a run of days is the
+// plan the athlete wrote or an accident of the calendar.
+//
+// `streak_on_rhythm`: every day of the current consecutive streak (last seven at most)
+// was a stated (or observed) lift day or a stated run day. `recent_harm_free`: nothing
+// in the last three days says the work cost them (harmEvidenceOnDay). Undefined when
+// the athlete has no rhythm at all, or today is not on it.
+export interface StatedRhythm {
+  source: "stated" | "observed" | "run_only";
+  lift_day: boolean;
+  run_day: boolean;
+  streak_on_rhythm: boolean;
+  recent_harm_free: boolean;
+}
+
+function safe<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch {
+    return fallback;
+  }
+}
+
+// How far back "the work has not cost them" reads. Fresh means the last few days, not
+// the whole streak: a physiology brake a week ago is not news about this morning.
+const RHYTHM_HARM_WINDOW_DAYS = 3;
+const RHYTHM_STREAK_LOOKBACK_DAYS = 7;
+
+export function statedRhythmRead(date: string, consecutive: number | null): StatedRhythm | undefined {
+  const lift = safe(() => strengthScheduleRead(date), null);
+  const liftDows = new Set((lift?.days ?? []).map((day) => Number(day.dow)));
+  const runWeek = safe(() => isStatedRunDay(date) != null, false);
+  if (!liftDows.size && !runWeek) return undefined;
+  const runDay = (iso: string) => safe(() => isStatedRunDay(iso) === true, false);
+  const liftDay = (iso: string) => liftDows.has(isoDow(iso));
+  const onRhythm = (iso: string) => liftDay(iso) || runDay(iso);
+  if (!onRhythm(date)) return undefined;
+  const streak = Math.min(Math.max(0, Math.floor(consecutive ?? 0)), RHYTHM_STREAK_LOOKBACK_DAYS);
+  let streakOnRhythm = true;
+  for (let i = 1; i <= streak; i++) {
+    const iso = addDaysISO(date, -i);
+    if (!iso || !onRhythm(iso)) {
+      streakOnRhythm = false;
+      break;
+    }
+  }
+  let recentHarmFree = true;
+  for (let i = 1; i <= RHYTHM_HARM_WINDOW_DAYS; i++) {
+    const iso = addDaysISO(date, -i);
+    if (!iso) continue;
+    // Fail closed: an unreadable day is not evidence that the work was free.
+    if (safe(() => harmEvidenceOnDay(iso) != null, true)) {
+      recentHarmFree = false;
+      break;
+    }
+  }
+  return {
+    source: liftDows.size ? (lift?.source === "observed" ? "observed" : "stated") : "run_only",
+    lift_day: liftDay(date),
+    run_day: runDay(date),
+    streak_on_rhythm: streakOnRhythm,
+    recent_harm_free: recentHarmFree,
+  };
+}
