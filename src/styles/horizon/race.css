@@ -1,16 +1,65 @@
 /* =====================================================================
-   Race view (Wave 4 stream B): race-view (.race-view-*), race-estimate
-   (.race-estimate-*) and race-ladder (.race-ladder-*), the race section of
-   Plan → Endurance. Weeks as rows, km per week as bars against the ladder's
-   longest week, this week marked in words and filled with what has been run.
-   The fit is a word. No score, no grade.
+   The race page (/app/horizon/race): race-view (.race-view-*), THIS WEEK
+   (.race-week-*, the page's one focal card), its runs (.race-run*), the ladder
+   (.race-ladder-*), "With your lifting" (.race-lifting-*) and the finish estimate
+   (.race-estimate-*). On the ground, hairline sections; only THIS WEEK is a card.
+   Distance per week as bars against the ladder's longest week, this week marked in
+   words. The fit is a word. No score, no grade.
    ===================================================================== */
-.race-view{background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius);
-  padding:var(--space-8) var(--space-9);display:grid;gap:var(--space-8)}
+.race-view{display:grid;gap:var(--space-9);min-width:0}
 .race-view-head{display:grid;gap:var(--space-2);padding:0;margin:0;max-width:none}
-.race-view-event{margin:0;font-family:var(--font-display);font-variation-settings:"opsz" 48;font-weight:560;
-  font-size:var(--text-lg);line-height:1.25;color:var(--ink);overflow-wrap:anywhere}
-.race-view-when{margin:0;font-size:var(--text-sm);color:var(--ink-2)}
+.race-view-kickrow{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-width:0}
+.race-view-kickrow .lbl{color:var(--muted)}
+.race-view-kickrow .end-units{padding-top:0}
+.race-view-event{margin:0;font-family:var(--font-display);font-weight:400;
+  font-size:1.62rem;line-height:1.1;letter-spacing:-.005em;color:var(--ink);text-wrap:balance;overflow-wrap:anywhere}
+.race-view-when{margin:0;font-size:var(--text-sm);color:var(--ink-2);font-variant-numeric:tabular-nums}
+
+/* ---- THIS WEEK: the one focal card ---- */
+.race-week{display:grid;gap:var(--space-6);background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:var(--space-7) var(--space-7) var(--space-6);min-width:0}
+.race-week-head{display:grid;gap:var(--space-1)}
+.race-week-head .lbl{color:var(--muted)}
+.race-week-stage{margin:0;font-family:var(--font-display);font-weight:400;font-size:1.35rem;line-height:1.15;color:var(--ink)}
+.race-week-volume{display:grid;gap:var(--space-3)}
+.race-week-row{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--space-2) var(--space-5)}
+.race-week-num{font-family:var(--font-display);font-size:1.6rem;line-height:1.05;color:var(--ink);font-variant-numeric:lining-nums tabular-nums}
+.race-week-of{font-family:var(--font-ui);font-size:var(--text-sm);color:var(--ink-2)}
+.race-week-long{font-size:var(--text-xs);color:var(--muted)}
+.race-week-track{position:relative;display:block;height:6px;border-radius:var(--radius-pill);background:var(--surface2);overflow:hidden}
+.race-week-fill{position:absolute;inset:0 auto 0 0;width:calc(var(--frac,0) * 100%);border-radius:inherit;background:var(--d-endurance);
+  transform-origin:left center}
+.race-week-fill.is-banked{background:var(--sage)}
+.race-view.is-entering .race-week-fill{animation:race-bar-grow var(--dur-3) var(--ease) both}
+.race-week-focus{margin:0;padding-top:var(--space-5);border-top:1px solid var(--line);
+  font-family:var(--font-display);font-size:.95rem;line-height:1.45;color:var(--ink-2)}
+.race-runs{list-style:none;margin:0;padding:0;display:grid}
+.race-run{border-top:1px solid var(--line);min-width:0}
+.race-run:first-child{border-top:0}
+.race-run-row{display:grid;grid-template-columns:5.4em minmax(0,1fr) auto;align-items:baseline;gap:var(--space-4);
+  padding:var(--space-4) 0;min-height:44px;box-sizing:border-box}
+.race-run-when{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.race-run-name{font-size:var(--text-body);color:var(--ink);min-width:0}
+.race-run-pres{font-size:var(--text-sm);font-weight:600;color:var(--ink);text-align:right;font-variant-numeric:lining-nums tabular-nums}
+.race-run.is-done .race-run-name,.race-run.is-done .race-run-pres{color:var(--ink-2);font-weight:400}
+.race-run-tick{margin-left:var(--space-2);font-size:var(--text-xs);color:var(--sage)}
+.race-run.is-next .race-run-when{color:var(--dawn)}
+.race-run.is-next .race-run-name{font-weight:600}
+.race-run-detail{padding:0 0 var(--space-5)}
+.race-run-mark{padding:var(--space-4) 0 0;border-top:1px solid var(--line)}
+.race-run-mark .lbl{color:var(--muted)}
+
+/* ---- the page's hairline sections ---- */
+.race-section{display:grid;gap:var(--space-4);padding-top:var(--space-7);border-top:1px solid var(--line);min-width:0}
+.race-section>.lbl{color:var(--muted)}
+.race-lifting-list{list-style:none;margin:0;padding:0;display:grid}
+.race-lifting-row{display:grid;gap:var(--space-1);padding:var(--space-4) 0;border-top:1px solid var(--line)}
+.race-lifting-row:first-child{border-top:0;padding-top:0}
+.race-lifting-when{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--muted)}
+.race-lifting-row.is-current .race-lifting-when{color:var(--dawn)}
+.race-lifting-text{margin:0;font-size:var(--text-sm);color:var(--ink-2);line-height:1.5}
 .race-estimate{display:grid;gap:var(--space-4)}
 .race-estimate-fit{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2) var(--space-4);
   font-size:var(--text-md);color:var(--ink-2);line-height:1.45}
@@ -27,26 +76,28 @@
 .race-ladder-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-4);margin:0 0 var(--space-4)}
 .race-ladder-unit{font-size:var(--text-xs);color:var(--muted)}
 .race-ladder-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-1)}
-.race-ladder-row{display:grid;grid-template-columns:4.5rem minmax(0,1fr) auto;align-items:center;
+.race-ladder-row{display:grid;grid-template-columns:4.2rem minmax(0,1fr) auto;align-items:center;
   gap:var(--space-2) var(--space-5);padding:var(--space-4) var(--space-3);border-radius:var(--radius-sm)}
-.race-ladder-row.is-current{background:var(--card-2);box-shadow:inset 3px 0 0 var(--accent)}
-.race-ladder-when{display:grid;min-width:0}
-.race-ladder-out{font-size:var(--text-2xs);font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.race-ladder-date{font-size:var(--text-xs);color:var(--ink-2)}
+.race-ladder-row.is-current{background:var(--dawn-wash)}
+.race-ladder-when{display:grid;gap:2px;min-width:0}
+.race-ladder-date{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--ink-2);white-space:nowrap}
+.race-ladder-out{font-size:var(--text-2xs);color:var(--muted);white-space:nowrap}
+.race-ladder-row.is-current .race-ladder-date{color:var(--dawn)}
 .race-ladder-main{display:grid;gap:var(--space-2);min-width:0}
 .race-ladder-kind{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-3);
   font-size:var(--text-sm);font-weight:600;color:var(--ink)}
-.race-ladder-here{font-size:var(--text-2xs);font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-deep)}
+.race-ladder-here{font-size:var(--text-2xs);font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--dawn)}
 .race-ladder-meta{font-size:var(--text-xs);font-weight:400;color:var(--muted)}
 .race-ladder-track{position:relative;display:block;height:var(--space-4);border-radius:var(--radius-pill);background:var(--line)}
 .race-ladder-bar,.race-ladder-logged{position:absolute;top:0;bottom:0;left:0;width:calc(var(--frac,0) * 100%);
   border-radius:inherit;transform-origin:left center}
 .race-ladder-bar{background:var(--sage)}
 .race-ladder-row.is-down .race-ladder-bar,.race-ladder-row.is-taper .race-ladder-bar,
-.race-ladder-row.is-race .race-ladder-bar{background:var(--stone-taupe)}
-.race-ladder-row.is-current .race-ladder-bar{opacity:.4}
+.race-ladder-row.is-race .race-ladder-bar{background:var(--s-endurance)}
+.race-ladder-row.is-current .race-ladder-bar{opacity:.45}
 .race-ladder-logged{background:var(--sage-deep)}
-.race-ladder-foot{font-size:var(--text-xs);color:var(--ink-2);line-height:1.4}
+.race-ladder-foot{font-size:var(--text-xs);color:var(--muted);line-height:1.4}
 .race-ladder-km{font-size:var(--text-sm);font-weight:600;color:var(--ink);white-space:nowrap;
   font-variant-numeric:lining-nums tabular-nums}
 .race-ladder-taper{margin:var(--space-4) 0 0;font-size:var(--text-xs);color:var(--muted);line-height:1.45}
@@ -59,9 +110,6 @@
 .race-view-more>summary::before,.race-view-weeks>summary::before{content:"▸";font-size:var(--text-xs);transition:transform var(--dur-1) var(--ease)}
 .race-view-more[open]>summary::before,.race-view-weeks[open]>summary::before{transform:rotate(90deg)}
 .race-view-weeks[open]>.race-ladder{padding-top:var(--space-4)}
-/* inside the race card the chart needs no second card around it */
-.race-view .race-view-terrain{margin:0;padding:0;background:none;border:0;border-radius:0}
-.race-view-weeks+.race-view-more{margin-top:calc(-1 * var(--space-6))}
 .race-view-more-body{display:grid;gap:var(--space-4);padding-top:var(--space-2)}
 .race-view-paces{margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:var(--space-3) var(--space-6)}
 .race-view-pace{display:grid;gap:var(--space-1);padding:var(--space-3) var(--space-4);background:var(--card-2);border-radius:var(--radius-sm)}
@@ -69,6 +117,7 @@
 .race-view-pace dd{margin:0;font-size:var(--text-sm);font-weight:560;color:var(--ink)}
 .race-view-note{margin:0;font-size:var(--text-sm);color:var(--ink-2);line-height:1.5}
 .race-view-skel{gap:var(--space-5)}
+.race-view-more{margin-top:calc(-1 * var(--space-5))}
 .race-view-skel-kicker{width:30%}
 .race-view-skel-title{width:60%}
 .race-view-skel-bar{height:var(--space-6)}
@@ -77,7 +126,7 @@
 .race-view-error-line{margin:0;font-size:var(--text-sm);color:var(--ink-2)}
 .race-view-retry{min-height:44px}
 @media (prefers-reduced-motion:reduce){
-  .race-view.is-entering .race-ladder-bar,.race-view.is-entering .race-ladder-logged{animation:none}
+  .race-view.is-entering .race-ladder-bar,.race-view.is-entering .race-ladder-logged,.race-view.is-entering .race-week-fill{animation:none}
   .race-view.settle-in{animation:none}
 }
 

@@ -20,6 +20,19 @@
    * the race build, and steps to the season on its own when no race is set.
    */
   let chosenView: ClientHorizonView | null = null;
+  /**
+   * What the last race read said about this athlete's running, for this app session, so
+   * the next open draws the right frame at once: no race view for a lifting-only athlete,
+   * "Running" for a runner with no race. Unknown until the first read lands.
+   */
+  let runningSeen: "race" | "runs" | "none" | null = null;
+
+  function shellOptions(): { view: ClientHorizonView; race: boolean; raceLabel: string } {
+    const race = runningSeen !== "none";
+    const fallback: ClientHorizonView = runningSeen === "none" ? "week" : "race";
+    const view = chosenView && (chosenView !== "race" || race) ? chosenView : fallback;
+    return { view, race, raceLabel: runningSeen === "runs" ? "Running" : "" };
+  }
 
   function mountHorizon(host: Element, deps: Deps): () => void {
     let live = true;
@@ -29,8 +42,6 @@
     let units: "km" | "mi" = "km";
     let lastBuild: unknown = null;
     let lastPlanWeek: unknown = null;
-    /** The race week the rows hold open: null is this week, "" none, else a Monday. */
-    let selectedWeek: string | null = null;
     let weekAsked = false;
 
     /** The week view reads GET /api/plan/week the first time it is shown, never before. */
@@ -95,7 +106,8 @@
     // The run units ride with the race and week reads; a failed settings read is km.
     const unitsRead = read("/settings").then((value) => {
       const settings = (value as { settings?: { run_units?: unknown } } | null)?.settings;
-      units = typeof runUnits === "function" ? runUnits(settings?.run_units) : settings?.run_units === "mi" ? "mi" : "km";
+      units =
+        typeof runUnits === "function" ? runUnits(settings?.run_units) : settings?.run_units === "mi" ? "mi" : "km";
     });
 
     function paint(lane: Lane, enter = true): void {
@@ -103,13 +115,31 @@
       const slot = host.querySelector(`[data-horizon-lane="${lane.key}"]`);
       if (!slot) return;
       lanes.set(lane.key, lane);
-      slot.innerHTML = CairnHorizon.laneHtml(lane, {
-        enter: enter && !calm(),
-        hrefFor: deps.hrefFor,
-        selectedWeek: lane.key === "race" ? selectedWeek : undefined,
-      });
+      slot.innerHTML = CairnHorizon.laneHtml(lane, { enter: enter && !calm(), hrefFor: deps.hrefFor });
       if (lane.key === "goal") fillSeason();
-      if (lane.key === "race" && lane.state === "none" && !chosenView) setView("season");
+      if (lane.key === "race") settleRace(lane);
+    }
+
+    /**
+     * The race read decides how much running Horizon holds: no view at all for a
+     * lifting-only athlete (the week opens instead), "Running" for a runner with no race,
+     * the race build otherwise. Remembered for the session, so the next open is framed right.
+     */
+    function settleRace(lane: Lane): void {
+      if (lane.state === "unread") return;
+      const running = lane.state === "absent" ? "none" : lane.title === "Running" ? "runs" : "race";
+      runningSeen = running;
+      const seg = host.querySelector<HTMLElement>('[data-horizon-seg="race"]');
+      if (running === "none") {
+        seg?.remove();
+        host.querySelector<HTMLElement>('[data-horizon-panel="race"]')?.setAttribute("hidden", "");
+        if (host.getAttribute("data-horizon-view") === "race") setView(chosenView === "season" ? "season" : "week");
+        return;
+      }
+      if (seg) seg.textContent = running === "runs" ? "Running" : "To the race";
+      // No race and nothing run to show: unpicked, Horizon steps to the season on its own.
+      const empty = lane.state === "none" && !lane.this_week && !(lane.volume || []).length;
+      if (empty && !chosenView) setView("season");
     }
 
     function targetFor(key: string): ClientHorizonTarget | null {
@@ -155,15 +185,6 @@
           chosenView = view;
           setView(view);
         },
-        "horizon-week": (el) => {
-          const lane = lanes.get("race");
-          const week = el.getAttribute("data-horizon-week") || "";
-          if (!lane || !week) return;
-          // A tap on the open week closes it; any other opens that one.
-          selectedWeek = el.getAttribute("aria-expanded") === "true" ? "" : week;
-          paint(lane, false);
-          host.querySelector<HTMLElement>(`[data-horizon-week="${week}"]`)?.focus();
-        },
         "horizon-units": (el) => {
           const next = el.getAttribute("data-horizon-units") === "mi" ? "mi" : "km";
           if (next === units) return;
@@ -183,7 +204,11 @@
           deps.navigate(target);
         },
       });
-      if (chosenView) setView(chosenView);
+      // Open on the view the shell was framed with (the athlete's pick, when that view is
+      // on this athlete's Horizon); a week view asks for its read here.
+      const framed = host.getAttribute("data-horizon-view") as ClientHorizonView | null;
+      const open = chosenView && host.querySelector(`[data-horizon-panel="${chosenView}"]`) ? chosenView : framed;
+      if (open) setView(open);
       load();
       return () => {
         live = false;
@@ -191,7 +216,7 @@
     });
   }
 
-  const CAIRN_HORIZON_CONTROLLER = { mount: mountHorizon };
+  const CAIRN_HORIZON_CONTROLLER = { mount: mountHorizon, shellOptions };
 
   Object.assign(globalThis, { CairnHorizonController: CAIRN_HORIZON_CONTROLLER });
 }

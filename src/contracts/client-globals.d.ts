@@ -5959,8 +5959,12 @@ declare global {
     /** The week's Monday as the one date label ("Sep 14"). */
     date_word: string;
     km: number;
-    /** Kilometres per week, always ("32 km"). */
+    /** The week's distance in the athlete's run units ("32 km", "19.9 mi"). */
     km_text: string;
+    /** The week's stage in one word: "Base", "Build", "Sharpen", "Peak", "Down week", "Taper", "Race". */
+    stage_word: string;
+    /** The long run in kilometres (null in race week or with none). */
+    long_km: number | null;
     long_text: string;
     /** The bar: this week's km against the ladder's longest week, 0..1. */
     frac: number;
@@ -5969,11 +5973,30 @@ declare global {
     logged_frac: number | null;
     so_far_text: string;
     race_day_text: string;
-    /** The week's running in the server's words (its quality hint, then the long run). */
-    run_text: string;
-    /** The week's lifting in the server's words (its strength hint). */
-    lift_text: string;
+    /** The server's one coaching sentence for the week. */
+    focus_text: string;
+    /** The same focus in a few words, for the row. */
+    focus_short: string;
+    /** How lifting and running fit this week, in the server's words ("" with no lifting). */
+    lifting_text: string;
   };
+  /** This week at a glance: stage, logged against the week's volume, long run, the focus. */
+  type ClientRaceThisWeek = {
+    stage_word: string;
+    done_km: number;
+    target_km: number;
+    /** What the log holds, the number alone ("9.7") in the run units; "" when nothing is run yet. */
+    done_text: string;
+    /** The week's volume in the run units ("19.5 km"); "" with none. */
+    target_text: string;
+    /** Logged against the week's volume, 0..1 (a quiet bar, never a grade); null with no volume. */
+    frac: number | null;
+    banked: boolean;
+    long_text: string;
+    focus: string;
+  };
+  /** One "With your lifting" row: a week, or a run of weeks that say the same thing. */
+  type ClientRaceLiftingLine = { when: string; stage: string; text: string; current: boolean };
   type ClientRaceLadderModel = {
     rows: ClientRaceLadderRow[];
     max_km: number;
@@ -5998,6 +6021,8 @@ declare global {
     race_day: string;
     phase_word: string;
     estimate: ClientRaceEstimateModel;
+    this_week: ClientRaceThisWeek | null;
+    lifting: ClientRaceLiftingLine[];
     ladder: ClientRaceLadderModel;
     /** The whole build as terrain for the km chart; null with fewer than two weeks. */
     terrain: ClientHorizonTerrain | null;
@@ -6011,15 +6036,35 @@ declare global {
     initial?: unknown;
     /** Run units for distance and pace (settings.run_units); the engine stays in km. */
     units?: "km" | "mi";
+    /** This week's runs, by weekday (the page's briefing rows), for the THIS WEEK card. */
+    sessionsHtml?: string;
     reducedMotion?(): boolean;
   };
   interface Window {
     CairnPlanEnduranceBriefing: {
-      briefingHtml(briefing: unknown, start?: number): string;
+      /** This week's runs by weekday: done ticked, the next in full, the rest as rows. */
+      sessionsHtml(briefing: unknown): string;
+    };
+    CairnRaceWeekModel: {
+      STAGE_WORD: Record<string, string>;
+      stageWord(week: Pick<import("./client-api.js").ClientRaceBuildWeek, "kind" | "phase">): string;
+      unitsOf(value: unknown): "km" | "mi";
+      kmText(km: unknown, units?: unknown): string;
+      distNum(km: unknown, units?: unknown): string;
+      runWords(value: unknown, units?: unknown): string;
+      thisWeekModel(build: ClientRaceBuild | null | undefined, units?: unknown): ClientRaceThisWeek | null;
+      liftingModel(ladder: ClientRaceLadderModel): ClientRaceLiftingLine[];
+      volumeWeeks(build: ClientRaceBuild | null | undefined, units?: unknown): ClientHorizonVolumeWeek[];
     };
     CairnRaceViewModel: {
       FIT_WORD: Record<import("./client-api.js").ClientRaceFit, string>;
       KIND_WORD: Record<ClientRaceLadderRow["kind"], string>;
+      STAGE_WORD: Record<string, string>;
+      stageWord(week: Pick<import("./client-api.js").ClientRaceBuildWeek, "kind" | "phase">): string;
+      thisWeekModel(build: ClientRaceBuild | null | undefined, units?: unknown): ClientRaceThisWeek | null;
+      liftingModel(ladder: ClientRaceLadderModel): ClientRaceLiftingLine[];
+      /** The distance's number alone in the run units ("12.5"). */
+      distNum(km: unknown, units?: unknown): string;
       /** Kilometres from the engine, written in the athlete's run units. */
       kmText(km: unknown, units?: unknown): string;
       /** A server run sentence with its km figures and /km paces restated in the run units. */
@@ -6047,7 +6092,12 @@ declare global {
       estimateHtml(model: ClientRaceEstimateModel): string;
     };
     CairnRaceView: {
-      viewHtml(model: ClientRaceViewModel, opts?: { enter?: boolean }): string;
+      viewHtml(model: ClientRaceViewModel, opts?: { enter?: boolean; sessionsHtml?: string; units?: "km" | "mi" }): string;
+      thisWeekHtml(week: ClientRaceThisWeek | null, opts?: { sessionsHtml?: string; focus?: string; units?: "km" | "mi" }): string;
+      /** "9.7 of 19.5 km", or the week's volume alone before anything is run; never a zero. */
+      volumeFigureHtml(week: ClientRaceThisWeek | null | undefined, cls: string): string;
+      liftingHtml(lines: ClientRaceLiftingLine[]): string;
+      unitsHtml(units: "km" | "mi"): string;
       skeletonHtml(): string;
       emptyHtml(reason?: unknown): string;
       errorHtml(): string;
@@ -6057,6 +6107,7 @@ declare global {
     };
   }
   declare const CairnPlanEnduranceBriefing: Window["CairnPlanEnduranceBriefing"];
+  declare const CairnRaceWeekModel: Window["CairnRaceWeekModel"];
   declare const CairnRaceViewModel: Window["CairnRaceViewModel"];
   declare const CairnRaceLadder: Window["CairnRaceLadder"];
   declare const CairnRaceEstimate: Window["CairnRaceEstimate"];
@@ -6076,12 +6127,17 @@ declare global {
     kind: string;
     target: ClientHorizonTarget | null;
   };
+  /** One closed week of running, for a runner with no race set. */
+  type ClientHorizonVolumeWeek = { week_start: string; date_word: string; km_text: string; frac: number };
   type ClientHorizonLane = {
     key: "race" | "goal" | "labs";
-    /** "Race", "Goal line", "Labs and scans". */
+    /** "Race", "Running", "Goal line", "Labs and scans". */
     title: string;
-    /** "unread" is a failed read, "none" nothing to show yet; neither is ever empty. */
-    state: "set" | "none" | "unread";
+    /**
+     * "unread" is a failed read, "none" nothing to show yet (neither is ever empty), and
+     * "absent" a lane that does not belong to this athlete at all (no running: no race lane).
+     */
+    state: "set" | "none" | "unread" | "absent";
     headline: string;
     /** The race view's serif line ("Five weeks of build, then the half."), race lane only. */
     voice?: string;
@@ -6090,10 +6146,14 @@ declare global {
     fit: import("./client-api.js").ClientRaceFit | null;
     fit_word: string;
     fit_line: string;
-    /** The race ladder from this week forward (race lane only). */
-    ladder: ClientRaceLadderModel | null;
     /** The whole build as a terrain: every week's km to race day (race lane only). */
     terrain?: ClientHorizonTerrain | null;
+    /** This week at a glance (race lane only; with or without a race). */
+    this_week?: ClientRaceThisWeek | null;
+    /** The closed weeks' running, for a runner with no race (race lane only). */
+    volume?: ClientHorizonVolumeWeek[];
+    /** The run units the lane is written in (race lane only). */
+    units?: "km" | "mi";
     rows: ClientHorizonRow[];
     links: Array<{ label: string; target: ClientHorizonTarget }>;
   };
@@ -6120,7 +6180,19 @@ declare global {
   };
   type ClientHorizonWeek = { line: string; days: ClientHorizonWeekDay[] };
   /** One week of the terrain; `logged` weeks are closed weeks read off the log, before the ladder. */
-  type ClientHorizonTerrainWeek = { week_start: string; km: number; kind: string; current: boolean; logged?: boolean };
+  type ClientHorizonTerrainWeek = {
+    week_start: string;
+    km: number;
+    kind: string;
+    current: boolean;
+    logged?: boolean;
+    /** The ladder week's stage word ("Build", "Taper"); absent on a logged week. */
+    stage?: string;
+    /** The ladder week's long run, km (null when none). */
+    long_km?: number | null;
+    /** This week only: what the log already holds, km. */
+    logged_km?: number | null;
+  };
   type ClientHorizonTerrain = {
     weeks: ClientHorizonTerrainWeek[];
     /** Race day (YYYY-MM-DD) and its short marker label ("Race · Nov 8"). */
@@ -6159,7 +6231,6 @@ declare global {
       raceLane(build: unknown, units?: unknown): ClientHorizonLane;
       goalLane(journey: unknown, timeline: unknown, today: string): ClientHorizonLane;
       labsLane(docs: unknown, checkup: unknown, timeline: unknown, today: string): ClientHorizonLane;
-      ladderAhead(ladder: ClientRaceLadderModel): ClientRaceLadderModel | null;
       weightLine(read: import("./client-api.js").ClientJourneyRead | null): string;
       season(
         pace: unknown,
@@ -6171,11 +6242,28 @@ declare global {
     };
     CairnHorizonWeekModel: {
       weekView(planWeek: unknown, today: string, units?: unknown): ClientHorizonWeek | null;
+      /**
+       * One plan-week day's run as the week and a day preview print it ("Long run ·
+       * 8.4 mi"), in the athlete's run units; "" when the day holds no run.
+       */
+      dayRunText(day: unknown, today: string, units?: unknown): string;
+    };
+    CairnHorizonTerrain: {
+      TERRAIN: { readonly W: number; readonly H: number };
+      terrainSvg(terrain: ClientHorizonTerrain, opts?: { selected?: string | null }): string;
+      terrainKeyHtml(terrain: ClientHorizonTerrain | null | undefined): string;
+      fx(n: number): string;
+      dayNum(iso: string): number;
+      isoOf(n: number): string;
+      monoDate(iso: string): string;
+      kmWord(km: number): string;
     };
     CairnHorizonChart: {
       BODY_MARK_KINDS: ReadonlySet<string>;
       FAN_ANCHOR_DAYS: number;
+      TERRAIN: { readonly W: number; readonly H: number };
       terrainSvg(terrain: ClientHorizonTerrain, opts?: { selected?: string | null }): string;
+      terrainKeyHtml(terrain: ClientHorizonTerrain | null | undefined): string;
       seasonSvg(season: ClientHorizonSeason): string;
     };
     CairnHorizon: {
@@ -6185,8 +6273,6 @@ declare global {
         opts?: {
           enter?: boolean;
           hrefFor?: (target: ClientHorizonTarget) => string | null;
-          /** The race week open in the week rows (its Monday); "" closes all; unset opens this week. */
-          selectedWeek?: string | null;
         }
       ): string;
       PANEL: Readonly<Record<ClientHorizonLane["key"], ClientHorizonView>>;
@@ -6194,15 +6280,19 @@ declare global {
       seasonHtml(season: ClientHorizonSeason | null): string;
       weekHtml(week: ClientHorizonWeek | null, opts?: { enter?: boolean }): string;
       weekSkeletonHtml(): string;
-      shellHtml(active?: ClientHorizonView): string;
+      /** `race: false` leaves the race view out (a lifting-only athlete). */
+      shellHtml(active?: ClientHorizonView, opts?: { race?: boolean; raceLabel?: string }): string;
     };
     CairnHorizonController: {
       mount(host: Element, deps: ClientHorizonDeps): () => void;
+      /** The shell's frame for this app session: the view to open on and whether the race view belongs. */
+      shellOptions(): { view: ClientHorizonView; race: boolean; raceLabel: string };
     };
   }
   declare const CairnHorizonModel: Window["CairnHorizonModel"];
   declare const CairnHorizonWeekModel: Window["CairnHorizonWeekModel"];
   declare const CairnHorizon: Window["CairnHorizon"];
+  declare const CairnHorizonTerrain: Window["CairnHorizonTerrain"];
   declare const CairnHorizonChart: Window["CairnHorizonChart"];
   declare const CairnHorizonController: Window["CairnHorizonController"];
   // Client cache freshness + offline honesty (write-invalidation-client.ts,

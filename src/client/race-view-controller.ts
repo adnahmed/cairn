@@ -21,7 +21,11 @@
         const reason = value && typeof value === "object" ? (value as { reason?: unknown }).reason : null;
         host.innerHTML = CairnRaceView.emptyHtml(reason);
       } else {
-        host.innerHTML = CairnRaceView.viewHtml(model, { enter: !painted && !calm() });
+        host.innerHTML = CairnRaceView.viewHtml(model, {
+          enter: !painted && !calm(),
+          sessionsHtml: deps.sessionsHtml,
+          units: deps.units,
+        });
       }
       painted = true;
     }

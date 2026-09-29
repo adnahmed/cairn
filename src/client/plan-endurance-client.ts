@@ -167,19 +167,32 @@ function paintPlanEndurance(
     laterRunPlan: extra?.laterRunPlan,
     laterRaceBuild: extra?.laterRaceBuild,
   });
-  const briefingHtml = CairnPlanEnduranceBriefing.briefingHtml(briefing, 0);
-  // The race view is the primary race surface (race-view-*): this week's build, read
-  // as it stands today, with the weeks to race, the ladder and the finish estimate. A
-  // failed read still mounts it for a race goal, so it can say so and try again.
+  // This week's runs by weekday, for the THIS WEEK card (the race view's, or the plain
+  // one below for a runner with no race).
+  const sessionsHtml = CairnPlanEnduranceBriefing.sessionsHtml(briefing);
+  // The race view is the primary race surface (race-view-*): the race, THIS WEEK, the
+  // build week by week, how the lifting fits, the finish estimate. A failed read still
+  // mounts it for a race goal, so it can say so and try again.
   const showRace = enduranceModel().showsRaceView(goal, raceBuild);
+  const unitsToggle = typeof CairnRaceView !== "undefined" ? CairnRaceView.unitsHtml(units) : "";
+  // With no race, THIS WEEK still stands: the week's volume from the run engine and the
+  // runs by weekday — never an empty ladder or an estimate with nothing behind it.
+  const plainWeek =
+    showRace || typeof CairnRaceView === "undefined"
+      ? ""
+      : CairnRaceView.thisWeekHtml(CairnRaceViewModel.thisWeekModel(raceBuild ?? null, units), {
+          sessionsHtml,
+          focus: CairnRaceViewModel.runWords(briefing.headline, units),
+          units,
+        });
   const goalHtml = showRace
     ? ""
     : goal
-      ? `<div class="card-stack-item">${typeof enduranceGoalCard === "function" ? enduranceGoalCard(goal, { units }) : ""}</div>`
+      ? `<div class="card-stack-item end-goal-row">${typeof enduranceGoalCard === "function" ? enduranceGoalCard(goal, { units }) : ""}</div>`
       : `<div class="end-goal card-stack-item reveal" style="${stagger(0)}">
-         <div class="end-goal-head"><span class="lbl">Running goal</span></div>
-         <div class="end-goal-name">No goal set yet</div>
-         <div class="end-goal-sub">Set a race or a standing readiness target in <b>You → Profile</b> and the coach will periodize your running toward it.</div>
+         <div class="end-goal-head"><span class="lbl">Running</span>${plainWeek ? "" : unitsToggle}</div>
+         <div class="end-goal-name">No race on the calendar</div>
+         <div class="end-goal-sub">Set a dated race or a standing distance in <b>You → Profile</b> and the coach builds your running toward it.</div>
        </div>`;
   // The race view's own ladder supersedes the generic "typical arc" ramp
   // placeholder — show one or the other, never both.
@@ -188,13 +201,12 @@ function paintPlanEndurance(
     ? `<div class="end-ramp-note reveal" style="${stagger(1)}"><span class="lbl">Steady readiness</span> — no race to peak for, so the plan holds a sustainable rhythm rather than ramping.${goal.weekly_km ? ` Target around <b>${escHtml(typeof fmtDist === "function" ? fmtDist(goal.weekly_km, units) : `${goal.weekly_km} km`)}/wk</b>.` : ""}</div>`
     : "";
 
-  const emptyHtml = !briefing.next && !briefing.remaining.length && !briefing.later.length
+  const emptyHtml = !showRace && !plainWeek
     ? `<div class="end-runs-empty card-stack-item reveal" style="${stagger(2)}">
          <div class="lbl">Upcoming runs</div>
-         <p>${extra?.unreachable ? "Can't reach Cairn right now — your upcoming runs fill in as soon as it's back." : "No runs waiting. Open this week's map below for the hybrid picture, or ask at the bottom if you want the coach to shape the next week around your lifting."}</p>
+         <p>${extra?.unreachable ? "Can't reach Cairn right now — your upcoming runs fill in as soon as it's back." : "No runs waiting. Ask at the bottom if you want the coach to shape the next week around your lifting."}</p>
        </div>`
     : "";
-  const complianceHtml = typeof runComplianceLine === "function" ? runComplianceLine(compliance) : "";
   const syncHtml = typeof cardioSyncLine === "function" ? cardioSyncLine(settings, {}) : "";
 
   const presets = enduranceModel().presets(goal);
@@ -213,32 +225,17 @@ function paintPlanEndurance(
 
   body.innerHTML =
     `<div class="card-stack">` +
-    briefingHtml +
-    emptyHtml +
-    `<details id="endWeekFold" class="end-week-fold card-stack-item reveal">
-       <summary><span class="lbl">This week's map</span></summary>
-       <div id="endWeekSlot"></div>
-     </details>` +
-    `<div id="endUpcomingSlot" class="card-stack-item"></div>` +
     goalHtml +
     (showRace ? `<div id="endRaceSlot" class="card-stack-item"></div>` : "") +
+    (plainWeek ? `<div class="card-stack-item">${plainWeek}</div>` : "") +
+    emptyHtml +
     (rampHtml ? `<div class="card-stack-item">${rampHtml}</div>` : "") +
     (standingNote ? `<div class="card-stack-item">${standingNote}</div>` : "") +
-    (complianceHtml ? `<div class="card-stack-item">${complianceHtml}</div>` : "") +
     composer +
+    `<div id="endUpcomingSlot" class="card-stack-item"></div>` +
     (syncHtml ? `<div class="card-stack-item">${syncHtml}</div>` : "") +
     `</div>`;
 
-  // The connected week strip is useful as a hybrid map, but it is not the
-  // briefing. Collapsed and fetched only when opened.
-  const weekFold = body.querySelector("#endWeekFold");
-  if (weekFold && typeof loadPlanWeekStrip === "function") {
-    weekFold.addEventListener("toggle", () => {
-      if (!(weekFold instanceof HTMLDetailsElement) || !weekFold.open) return;
-      const slot = body.querySelector("#endWeekSlot");
-      if (slot && !slot.innerHTML) loadPlanWeekStrip(pollToken, "#endWeekSlot");
-    });
-  }
   if (typeof loadPlanUpcomingNote === "function") loadPlanUpcomingNote(pollToken, "#endUpcomingSlot");
   const raceSlot = body.querySelector("#endRaceSlot");
   if (raceSlot && typeof CairnRaceViewController !== "undefined") {
@@ -246,21 +243,27 @@ function paintPlanEndurance(
       initial: raceBuild ?? null,
       load: () => api("/race-build"),
       units,
+      sessionsHtml,
       reducedMotion: () => (typeof reducedMotion === "function" ? reducedMotion() : false),
     });
   }
 
-  body.querySelectorAll<HTMLElement>("[data-run-units]").forEach((button) => {
-    button.addEventListener("click", () => {
+  // The km / mi switch lives in whichever head painted (the race's, or the goal's):
+  // delegated, so a race view painted after a retry answers too.
+  if (!(body as HTMLElement & { _unitsWired?: boolean })._unitsWired) {
+    (body as HTMLElement & { _unitsWired?: boolean })._unitsWired = true;
+    body.addEventListener("click", (event) => {
+      const button = (event.target as Element | null)?.closest<HTMLElement>("[data-run-units]");
+      if (!button) return;
       const next = button.dataset.runUnits === "mi" ? "mi" : "km";
-      if (next === units) return;
+      if (button.classList.contains("on")) return;
       void api("/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ run_units: next }),
       }).catch(() => {}).finally(() => { renderPlanEndurance(); });
     });
-  });
+  }
 
   if (syncHtml && typeof wireCardioSync === "function") wireCardioSync(body, () => renderPlanEndurance());
   body.querySelectorAll<HTMLElement>(".end-chip").forEach((button) => button.addEventListener("click", () => {

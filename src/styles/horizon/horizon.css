@@ -42,12 +42,13 @@
 .hz-chart text{font-family:var(--font-ui);font-size:10.5px;font-weight:600;fill:var(--ink-2)}
 .hz-chart .hz-axis{font-family:var(--font-mono);font-size:8.5px;font-weight:400;letter-spacing:.06em;fill:var(--muted)}
 .hz-chart .hz-num{fill:var(--ink)}
-.hz-grid{stroke:var(--line);stroke-dasharray:2 5}
+.hz-grid{stroke:var(--line);stroke-opacity:.8}
+.hz-base{stroke:var(--line-strong)}
 .hz-rule{stroke:var(--line)}
 .hz-lane{stroke:var(--line);stroke-width:1.2}
 .hz-wash{fill:var(--dawn-wash)}
-.hz-terrain-fill{fill:var(--s-endurance);fill-opacity:.3}
-.hz-contour{fill:none;stroke:var(--s-endurance);stroke-opacity:.7}
+.hz-terrain-fill{fill:var(--s-endurance);fill-opacity:.24}
+.hz-contour{fill:none;stroke:var(--s-endurance);stroke-opacity:.55}
 .hz-terrain-line{fill:none;stroke:var(--d-endurance);stroke-width:2;stroke-linejoin:round}
 .hz-now{stroke:var(--dawn);stroke-width:1.6}
 .hz-chart .hz-now-word,.hz-chart .hz-today-word{fill:var(--dawn)}
@@ -82,34 +83,50 @@
 .horizon-lane-title.is-voice{font-size:1.72rem;line-height:1.08;letter-spacing:-.01em;text-wrap:balance}
 .horizon-lane-card.is-build .horizon-lane-head{gap:var(--space-3)}
 .horizon-lane-card.is-build .horizon-lane-lede{margin-top:var(--space-2)}
-.hz-terrain-fill.is-logged{fill:var(--ink-2);fill-opacity:.07}
+.hz-terrain-fill.is-logged{fill:var(--ink-2);fill-opacity:.06}
 .hz-terrain-line.is-logged{stroke:var(--ink-2);stroke-width:1.4;stroke-opacity:.55}
 .hz-chart .hz-num.is-logged{fill:var(--muted);font-weight:500}
-.hz-chart .hz-kind{font-family:var(--font-mono);font-size:7.5px;font-weight:400;letter-spacing:.12em;fill:var(--d-endurance)}
+.hz-chart .hz-num.is-peak{fill:var(--d-endurance)}
+.hz-long{stroke:var(--ink-2);stroke-width:2;stroke-linecap:round;stroke-opacity:.8}
+.hz-stage{fill:var(--s-endurance);fill-opacity:.24}
+.hz-stage.is-current{fill-opacity:.6}
+.hz-stage.is-logged{fill:var(--ink-2);fill-opacity:.08}
+.hz-chart .hz-stage-word{font-family:var(--font-mono);font-size:6.8px;font-weight:400;letter-spacing:.1em;fill:var(--ink-2)}
+.hz-chart .hz-stage-word.is-current{fill:var(--ink);font-weight:500}
+.hz-chart .hz-stage-word.is-logged{fill:var(--muted)}
+.hz-sofar{fill:var(--dawn)}
+.hz-hit{fill:transparent}
+.horizon-key.is-volume::before{background:var(--d-endurance)}
+.horizon-key.is-long::before{width:10px;background:var(--ink-2)}
+.horizon-key.is-logged::before{height:8px;background:var(--ink-2);opacity:.2}
+.horizon-key.is-sofar::before{width:4px;height:10px;background:var(--dawn)}
 
-.horizon-weeks{list-style:none;margin:0;padding:0;display:grid}
-.horizon-week{border-top:1px solid var(--line);min-width:0}
-.horizon-week:first-child{border-top:0}
-.horizon-week-head{display:grid;grid-template-columns:4.6em minmax(0,1fr) auto;align-items:baseline;gap:var(--space-4);
-  width:100%;min-height:44px;padding:var(--space-5) 0;background:none;border:0;color:inherit;font:inherit;text-align:left;
-  cursor:default;transition:transform var(--dur-1) var(--ease)}
-button.horizon-week-head{cursor:pointer}
-button.horizon-week-head:active{transform:var(--press-lg)}
-.horizon-week-date{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
-  text-transform:uppercase;color:var(--muted);white-space:nowrap}
-.horizon-week-kind{font-size:var(--text-body);color:var(--ink);min-width:0}
-.horizon-week-now{color:var(--dawn);font-weight:600;font-size:var(--text-sm)}
-.horizon-week-km{font-family:var(--font-ui);font-weight:650;font-size:var(--text-body);color:var(--ink);
-  font-variant-numeric:tabular-nums;white-space:nowrap}
-.horizon-week.is-current .horizon-week-date{color:var(--dawn)}
-.horizon-week.is-race .horizon-week-kind{font-family:var(--font-display);font-size:1.05rem}
-.horizon-week-detail{display:grid;gap:var(--space-3);padding:0 0 var(--space-7);font-size:var(--text-sm);
-  color:var(--ink-2);line-height:1.5;animation:hz-open .32s var(--ease) both}
-.horizon-week-detail p{margin:0}
-.horizon-week-run{color:var(--d-endurance);font-weight:650}
-.horizon-week-lift{color:var(--d-strength);font-weight:650}
-.horizon-week-foot{color:var(--muted);font-size:var(--text-xs)}
-@keyframes hz-open{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* ---- this week, the race glance: stage, logged against planned on a quiet bar, the focus ---- */
+.horizon-tw{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);padding:var(--space-2) 0 0;
+  color:inherit;text-decoration:none;min-width:0}
+.horizon-tw.is-link{transition:transform var(--dur-1) var(--ease)}
+.horizon-tw.is-link:active{transform:var(--press-lg)}
+.horizon-tw-kicker{color:var(--muted)}
+.horizon-tw-row{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--space-2) var(--space-5)}
+.horizon-tw-num{font-family:var(--font-display);font-size:1.45rem;line-height:1.1;color:var(--ink);font-variant-numeric:lining-nums tabular-nums}
+.horizon-tw-of{font-family:var(--font-ui);font-size:var(--text-sm);color:var(--ink-2)}
+.horizon-tw-long{font-size:var(--text-xs);color:var(--muted)}
+.horizon-tw-track{position:relative;display:block;height:6px;border-radius:var(--radius-pill);background:var(--line);overflow:hidden}
+.horizon-tw-fill{position:absolute;inset:0 auto 0 0;width:calc(var(--frac,0) * 100%);border-radius:inherit;background:var(--d-endurance)}
+.horizon-tw-fill.is-banked{background:var(--sage)}
+.horizon-tw-focus{font-size:var(--text-sm);color:var(--ink-2);line-height:1.5}
+
+/* ---- a runner with no race: the last weeks as small columns ---- */
+.horizon-vol{display:grid;gap:var(--space-3)}
+.horizon-vol .lbl{color:var(--muted)}
+.horizon-vol-weeks{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-3);align-items:end}
+.horizon-vol-week{display:grid;gap:var(--space-1);justify-items:center;min-width:0}
+.horizon-vol-bar{display:block;width:22px;height:calc(var(--frac,0) * 64px);min-height:2px;border-radius:4px 4px 0 0;background:var(--s-endurance)}
+.horizon-vol-week.is-empty .horizon-vol-bar{background:var(--line);border-radius:1px}
+.horizon-vol-km{font-size:var(--text-xs);font-weight:600;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+.horizon-vol-week.is-empty .horizon-vol-km{color:var(--muted);font-weight:400}
+.horizon-vol-date{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted);white-space:nowrap}
+
 .horizon-lane-card.is-build .horizon-lane-fit{padding-top:var(--space-6);border-top:1px solid var(--line);font-size:var(--text-xs)}
 .horizon-lane-fit-lbl{flex-basis:100%;color:var(--muted)}
 
@@ -188,13 +205,13 @@ a.horizon-row-link:active{transform:var(--press-lg)}
 .horizon-skel-line{height:var(--space-4);width:85%}
 .horizon-skel-line.is-short{width:45%}
 /* the terrain card's own box: its padding, then the chart's viewBox (340x166) */
-.horizon-lane-card.is-race.is-loading::after{content:"";display:block;box-sizing:content-box;aspect-ratio:340/166;
-  padding:var(--space-5) var(--space-4) var(--space-4);border-radius:18px;border:1px solid var(--line);background:var(--surface)}
+.horizon-lane-card.is-race.is-loading::after{content:"";display:block;box-sizing:content-box;aspect-ratio:340/178;
+  padding:var(--space-5) var(--space-4) calc(var(--space-4) + var(--space-3) + var(--text-xs) * 1.5);border-radius:18px;border:1px solid var(--line);background:var(--surface)}
 
 /* ---- the goal line in depth ---- */
 .horizon-goal{display:grid;gap:var(--space-6)}
 .horizon-goal>.jprog-card,.horizon-goal>.ftl-card{margin:0}
 @media (prefers-reduced-motion:reduce){
-  .horizon-lane-card.settle-in,.horizon-weekview.settle-in,.horizon-week-detail{animation:none}
-  a.horizon-row-link,button.horizon-week-head{transition:none}
+  .horizon-lane-card.settle-in,.horizon-weekview.settle-in{animation:none}
+  a.horizon-row-link,a.horizon-tw{transition:none}
 }

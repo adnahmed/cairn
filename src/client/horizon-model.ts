@@ -3,9 +3,10 @@
 // one line of time, each a pure shaping of reads the app already has.
 //
 //   - Race: GET /api/race-build through the race view's own model (race-view-model),
-//     never a second engine. The lane keeps the ladder from this week forward, with
-//     distance per week in the athlete's run units and the server's fit word; no race is "No race set", with
-//     the way to set one, never an empty lane.
+//     never a second engine. A glance: the build's serif line, the terrain, this week
+//     in one row and the fit word, in the athlete's run units; the ladder and the rest
+//     are the race page's. A runner with no race gets the running week, a lifting-only
+//     athlete no lane at all.
 //   - Goal line: GET /api/journey (the phase read) and the non-lab rows of
 //     GET /api/journey/timeline (the goal date, phase window, block boundary, re-tests).
 //   - Labs and scans: past draws and scans from GET /api/health-docs, what is ahead
@@ -102,7 +103,6 @@
       fit: null,
       fit_word: "",
       fit_line: "",
-      ladder: null,
       rows: [],
       links: [],
       ...fields,
@@ -111,55 +111,50 @@
 
   // ---- Race -----------------------------------------------------------------------
 
-  /** The ladder from this week forward to race week: every week, as Horizon lists them. */
-  function ladderAhead(ladder: ClientRaceLadderModel): ClientRaceLadderModel | null {
-    const rows = Array.isArray(ladder?.rows) ? ladder.rows : [];
-    if (!rows.length) return null;
-    const here = rows.findIndex((row) => row.current);
-    return {
-      rows: rows.slice(here >= 0 ? here : 0),
-      max_km: ladder.max_km,
-      taper_text: ladder.taper_text,
-      units: ladder.units,
-    };
-  }
-
+  /**
+   * A GLANCE (the race page holds the depth). A runner with no race gets the running week
+   * and the closed weeks, never an empty ladder; a lifting-only athlete (`running:
+   * "none"`) no lane at all (`state: "absent"`: Horizon drops the view).
+   */
   function raceLane(value: unknown, units?: unknown): Lane {
     const links = [{ label: "The race build", target: copyTarget(TARGETS.race) }];
+    const unit = CairnRaceWeekModel.unitsOf(units);
     if (!record(value) || !("available" in (value as object))) {
-      return lane("race", "Race", {
-        state: "unread",
-        headline: "The race build couldn't be read just now.",
-        links,
-      });
+      const headline = "The race build couldn't be read just now.";
+      return lane("race", "Race", { state: "unread", headline, links, units: unit });
     }
+    const build = value as RaceBuild;
     const model = CairnRaceViewModel.viewModel(value, { units });
     if (!model) {
-      const reason = text((value as RaceBuild).reason);
-      return lane("race", "Race", {
+      if (build.running === "none") return lane("race", "Running", { state: "absent", units: unit });
+      const reason = text(build.reason);
+      const thisWeek = CairnRaceViewModel.thisWeekModel(build, units);
+      const volume = CairnRaceWeekModel.volumeWeeks(build, units);
+      const running = !!thisWeek || volume.length > 0;
+      return lane("race", running ? "Running" : "Race", {
         state: "none",
-        headline: "No race set",
+        headline: "No race on the calendar",
         lede: reason || "Set a dated half marathon in You → Profile and the build reads from it here.",
-        links: [{ label: "Set a race goal", target: copyTarget(TARGETS.profile) }, ...links],
+        this_week: thisWeek,
+        volume,
+        units: unit,
+        links: [
+          { label: "Set a race", target: copyTarget(TARGETS.profile) },
+          ...(running ? [{ label: "Your runs", target: copyTarget(TARGETS.race) }] : []),
+        ],
       });
     }
-    const ladder = ladderAhead(model.ladder);
-    const shared = !!ladder?.rows.some((row) => row.run_text && row.lift_text);
     return lane("race", "Race", {
       headline: model.event,
-      voice: CairnRaceViewModel.buildVoice(model.ladder, (value as RaceBuild).race),
+      voice: CairnRaceViewModel.buildVoice(model.ladder, build.race),
       when: [model.countdown, model.race_day].filter(Boolean).join(" · "),
-      lede: [
-        model.race_day ? `${model.event}, ${model.race_day}.` : "",
-        shared ? "Running and lifting share each week; tap one." : "",
-      ]
-        .filter(Boolean)
-        .join(" "),
+      lede: model.race_day ? `${model.event}, ${model.race_day}.` : "",
       fit: model.estimate.fit,
       fit_word: model.estimate.fit_word,
       fit_line: model.estimate.fit_line,
-      ladder,
       terrain: model.terrain,
+      this_week: model.this_week,
+      units: unit,
       links,
     });
   }
@@ -346,7 +341,13 @@
 
   // The season on one line: goal-pace weigh-ins and goal, the timeline's projection window
   // (the fan) and race day, and dated marks. Null under two weigh-ins; the lanes still speak.
-  function season(pace: unknown, timeline: unknown, docs: unknown, checkupValue: unknown, today: string): ClientHorizonSeason | null {
+  function season(
+    pace: unknown,
+    timeline: unknown,
+    docs: unknown,
+    checkupValue: unknown,
+    today: string
+  ): ClientHorizonSeason | null {
     const read = record(pace);
     const points = (Array.isArray(read?.points) ? (read.points as unknown[]) : [])
       .map((p) => ({ date: dayKey(record(p)?.date), lb: num(record(p)?.weight_lb) }))
@@ -368,7 +369,8 @@
     const due = (checkup?.due_now || []).map((item) => [item, true] as const);
     for (const [item, now] of [...due, ...(checkup?.upcoming || []).map((item) => [item, false] as const)]) {
       const date = now && today && dayKey(item?.next_due) < today ? today : dayKey(item?.next_due);
-      if (date && (!today || date >= today)) marks.push({ date, label: text(item.label), kind: text(item.kind) || "lab", side: "ahead" });
+      if (date && (!today || date >= today))
+        marks.push({ date, label: text(item.label), kind: text(item.kind) || "lab", side: "ahead" });
     }
     return {
       points,
@@ -388,7 +390,6 @@
     raceLane,
     goalLane,
     labsLane,
-    ladderAhead,
     weightLine,
   };
 

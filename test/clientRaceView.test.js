@@ -15,6 +15,7 @@ const MODULES = [
   "ui-actions-client",
   "ui-chart",
   "format-utils",
+  "race-week-model",
   "race-view-model",
   "race-estimate-client",
   "race-ladder-client",
@@ -44,6 +45,14 @@ const WEEKS = [
   long_km,
   quality_hint: "One quality session.",
   strength_hint: "Heavy legs early in the week.",
+  focus: kind === "race" ? "Short easy runs and a few strides." : `The ${kind} week's focus.`,
+  focus_short: kind === "race" ? "Easy runs and strides" : `${kind} focus`,
+  with_lifting:
+    kind === "taper"
+      ? "Taper week: leg work stays on the card with fewer sets at a lighter weight."
+      : kind === "race"
+        ? "Race week: heavy leg work sits out."
+        : "Lower B on Friday is the last lift before Sunday's long run.",
   current,
 }));
 
@@ -138,24 +147,62 @@ test("the current week is marked in words and by aria-current, and carries what 
   const row = current[0];
   assert.ok(row.classList.contains("is-current"));
   assert.equal(row.querySelector(".race-ladder-here").textContent, "This week");
-  assert.equal(row.querySelector(".race-ladder-foot").textContent, "18 km run so far of 32 km.");
+  // The row speaks its focus in a few words; what has been run lives in THIS WEEK.
+  assert.equal(row.querySelector(".race-ladder-foot").textContent, "build focus");
   assert.equal(Number(row.querySelector(".race-ladder-logged").style.getPropertyValue("--frac")), 0.45);
   // Only this week has a logged fill.
   assert.equal(host.querySelectorAll(".race-ladder-logged").length, 1);
 });
 
+test("THIS WEEK: the stage, what the log holds of the week on a quiet bar, the long run, the focus", () => {
+  const win = load();
+  const host = paint(win, build(), { sessionsHtml: `<ol class="race-runs"><li>Thursday tempo</li></ol>` });
+  const card = host.querySelector(".race-week");
+  assert.ok(card, "the one focal card");
+  assert.equal(card.querySelector(".race-week-stage").textContent, "Build");
+  assert.equal(card.querySelector(".race-week-num").textContent, "18 of 32 km");
+  assert.equal(Number(card.querySelector(".race-week-fill").style.getPropertyValue("--frac")), 0.563);
+  assert.equal(card.querySelector(".race-week-long").textContent, "Long run 13 km");
+  assert.equal(card.querySelector(".race-week-focus").textContent, "The build week's focus.");
+  // The page hands in the week's runs; the card places them between the volume and the focus.
+  assert.match(card.querySelector(".race-runs").textContent, /Thursday tempo/);
+  // It comes first: before the ladder, the lifting and the estimate.
+  const order = ["race-week", "race-ladder", "race-lifting", "race-estimate"].map((cls) =>
+    host.innerHTML.indexOf(`class="${cls}`)
+  );
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order
+  );
+  assert.ok(order.every((i) => i >= 0));
+});
+
 test("a banked week says so; nothing run yet says nothing (never a zero)", () => {
   const win = load();
   const banked = paint(win, build({ this_week: { ...build().this_week, logged_km: 33.4 } }));
-  assert.equal(
-    banked.querySelector(".is-current .race-ladder-foot").textContent,
-    "33.4 km run, the week's 32 km is in."
-  );
+  assert.equal(banked.querySelector(".race-week-num").textContent, "33.4 of 32 km");
+  assert.ok(banked.querySelector(".race-week-fill.is-banked"));
   assert.equal(Number(banked.querySelector(".race-ladder-logged").style.getPropertyValue("--frac")), 0.835);
   const none = paint(win, build({ this_week: { ...build().this_week, logged_km: 0 } }));
-  assert.equal(none.querySelector(".is-current .race-ladder-foot"), null);
+  assert.equal(none.querySelector(".race-week-num").textContent, "32 km this week");
   assert.equal(none.querySelector(".race-ladder-logged"), null);
+  assert.doesNotMatch(none.querySelector(".race-week").textContent, /\b0 (of|km)\b/);
   assert.doesNotMatch(none.querySelector(".is-current").textContent, /\b0 km\b/);
+});
+
+test("with your lifting: a run of weeks saying the same thing is one row; taper and race week their own", () => {
+  const win = load();
+  const host = paint(win, build());
+  const rows = host.querySelectorAll(".race-lifting-row");
+  assert.deepEqual(
+    rows.map((row) => row.querySelector(".race-lifting-when").textContent),
+    ["This week – Oct 19", "Oct 26 · Taper", "Nov 2 · Race"]
+  );
+  assert.ok(rows[0].classList.contains("is-current"));
+  assert.match(rows[1].textContent, /fewer sets at a lighter weight/);
+  // A running-only athlete (no lifting lines) gets no section at all.
+  const bare = paint(win, build({ weeks: WEEKS.map((w) => ({ ...w, with_lifting: "" })) }));
+  assert.equal(bare.querySelector(".race-lifting"), null);
 });
 
 test("the taper and race week read as the server's kinds, with race day on race week", () => {
@@ -164,7 +211,8 @@ test("the taper and race week read as the server's kinds, with race day on race 
   const kinds = host
     .querySelectorAll(".race-ladder-row")
     .map((row) => row.querySelector(".race-ladder-kind").firstChild.textContent);
-  assert.deepEqual(kinds, ["Build", "Down week", "Build", "Build", "Peak", "Peak", "Taper", "Race"]);
+  // A turning point by its kind, a build week by its phase (the stage word).
+  assert.deepEqual(kinds, ["Build", "Down week", "Build", "Sharpen", "Peak", "Peak", "Taper", "Race"]);
   const taper = host.querySelectorAll(".race-ladder-row.is-taper");
   assert.equal(taper.length, 1);
   assert.equal(taper[0].getAttribute("data-race-week"), "2026-10-26");
@@ -184,6 +232,10 @@ test("run volume and paces both follow the athlete's run units", () => {
   const win = load();
   const host = paint(win, build(), { units: "mi" });
   for (const km of host.querySelectorAll(".race-ladder-km")) assert.match(km.textContent, /^\d+(\.\d)? mi$/);
+  assert.equal(host.querySelector(".race-week-num").textContent, "11.2 of 19.9 mi");
+  assert.equal(host.querySelector(".race-week-long").textContent, "Long run 8.1 mi");
+  assert.doesNotMatch(host.querySelector(".race-week").textContent, /\bkm\b/);
+  assert.equal(host.querySelector("[data-run-units='mi']").getAttribute("aria-pressed"), "true");
   assert.doesNotMatch(host.querySelector(".race-ladder").textContent, /\bkm\b/);
   assert.equal(host.querySelector(".race-ladder-unit").textContent, "mi per week");
   assert.match(host.querySelector(".race-view-pace dd").textContent, /\/mi/);
@@ -201,7 +253,8 @@ test("the head frames the race: its name, the ladder's own weeks to race, and ra
   // The current rung's calendar count (7), never the rounded-up day count (8).
   assert.equal(host.querySelector(".race-view-when").textContent, "7 weeks to race · Sunday, Nov 8");
   assert.equal(host.querySelector(".is-current .race-ladder-out").textContent, "7 wk out");
-  assert.match(host.querySelector(".race-view-head .lbl").textContent, /Building/);
+  // The kicker names the page; the week's stage is THIS WEEK's to say, once.
+  assert.equal(host.querySelector(".race-view-head .lbl").textContent, "Race");
   const at = (i) => WEEKS.map((w, j) => ({ ...w, current: j === i }));
   // Race week on a Tuesday: 5 days out, the server's ceil says 1, the ladder says race week.
   const week = paint(win, build({ weeks: at(7), race: { ...build().race, weeks_to_race: 1, days_to_race: 5 } }));
@@ -266,7 +319,7 @@ test("caller strings are escaped", () => {
     win,
     build({
       race: { ...build().race, event: "<b>Half</b>" },
-      strength: { ...build().strength, principle: "<i>why</i>" },
+      strength: { ...build().strength, layout: "<i>why</i>" },
     })
   );
   assert.equal(host.querySelector(".race-view-event b"), null);
@@ -286,7 +339,8 @@ test("the paces and the server's sentences sit behind a 44px fold", () => {
   const notes = host.querySelectorAll(".race-view-note").map((p) => p.textContent);
   // The server's why is not in the fold: the head, estimate and ladder already say it,
   // and its estimate clause prints the gap as a verdict.
-  assert.deepEqual(notes, [build().strength.principle]);
+  // The strength principle is "With your lifting" now; only the layout and ride remain.
+  assert.deepEqual(notes, []);
   assert.doesNotMatch(more.textContent, /off the [0-9:]+ target|4:31/);
 });
 
@@ -337,7 +391,11 @@ for (const [asOf, head, currentOut] of [
       assert.equal(row.querySelector(".race-ladder-km").textContent, win.CairnRaceViewModel.kmText(week.km));
       assert.equal(
         row.querySelector(".race-ladder-kind").firstChild.textContent,
-        win.CairnRaceViewModel.KIND_WORD[week.kind]
+        win.CairnRaceViewModel.stageWord(week)
+      );
+      assert.equal(
+        row.querySelector(".race-ladder-foot").textContent,
+        week.kind === "race" ? row.querySelector(".race-ladder-foot").textContent : week.focus_short
       );
       assert.ok(row.classList.contains(`is-${week.kind}`) || !["taper", "race"].includes(week.kind));
       assert.equal(row.classList.contains("is-current"), week.current === true);
@@ -393,7 +451,7 @@ test("a cold mount shows the skeleton, then the view", async () => {
 test("an unavailable build is the empty state with the server's own reason", async () => {
   const win = load();
   const host = createHost(win.document);
-  const reason = "No dated race on file — set one and the build reads from it.";
+  const reason = "No dated race yet. Set one and the build lays out week by week.";
   win.CairnRaceViewController.mount(host, { load: async () => ({ available: false, reason, weeks: [] }) });
   await flush();
   assert.equal(host.querySelector(".race-ladder"), null);
@@ -450,21 +508,14 @@ test("a view the athlete has left is never painted", async () => {
   assert.equal(host.querySelector(".race-ladder"), null);
 });
 
-// ---------- wave 6B: Horizon's terrain in the race view ----------
+// ---------- the race page holds the depth, Horizon the glance ----------
 
-test("with Horizon's chart loaded the race view draws the terrain and folds the ladder one tap deeper", () => {
-  const win = loadClientModule([...MODULES.slice(0, -2), "horizon-chart-client", ...MODULES.slice(-2)], { globals: {} });
+test("the race page draws no chart: the terrain is Horizon's glance, the ladder here is its table", () => {
+  const win = loadClientModule([...MODULES.slice(0, -2), "horizon-terrain-client", "horizon-chart-client", ...MODULES.slice(-2)], {
+    globals: {},
+  });
   const host = paint(win, build());
-  const terrain = host.querySelector(".race-view-terrain .hz-terrain");
-  assert.ok(terrain, "the km terrain is drawn");
-  assert.match(terrain.getAttribute("aria-label"), /Kilometres per week to race day/);
-  assert.match(host.querySelector(".hz-race-word").textContent, /^Half · Nov 8$/);
-  // The ladder is still whole, inside its fold.
-  const fold = host.querySelector("details.race-view-weeks");
-  assert.ok(fold);
-  assert.equal(fold.querySelectorAll(".race-ladder-row").length, 8);
-  // Without the chart the ladder stands open as the build's only picture.
-  const bare = paint(load(), build());
-  assert.equal(bare.querySelector("details.race-view-weeks"), null);
-  assert.equal(bare.querySelectorAll(".race-ladder-row").length, 8);
+  assert.equal(host.querySelector(".hz-terrain"), null);
+  assert.equal(host.querySelector("details.race-view-weeks"), null);
+  assert.equal(host.querySelectorAll(".race-ladder-row").length, 8);
 });

@@ -33,17 +33,43 @@
    * lift and run as pills, done ones ticked, a run still to place drawn open, and a day
    * with neither is rest. Today's lift is the server's one today line (`strength_line`,
    * the words the Brief, Session and plan strip print), never a state read here off the
-   * session. The week's spoken line is the server's. Null when the read has no days (the
-   * view then says so in one line).
+   * session. The week's spoken line is the server's. Null when the read failed; a read
+   * with no days is an empty week (the view says so in one line).
    */
-  const RUN_KIND_WORD: Readonly<Record<string, string>> = { easy: "Easy run", quality: "Quality run", long: "Long run" };
+  const RUN_KIND_WORD: Readonly<Record<string, string>> = {
+    easy: "Easy run",
+    quality: "Quality run",
+    long: "Long run",
+  };
+
+  /**
+   * One plan-week day's run in words, in the athlete's run units: "Long run · 8.4 mi".
+   * A run done or behind is named by its kind ("Easy run"): the agenda's label can be a
+   * morning's read ("Rest or an easy walk") that no longer describes it. A run today or
+   * ahead keeps the server's label, the words the day read and the week line say for
+   * that same run, so the row never contradicts the morning. "" with no run. Exported for
+   * any read-only preview of a day (Today's future-day previews print the same words).
+   */
+  function dayRunText(value: unknown, today: string, units?: unknown): string {
+    const day = record(value) as PlanWeekDay | null;
+    const run = day?.run;
+    if (!run) return "";
+    const date = dayKey(day?.date);
+    const past = !!date && !!today && date < today;
+    const settled = run.status === "completed" || past;
+    const label = (settled ? RUN_KIND_WORD[String(run.kind)] : "") || text(run.label) || "Run";
+    const km = num(run.km);
+    return km != null && km > 0 ? `${label} · ${CairnRaceViewModel.kmText(km, units)}` : label;
+  }
 
   function weekView(value: unknown, today: string, units?: unknown): ClientHorizonWeek | null {
     const read = record(value) as PlanWeek | null;
-    const days = Array.isArray(read?.days) ? (read.days as PlanWeekDay[]) : [];
-    if (!read || !days.length) return null;
+    if (!read) return null;
+    const days = Array.isArray(read.days) ? (read.days as PlanWeekDay[]) : [];
+    // A read with no days is a week with nothing planned yet, not a failed read.
+    if (!days.length) return { line: "", days: [] };
     const todayLine = record(read.strength_line) as StrengthLine | null;
-    const out: ClientHorizonWeekDay[] = days.map((day) => {
+    const out: ClientHorizonWeekDay[] = days.map((day, index) => {
       const date = dayKey(day.date);
       const isToday = day.status === "today" || (!!date && date === today);
       const pills: ClientHorizonWeekPill[] = [];
@@ -66,25 +92,20 @@
       }
       const run = day.run;
       if (run) {
-        const km = num(run.km);
         const past = !!date && !!today && date < today;
-        // A run done or behind is named by its kind ("Easy run"): the agenda's label can
-        // be a morning's read ("Rest or an easy walk") that no longer describes it. A run
-        // today or ahead keeps the server's label, the words the day read and the week
-        // line say for that same run, so the row never contradicts the morning.
-        const settled = run.status === "completed" || past;
-        const label = (settled ? RUN_KIND_WORD[String(run.kind)] : "") || text(run.label) || "Run";
         pills.push({
           stone: "endurance",
-          text: km != null && km > 0 ? `${label} · ${CairnRaceViewModel.kmText(km, units)}` : label,
+          text: dayRunText(day, today, units),
           state: run.status === "completed" ? "done" : past ? "open" : "planned",
         });
       }
       const weekday = text(day.weekday) || (date ? CairnRaceViewModel.longDate(date).split(",")[0] : "");
+      // A week in plan order (no lifting weekdays stated) has no dates: its rows count
+      // "DAY 1, 2, 3" rather than standing unlabelled.
       return {
         date,
-        weekday: weekday.slice(0, 3).toUpperCase(),
-        day: date ? String(Number(date.slice(8, 10))) : "",
+        weekday: weekday ? weekday.slice(0, 3).toUpperCase() : "DAY",
+        day: date ? String(Number(date.slice(8, 10))) : String(index + 1),
         today: isToday,
         pills,
         line,
@@ -94,7 +115,7 @@
     return { line, days: out };
   }
 
-  const CAIRN_HORIZON_WEEK_MODEL = { weekView };
+  const CAIRN_HORIZON_WEEK_MODEL = { weekView, dayRunText };
 
   Object.assign(globalThis, { CairnHorizonWeekModel: CAIRN_HORIZON_WEEK_MODEL });
 }
