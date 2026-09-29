@@ -22,6 +22,10 @@
     race: "Race",
   };
 
+  // Units, stage words and this week live in race-week-model (loaded first); the view
+  // model reads them from there and re-exports them for its callers.
+  const { STAGE_WORD, stageWord, unitsOf, kmText, distNum, runWords, thisWeekModel, liftingModel } = CairnRaceWeekModel;
+
   const PHASE_WORD: Record<string, string> = {
     base: "Base building",
     build: "Building",
@@ -46,37 +50,6 @@
     if (value == null || value === "") return null;
     const n = Number(value);
     return Number.isFinite(n) ? n : null;
-  }
-
-  type Units = "km" | "mi";
-  const KM_PER_MILE = 1.609344;
-
-  function unitsOf(value: unknown): Units {
-    return typeof runUnits === "function" ? runUnits(value) : value === "mi" ? "mi" : "km";
-  }
-
-  /** "32 km", "12.5 km" (or "19.9 mi" in miles): one decimal only when it has one. */
-  function kmText(km: unknown, units?: unknown): string {
-    const n = num(km);
-    if (n == null || n < 0) return "";
-    const mi = unitsOf(units) === "mi";
-    const r = Math.round((mi ? n / KM_PER_MILE : n) * 10) / 10;
-    return `${Number.isInteger(r) ? r : r.toFixed(1)} ${mi ? "mi" : "km"}`;
-  }
-
-  /**
-   * The server's own run sentences (a finish estimate's basis) say "12.3 km" and
-   * "5:10 /km"; in miles those figures are restated, the words left as written.
-   */
-  function runWords(value: unknown, units?: unknown): string {
-    const s = String(value || "").trim();
-    if (unitsOf(units) !== "mi") return s;
-    return s
-      .replace(/(\d+):(\d{2}) ?\/ ?km\b/g, (_m, mm: string, ss: string) => {
-        const sec = Math.round((Number(mm) * 60 + Number(ss)) * KM_PER_MILE);
-        return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} /mi`;
-      })
-      .replace(/(\d+(?:\.\d+)?) ?km\b/g, (_m, n: string) => kmText(Number(n), "mi"));
   }
 
   /** A finish clock: "1:59:59", or "58:40" under the hour. "" when there is none. */
@@ -140,13 +113,6 @@
     return `${kmText(logged, units)} run so far of ${kmText(rung, units)}.`;
   }
 
-  /** The week's running, in the server's words: its quality hint, then the long run. */
-  function runText(week: RaceWeek, long: number | null, units?: unknown): string {
-    const hint = String(week.quality_hint || "").trim();
-    const longRun = long != null && long > 0 && week.kind !== "race" ? `Long run ${kmText(long, units)}.` : "";
-    return [hint, longRun].filter(Boolean).join(" ");
-  }
-
   /** The race's short name on the chart: "Half", "Marathon", "10K", else "Race". */
   function raceShortName(distanceKm: unknown): string {
     const km = num(distanceKm);
@@ -181,22 +147,54 @@
     const raceDate = dayKey(build?.race?.date);
     return {
       weeks: [
-        ...logged.map((week) => ({ week_start: week.week_start, km: week.km, kind: "logged", current: false, logged: true })),
-        ...rows.map((row) => ({ week_start: row.week_start, km: row.km, kind: row.kind, current: row.current })),
+        ...logged.map((week) => ({
+          week_start: week.week_start,
+          km: week.km,
+          kind: "logged",
+          current: false,
+          logged: true,
+        })),
+        ...rows.map((row) => ({
+          week_start: row.week_start,
+          km: row.km,
+          kind: row.kind,
+          current: row.current,
+          stage: row.stage_word,
+          long_km: row.long_km,
+          logged_km: row.logged_km,
+        })),
       ],
       race_date: raceDate,
-      race_label: [raceShortName(build?.race?.distance_km), raceDate ? shortDate(raceDate) : ""].filter(Boolean).join(" · "),
+      race_label: [raceShortName(build?.race?.distance_km), raceDate ? shortDate(raceDate) : ""]
+        .filter(Boolean)
+        .join(" · "),
       as_of: dayKey(build?.as_of),
       units: unitsOf(units),
     };
   }
 
-  const COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+  const COUNT_WORDS = [
+    "No",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+  ];
 
   /** What the voice calls the race: "the half", "the 10K", else "race day". */
   function raceNoun(distanceKm: unknown): string {
     const short = raceShortName(distanceKm);
-    return short === "Race" ? "race day" : `the ${short === "Half" || short === "Marathon" ? short.toLowerCase() : short}`;
+    return short === "Race"
+      ? "race day"
+      : `the ${short === "Half" || short === "Marathon" ? short.toLowerCase() : short}`;
   }
 
   /**
@@ -210,7 +208,9 @@
     const noun = raceNoun(race?.distance_km);
     const weekday = longDate(race?.date).split(",")[0];
     if (!here || here.kind === "race" || num(race?.days_to_race) === 0) {
-      return num(race?.days_to_race) === 0 ? "Race day is today." : `Race week, then ${noun}${weekday ? ` on ${weekday}` : ""}.`;
+      return num(race?.days_to_race) === 0
+        ? "Race day is today."
+        : `Race week, then ${noun}${weekday ? ` on ${weekday}` : ""}.`;
     }
     if (here.kind === "taper") return `The taper, then ${noun}.`;
     const n = Math.max(1, Math.round(num(here.weeks_to_race) ?? 1));
@@ -242,6 +242,8 @@
         date_word: shortDate(week.week_start),
         km,
         km_text: kmText(km, units),
+        stage_word: stageWord(week),
+        long_km: long != null && long > 0 && week.kind !== "race" ? long : null,
         long_text: long != null && long > 0 && week.kind !== "race" ? `long ${kmText(long, units)}` : "",
         frac: frac(km),
         current,
@@ -249,8 +251,9 @@
         logged_frac: loggedKm != null && maxKm > 0 ? frac(loggedKm) : null,
         so_far_text: current ? soFarText(km, loggedKm, units) : "",
         race_day_text: week.kind === "race" && raceDay ? `Race day, ${raceDay}` : "",
-        run_text: runText(week, long, units),
-        lift_text: String(week.strength_hint || "").trim(),
+        focus_text: String(week.focus || "").trim(),
+        focus_short: String(week.focus_short || "").trim(),
+        lifting_text: String(week.with_lifting || "").trim(),
       };
     });
     const taper = rows.find((row) => row.kind === "taper");
@@ -301,12 +304,13 @@
   }
 
   /**
-   * The fold's sentences. `build.why` is deliberately left out: the head, the estimate
+   * The paces fold's sentences. `build.why` is deliberately left out: the head, the estimate
    * and the ladder already say all of it, and its estimate clause prints the time gap
    * as a verdict ("4:31 off the target") in a rounded-up week count the ladder does not use.
    */
   function notesModel(build: RaceBuild | null | undefined): string[] {
-    const notes = [build?.strength?.principle, build?.strength?.layout, build?.ride?.placement];
+    // The strength principle is "With your lifting" now, week by week, in words.
+    const notes = [build?.strength?.layout, build?.ride?.placement];
     return notes.map((note) => String(note || "").trim()).filter(Boolean);
   }
 
@@ -327,6 +331,8 @@
       race_day: longDate(race.date),
       phase_word: PHASE_WORD[race.phase] || "",
       estimate: estimateModel(value, opts.units),
+      this_week: thisWeekModel(value, opts.units),
+      lifting: liftingModel(ladder),
       ladder,
       terrain: terrainModel(value, ladder, opts.units),
       paces: pacesModel(value, opts.units),
@@ -337,6 +343,11 @@
   const CAIRN_RACE_VIEW_MODEL = {
     FIT_WORD,
     KIND_WORD,
+    STAGE_WORD,
+    stageWord,
+    thisWeekModel,
+    liftingModel,
+    distNum,
     kmText,
     runWords,
     clock,

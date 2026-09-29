@@ -1,12 +1,13 @@
 // @ts-check
 // The Horizon timeline, the view (docs/V2-PLAN.md wave 5): three views on one line of
-// time — this week (day by day), the race build (its serif line, the terrain and a
-// row a week), and the season (the goal line, and labs and scans). Pure strings: the model carries
-// every word, and each lane has its own loading shape. A lane's rows run behind → a
-// "Today" mark → ahead, the same rail the road-ahead card draws. Each link carries a
-// real href (so a long-press or a new tab works) and `data-horizon-go`, the key the
-// controller resolves to a route. Distance per week (km or mi, the athlete's pick) and
-// fit words only; no score.
+// time — this week (day by day), the race build (a glance: its serif line, the terrain,
+// this week in one row, the fit word; the race page holds the depth), and the season
+// (the goal line, and labs and scans). Pure strings: the model carries every word, and
+// each lane has its own loading shape. A lane's rows run behind → a "Today" mark →
+// ahead, the same rail the road-ahead card draws. Each link carries a real href (so a
+// long-press or a new tab works) and `data-horizon-go`, the key the controller resolves
+// to a route. Distance per week (km or mi, the athlete's pick) and fit words only; no
+// score.
 {
   type Lane = ClientHorizonLane;
   type Row = ClientHorizonRow;
@@ -72,13 +73,53 @@
     return `<div class="horizon-lane-links">${links}</div>`;
   }
 
-  /** The race build as terrain, in its chart card; "" when there is no ridge to draw. */
-  function terrainHtml(lane: Lane, selected?: string | null): string {
-    const chart =
-      typeof CairnHorizonChart !== "undefined" && lane.terrain
-        ? CairnHorizonChart.terrainSvg(lane.terrain, { selected })
+  /** The race build as terrain, in its chart card with its key; "" when there is no ridge to draw. */
+  function terrainHtml(lane: Lane): string {
+    if (typeof CairnHorizonChart === "undefined" || !lane.terrain) return "";
+    const chart = CairnHorizonChart.terrainSvg(lane.terrain);
+    return chart
+      ? `<figure class="horizon-chart-card is-terrain">${chart}${CairnHorizonChart.terrainKeyHtml(lane.terrain)}</figure>`
+      : "";
+  }
+
+  /**
+   * This week in one row: the stage, what the log holds of the week's volume on a quiet
+   * bar, the long run, and the week's one coaching sentence. Taps through to the race
+   * page, where the week is laid out in depth.
+   */
+  function thisWeekHtml(lane: Lane, hrefFor?: HrefFor): string {
+    const week = lane.this_week;
+    if (!week || (!week.done_text && !week.target_text && !week.focus)) return "";
+    const kicker = ["This week", week.stage_word].filter(Boolean).join(" · ");
+    const figure = typeof CairnRaceView !== "undefined" ? CairnRaceView.volumeFigureHtml(week, "horizon-tw") : "";
+    const bar =
+      week.frac != null
+        ? `<span class="horizon-tw-track" aria-hidden="true"><span class="horizon-tw-fill${week.banked ? " is-banked" : ""}" style="--frac:${week.frac}"></span></span>`
         : "";
-    return chart ? `<figure class="horizon-chart-card is-terrain">${chart}</figure>` : "";
+    const long = week.long_text ? `<span class="horizon-tw-long">${escHtml(week.long_text)}</span>` : "";
+    const focus = week.focus ? `<span class="horizon-tw-focus">${escHtml(week.focus)}</span>` : "";
+    const link = lane.links.findIndex((l) => l.target.tab === "plan");
+    const inner = `<span class="lbl horizon-tw-kicker">${escHtml(kicker)}</span>
+      <span class="horizon-tw-row">${figure}${long}</span>${bar}${focus}`;
+    return link >= 0
+      ? `<a class="horizon-tw is-link"${linkAttrs(`${lane.key}:link:${link}`, lane.links[link].target, hrefFor)}>${inner}</a>`
+      : `<div class="horizon-tw">${inner}</div>`;
+  }
+
+  /** A runner's closed weeks as small columns: the rhythm, with no race to build to. */
+  function volumeHtml(lane: Lane): string {
+    const weeks = lane.volume || [];
+    if (!weeks.length) return "";
+    const cols = weeks
+      .map(
+        (w) => `<li class="horizon-vol-week${w.frac > 0 ? "" : " is-empty"}" style="--frac:${w.frac}">
+          <span class="horizon-vol-bar" aria-hidden="true"></span>
+          <span class="horizon-vol-km">${escHtml(w.km_text)}</span>
+          <span class="horizon-vol-date">${escHtml(w.date_word)}</span>
+        </li>`
+      )
+      .join("");
+    return `<div class="horizon-vol"><span class="lbl">The last ${weeks.length} weeks</span><ol class="horizon-vol-weeks" aria-label="Running per week, the last ${weeks.length} weeks">${cols}</ol></div>`;
   }
 
   /** The km / mi switch: the athlete's run units, saved to settings from any surface. */
@@ -86,49 +127,6 @@
     const btn = (value: "km" | "mi") =>
       `<button type="button" class="end-unit-btn${units === value ? " on" : ""}" data-horizon-units="${value}" aria-pressed="${units === value}">${value}</button>`;
     return `<div class="end-units horizon-units" role="group" aria-label="Distance and pace units">${btn("km")}${btn("mi")}</div>`;
-  }
-
-  /** Which week the rows hold open: the picked one, none (""), or this week. */
-  function openWeek(rows: ClientRaceLadderRow[], selected?: string | null): string {
-    if (selected === "") return "";
-    if (selected && rows.some((row) => row.week_start === selected)) return selected;
-    return rows.find((row) => row.current)?.week_start || "";
-  }
-
-  /**
-   * The build, one hairline row a week (mono date, kind, km per week), from this week to
-   * race week. The open week says what its running and lifting are, in the server's
-   * words; a tap opens another. A week with nothing more to say is a plain row.
-   */
-  function weeksHtml(lane: Lane, selected?: string | null): string {
-    const rows = lane.ladder?.rows || [];
-    if (!rows.length) return "";
-    const open = openWeek(rows, selected);
-    const items = rows
-      .map((row, index) => {
-        const isOpen = row.week_start === open;
-        const foot = row.so_far_text || row.race_day_text;
-        const more = !!(row.run_text || row.lift_text || foot);
-        const cls = ["horizon-week", `is-${row.kind}`, row.current ? "is-current" : "", isOpen ? "is-open" : ""]
-          .filter(Boolean)
-          .join(" ");
-        const head = `<span class="horizon-week-date">${escHtml(row.date_word)}</span>
-          <span class="horizon-week-kind">${escHtml(row.kind_word)}${row.current ? `<span class="horizon-week-now"> · now</span>` : ""}</span>
-          <span class="horizon-week-km numeral">${escHtml(row.km_text)}</span>`;
-        const detail = isOpen && more
-          ? `<div class="horizon-week-detail" id="horizonWeek-${index}">
-              ${row.run_text ? `<p><b class="horizon-week-run">Run</b> · ${escHtml(row.run_text)}</p>` : ""}
-              ${row.lift_text ? `<p><b class="horizon-week-lift">Lift</b> · ${escHtml(row.lift_text)}</p>` : ""}
-              ${foot ? `<p class="horizon-week-foot">${escHtml(foot)}</p>` : ""}
-            </div>`
-          : "";
-        const button = more
-          ? `<button type="button" class="horizon-week-head" data-horizon-week="${escAttr(row.week_start)}" aria-expanded="${isOpen}"${isOpen ? ` aria-controls="horizonWeek-${index}"` : ""}>${head}</button>`
-          : `<div class="horizon-week-head">${head}</div>`;
-        return `<li class="${cls}"${row.current ? ` aria-current="true"` : ""} data-race-week="${escAttr(row.week_start)}">${button}${detail}</li>`;
-      })
-      .join("");
-    return `<ol class="horizon-weeks" aria-label="The build, week by week">${items}</ol>`;
   }
 
   /**
@@ -161,28 +159,31 @@
   }
 
   /** One lane, painted. `enter` gives it the shared settle-in entrance once. */
-  function laneHtml(
-    lane: Lane,
-    opts: { enter?: boolean; hrefFor?: HrefFor; selectedWeek?: string | null } = {}
-  ): string {
+  function laneHtml(lane: Lane, opts: { enter?: boolean; hrefFor?: HrefFor } = {}): string {
+    if (lane.state === "absent") return "";
     const id = `horizonLane-${lane.key}`;
     const cls = ["horizon-lane-card", `is-${lane.key}`, `is-${lane.state}`, opts.enter ? "settle-in is-entering" : ""]
       .filter(Boolean)
       .join(" ");
     const status = lane.state === "unread" ? ` role="status" aria-live="polite"` : "";
-    if (lane.voice) {
-      // The race build: one serif line, the terrain, the weeks, then the estimate as a footnote.
-      return `<section class="${cls} is-build" aria-labelledby="${id}">
+    if (lane.key === "race" && lane.state !== "unread") {
+      // The race lane is a glance: the voice (or, with no race, a calm headline), the
+      // terrain, this week, the estimate as a footnote, and the way into the depth.
+      const title = lane.voice
+        ? `<h2 class="horizon-lane-title is-voice" id="${id}">${escHtml(lane.voice)}</h2>`
+        : `<h2 class="horizon-lane-title" id="${id}">${escHtml(lane.headline)}</h2>`;
+      return `<section class="${cls}${lane.voice ? " is-build" : ""}" aria-labelledby="${id}">
         <header class="horizon-lane-head">
           <div class="horizon-lane-kickrow">
             <span class="lbl horizon-lane-kicker">${escHtml(lane.title)}</span>
-            ${unitsHtml(lane.ladder?.units === "mi" ? "mi" : "km")}
+            ${unitsHtml(lane.units === "mi" ? "mi" : "km")}
           </div>
-          <h2 class="horizon-lane-title is-voice" id="${id}">${escHtml(lane.voice)}</h2>
+          ${title}
           ${lane.lede ? `<p class="horizon-lane-lede">${escHtml(lane.lede)}</p>` : ""}
         </header>
-        ${terrainHtml(lane, opts.selectedWeek)}
-        ${weeksHtml(lane, opts.selectedWeek)}
+        ${terrainHtml(lane)}
+        ${thisWeekHtml(lane, opts.hrefFor)}
+        ${volumeHtml(lane)}
         ${fitHtml(lane)}
         ${linksHtml(lane, opts.hrefFor)}
       </section>`;
@@ -223,12 +224,14 @@
     if (!week) {
       return `<p class="horizon-week-empty" role="status">This week couldn't be read just now.</p>`;
     }
+    if (!week.days.length) {
+      return `<p class="horizon-week-empty">Nothing planned this week yet. A lifting plan in Train or run days in chat fill it in.</p>`;
+    }
     const rows = week.days
       .map((day) => {
         // Today's lift is the server's one line, verbatim with its caveat (the Brief's
         // and the plan strip's own words), leading the day as a lift pill would.
-        const line =
-          day.line && typeof CairnUiReads !== "undefined" ? CairnUiReads.strengthLineHtml(day.line) : "";
+        const line = day.line && typeof CairnUiReads !== "undefined" ? CairnUiReads.strengthLineHtml(day.line) : "";
         const pills = day.pills.length ? `<div class="horizon-pills">${day.pills.map(pillHtml).join("")}</div>` : "";
         const body =
           pills || line
@@ -266,11 +269,13 @@
   /** Which view each lane sits in. The week view holds no lane: it is its own read. */
   const PANEL: Readonly<Record<Lane["key"], ClientHorizonView>> = { race: "race", goal: "season", labs: "season" };
 
-  function segHtml(active: ClientHorizonView): string {
-    const buttons = SEGMENTS.map(
-      ([key, label]) =>
-        `<button type="button" class="segbtn${key === active ? " active" : ""}" role="tab" id="horizonTab-${key}" aria-controls="horizonPanel-${key}" aria-selected="${key === active}" data-horizon-seg="${key}">${escHtml(label)}</button>`
-    ).join("");
+  function segHtml(active: ClientHorizonView, segments: ReadonlyArray<readonly [ClientHorizonView, string]>): string {
+    const buttons = segments
+      .map(
+        ([key, label]) =>
+          `<button type="button" class="segbtn${key === active ? " active" : ""}" role="tab" id="horizonTab-${key}" aria-controls="horizonPanel-${key}" aria-selected="${key === active}" data-horizon-seg="${key}">${escHtml(label)}</button>`
+      )
+      .join("");
     return `<div class="seg horizon-seg" role="tablist" aria-label="Horizon views">${buttons}</div>`;
   }
 
@@ -278,22 +283,29 @@
    * The timeline's frame: the view switch, then one tab panel per view holding its lane
    * slots, in the timeline's order.
    */
-  function shellHtml(active: ClientHorizonView = "race"): string {
-    const panels = SEGMENTS.map(([view]) => {
-      const hidden = view === active ? "" : " hidden";
-      if (view === "week") {
-        // The week is read the first time it is SHOWN, so a hidden week panel holds no
-        // skeleton: a busy shimmer nobody can see would read as a load that never ends.
-        // The controller puts the skeleton in when the view opens.
-        return `<div class="horizon-panel" role="tabpanel" id="horizonPanel-week" aria-labelledby="horizonTab-week" data-horizon-panel="week"${hidden}><div data-horizon-weekview>${hidden ? "" : weekSkeletonHtml()}</div></div>`;
-      }
-      const lanes = KEYS.filter((key) => PANEL[key] === view)
-        .map((key) => `<li class="horizon-lane" data-horizon-lane="${key}">${laneSkeletonHtml(key)}</li>`)
-        .join("");
-      return `<div class="horizon-panel" role="tabpanel" id="horizonPanel-${view}" aria-labelledby="horizonTab-${view}" data-horizon-panel="${view}"${hidden}><ol class="horizon-lanes" aria-label="What's ahead">${lanes}</ol></div>`;
-    }).join("");
+  function shellHtml(active: ClientHorizonView = "race", opts: { race?: boolean; raceLabel?: string } = {}): string {
+    // A lifting-only athlete has no race view at all; a runner with no race reads it as "Running".
+    const segments = SEGMENTS.filter(([view]) => view !== "race" || opts.race !== false).map(
+      ([view, label]) => [view, view === "race" && opts.raceLabel ? opts.raceLabel : label] as const
+    );
+    if (!segments.some(([view]) => view === active)) active = segments[0][0];
+    const panels = segments
+      .map(([view]) => {
+        const hidden = view === active ? "" : " hidden";
+        if (view === "week") {
+          // The week is read the first time it is SHOWN, so a hidden week panel holds no
+          // skeleton: a busy shimmer nobody can see would read as a load that never ends.
+          // The controller puts the skeleton in when the view opens.
+          return `<div class="horizon-panel" role="tabpanel" id="horizonPanel-week" aria-labelledby="horizonTab-week" data-horizon-panel="week"${hidden}><div data-horizon-weekview>${hidden ? "" : weekSkeletonHtml()}</div></div>`;
+        }
+        const lanes = KEYS.filter((key) => PANEL[key] === view)
+          .map((key) => `<li class="horizon-lane" data-horizon-lane="${key}">${laneSkeletonHtml(key)}</li>`)
+          .join("");
+        return `<div class="horizon-panel" role="tabpanel" id="horizonPanel-${view}" aria-labelledby="horizonTab-${view}" data-horizon-panel="${view}"${hidden}><ol class="horizon-lanes" aria-label="What's ahead">${lanes}</ol></div>`;
+      })
+      .join("");
     return `<div class="horizon" data-horizon data-horizon-view="${active}">
-      ${segHtml(active)}
+      ${segHtml(active, segments)}
       ${panels}
     </div>`;
   }

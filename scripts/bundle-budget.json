@@ -85,12 +85,12 @@
     "public/js/bundle-09-horizon.js": {
       "lazy": "horizon",
       "measured": {
-        "raw": 95923,
-        "brotli": 23120
+        "raw": 108471,
+        "brotli": 25889
       },
       "budget": {
-        "raw": 99328,
-        "brotli": 24576
+        "raw": 112640,
+        "brotli": 27648
       }
     },
     "public/js/bundle-10-ask.js": {

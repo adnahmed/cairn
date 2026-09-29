@@ -56,6 +56,8 @@ type PlanEnduranceBriefing = {
   kicker: string;
   headline: string;
   units: "km" | "mi";
+  /** This week's runs already in, oldest first (the agenda's completed intents). */
+  done: PlanEnduranceBriefingSession[];
   next: PlanEnduranceBriefingSession | null;
   remaining: PlanEnduranceBriefingSession[];
   later: PlanEnduranceBriefingSession[];
@@ -421,15 +423,17 @@ function planEnduranceIntentDate(intent: PlanEnduranceIntent): string | null {
   return planEnduranceDayKey(intent.suggested_date || intent.provisional_date) || null;
 }
 
+// The week's open runs, or (`done`) the ones already in, each with what was run.
 function planEnduranceSessionsFromAgenda(
   agenda: PlanEnduranceAgenda,
   runPlan: PlanEnduranceRunPlan | null | undefined,
   raceBuild: PlanEnduranceRaceBuild | null | undefined,
   today: string,
-  units?: unknown
+  units?: unknown,
+  done = false
 ): PlanEnduranceBriefingSession[] {
   return agenda.intents
-    .filter((intent) => intent.status !== "completed")
+    .filter((intent) => (intent.status === "completed") === done)
     .map((intent) => {
       const dayNumber = Number(intent.provisional_day_number);
       const matched = planEnduranceMatchRun(
@@ -447,12 +451,12 @@ function planEnduranceSessionsFromAgenda(
         label,
         date,
         dayNumber: Number.isFinite(dayNumber) ? dayNumber : null,
-        km: intent.target_distance_km ?? matched?.target_distance_km,
+        km: (done ? intent.completion?.distance_km : null) ?? intent.target_distance_km ?? matched?.target_distance_km,
         min: intent.target_duration_min ?? matched?.target_duration_min,
         zone: intent.target_zone ?? matched?.target_zone,
         interval: matched?.interval ?? null,
         note,
-        status: "open",
+        status: done ? "completed" : "open",
         today,
         raceBuild,
         units,
@@ -535,6 +539,9 @@ function planEnduranceBuildBriefing(input: PlanEnduranceBriefingInput): PlanEndu
     kicker: planEnduranceKicker(horizon),
     headline: collected[0]?.why || "",
     units,
+    done: weeks[0]?.agenda?.available !== false && Array.isArray(weeks[0]?.agenda?.intents)
+      ? planEnduranceSessionsFromAgenda(weeks[0].agenda!, null, null, today, units, true)
+      : [],
     next,
     remaining,
     later,
@@ -564,12 +571,4 @@ const CAIRN_PLAN_ENDURANCE_MODEL = {
   showsRaceView: planEnduranceShowsRaceView,
 };
 
-Object.assign(globalThis, {
-  CairnPlanEnduranceModel: CAIRN_PLAN_ENDURANCE_MODEL,
-});
-
-if (typeof window !== "undefined") {
-  Object.assign(window, {
-    CairnPlanEnduranceModel: CAIRN_PLAN_ENDURANCE_MODEL,
-  });
-}
+Object.assign(globalThis, { CairnPlanEnduranceModel: CAIRN_PLAN_ENDURANCE_MODEL });

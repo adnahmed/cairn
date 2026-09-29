@@ -472,7 +472,12 @@ export function planWeek(date?: string): PlanWeek {
   const through = asOf < weekEnd ? asOf : weekEnd;
   const runLog = weekRunLog(weekStart, through);
 
-  if (map.size > 0) {
+  // A running-only athlete (no strength template at all) still has a week: the stated
+  // run days, the agenda's runs and the log sit on the calendar, and every other day is
+  // rest. Template mode would have no rows to walk, and an empty strip reads as nothing
+  // planned rather than as the running week it is.
+  const runningOnly = template.length === 0 && (runDows.length > 0 || intents.length > 0 || runLog.length > 0);
+  if (map.size > 0 || runningOnly) {
     // Calendar mode — one cell per weekday Mon→Sun.
     for (let offset = 0; offset < 7; offset++) {
       const cellDate = addDaysISO(weekStart, offset) ?? weekStart;
@@ -614,7 +619,7 @@ export function planWeek(date?: string): PlanWeek {
   const summary =
     layoutRead && !layoutRead.clean && layoutRead.suggestion
       ? layoutRead.suggestion
-      : schedule.lift_days.length
+      : schedule.lift_days.length || runningOnly
         ? null
         : days.length
           ? "Your training week in plan order — say which weekdays you lift and the strip will sit on the calendar."

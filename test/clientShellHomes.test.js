@@ -76,7 +76,7 @@ test("streams B, C and D find their file slots already registered", () => {
     },
     "public/js/bundle-09-horizon.js": {
       lazy: "horizon",
-      stems: ["horizon-model", "horizon-week-model", "horizon-chart-client", "horizon-client", "horizon-controller", "horizon-screen"],
+      stems: ["horizon-model", "horizon-week-model", "horizon-terrain-client", "horizon-chart-client", "horizon-client", "horizon-controller", "horizon-screen"],
     },
     "public/js/bundle-10-ask.js": {
       lazy: "ask",

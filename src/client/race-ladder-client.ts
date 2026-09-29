@@ -1,9 +1,10 @@
 // @ts-check
 // The race ladder (docs/V2-PLAN.md wave 4, "race-ladder"). The view: the server's
-// weeks to race day as rows, the current week marked in words and by aria-current,
-// and each week's kilometres as a bar against the ladder's longest week. This week
-// also carries what has been run so far as a fill inside its own bar. The taper and
-// race week read as their kinds. Kilometres per week always; no score, no grade.
+// weeks to race day as rows (the race page's table of the build): the week's date and
+// count, its stage in a word, the long run, the week's focus in a few words, and its
+// distance as a bar against the ladder's longest week. This week is marked in words
+// and by aria-current, with what has been run so far as a fill inside its bar. Distance
+// per week in the athlete's units; no score, no grade.
 {
   function rowHtml(row: ClientRaceLadderRow, index: number, opts: { reveal?: boolean }): string {
     const cls = ["race-ladder-row", `is-${row.kind}`, row.current ? "is-current" : "", opts.reveal ? "reveal" : ""]
@@ -15,19 +16,16 @@
     const logged =
       row.logged_frac != null ? `<span class="race-ladder-logged" style="--frac:${row.logged_frac}"></span>` : "";
     const meta = [row.long_text].filter(Boolean).join(" · ");
-    const foot =
-      row.so_far_text || row.race_day_text
-        ? `<span class="race-ladder-foot">${escHtml(row.so_far_text || row.race_day_text)}</span>`
-        : "";
+    const foot = row.race_day_text || row.focus_short;
     return `<li class="${cls}"${style}${current} data-race-week="${escAttr(row.week_start)}">
       <span class="race-ladder-when">
-        <span class="race-ladder-out">${escHtml(row.out_word)}</span>
         <span class="race-ladder-date">${escHtml(row.date_word)}</span>
+        <span class="race-ladder-out">${escHtml(row.out_word)}</span>
       </span>
       <span class="race-ladder-main">
-        <span class="race-ladder-kind">${escHtml(row.kind_word)}${here}${meta ? `<span class="race-ladder-meta">${escHtml(meta)}</span>` : ""}</span>
+        <span class="race-ladder-kind">${escHtml(row.stage_word || row.kind_word)}${here}${meta ? `<span class="race-ladder-meta">${escHtml(meta)}</span>` : ""}</span>
         <span class="race-ladder-track" aria-hidden="true"><span class="race-ladder-bar"></span>${logged}</span>
-        ${foot}
+        ${foot ? `<span class="race-ladder-foot">${escHtml(foot)}</span>` : ""}
       </span>
       <span class="race-ladder-km numeral">${escHtml(row.km_text)}</span>
     </li>`;

@@ -1,12 +1,8 @@
 // @ts-check
 // The Horizon instruments (docs/DESIGN.md "Charts: instruments drawn to scale"): two SVG
-// charts drawn to scale.
+// charts drawn to scale. The race build's terrain lives in horizon-terrain-client (with
+// the drawing kit both share) and is re-exported here; this module draws the season.
 //
-//   - terrainSvg: the race build as terrain. The closed weeks the log holds (quieter,
-//     ink), then every ladder week's kilometres, a smooth ridge with two quieter contour
-//     lines under it, the km written over each week, the peak and the taper named on
-//     the ground, a dawn "now" line, the open week washed, and race day as a dashed
-//     endurance line.
 //   - seasonSvg: the season's weight line. The weigh-ins since the window opened, the
 //     goal as a dashed body-colored line, the server's projection window as a fan from
 //     the latest weigh-in to the goal, and a lane of dated diamonds under it: draws and
@@ -20,183 +16,20 @@
 // annotations take a stone's deep color, and the colors are CSS variables, so the
 // charts follow the theme without a repaint.
 {
-  type Terrain = ClientHorizonTerrain;
   type Season = ClientHorizonSeason;
 
-  const DAY = 86400000;
-  const KM_PER_MILE = 1.609344;
+  const { TERRAIN, terrainSvg, terrainKeyHtml, fx, dayNum, isoOf, monoDate, kmWord } = CairnHorizonTerrain;
   /** How old the latest weigh-in may be and still anchor the projection fan. */
   const FAN_ANCHOR_DAYS = 3;
   /** How far past the season's own end (today, goal, window, race) a mark may widen it. */
   const MARK_REACH_DAYS = 30;
   /** Mark kinds drawn in the body hue (a scan of the body), not the labs' heart. */
   const BODY_MARK_KINDS: ReadonlySet<string> = new Set(["dexa", "rescan"]);
-  const fx = (n: number): string => (Math.round(n * 10) / 10).toString();
-
-  function dayNum(iso: string): number {
-    const t = Date.parse(`${String(iso).slice(0, 10)}T12:00:00Z`);
-    return Number.isFinite(t) ? Math.round(t / DAY) : Number.NaN;
-  }
-
-  function isoOf(n: number): string {
-    return new Date(n * DAY).toISOString().slice(0, 10);
-  }
-
-  /** "SEP 21": the mono axis date. */
-  function monoDate(iso: string): string {
-    const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
-    if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toUpperCase();
-  }
 
   function monoMonth(iso: string): string {
     const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
     if (Number.isNaN(d.getTime())) return "";
     return d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }).toUpperCase();
-  }
-
-  function kmWord(km: number): string {
-    return String(Math.round(km * 10) / 10);
-  }
-
-  /** A ridge through the points: horizontal-tangent cubics, so a flat week stays flat. */
-  function ridge(points: ReadonlyArray<readonly [number, number]>): string {
-    let d = `M${fx(points[0][0])},${fx(points[0][1])}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const a = points[i];
-      const b = points[i + 1];
-      const m = (a[0] + b[0]) / 2;
-      d += ` C${fx(m)},${fx(a[1])} ${fx(m)},${fx(b[1])} ${fx(b[0])},${fx(b[1])}`;
-    }
-    return d;
-  }
-
-  /** Round a maximum up to a tidy axis top, and the step between gridlines. */
-  function axisTop(max: number): { top: number; step: number } {
-    const step = max > 60 ? 20 : 10;
-    return { top: Math.max(step * 2, Math.ceil(max / step) * step), step };
-  }
-
-  // ---- terrain ----------------------------------------------------------------
-
-  /** A per-chart id suffix, so two terrains on one page never share a clip path. */
-  let clipSeq = 0;
-
-  function terrainSvg(terrain: Terrain, opts: { selected?: string | null } = {}): string {
-    const weeks = (terrain?.weeks || []).filter((w) => Number.isFinite(dayNum(w.week_start)));
-    const ahead = weeks.filter((w) => !w.logged);
-    if (ahead.length < 2) return "";
-    const W = 340;
-    const L = 28;
-    const R = 332;
-    const base = 146;
-    const ceil = 42;
-    const first = dayNum(weeks[0].week_start);
-    const raceDay = Number.isFinite(dayNum(terrain.race_date))
-      ? dayNum(terrain.race_date)
-      : dayNum(weeks[weeks.length - 1].week_start) + 6;
-    // The chart ends the day after the race: when race day falls inside the last week,
-    // that week's unused days past it are not drawn as empty ground.
-    const lastStart = dayNum(weeks[weeks.length - 1].week_start);
-    const end = raceDay >= lastStart && raceDay < lastStart + 7 ? raceDay + 1 : Math.max(raceDay + 1, lastStart + 7);
-    const X = (n: number): number => L + ((n - first) / (end - first)) * (R - L);
-    // The engine's kilometres, drawn in the athlete's run units.
-    const mi = terrain.units === "mi";
-    const km = (w: ClientHorizonTerrainWeek): number => Math.max(0, Number(w.km) || 0) / (mi ? KM_PER_MILE : 1);
-    const unit = mi ? "mi" : "km";
-    const maxKm = Math.max(...weeks.map(km));
-    const { top, step } = axisTop(maxKm);
-    const Y = (k: number): number => base - (k / top) * (base - ceil);
-    // A week stands at its middle; race week stands between its Monday and race day, so
-    // the ridge always comes down onto the race line, never past it.
-    const mid = (w: ClientHorizonTerrainWeek): number => {
-      const start = dayNum(w.week_start);
-      return X(raceDay < start + 7 ? start + Math.max(0.5, (raceDay - start) / 2) : start + 3.5);
-    };
-
-    const pts: Array<[number, number]> = [
-      [X(first), Y(0)],
-      ...weeks.map((w): [number, number] => [mid(w), Y(km(w))]),
-      [X(raceDay), Y(0)],
-    ];
-    const ridgeD = ridge(pts);
-    // Where the log ends and the ladder begins: the logged weeks' ridge is drawn quieter.
-    const split = ahead.length < weeks.length ? X(dayNum(ahead[0].week_start)) : null;
-    const clip = split != null ? `hzT${++clipSeq}` : "";
-    let g = "";
-    if (clip) {
-      g += `<defs><clipPath id="${clip}-log"><rect x="0" y="0" width="${fx(split as number)}" height="166"/></clipPath><clipPath id="${clip}-plan"><rect x="${fx(split as number)}" y="0" width="${fx(W - (split as number))}" height="166"/></clipPath></defs>`;
-    }
-    for (let k = step; k <= top; k += step) {
-      g += `<line class="hz-grid" x1="${L}" x2="${R}" y1="${fx(Y(k))}" y2="${fx(Y(k))}"/><text class="hz-axis" x="${L - 5}" y="${fx(Y(k) + 3)}" text-anchor="end">${k}</text>`;
-    }
-    g += `<text class="hz-axis" x="${L}" y="12">${mi ? "MI" : "KM"} PER WEEK</text>`;
-    // The wash stands on the week the rows below hold open (this week unless another is picked).
-    const selected =
-      (opts.selected ? ahead.find((w) => w.week_start === opts.selected) : null) ||
-      (opts.selected === "" ? null : ahead.find((w) => w.current) || null);
-    if (selected) {
-      const a = X(dayNum(selected.week_start));
-      const b = X(Math.min(end, dayNum(selected.week_start) + 7));
-      g += `<rect class="hz-wash" x="${fx(a)}" y="${ceil - 8}" width="${fx(b - a)}" height="${fx(Y(0) - ceil + 8)}" rx="6"/>`;
-    }
-    const withClip = (cls: string, d: string, part: "log" | "plan" | ""): string =>
-      `<path class="${cls}" d="${d}"${part && clip ? ` clip-path="url(#${clip}-${part})"` : ""}/>`;
-    const contours = [0.66, 0.36].map((k) => ridge(pts.map(([x, y]): [number, number] => [x, Y(0) - (Y(0) - y) * k])));
-    if (clip) {
-      g += withClip("hz-terrain-fill is-logged", `${ridgeD} Z`, "log");
-      g += withClip("hz-terrain-fill", `${ridgeD} Z`, "plan");
-      for (const d of contours) g += withClip("hz-contour", d, "plan");
-      g += withClip("hz-terrain-line is-logged", ridgeD, "log");
-      g += withClip("hz-terrain-line", ridgeD, "plan");
-    } else {
-      g += withClip("hz-terrain-fill", `${ridgeD} Z`, "");
-      for (const d of contours) g += withClip("hz-contour", d, "");
-      g += withClip("hz-terrain-line", ridgeD, "");
-    }
-    // The km over each week; a long build writes every other week, never the current one skipped.
-    const every = weeks.length > 12 ? 2 : 1;
-    const nowDay = dayNum(terrain.as_of);
-    const nowX = Number.isFinite(nowDay) && nowDay >= first && nowDay <= end ? X(nowDay) : null;
-    weeks.forEach((w, i) => {
-      if (i % every && !w.current && i !== weeks.length - 1) return;
-      // A number the now line would cross steps to the side of it that has more room.
-      const raw = mid(w);
-      const nearNow = nowX != null && Math.abs(raw - nowX) < 16;
-      const x = nearNow ? (raw >= (nowX as number) ? (nowX as number) + 15 : (nowX as number) - 15) : raw;
-      const hug = X(raceDay) - x < 14;
-      const cls = w.logged ? "hz-num is-logged" : "hz-num";
-      g += `<text class="${cls}" x="${fx(hug ? x - 4 : x)}" y="${fx(Y(km(w)) - 7)}" text-anchor="${hug ? "end" : "middle"}">${escHtml(kmWord(km(w)))}</text>`;
-    });
-    // The build's turning points named on the ground: the peak and the taper.
-    for (const kind of ["peak", "taper"] as const) {
-      const w = ahead.find((week) => week.kind === kind);
-      if (!w || Y(km(w)) > Y(0) - 22) continue;
-      g += `<text class="hz-kind" x="${fx(mid(w))}" y="${fx(Y(0) - 6)}" text-anchor="middle">${kind.toUpperCase()}</text>`;
-    }
-    if (nowX != null) {
-      const nx = nowX;
-      g += `<line class="hz-now" x1="${fx(nx)}" x2="${fx(nx)}" y1="${ceil - 14}" y2="${fx(Y(0))}"/><text class="hz-now-word" x="${fx(nx + 4)}" y="${ceil - 8}">now</text>`;
-    }
-    const rx = X(raceDay);
-    g += `<line class="hz-race" x1="${fx(rx)}" x2="${fx(rx)}" y1="18" y2="${fx(Y(0))}"/><text class="hz-race-word" x="${fx(rx)}" y="12" text-anchor="end">${escHtml(terrain.race_label)}</text>`;
-    // Mono dates under the ground: the first Monday, two between, race day last.
-    const ticks = new Set<number>([0, Math.round((weeks.length - 1) / 3), Math.round(((weeks.length - 1) * 2) / 3)]);
-    for (const i of ticks) {
-      const x = X(dayNum(weeks[i].week_start));
-      // The race date is written leftward from the race line; a tick needs room for both.
-      if (rx - x < 76) continue;
-      g += `<text class="hz-axis" x="${fx(x)}" y="${fx(Y(0) + 14)}">${escHtml(monoDate(weeks[i].week_start))}</text>`;
-    }
-    g += `<text class="hz-axis" x="${fx(rx)}" y="${fx(Y(0) + 14)}" text-anchor="end">${escHtml(monoDate(terrain.race_date || isoOf(raceDay)))}</text>`;
-    const logged = weeks.filter((w) => w.logged);
-    const label = [
-      logged.length ? `Logged: ${logged.map((w) => `${monoDate(w.week_start)} ${kmWord(km(w))} ${unit}`).join(", ")}` : "",
-      `${mi ? "Miles" : "Kilometres"} per week to race day: ${ahead.map((w) => `${monoDate(w.week_start)} ${kmWord(km(w))} ${unit}`).join(", ")}`,
-    ]
-      .filter(Boolean)
-      .join(". ");
-    return `<svg class="hz-chart hz-terrain" viewBox="0 0 ${W} 166" role="img" aria-label="${escAttr(label)}">${g}</svg>`;
   }
 
   // ---- season -----------------------------------------------------------------
@@ -220,7 +53,9 @@
     if (season.fan) edges.push(dayNum(season.fan.end));
     if (season.race) edges.push(dayNum(season.race.date));
     const core = Math.max(...edges.filter(Number.isFinite));
-    const reach = season.marks.map((m) => dayNum(m.date)).filter((n) => Number.isFinite(n) && n <= core + MARK_REACH_DAYS);
+    const reach = season.marks
+      .map((m) => dayNum(m.date))
+      .filter((n) => Number.isFinite(n) && n <= core + MARK_REACH_DAYS);
     const x0 = first;
     const x1 = Math.max(core, ...reach) + 4;
     const X = (n: number): number => L + ((n - x0) / Math.max(1, x1 - x0)) * (R - L);
@@ -294,7 +129,10 @@
       if (!Number.isFinite(n) || n < x0) continue;
       const beyond = n > x1;
       const body = BODY_MARK_KINDS.has(m.kind) ? " is-body" : "";
-      g += diamond(beyond ? R : X(n), `hz-mark is-${m.side} is-kind-${m.kind.replace(/[^a-z0-9_-]/gi, "")}${body}${beyond ? " is-beyond" : ""}`);
+      g += diamond(
+        beyond ? R : X(n),
+        `hz-mark is-${m.side} is-kind-${m.kind.replace(/[^a-z0-9_-]/gi, "")}${body}${beyond ? " is-beyond" : ""}`
+      );
     }
     if (season.race) g += diamond(X(dayNum(season.race.date)), "hz-mark is-race");
     if (Number.isFinite(today) && today >= x0 && today <= x1) {
@@ -311,7 +149,7 @@
     return `<svg class="hz-chart hz-season" viewBox="0 0 ${W} 180" role="img" aria-label="${escAttr(aria)}">${g}</svg>`;
   }
 
-  const CAIRN_HORIZON_CHART = { BODY_MARK_KINDS, FAN_ANCHOR_DAYS, terrainSvg, seasonSvg };
+  const CAIRN_HORIZON_CHART = { BODY_MARK_KINDS, FAN_ANCHOR_DAYS, TERRAIN, terrainSvg, terrainKeyHtml, seasonSvg };
 
   Object.assign(globalThis, { CairnHorizonChart: CAIRN_HORIZON_CHART });
 }

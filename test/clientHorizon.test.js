@@ -18,12 +18,14 @@ const MODULES = [
   "format-utils",
   "journey-progress-client",
   "journey-timeline-client",
+  "race-week-model",
   "race-view-model",
   "race-estimate-client",
   "race-ladder-client",
   "race-view-client",
   "horizon-model",
   "horizon-week-model",
+  "horizon-terrain-client",
   "horizon-chart-client",
   "horizon-client",
   "horizon-controller",
@@ -57,6 +59,9 @@ const WEEKS = [
   long_km,
   quality_hint: "",
   strength_hint: "",
+  focus: `The ${kind} week's focus.`,
+  focus_short: `${kind} focus`,
+  with_lifting: "",
   current,
 }));
 
@@ -214,7 +219,7 @@ function checkup(overrides = {}) {
 
 // ---------- the race lane ----------
 
-test("race lane: the build read through the race view's own model, every week from this one to race week", () => {
+test("race lane: a glance at the build through the race view's own model — voice, terrain, this week, the fit", () => {
   const win = load();
   const lane = win.CairnHorizonModel.raceLane(build());
   assert.equal(lane.key, "race");
@@ -223,34 +228,40 @@ test("race lane: the build read through the race view's own model, every week fr
   assert.match(lane.when, /^7 weeks to race · Sunday, Nov 8$/);
   assert.equal(lane.fit, "stretch");
   assert.equal(lane.fit_word, "Stretch");
-  // The ladder starts at the current week and keeps race week, whatever the cap.
-  const rows = lane.ladder.rows;
-  assert.equal(rows[0].week_start, "2026-09-14");
-  assert.equal(rows[0].current, true);
-  assert.equal(rows.at(-1).kind, "race");
-  assert.equal(rows.length, WEEKS.length - 1);
   // One serif line from the ladder's own count, and the race named under it.
   assert.equal(lane.voice, "Seven weeks of build, then the half.");
   assert.equal(lane.lede, "Riverside Half, Sunday, Nov 8.");
-  // The terrain carries the ladder; with no closed weeks in the log, nothing logged.
+  // The ladder is the race page's depth, never repeated here.
+  assert.equal(lane.ladder, undefined);
+  // This week in one row: the stage, what the log holds of the week's volume, the focus.
+  assert.deepEqual(plain(lane.this_week), {
+    stage_word: "Build",
+    done_km: 18,
+    target_km: 32,
+    done_text: "18",
+    target_text: "32 km",
+    frac: 0.563,
+    banked: false,
+    long_text: "Long run 13 km",
+    focus: "The build week's focus.",
+  });
+  // The terrain carries the ladder, each week with its stage and long run.
   assert.equal(lane.terrain.weeks.length, WEEKS.length);
   assert.equal(lane.terrain.race_label, "Half · Nov 8");
-  // The km are the server's own, per week.
-  for (const row of rows) {
-    const week = WEEKS.find((w) => w.week_start === row.week_start);
-    assert.equal(row.km, week.km);
-    assert.match(row.km_text, / km$/);
-  }
+  const now = lane.terrain.weeks.find((w) => w.current);
+  assert.deepEqual(plain([now.stage, now.long_km, now.logged_km]), ["Build", 13, 18]);
   assert.deepEqual(plain(lane.links[0].target), { tab: "plan", section: "endurance" });
 });
 
-test("race lane: no race is 'No race set' with the way to set one, never an empty lane", () => {
+test("race lane: no race and nothing run is a calm 'No race on the calendar' with the way to set one", () => {
   const win = load();
   const lane = win.CairnHorizonModel.raceLane({ available: false, race: null, weeks: [], reason: "" });
   assert.equal(lane.state, "none");
-  assert.equal(lane.headline, "No race set");
+  assert.equal(lane.title, "Race");
+  assert.equal(lane.headline, "No race on the calendar");
   assert.match(lane.lede, /You → Profile/);
-  assert.equal(lane.links[0].label, "Set a race goal");
+  assert.equal(lane.links.length, 1);
+  assert.equal(lane.links[0].label, "Set a race");
   assert.deepEqual(plain(lane.links[0].target), { tab: "me", section: "profile" });
   // The server's own reason wins when it has one.
   const reasoned = win.CairnHorizonModel.raceLane({
@@ -260,6 +271,74 @@ test("race lane: no race is 'No race set' with the way to set one, never an empt
     reason: "The race is past.",
   });
   assert.equal(reasoned.lede, "The race is past.");
+});
+
+test("race lane, a runner with no race: the running week and the last weeks, never a ladder or an estimate", () => {
+  const win = load();
+  const read = {
+    available: false,
+    running: "runs",
+    race: null,
+    weeks: [],
+    leg_map: [],
+    prediction: null,
+    this_week: { week_start: "2026-09-14", km: 24, long_km: 10, logged_km: 8, quality: null, why: "" },
+    review: {
+      weeks: [
+        { week_start: "2026-08-17", km: 18, runs: 3 },
+        { week_start: "2026-08-24", km: 0, runs: 0 },
+        { week_start: "2026-08-31", km: 22, runs: 3 },
+        { week_start: "2026-09-07", km: 24, runs: 3 },
+      ],
+      longest_recent_km: 10,
+      volume_word: "rising",
+    },
+    reason: "No dated race yet. Set one and the build lays out week by week.",
+  };
+  const lane = win.CairnHorizonModel.raceLane(read, "mi");
+  assert.equal(lane.state, "none");
+  assert.equal(lane.title, "Running");
+  assert.equal(lane.this_week.stage_word, "");
+  assert.equal(lane.this_week.done_text, "5");
+  assert.equal(lane.this_week.target_text, "14.9 mi");
+  assert.deepEqual(plain(lane.volume.map((w) => w.km_text)), ["11.2 mi", "—", "13.7 mi", "14.9 mi"]);
+  assert.deepEqual(plain(lane.links.map((l) => l.label)), ["Set a race", "Your runs"]);
+  assert.equal(lane.fit, null);
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.laneHtml(lane);
+  assert.equal(host.querySelector(".horizon-lane-kicker").textContent, "Running");
+  assert.equal(host.querySelector(".horizon-tw-num").textContent, "5 of 14.9 mi");
+  assert.equal(host.querySelectorAll(".horizon-vol-week").length, 4);
+  assert.equal(host.querySelector(".hz-terrain"), null);
+  assert.equal(host.querySelector(".race-ladder"), null);
+  assert.equal(host.querySelector(".race-estimate-word"), null);
+  assert.doesNotMatch(host.textContent, /\bkm\b/);
+});
+
+test("race lane, a lifting-only athlete: no lane at all, and Horizon drops the race view", async () => {
+  const win = load();
+  const read = { available: false, running: "none", race: null, weeks: [], leg_map: [], reason: "" };
+  const lane = win.CairnHorizonModel.raceLane(read);
+  assert.equal(lane.state, "absent");
+  assert.equal(win.CairnHorizon.laneHtml(lane), "");
+  // The shell can leave the race view out entirely.
+  const bare = createHost(win.document);
+  bare.innerHTML = win.CairnHorizon.shellHtml("race", { race: false });
+  assert.deepEqual(plain(bare.querySelectorAll('[role="tab"]').map((t) => t.textContent)), ["Week", "Season"]);
+  assert.equal(bare.querySelector('[data-horizon-panel="race"]'), null);
+  assert.equal(bare.querySelector("[data-horizon]").getAttribute("data-horizon-view"), "week");
+  // Mounted, the first race read removes the view and opens the week.
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.shellHtml();
+  const root = host.querySelector("[data-horizon]");
+  const { load: loader } = reads({ extra: { "/race-build": read, "/plan/week": planWeek() } });
+  win.CairnHorizonController.mount(root, { today: TODAY, load: loader, navigate: () => {} });
+  await flush();
+  await flush();
+  assert.equal(root.querySelector('[data-horizon-seg="race"]'), null);
+  assert.equal(root.getAttribute("data-horizon-view"), "week");
+  // The next open this session is framed without it from the start.
+  assert.deepEqual(plain(win.CairnHorizonController.shellOptions()), { view: "week", race: false, raceLabel: "" });
 });
 
 test("race lane: a failed read says so in one calm line", () => {
@@ -381,14 +460,14 @@ test("each lane paints its words, the race lane the ladder, and every row a real
     .join("");
   const cards = host.querySelectorAll(".horizon-lane-card");
   assert.equal(cards.length, 3);
-  // The race build: its serif line, the terrain, then a hairline row a week, this week open.
+  // The race build as a glance: its serif line, the terrain with its key, this week, the fit.
   assert.equal(cards[0].querySelector(".horizon-lane-title").textContent, "Seven weeks of build, then the half.");
   assert.ok(cards[0].querySelector(".hz-terrain"));
-  const weeks = cards[0].querySelectorAll(".horizon-week");
-  assert.equal(weeks.length, WEEKS.length - 1);
-  assert.equal(cards[0].querySelectorAll(".horizon-week.is-open").length, 1);
-  assert.equal(cards[0].querySelector(".horizon-week.is-open").getAttribute("data-race-week"), "2026-09-14");
-  assert.equal(cards[0].querySelector(".horizon-week-foot").textContent, "18 km run so far of 32 km.");
+  assert.match(cards[0].querySelector(".horizon-chart-key").textContent, /Weekly km/);
+  assert.equal(cards[0].querySelectorAll(".horizon-week").length, 0, "the ladder is the race page's");
+  assert.equal(cards[0].querySelector(".horizon-tw-kicker").textContent, "This week · Build");
+  assert.equal(cards[0].querySelector(".horizon-tw-num").textContent, "18 of 32 km");
+  assert.equal(cards[0].querySelector("a.horizon-tw").getAttribute("href"), "/app/plan/endurance");
   assert.equal(cards[0].querySelector(".race-estimate-word").textContent, "Stretch");
   const labRows = cards[2].querySelectorAll(".horizon-row-link");
   assert.equal(labRows.length, 6);
@@ -520,7 +599,12 @@ const WEIGH_INS = [
 function seasonTimeline() {
   return [
     ...timeline(),
-    { id: "phase:projection", kind: "phase", when: { window: { start: "2026-11-01", end: "2026-11-29" } }, label: "Likely" },
+    {
+      id: "phase:projection",
+      kind: "phase",
+      when: { window: { start: "2026-11-01", end: "2026-11-29" } },
+      label: "Likely",
+    },
     { id: "goal:endurance-race", kind: "race", when: { date: "2026-11-08" }, label: "Riverside Half" },
   ];
 }
@@ -557,11 +641,16 @@ test("season: a draw inside the window sits behind; fewer than two weigh-ins is 
   const season = win.CairnHorizonModel.season(
     pace(WEIGH_INS),
     timeline(),
-    [{ id: 1, kind: "bloodwork", doc_date: "2026-08-25" }, { id: 2, kind: "visit_note", doc_date: "2026-08-26" }],
+    [
+      { id: 1, kind: "bloodwork", doc_date: "2026-08-25" },
+      { id: 2, kind: "visit_note", doc_date: "2026-08-26" },
+    ],
     null,
     TODAY
   );
-  assert.deepEqual(plain(season.marks), [{ date: "2026-08-25", label: "Bloodwork", kind: "bloodwork", side: "behind" }]);
+  assert.deepEqual(plain(season.marks), [
+    { date: "2026-08-25", label: "Bloodwork", kind: "bloodwork", side: "behind" },
+  ]);
   assert.equal(season.fan, null);
   assert.equal(season.race, null);
   assert.equal(win.CairnHorizonModel.season(pace([["2026-09-16", 186]]), [], [], null, TODAY), null);
@@ -583,7 +672,12 @@ function seasonOf(_win, points, overrides = {}) {
 
 test("season chart: today's weigh-in says 'now' and the fan leaves it", () => {
   const win = load();
-  const svg = win.CairnHorizonChart.seasonSvg(seasonOf(win, [["2026-08-10", 191], ["2026-09-16", 187]]));
+  const svg = win.CairnHorizonChart.seasonSvg(
+    seasonOf(win, [
+      ["2026-08-10", 191],
+      ["2026-09-16", 187],
+    ])
+  );
   assert.match(svg, /187 now</);
   assert.match(svg, /class="hz-fan"/);
   assert.match(svg, /class="hz-fan-line"/);
@@ -592,7 +686,12 @@ test("season chart: today's weigh-in says 'now' and the fan leaves it", () => {
 
 test("season chart: a stale weigh-in wears its own date, never 'now', and the fan does not leave it", () => {
   const win = load();
-  const svg = win.CairnHorizonChart.seasonSvg(seasonOf(win, [["2026-08-10", 191], ["2026-08-26", 180.3]]));
+  const svg = win.CairnHorizonChart.seasonSvg(
+    seasonOf(win, [
+      ["2026-08-10", 191],
+      ["2026-08-26", 180.3],
+    ])
+  );
   assert.doesNotMatch(svg, />[^<]*\bnow\b/);
   assert.match(svg, /180\.3 · AUG 26/);
   assert.match(svg, /hz-today is-past/);
@@ -601,15 +700,28 @@ test("season chart: a stale weigh-in wears its own date, never 'now', and the fa
   assert.doesNotMatch(svg, /class="hz-fan-line"/);
   assert.match(svg, /aria-label="[^"]*on AUG 26/);
   // Within the anchor window the fan still leaves the latest weigh-in.
-  const recent = win.CairnHorizonChart.seasonSvg(seasonOf(win, [["2026-08-10", 191], ["2026-09-14", 186]]));
+  const recent = win.CairnHorizonChart.seasonSvg(
+    seasonOf(win, [
+      ["2026-08-10", 191],
+      ["2026-09-14", 186],
+    ])
+  );
   assert.match(recent, /class="hz-fan-line"/);
   assert.match(recent, /186 · SEP 14/);
 });
 
 test("season chart: a recheck far out is pinned at the edge, never squeezing the weight line", () => {
   const win = load();
-  const xs = (svg) => [...svg.matchAll(/class="hz-weight" d="([^"]+)"/g)][0][1].match(/[ML]([\d.]+)/g).map((t) => Number(t.slice(1)));
-  const base = seasonOf(win, [["2026-08-10", 191], ["2026-09-16", 187]], { goal_date: null, fan: null });
+  const xs = (svg) =>
+    [...svg.matchAll(/class="hz-weight" d="([^"]+)"/g)][0][1].match(/[ML]([\d.]+)/g).map((t) => Number(t.slice(1)));
+  const base = seasonOf(
+    win,
+    [
+      ["2026-08-10", 191],
+      ["2026-09-16", 187],
+    ],
+    { goal_date: null, fan: null }
+  );
   const plainSvg = win.CairnHorizonChart.seasonSvg(base);
   const farSvg = win.CairnHorizonChart.seasonSvg({
     ...base,
@@ -628,7 +740,17 @@ test("season chart: a recheck far out is pinned at the edge, never squeezing the
 
 test("season key names only what was drawn", () => {
   const win = load();
-  const html = (overrides) => win.CairnHorizon.seasonHtml(seasonOf(win, [["2026-08-10", 191], ["2026-09-16", 187]], overrides));
+  const html = (overrides) =>
+    win.CairnHorizon.seasonHtml(
+      seasonOf(
+        win,
+        [
+          ["2026-08-10", 191],
+          ["2026-09-16", 187],
+        ],
+        overrides
+      )
+    );
   const noGoal = html({ goal_lb: null });
   assert.doesNotMatch(noGoal, /Likely window/);
   assert.doesNotMatch(noGoal, /is-goal/);
@@ -639,7 +761,8 @@ test("season key names only what was drawn", () => {
       { date: "2026-10-01", label: "LDL", kind: "lab", side: "ahead" },
     ],
   });
-  for (const word of ["Weight", "Goal", "Likely window", "Labs", "Body scans", "Race day"]) assert.match(full, new RegExp(`>${word}<`));
+  for (const word of ["Weight", "Goal", "Likely window", "Labs", "Body scans", "Race day"])
+    assert.match(full, new RegExp(`>${word}<`));
   assert.match(full, /hz-mark is-ahead is-kind-dexa is-body/);
   const scansOnly = html({ marks: [{ date: "2026-10-20", label: "DEXA", kind: "dexa", side: "ahead" }] });
   assert.doesNotMatch(scansOnly, />Labs</);
@@ -659,7 +782,10 @@ test("terrain chart: a mid-week race ends the ground the day after it", () => {
   const race = Number(svg.match(/class="hz-race" x1="([\d.]+)"/)[1]);
   assert.ok(race > 300, `race line at ${race}`);
   assert.match(svg, /class="hz-now"/);
-  assert.equal(win.CairnHorizonChart.terrainSvg({ weeks: weeks.slice(0, 1), race_date: "", race_label: "", as_of: TODAY }), "");
+  assert.equal(
+    win.CairnHorizonChart.terrainSvg({ weeks: weeks.slice(0, 1), race_date: "", race_label: "", as_of: TODAY }),
+    ""
+  );
 });
 
 // ---------- the view switch ----------
@@ -669,10 +795,7 @@ test("the views are tabs over their own panels; the race view opens first", () =
   const host = createHost(win.document);
   host.innerHTML = win.CairnHorizon.shellHtml();
   const tabs = host.querySelectorAll('[role="tab"]');
-  assert.deepEqual(
-    plain(Array.from(tabs).map((tab) => tab.textContent)),
-    ["Week", "To the race", "Season"]
-  );
+  assert.deepEqual(plain(Array.from(tabs).map((tab) => tab.textContent)), ["Week", "To the race", "Season"]);
   for (const tab of tabs) {
     const panel = host.querySelector(`#${tab.getAttribute("aria-controls")}`);
     assert.ok(panel, "each tab controls a panel");
@@ -803,19 +926,7 @@ test("race voice: build weeks, then the taper, then race week, in the ladder's o
   assert.equal(m.buildVoice(ladder("race", 0), race(21.1, 0)), "Race day is today.");
 });
 
-test("race lane: 'tap one' is said only when the weeks carry both running and lifting", () => {
-  const win = load();
-  const hinted = WEEKS.map((w) => ({ ...w, quality_hint: "Tempo.", strength_hint: "Heavy lower once." }));
-  const lane = win.CairnHorizonModel.raceLane(build({ weeks: hinted }));
-  assert.match(lane.lede, /Running and lifting share each week; tap one\.$/);
-  const row = lane.ladder.rows[1];
-  assert.equal(row.run_text, "Tempo. Long run 13 km.");
-  assert.equal(row.lift_text, "Heavy lower once.");
-  // Race week names no long run: race day is the long run.
-  assert.equal(lane.ladder.rows.at(-1).run_text, "Tempo.");
-});
-
-test("terrain: the closed weeks the log holds lead the ridge, quieter; peak and taper are named", () => {
+test("terrain: the closed weeks the log holds lead the ridge, quieter; the stages ride under it; labels are selective", () => {
   const win = load();
   const review = {
     weeks: [
@@ -837,40 +948,58 @@ test("terrain: the closed weeks the log holds lead the ridge, quieter; peak and 
   ]);
   const svg = win.CairnHorizonChart.terrainSvg(lane.terrain);
   assert.match(svg, /class="hz-terrain-line is-logged"/);
-  assert.match(svg, /class="hz-num is-logged"[^>]*>26\.4</);
-  assert.match(svg, />PEAK</);
-  assert.match(svg, />TAPER</);
+  // Selective labels: this week's volume and the peak — never a number on every week.
+  const nums = [...svg.matchAll(/class="hz-num[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(nums, ["32", "peak 40"]);
+  // The stage ribbon: one band per run of weeks, the current one deeper, named where it fits.
+  assert.match(svg, /class="hz-stage is-current"/);
+  assert.match(svg, /class="hz-stage is-logged"/);
+  assert.match(svg, />BUILD</);
+  // A long-run tick for every ladder week that has one, and hit targets that say the week.
+  // (race week has none: race day is the long run)
+  assert.equal((svg.match(/class="hz-long"/g) || []).length, WEEKS.slice(1).filter((w) => w.kind !== "race").length);
+  assert.match(svg, /<title>SEP 14 · Build · 32 km · long run 13 km · 18 km run so far<\/title>/);
+  // This week's run so far stands at the now line, under the planned ridge.
+  assert.match(svg, /class="hz-sofar"/);
+  // Recessive grid: solid hairlines, never dashed.
+  assert.doesNotMatch(svg, /stroke-dasharray/);
   assert.match(svg, /aria-label="Logged: AUG 24 22 km/);
-  // The wash follows the picked week; "" washes none.
+  // The key names only what was drawn.
+  const key = win.CairnHorizonChart.terrainKeyHtml(lane.terrain);
+  for (const word of ["Weekly km", "Long run", "Logged", "Run so far"]) assert.match(key, new RegExp(`>${word}<`));
+  const bare = win.CairnHorizonChart.terrainKeyHtml({
+    ...lane.terrain,
+    weeks: lane.terrain.weeks.filter((w) => !w.logged).map((w) => ({ ...w, long_km: null, logged_km: null })),
+  });
+  assert.doesNotMatch(bare, /Long run|Logged|Run so far/);
+  // The wash follows a picked week; "" washes none.
   const picked = win.CairnHorizonChart.terrainSvg(lane.terrain, { selected: "2026-10-12" });
   const none = win.CairnHorizonChart.terrainSvg(lane.terrain, { selected: "" });
   assert.notEqual(picked.match(/class="hz-wash" x="([\d.]+)"/)[1], svg.match(/class="hz-wash" x="([\d.]+)"/)[1]);
   assert.doesNotMatch(none, /hz-wash/);
 });
 
-test("a tap on a week opens it, a second tap closes it, and the chart's wash follows", async () => {
+test("terrain: with the log's weeks ahead of a full ladder, every stage band still says its stage", () => {
   const win = load();
-  const host = createHost(win.document);
-  host.innerHTML = win.CairnHorizon.shellHtml();
-  const root = host.querySelector("[data-horizon]");
-  const hinted = WEEKS.map((w) => ({ ...w, quality_hint: "Tempo.", strength_hint: "Heavy lower once." }));
-  const { load: loader } = reads({ extra: { "/race-build": build({ weeks: hinted }) } });
-  win.CairnHorizonController.mount(root, { today: TODAY, load: loader, navigate: () => {} });
-  await flush();
-  await flush();
-  const race = () => root.querySelector('[data-horizon-lane="race"]');
-  const wash = () => race().querySelector(".hz-wash")?.getAttribute("x");
-  const before = wash();
-  assert.equal(race().querySelector(".horizon-week.is-open").getAttribute("data-race-week"), "2026-09-14");
-  await race().querySelector('[data-horizon-week="2026-10-12"]').click();
-  assert.equal(race().querySelector(".horizon-week.is-open").getAttribute("data-race-week"), "2026-10-12");
-  assert.equal(race().querySelector('[data-horizon-week="2026-10-12"]').getAttribute("aria-expanded"), "true");
-  assert.match(race().querySelector(".horizon-week-detail").textContent, /Run · Tempo\. Long run 18 km\./);
-  assert.notEqual(wash(), before);
-  // A repaint on a tap never replays the lane's entrance.
-  assert.equal(race().querySelector(".horizon-lane-card").classList.contains("settle-in"), false);
-  await race().querySelector('[data-horizon-week="2026-10-12"]').click();
-  assert.equal(race().querySelectorAll(".horizon-week.is-open").length, 0);
+  const review = {
+    weeks: ["2026-08-10", "2026-08-17", "2026-08-24", "2026-08-31"].map((week_start, i) => ({
+      week_start,
+      km: 20 + i,
+      runs: 3,
+    })),
+    longest_recent_km: 12,
+    volume_word: "rising",
+  };
+  const lane = win.CairnHorizonModel.raceLane(build({ weeks: WEEKS, review }));
+  assert.equal(lane.terrain.weeks.length, 13, "four logged weeks and the nine of the ladder");
+  const svg = win.CairnHorizonChart.terrainSvg(lane.terrain);
+  const bands = (svg.match(/<rect class="hz-stage[ "]/g) || []).length;
+  const words = [...svg.matchAll(/class="hz-stage-word[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
+  assert.equal(words.length, bands, `a word on every band: ${words.join(" ")}`);
+  // One-week bands are too narrow for the whole word: the taper and race week still read.
+  assert.ok(words.includes("TAPER") || words.includes("TPR"), words.join(" "));
+  assert.ok(words.includes("RACE") || words.includes("R"), words.join(" "));
+  assert.ok(words.includes("PEAK") || words.includes("PK"), words.join(" "));
 });
 
 function planWeek() {
@@ -885,25 +1014,59 @@ function planWeek() {
     hard: false,
     ...extra,
   });
-  const lift = (name) => ({ day_number: 1, name, focus: null, purpose: null, day_type: "training", role: "strength", out_of_order: false });
+  const lift = (name) => ({
+    day_number: 1,
+    name,
+    focus: null,
+    purpose: null,
+    day_type: "training",
+    role: "strength",
+    out_of_order: false,
+  });
   return {
     as_of: TODAY,
     week_start: "2026-09-14",
     days: [
-      day("2026-09-14", "Monday", "done", { plan_day: lift("Push"), session: { id: 1, title: "Push", date: "2026-09-14", finished: true } }),
+      day("2026-09-14", "Monday", "done", {
+        plan_day: lift("Push"),
+        session: { id: 1, title: "Push", date: "2026-09-14", finished: true },
+      }),
       day("2026-09-15", "Tuesday", "open", {
-        run: { kind: "easy", label: "Rest or an easy walk", status: "open", suggested_date: "2026-09-15", completion_date: null, km: 5 },
+        run: {
+          kind: "easy",
+          label: "Rest or an easy walk",
+          status: "open",
+          suggested_date: "2026-09-15",
+          completion_date: null,
+          km: 5,
+        },
       }),
       day("2026-09-16", "Wednesday", "today", {
         plan_day: lift("Lower A"),
         session: { id: 2, title: "Lower A", date: "2026-09-16", finished: false },
-        run: { kind: "quality", label: "Intervals", status: "completed", suggested_date: null, completion_date: "2026-09-16", km: 6.4 },
+        run: {
+          kind: "quality",
+          label: "Intervals",
+          status: "completed",
+          suggested_date: null,
+          completion_date: "2026-09-16",
+          km: 6.4,
+        },
       }),
       day("2026-09-17", "Thursday", "rest"),
       day("2026-09-18", "Friday", "upcoming", { plan_day: lift("Pull") }),
     ],
     summary: null,
-    progress: { line: "One of three lifting days in. 6.4 km over one run.", lift_days_done: 1, lift_days_planned: 3, runs_done: 1, run_km: 6.4, longest_run_km: 6.4, runs_open: [], prs: 0 },
+    progress: {
+      line: "One of three lifting days in. 6.4 km over one run.",
+      lift_days_done: 1,
+      lift_days_planned: 3,
+      runs_done: 1,
+      run_km: 6.4,
+      longest_run_km: 6.4,
+      runs_open: [],
+      prs: 0,
+    },
     layout: { clean: true, suggestion: null },
     schedule: { lift_days: [], lift_days_source: null, run_days: [] },
   };
@@ -925,7 +1088,19 @@ test("week: each day's lift and run as pills in their stones' hues, ticked when 
   assert.deepEqual(plain(week.days[1].pills), [{ stone: "endurance", text: "Easy run · 5 km", state: "open" }]);
   assert.deepEqual(plain(week.days[2].pills.map((p) => p.state)), ["live", "done"]);
   assert.equal(week.days[3].pills.length, 0);
-  assert.equal(win.CairnHorizonWeekModel.weekView({ days: [] }, TODAY), null);
+  // A read with no days is an empty week (said calmly), never a failed read.
+  assert.deepEqual(plain(win.CairnHorizonWeekModel.weekView({ days: [] }, TODAY)), { line: "", days: [] });
+  assert.equal(win.CairnHorizonWeekModel.weekView(null, TODAY), null);
+  assert.match(win.CairnHorizon.weekHtml({ line: "", days: [] }), /Nothing planned this week yet/);
+  // A week in plan order (no lifting weekdays stated) counts its rows, never leaves them unlabelled.
+  const template = win.CairnHorizonWeekModel.weekView(
+    { days: planWeek().days.map((d) => ({ ...d, date: null, weekday: null, status: "upcoming" })) },
+    TODAY
+  );
+  assert.deepEqual(plain(template.days.slice(0, 2).map((d) => [d.weekday, d.day])), [
+    ["DAY", "1"],
+    ["DAY", "2"],
+  ]);
 
   const host = createHost(win.document);
   host.innerHTML = win.CairnHorizon.weekHtml(week);
@@ -945,8 +1120,23 @@ test("week: today speaks the server's today line and the run's own label, never 
   read.days[2] = {
     ...read.days[2],
     session: null,
-    plan_day: { day_number: 2, name: "Pull", focus: null, purpose: null, day_type: "training", role: "strength", out_of_order: false },
-    run: { kind: "easy", label: "Rest or an easy walk", status: "open", suggested_date: TODAY, completion_date: null, km: 5 },
+    plan_day: {
+      day_number: 2,
+      name: "Pull",
+      focus: null,
+      purpose: null,
+      day_type: "training",
+      role: "strength",
+      out_of_order: false,
+    },
+    run: {
+      kind: "easy",
+      label: "Rest or an easy walk",
+      status: "open",
+      suggested_date: TODAY,
+      completion_date: null,
+      km: 5,
+    },
   };
   read.strength_line = {
     date: TODAY,
@@ -982,10 +1172,16 @@ test("week: today speaks the server's today line and the run's own label, never 
   assert.match(row.querySelector(".horizon-pill.is-endurance").textContent, /^Rest or an easy walk · 5 km$/);
 
   // A line for another day, or one with nothing to say, leaves the plan's own pills.
-  const stale = win.CairnHorizonWeekModel.weekView({ ...read, strength_line: { ...read.strength_line, date: "2026-09-15" } }, TODAY);
+  const stale = win.CairnHorizonWeekModel.weekView(
+    { ...read, strength_line: { ...read.strength_line, date: "2026-09-15" } },
+    TODAY
+  );
   assert.equal(stale.days[2].line, null);
   assert.equal(stale.days[2].pills[0].text, "Pull");
-  const none = win.CairnHorizonWeekModel.weekView({ ...read, strength_line: { ...read.strength_line, state: "none" } }, TODAY);
+  const none = win.CairnHorizonWeekModel.weekView(
+    { ...read, strength_line: { ...read.strength_line, state: "none" } },
+    TODAY
+  );
   assert.equal(none.days[2].line, null);
 });
 
@@ -1071,17 +1267,26 @@ test("a hidden Week panel holds no busy skeleton; opening it shows one until the
 test("run units: miles restate every distance on the race lane, the chart and the week; bars still scale on km", () => {
   const win = load();
   const read = build({
-    prediction: { ...build().prediction, basis_detail: "your 16 km run on Sep 10 (5:10 /km), extended to race distance" },
+    prediction: {
+      ...build().prediction,
+      basis_detail: "your 16 km run on Sep 10 (5:10 /km), extended to race distance",
+    },
   });
   const km = win.CairnHorizonModel.raceLane(read);
   const mi = win.CairnHorizonModel.raceLane(read, "mi");
-  const row = mi.ladder.rows[0];
-  assert.equal(row.km, 32); // the engine's kilometres, untouched
-  assert.equal(row.km_text, "19.9 mi");
-  assert.equal(row.frac, km.ladder.rows[0].frac);
-  assert.equal(mi.ladder.units, "mi");
+  assert.equal(mi.this_week.target_text, "19.9 mi");
+  assert.equal(mi.this_week.done_km, 18); // the engine's kilometres, untouched
+  assert.equal(mi.this_week.frac, km.this_week.frac);
+  assert.equal(mi.units, "mi");
   assert.equal(mi.terrain.units, "mi");
-  assert.equal(km.ladder.units, "km");
+  assert.equal(km.units, "km");
+  // The ladder rows the race page draws restate the same way; bars still scale on km.
+  const ladder = win.CairnRaceViewModel.ladderModel(read, "mi");
+  const now = ladder.rows.findIndex((row) => row.current);
+  assert.equal(ladder.rows[now].km, 32);
+  assert.equal(ladder.rows[now].km_text, "19.9 mi");
+  assert.equal(ladder.rows[now].long_text, "long 8.1 mi");
+  assert.equal(ladder.rows[now].frac, win.CairnRaceViewModel.ladderModel(read).rows[now].frac);
   assert.equal(win.CairnRaceViewModel.kmText(21.0975, "mi"), "13.1 mi");
   assert.equal(win.CairnRaceViewModel.kmText(21.0975), "21.1 km");
   assert.equal(
@@ -1099,11 +1304,18 @@ test("run units: miles restate every distance on the race lane, the chart and th
   host.innerHTML = win.CairnHorizon.laneHtml(mi);
   assert.equal(host.querySelector('[data-horizon-units="mi"]').getAttribute("aria-pressed"), "true");
   assert.equal(host.querySelector('[data-horizon-units="km"]').getAttribute("aria-pressed"), "false");
-  assert.doesNotMatch(host.querySelector(".horizon-weeks").textContent, /\bkm\b/);
+  assert.doesNotMatch(host.querySelector(".horizon-tw").textContent, /\bkm\b/);
+  assert.doesNotMatch(host.querySelector(".horizon-chart-key").textContent, /\bkm\b/);
 
   const week = win.CairnHorizonWeekModel.weekView(planWeek(), TODAY, "mi");
   assert.equal(week.line, "One of three lifting days in. 4 mi over one run.");
   assert.equal(week.days[1].pills[0].text, "Easy run · 3.1 mi");
+  // The one helper a read-only day preview prints a planned run with, in the same words.
+  assert.equal(win.CairnHorizonWeekModel.dayRunText(planWeek().days[1], TODAY, "mi"), "Easy run · 3.1 mi");
+  assert.equal(win.CairnHorizonWeekModel.dayRunText(planWeek().days[2], TODAY), "Quality run · 6.4 km");
+  const ahead = { date: "2026-09-19", run: { kind: "long", label: "Long run", status: "open", km: 16 } };
+  assert.equal(win.CairnHorizonWeekModel.dayRunText(ahead, TODAY, "mi"), "Long run · 9.9 mi");
+  assert.equal(win.CairnHorizonWeekModel.dayRunText({ date: "2026-09-19", run: null }, TODAY), "");
 });
 
 test("run units: the controller reads settings, and the km/mi switch repaints at once and saves", async () => {
@@ -1124,7 +1336,7 @@ test("run units: the controller reads settings, and the km/mi switch repaints at
   });
   await flush();
   await flush();
-  const km = () => root.querySelector('[data-horizon-lane="race"] .horizon-week-km').textContent;
+  const km = () => root.querySelector('[data-horizon-lane="race"] .horizon-tw-num').textContent;
   assert.match(km(), / mi$/);
   await root.querySelector('[data-horizon-units="km"]').click();
   await flush();

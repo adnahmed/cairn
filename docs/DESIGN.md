@@ -179,19 +179,32 @@ Horizon's two views and Train's charts share one chart language (`horizon-chart-
   diamonds: filled behind today, open ahead, the same diamonds their rows wear below; one far
   beyond the season's own span is pinned at the edge rather than squeezing the line. The key
   names only what was drawn.
-- **The terrain reads the whole build**: the closed weeks the log holds lead it in a quieter ink
-  ridge, then the ladder's weeks in endurance, the peak and the taper named in mono on the ground,
-  and a wash on the week the rows below hold open (this week unless another is tapped). Race day
-  wears the race's short name ("Half · Nov 1").
+- **The terrain reads the whole build**, in the athlete's run units (km or mi, one axis): the
+  closed weeks the log holds lead it in a quieter ink ridge, then the ladder's weekly volume in
+  endurance over a quiet wash; a short ink dash per week at its long run; the dawn `now` line
+  whose solid foot is what the log already holds this week against the planned ridge above it;
+  and under the ground a stage ribbon (Base / Build / Sharpen / Peak / Down / Taper / Race), the
+  current band deeper, each named in mono where it fits. Labels are selective — this week's
+  volume and the peak, never a number on every week; every week answers a hover through its hit
+  target, the aria label lists them all, and the race page's ladder is the table view. Gridlines
+  are solid hairlines stepped by 5 / 10 / 20 so miles and kilometres both get three or four. Race
+  day wears the race's short name ("Half · Nov 1"); the key names only what was drawn.
 - **Space is held** at the chart's own aspect ratio while its reads land, so nothing jumps.
 
-Horizon opens on **To the race** when a race is set and on **Season** when none is (a view the
-athlete picks holds for the session); **Week** is this week day by day from the plan-week read,
-its first sentence the serif voice. The race view is one serif line from the ladder's own count
-("Five weeks of build, then the half."), the terrain, then a hairline row a week (mono date,
-kind, km) with the open week's run and lift in the server's words, and the finish estimate as
-a footnote. The race sub-view (`/app/horizon/race`) draws the same terrain inside its card, with
-the bar ladder one tap deeper.
+Horizon opens on **To the race** when a race is set and on **Season** when there is nothing to
+run toward (a view the athlete picks holds for the session); **Week** is this week day by day
+from the plan-week read, its first sentence the serif voice. How much running Horizon holds is the
+athlete's: a runner with no race reads the view as **Running** (this week's volume and the last
+four weeks as small columns, with the way to set a race), and a lifting-only athlete has no race
+view at all. The race view is a **glance**: one serif line from the ladder's own count ("Five
+weeks of build, then the half."), the terrain, THIS WEEK in one row (stage, logged of planned on a
+quiet bar, the week's coaching sentence), and the finish estimate as a footnote, with the race page
+one tap away. The race page (`/app/horizon/race`) is the **depth**, top to bottom: the race and
+the km/mi switch; THIS WEEK, the page's one focal card (stage, volume, the week's runs by weekday
+with the next in full, the focus sentence); the build week by week (date, stage, long run, the
+focus in a few words, the distance as a bar); "With your lifting", one line per run of weeks; then
+the finish estimate as a fit with its basis, the paces one tap deeper. No chart there: the terrain
+is Horizon's, the ladder its table.
 
 ## Stylesheet ownership
 

@@ -469,6 +469,8 @@ verbatim through `CairnUiReads.strengthLineHtml` — so never derive a today sta
 **Plan tab week projection.** `GET /api/plan/week` (`planWeek()` in `src/domain/training/plan-week.ts`)
 assembles that same map into a connected week strip for Strength + Endurance: calendar Mon→Sun when
 schedules map, otherwise template `day_number` order with `weekday:null` (never invent Mon=Day1).
+A running-only athlete (no strength template, but stated run days, agenda runs or runs in the log)
+gets the calendar too — runs on their days, every other day rest — never an empty strip.
 Each cell carries status (done/today/upcoming/rest/open), the plan day, any logged session this week,
 and any flexible-agenda run intent. **The log owns a done cell**: a session's cell names the plan day
 the session resolved to (`resolveSessionPlanDay` — linked while the linked day still shares a
@@ -4346,6 +4348,13 @@ for that week, anchored at the week START so it cannot grow as the week is run (
 The coaching layer OVER the weekly run engine for a dated race with a distance — read-only, no
 new profile fields, and `{available:false, reason}` for everyone else. `raceBuild(date)` returns:
 
+- **`running`** — how much running the athlete HAS, so a surface sizes itself to the person:
+  `race` (a dated build), `runs` (stated run days, an endurance goal that is not an upcoming race,
+  or a run in the last six weeks), `none` (lifting-only: no run or race surface anywhere). With no
+  race, a caller that passes `{ describeRunning: true }` (the route, the screen fan-ins, MCP) still
+  gets `this_week` (the engine's week as planned plus the logged km) and `review` (the closed
+  weeks) for a runner; internal callers never pay for that `weeklyRunPlan`.
+
 - **`prediction`** — an estimated finish / pace for the goal distance. The watch's own race
   predictor leads when it has one inside ~3 weeks (`garmin_daily_metrics.race_predict_*`, the
   nearest standard distance Riegel-adjusted to the exact race distance), with a `trend` against the
@@ -4379,8 +4388,18 @@ new profile fields, and `{available:false, reason}` for everyone else. `raceBuil
   `deliverableRunWeek`, and to `acwrCeilingKm` over the logged closed weeks and the rungs before it
   — the engine's own per-run caps and spike headroom, so the ladder never promises a 45 km week
   three runs fill to 36. `weeks_to_race` on each rung is the calendar count for the label.
+  Each rung also carries the athlete's register: **`focus`** (the week's ONE coaching sentence —
+  by kind for a peak, reset, taper or race week, by phase for a build week; `weekFocus`), its
+  few-word form **`focus_short`** for a ladder row, and **`with_lifting`** (`liftingLine` over the
+  week's ring: taper and race week say the stress budget's leg trims in words; a build, reset or
+  peak week says where heavy legs sit against the key runs, naming the key-run-eve trim only in the
+  kinds and phases `stress-budget.ts` applies it; `""` with no lifting or no running). The current
+  rung's focus follows the week the engine actually prescribed: all-easy runs read as an aerobic
+  week, never as the phase's threshold session. `quality_hint` / `strength_hint` stay the machine
+  register the prompts read.
 - **`leg_map`** — the seven-day ring (Mon–Sun plan template): the run per day, the strength day
-  with `heavy_lower` from `lowerBodyPlanDayNumbers()`, and the habitual ride.
+  with `heavy_lower` from `lowerBodyPlanDayNumbers()`, and the habitual ride. A ring with nothing on
+  it goes out empty, never as seven blank columns.
 - **`strength`** — the phase's heavy-lower principle (`STRENGTH_HINT`: heavy after the quality
   run or the day after the long run in the build, maintenance loads sharpening, ~80% and the last
   heavy lower ~10 days out in the taper) plus `weekLayoutRead`'s ONE collision sentence when the
@@ -4394,14 +4413,13 @@ new profile fields, and `{available:false, reason}` for everyone else. `raceBuil
   the clear-slot sentence rotates through `pickDayVariant` like every other athlete-facing line.
 
 Surfaces: `GET /api/race-build`, MCP `get_race_build`, the "Race build" card on Progress →
-Endurance (`raceBuildCard`, fetched into the endurance snapshot v4), Plan → Endurance (the race
-view, `race-view-*` / `race-ladder-client` / `race-estimate-client`: weeks to race, race day, the
-fit word, and the ladder's weeks as rows with km per week as bars against the longest week, this
-week filled with `this_week.logged_km` — km always, whatever the pace units — under a next-session
-briefing built from `/run-plan` + the rolling agenda — the tab shows the next three open runs, with anything further behind "Later in the build"; pace
-and distance follow `settings.run_units` (`km` or `mi`); the connected week strip is a collapsed
-"This week's map" fetched only when opened; when this week's intents are banked the featured run
-is next week's), and the `race_build` key in the ENDURANCE prompt bundle, rendered by
+Endurance (`raceBuildCard`, fetched into the endurance snapshot v4), Horizon's race view (a glance:
+the voice, the terrain chart, THIS WEEK in one row, the fit word) and the race page
+`/app/horizon/race` (the depth: `race-view-*` / `race-ladder-client` / `race-estimate-client` —
+THIS WEEK as the focal card with this week's runs by weekday from `/run-plan` + the rolling agenda,
+the ladder with each week's stage, long run and `focus_short`, "With your lifting" from
+`with_lifting`, then the fit with its basis; every distance and pace follows `settings.run_units`,
+the engine staying in km), and the `race_build` key in the ENDURANCE prompt bundle, rendered by
 `renderRunPlan` as a RACE BUILD block (estimate, target, pace bands, ladder, strength principle,
 ride placement) so every running prompt is shooting at the same numbers. `coach.ts` computes it
 once per context as `raceBuildView`, reusing `runPlanView` and `weekLayoutView`.

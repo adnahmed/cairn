@@ -224,7 +224,7 @@ export function horizonRaceResponses(datesQuery: unknown): ApiResponses {
   put(out, "/endurance-goal", () => getEnduranceGoal());
   put(out, "/run-compliance", () => runComplianceRead(undefined));
   put(out, "/settings", () => settingsResponse());
-  put(out, "/race-build", () => raceBuild(undefined));
+  put(out, "/race-build", () => raceBuild(undefined, { describeRunning: true }));
   put(out, "/run-plan", () => weeklyRunPlan(undefined));
   put(out, `/training-agenda?date=${q(today)}`, () => flexibleTrainingAgenda(today));
   put(out, "/plan/upcoming", () => planUpcomingNote());
@@ -236,7 +236,7 @@ export function horizonRaceResponses(datesQuery: unknown): ApiResponses {
   for (const date of [...new Set(dates)]) {
     put(out, `/training-agenda?date=${q(date)}`, () => flexibleTrainingAgenda(date));
     put(out, `/run-plan?date=${q(date)}`, () => weeklyRunPlan(date));
-    put(out, `/race-build?date=${q(date)}`, () => raceBuild(date));
+    put(out, `/race-build?date=${q(date)}`, () => raceBuild(date, { describeRunning: true }));
   }
   return out;
 }

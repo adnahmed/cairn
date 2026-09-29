@@ -63,7 +63,8 @@ function wireHorizonBack(root: ParentNode): void {
 
   function renderHorizonTimeline(): void {
     headerTitle.textContent = "Horizon";
-    view.innerHTML = CairnHorizon.shellHtml();
+    const frame = CairnHorizonController.shellOptions();
+    view.innerHTML = CairnHorizon.shellHtml(frame.view, { race: frame.race, raceLabel: frame.raceLabel });
     const host = view.querySelector("[data-horizon]");
     if (!host) return;
     CairnHorizonController.mount(host, {

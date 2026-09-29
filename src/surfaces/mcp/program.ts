@@ -313,9 +313,9 @@ export function registerProgramTools(server: McpToolRegistrar) {
 
   server.tool(
     "get_race_build",
-    "The RACE-BUILD layer over get_run_plan for a dated race: an estimated finish time / pace for the goal distance (the watch's own predictor, Riegel-adjusted, else a conservative read off the best recent run) and how it has moved; per-session pace bands (easy / long / tempo / threshold / VO2) derived from the stated target; the week-by-week ladder from this week to race week (volume, long run, down weeks, peak, taper, quality + strength hints); the seven-day leg map (runs, strength days with heavy-lower flagged, the habitual ride read off the log) with where heavy squats belong in this phase and one sentence about where the weekly ride sits. Suggestion only — a fit, never a grade. {available:false, reason} without a dated race with a distance.",
+    "The RACE-BUILD layer over get_run_plan for a dated race: an estimated finish time / pace for the goal distance (the watch's own predictor, Riegel-adjusted, else a conservative read off the best recent run) and how it has moved; per-session pace bands (easy / long / tempo / threshold / VO2) derived from the stated target; the week-by-week ladder from this week to race week (volume, long run, down weeks, peak, taper, quality + strength hints); the seven-day leg map (runs, strength days with heavy-lower flagged, the habitual ride read off the log) with where heavy squats belong in this phase and one sentence about where the weekly ride sits. Each week also carries its coaching sentence (focus, focus_short) and how the lifting fits it (with_lifting). running says what the athlete runs: race (a dated build), runs (no race: available:false with a reason, but this_week and the closed-week review still read, never a ladder or an estimate) or none (a lifting-only athlete: nothing to show). Suggestion only — a fit, never a grade.",
     { date: z.string().optional() },
-    async ({ date }) => asText(raceBuild(date))
+    async ({ date }) => asText(raceBuild(date, { describeRunning: true }))
   );
 
   server.tool(
