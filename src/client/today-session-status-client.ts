@@ -480,12 +480,12 @@ type DoneRuntimeGlobals = typeof globalThis & {
   }
 
   function todayFeedbackScaleHtml(kind: FeelKind, label: string): string {
-    // Screen-reader users get the same words the done line shows, not "soreness 3".
+    // Words, not "soreness 3": each dot's title and label, and each scale's two ENDS under it (the scales fill alike but mean opposite things).
     const words = kind === "soreness" ? SORENESS_WORDS : PERFORMANCE_WORDS;
     const dots = TODAY_FEEL_FACES.map((glyph, index) =>
-      `<button class="feel-dot" data-feel="${escAttr(kind)}" data-val="${index + 1}" aria-label="${escAttr(words[index] ? `${label}: ${words[index]}` : label)}">${glyph}</button>`
+      `<button class="feel-dot" data-feel="${escAttr(kind)}" data-val="${index + 1}" title="${escAttr(words[index] || label)}" aria-label="${escAttr(words[index] ? `${label}: ${words[index]}` : label)}">${glyph}</button>`
     ).join("");
-    return `<div class="feel-row"><span class="feel-lbl lbl">${escHtml(label)}</span><div class="feel-dots">${dots}</div></div>`;
+    return `<div class="feel-row"><span class="feel-lbl lbl">${escHtml(label)}</span><div class="feel-scale"><div class="feel-dots">${dots}</div><div class="feel-ends" aria-hidden="true"><span>${escHtml(words[0])}</span><span>${escHtml(words[words.length - 1])}</span></div></div></div>`;
   }
 
   function todayFeedbackFormHtml(_session: SessionLike): string {
