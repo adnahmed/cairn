@@ -63,6 +63,7 @@ import { recoveryTrendBars } from "./recovery-trend.js";
 import { runDaySteer, runDaySteerKey } from "./run-day-steer.js";
 import { isLastNight, isReadDayReadiness, SENSOR_MAX_AGE_DAYS } from "./sensor-freshness.js";
 import { addDaysISO } from "./shared.js";
+import { injuryClosuresOn } from "./injury-symptom-link.js";
 import { activeRelevantTrainingSymptoms, activeSystemicTrainingSymptoms } from "./training-symptoms.js";
 import { round1 } from "../lib/numbers.js";
 
@@ -446,12 +447,14 @@ function painOrIllness(date: string): { pain: boolean; illness: boolean } {
     safe(() => {
       const rows = db
         .prepare(
-          `SELECT title FROM context_events
+          `SELECT id, title FROM context_events
             WHERE kind = 'injury' AND (archived IS NULL OR archived = 0) AND resolved_at IS NULL
               AND (start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)`
         )
         .all(date, date) as any[];
-      return rows.some((row) => LOWER_BODY_WORDS.test(String(row.title ?? "")));
+      // An injury closed through its twin training symptom is closed here too.
+      const closed = rows.length ? injuryClosuresOn(date) : new Map();
+      return rows.some((row) => !closed.has(Number(row.id)) && LOWER_BODY_WORDS.test(String(row.title ?? "")));
     }, false) ||
     safe(() => {
       const rows = db

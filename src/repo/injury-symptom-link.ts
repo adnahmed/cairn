@@ -1,6 +1,6 @@
 import { db } from "../db.js";
 import { addDaysISO } from "./shared.js";
-import { symptomAreaVocabularyLabel } from "./symptom-area.js";
+import { symptomAreaVocabularyLabel, symptomAreaVocabularyLabels } from "./symptom-area.js";
 
 // ============================================================================
 // RESOLVED MEANS RESOLVED — one pain, two records.
@@ -86,7 +86,29 @@ const NON_PLACE_WORDS = new Set([
   "unpleasant",
   "sharp",
   "dull",
+  // Tissue words name WHAT, never WHERE: "post-run muscle soreness" and "muscle
+  // soreness legs" share a word and not a place.
+  "muscle",
+  "muscular",
+  "tendon",
+  "tendinitis",
+  "tendinopathy",
+  "joint",
+  "ligament",
+  "bone",
+  "nerve",
+  "post",
+  "run",
+  "running",
 ]);
+
+// A structural injury — torn, broken, sprained, a named ligament or cartilage — is
+// closed on its own record (by the athlete, or after a clinician says so), never by a
+// soreness symptom in the same place: "right knee soreness" resolving does not mend a
+// meniscus. Read over the event's WHOLE text, detail included, because this only ever
+// refuses a tie.
+const STRUCTURAL_INJURY =
+  /\b(?:tear|tears|torn|rupture\w*|fractur\w*|broken|sprain\w*|dislocat\w*|subluxat\w*|meniscus|menisci|acl|mcl|pcl|lcl|labrum|labral|herniat\w*|bulg\w*|stress reaction)\b/;
 
 function sideOf(text: string): "left" | "right" | null {
   const left = /\bleft\b/.test(text);
@@ -101,6 +123,8 @@ function placeWords(text: string): Set<string> {
       .split(/[^a-z]+/)
       .filter((word) => word.length >= 3 && !NON_PLACE_WORDS.has(word))
       .map((word) => word.replace(/s$/, ""))
+      // …and again once a plural is gone ("muscles", "tendons").
+      .filter((word) => !NON_PLACE_WORDS.has(word))
   );
 }
 
@@ -112,6 +136,10 @@ export function samePlace(injuryPlace: string, symptomArea: string): boolean {
   const sideA = sideOf(a);
   const sideB = sideOf(b);
   if (sideA && sideB && sideA !== sideB) return false;
+  // An event naming MORE places than the symptom ("knee and hip pain" vs "left knee")
+  // is more than that one symptom: closing the knee must not close the hip with it.
+  const placesA = symptomAreaVocabularyLabels(a);
+  if (placesA.length >= 2 && placesA.length > symptomAreaVocabularyLabels(b).length) return false;
   const labelA = symptomAreaVocabularyLabel(a);
   const labelB = symptomAreaVocabularyLabel(b);
   // Two recognized places are compared by their labels alone: "upper back" and "lower
@@ -213,6 +241,7 @@ export function injuriesResolvedBySymptoms(events: any[], on: string): Map<numbe
     const from = addDaysISO(start, -EPISODE_WINDOW_DAYS);
     const to = addDaysISO(start, EPISODE_WINDOW_DAYS);
     if (!from || !to) continue;
+    if (STRUCTURAL_INJURY.test(`${ev?.title ?? ""} ${ev?.detail ?? ""} ${injuryPlaceText(ev)}`.toLowerCase())) continue;
     const place = injuryPlaceText(ev);
     const match = symptoms.find(
       (symptom) =>
@@ -224,4 +253,49 @@ export function injuriesResolvedBySymptoms(events: any[], on: string): Map<numbe
     if (match) out.set(Number(ev.id), { symptom_id: Number(match.id), resolved_on: String(match.resolved_on) });
   }
   return out;
+}
+
+// ---- one answer for every reader ----
+//
+// `listContextEvents` / `getContextEvent` carry the tie on their own. Everything that
+// reads `context_events` straight from SQL — the run-day pain read, the refusal
+// reopen, the health drift signature, the evaluation confounders, the coach agent's
+// life window, the proposal fingerprint — asks here instead of trusting a bare
+// `resolved_at`, so the timeline, the Brief and the agent never disagree about one
+// injury. Still read-side: the symptom's own resolution date is the event's
+// effective one, and a recurrence reopens both.
+
+/** Every open injury event closed by a resolved twin symptom as of `on`. One query; never throws. */
+export function injuryClosuresOn(on: string): Map<number, SymptomResolution> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(on ?? ""))) return new Map();
+  try {
+    const rows = db
+      .prepare(
+        `SELECT id, kind, title, detail, start_date, created_at, meta_json, resolved_at FROM context_events
+          WHERE kind = 'injury' AND COALESCE(archived, 0) = 0
+            AND (resolved_at IS NULL OR substr(resolved_at, 1, 10) > ?)`
+      )
+      .all(on) as any[];
+    return injuriesResolvedBySymptoms(rows, on);
+  } catch {
+    return new Map();
+  }
+}
+
+/**
+ * Raw `context_events` rows with a symptom-closed injury's `resolved_at` filled in from
+ * its twin symptom's resolution (and `resolved_by_symptom` naming it). Rows are copied,
+ * never mutated; a row the athlete closed directly keeps its own date.
+ */
+export function withSymptomClosures<T extends Record<string, any>>(
+  rows: T[],
+  on: string,
+  closures: Map<number, SymptomResolution> = injuryClosuresOn(on)
+): T[] {
+  if (!closures.size) return rows;
+  return rows.map((row) => {
+    const closure = closures.get(Number(row?.id));
+    if (!closure || row?.resolved_at) return row;
+    return { ...row, resolved_at: closure.resolved_on, resolved_by_symptom: closure };
+  });
 }

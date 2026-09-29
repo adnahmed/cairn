@@ -4659,7 +4659,15 @@ the signal state stop gating on it the same day. Nothing is stamped or deleted; 
 (`recurrence:<id>`) of that symptom is open the event reads open again. Injury words match whole words
 only (`namesInjuryWord` — "discomfort" is not a DISC), and an oblique/flank note maps to `core` alone,
 never the back or the legs. Resolving or recurring a symptom bumps the training-data version and
-invalidates today's read.
+invalidates today's read. The tie refuses more than one symptom can speak for: an event naming MORE
+places than the symptom ("knee and hip"), a shared tissue word alone ("muscle", "tendon"), and any
+STRUCTURAL injury (tear, fracture, sprain, meniscus, ligament names — read over the whole event text)
+are never closed by a symptom. Every reader that queries `context_events` straight from SQL (run-day
+pain, the refusal reopen, the health drift signature, evaluation/trajectory confounders, the proposal
+fingerprint, the coach agent's `read_life_context_window`) goes through `injuryClosuresOn` /
+`withSymptomClosures`, which fill in the symptom's resolution date as the event's effective
+`resolved_at`; the Life timeline reads the server's `resolved_by_symptom`. A new raw-SQL injury reader
+must do the same.
 
 **Freshness has two ladders, and picking the wrong one is a shipped bug.** `finishSession` runs
 `inferTrainingSymptomExposures()`, which records a quiet `pain_free`/`inferred` exposure for each

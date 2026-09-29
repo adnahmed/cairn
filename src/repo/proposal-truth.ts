@@ -4,6 +4,7 @@ import { db } from "../db.js";
 import { estimateExpenditure } from "./expenditure.js";
 import { clampEvidenceDate, clampProposalProvenanceDates } from "./proposal-provenance-clamp.js";
 import { addDaysISO, localDateISO } from "./shared.js";
+import { withSymptomClosures } from "./injury-symptom-link.js";
 import { stableJson } from "../lib/numbers.js";
 import { isoDate } from "../lib/dates.js";
 
@@ -534,15 +535,19 @@ function contextFacts(windowStart: string, throughDate: string): Record<string, 
     (db
       .prepare(`SELECT coach_enabled, proactive_enabled, lead_mode FROM settings WHERE id = 1`)
       .get() as any) ?? { coach_enabled: 0, proactive_enabled: 1, lead_mode: "lead" };
-  const contexts = db
-    .prepare(
-      `SELECT id, kind, title, detail, start_date, end_date, meta_json, archived,
-              expected_recovery_days, resolved_at
-         FROM context_events
-        WHERE COALESCE(start_date, ?) <= ?
-        ORDER BY id`
-    )
-    .all(throughDate, throughDate) as any[];
+  // An injury closed through its twin training symptom reads closed here as everywhere.
+  const contexts = withSymptomClosures(
+    db
+      .prepare(
+        `SELECT id, kind, title, detail, start_date, end_date, meta_json, archived,
+                expected_recovery_days, resolved_at
+           FROM context_events
+          WHERE COALESCE(start_date, ?) <= ?
+          ORDER BY id`
+      )
+      .all(throughDate, throughDate) as any[],
+    throughDate
+  );
   const checkins = db
     .prepare(
       `SELECT date, mood, energy, sleep_feel, soreness, note

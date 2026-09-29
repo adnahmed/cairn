@@ -94,6 +94,24 @@ export function symptomAreaVocabularyLabel(value: unknown): string | null {
 }
 
 /**
+ * Every distinct place the text names, bare of side ("knee and hip pain" → knee, hip).
+ * The terms are ordered most-specific first, and each match is consumed before the
+ * next term looks, so "lower back" is one place, never "lower back" plus "back".
+ */
+export function symptomAreaVocabularyLabels(value: unknown): string[] {
+  let text = String(value ?? "").toLowerCase();
+  if (!text) return [];
+  const labels = new Set<string>();
+  for (const term of AREA_TERMS) {
+    const all = new RegExp(term.re.source, "g");
+    if (!all.test(text)) continue;
+    labels.add(term.label);
+    text = text.replace(all, (hit) => " ".repeat(hit.length));
+  }
+  return [...labels];
+}
+
+/**
  * A short label extracted from free text — what the legacy importer stores instead
  * of the whole session note. Null when nothing recognizable is in there.
  */

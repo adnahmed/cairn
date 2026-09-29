@@ -14,6 +14,7 @@ import {
 import { listWeight } from "./profile.js";
 import { dailyManualWeighIns } from "./bodyweight.js";
 import { localDateISO } from "./shared.js";
+import { injuryClosuresOn } from "./injury-symptom-link.js";
 
 // ============================================================================
 // HEALTH FOCUS — the prioritization/synthesis substrate (elite-coach layer).
@@ -456,6 +457,8 @@ export function computeHealthDriftSignature(): HealthDriftSignature | null {
     const sessRow = db.prepare(`SELECT COUNT(*) AS c FROM sessions`).get() as any;
     const session_count = Number(sessRow?.c ?? 0);
     const weight_bucket = weightTrendBucket(today);
+    // An injury closed through its twin training symptom is not open news.
+    const closedInjuries = injuryClosuresOn(today);
     const injury_ids = (
       db
         .prepare(
@@ -464,7 +467,9 @@ export function computeHealthDriftSignature(): HealthDriftSignature | null {
            ORDER BY id`
         )
         .all(today, today) as any[]
-    ).map((r) => Number(r.id));
+    )
+      .map((r) => Number(r.id))
+      .filter((id) => !closedInjuries.has(id));
     const target = latestNutritionTargetForDrift(today);
     const nutrition_target = target
       ? {

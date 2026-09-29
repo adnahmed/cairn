@@ -394,4 +394,18 @@ test("life controller resolves an injury in place and stops it reading as active
     /data-lresolve/,
     "a closed event offers no second Resolve"
   );
+  // An injury closed through its twin training symptom reads closed on the timeline
+  // too — the same answer the Brief and the coach read give (injury-symptom-link.ts).
+  const bySymptom = {
+    id: 14,
+    kind: "injury",
+    title: "Right lateral / oblique discomfort",
+    start_date: "2026-06-20",
+    resolved_at: null,
+    resolved_by_symptom: { symptom_id: 9, resolved_on: "2026-06-28" },
+  };
+  assert.equal(h.context.CairnLife.eventActive(bySymptom, "2026-06-30"), false);
+  const inner = h.context.CairnLife.lifeEventInner(bySymptom);
+  assert.doesNotMatch(inner, /data-lresolve/);
+  assert.match(inner, /Closed [^<]+ with its symptom/);
 });

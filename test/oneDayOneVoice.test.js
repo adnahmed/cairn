@@ -16,6 +16,9 @@ import assert from "node:assert/strict";
 import { db, localDaysAgo, repo, resetTables } from "./_seed.js";
 import { todayStrengthLine } from "../dist/repo/today-strength-line.js";
 import { planWeek } from "../dist/domain/training/plan-week.js";
+import { samePlace } from "../dist/repo/injury-symptom-link.js";
+import { newSafetyGradeSignalSince } from "../dist/repo/recovery-refusal.js";
+import { executeCoachReadTool } from "../dist/brain/read-tool-runtime.js";
 
 const TUE = "2026-09-29";
 const MON = "2026-09-28";
@@ -69,6 +72,16 @@ function seedWeek() {
       source: "athlete",
       updated_at: "2026-09-01",
     },
+    // Runs Tue/Thu/Sat/Sun, as stated.
+    endurance_schedule: {
+      days: [
+        { dow: 2, kind: "easy" },
+        { dow: 4, kind: "quality" },
+        { dow: 6, kind: "easy" },
+        { dow: 0, kind: "long" },
+      ],
+      source: "athlete",
+    },
   });
 }
 
@@ -90,7 +103,7 @@ function seedOblique() {
   return symptom;
 }
 
-function seedMorning() {
+function seedMorning({ withRun = true } = {}) {
   seedWeek();
   const symptom = seedOblique();
   repo.resolveTrainingSymptom(symptom.id, MON);
@@ -100,6 +113,11 @@ function seedMorning() {
   const push = db.prepare(`SELECT id FROM sessions WHERE date = ?`).get(MON);
   repo.finishSession(Number(push.id));
   repo.addCheckin(TUE, { energy: 5, sleep_feel: 2, soreness: 1 });
+  // …and the easy 9.7 km the athlete ran that day, beside the Pull.
+  if (withRun)
+    db.prepare(
+      `INSERT INTO activities (date, type, duration_min, distance_km, rpe) VALUES (?, 'running', 58, 9.7, 4)`
+    ).run(TUE);
 }
 
 test("a resolved training symptom closes its twin injury event — same day, nothing deleted", () => {
@@ -129,6 +147,45 @@ test("a resolved training symptom closes its twin injury event — same day, not
     1,
     "a recurrence reopens the place"
   );
+});
+
+test("every reader sees the symptom-closed injury as closed — one fact, one answer", () => {
+  seedWeek();
+  const symptom = seedOblique();
+  repo.resolveTrainingSymptom(symptom.id, MON);
+  const [event] = repo.listContextEvents().filter((e) => e.kind === "injury");
+
+  // The refusal reopen does not count a closed injury as safety-grade news.
+  assert.equal(newSafetyGradeSignalSince("2026-09-20", TUE), false);
+
+  // The coach agent's life window hands it over closed, on the symptom's date.
+  const read = executeCoachReadTool(
+    { tool: "read_life_context_window", args: { start_date: "2026-09-20", end_date: TUE } },
+    { run_id: "run-w7", op: "coach_read", today: TUE }
+  );
+  const handed = read.data.events.find((e) => Number(e.id) === Number(event.id));
+  assert.equal(handed.resolved_at, MON);
+  assert.equal(handed.resolved_by_symptom_id, symptom.id);
+
+  // A recurrence reopens it for every reader at once.
+  repo.recurTrainingSymptom(symptom.id, { on: TUE });
+  assert.equal(newSafetyGradeSignalSince("2026-09-20", TUE), true);
+});
+
+test("the tie refuses what is more than the one symptom", () => {
+  // The live shape still ties.
+  assert.equal(samePlace("Right lateral / oblique discomfort right lateral", "below right lateral"), true);
+  // An event naming more places than the symptom.
+  assert.equal(samePlace("Knee and hip pain", "left knee"), false);
+  // Tissue words say WHAT, never WHERE.
+  assert.equal(samePlace("Post-run muscle soreness", "muscle soreness legs"), false);
+  assert.equal(samePlace("Tendon pain", "elbow tendon"), false);
+  // A structural injury is never closed by a soreness symptom in the same place.
+  seedWeek();
+  const knee = repo.reportTrainingSymptom({ area_text: "right knee", onset_on: THU });
+  repo.addContextEvent({ kind: "injury", title: "Right knee meniscus tear", start_date: THU });
+  repo.resolveTrainingSymptom(knee.id, MON);
+  assert.equal(repo.listContextEvents({ activeOnly: true, on: TUE }).filter((e) => e.kind === "injury").length, 1);
 });
 
 test("a symptom in another place, or another episode, never closes the injury", () => {
@@ -177,8 +234,10 @@ test("'discomfort' is not a disc: a flank note never names the lower back", () =
 test("the 2026-09-29 morning: Pull stays a Pull day, back included, no stale injury", () => {
   seedMorning();
   const read = repo.dayRead(TUE);
-  assert.ok(read.kind === "train" || read.kind === "easy", `a train read, at most a lighter nudge: ${read.kind}`);
-  assert.notEqual(read.kind, "rest");
+  // The stated easy run is in, the Pull is not: on a lifting weekday a run is not the
+  // lifting, so the read stays the planned Pull rather than "you've moved, keep it easy".
+  assert.equal(read.kind, "train", `${read.kind} / ${read.decision?.rule_code}`);
+  assert.equal(read.decision.rule_code, "planned_training");
   assert.equal(read.focus ?? "Back, rear delts & biceps", "Back, rear delts & biceps");
   const sleepFeel = read.signals.signal_state.dimensions.recovery_capacity.evidence.find(
     (item) => item.field === "sleep_feel"
@@ -195,13 +254,27 @@ test("the 2026-09-29 morning: Pull stays a Pull day, back included, no stale inj
     "a resolved note produces no protective exclusion"
   );
   assert.deepEqual(envelope.protective_exclusions ?? [], []);
-  // Push-day saturation is not news about a Pull morning.
+  // Push-day saturation is not news about a Pull morning: whatever the envelope says
+  // is saturated, it names only groups today's Pull actually trains.
   const saturatedNote = envelope.soft_preferences.find((p) => p.code === "muscle_saturated");
-  if (saturatedNote) assert.doesNotMatch(saturatedNote.detail, /chest|triceps|shoulders/);
+  assert.doesNotMatch(saturatedNote?.detail ?? "", /chest|triceps|shoulders|quads|hamstrings/);
+
+  // One day, one voice, on the reproduced morning itself: the strength line and the
+  // week strip's today cell say what the read says (no row cached: the line speaks the
+  // floor the Brief would serve).
+  const line = todayStrengthLine(TUE);
+  assert.equal(line.title, "Pull", "the plan day keeps its NAME");
+  const expected = read.kind === "easy" || read.kind === "rest" ? read.kind : null;
+  assert.equal(line.suggestion, expected, "the line carries the read's suggestion, or none on a train read");
+  const cell = planWeek(TUE).days.find((d) => d.status === "today");
+  assert.ok(cell, "a today cell exists");
+  assert.equal(cell.plan_day?.name, "Pull");
+  assert.equal(cell.suggestion?.kind ?? null, expected, "the strip agrees with the read and the line");
 });
 
 test("genuine objective red flags still rest", () => {
-  seedMorning();
+  // The morning itself, before anything was trained: a rest read is about the day ahead.
+  seedMorning({ withRun: false });
   // A run-down tap (energy 2, no good-energy answer) on a genuinely short night.
   db.prepare(`DELETE FROM checkins`).run();
   repo.addCheckin(TUE, { energy: 2, sleep_feel: 2, soreness: 1 });

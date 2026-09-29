@@ -2,6 +2,7 @@ import { db } from "../db.js";
 import { effectiveGoalMode, getEnduranceGoal, getPrimaryDiscipline, getProfile } from "./profile.js";
 import { getActiveBlock } from "./program-blocks.js";
 import { addDaysISO, daysBetweenISO, joinList, localDateISO } from "./shared.js";
+import { withSymptomClosures } from "./injury-symptom-link.js";
 import { getMarkerHistory, lsqSlopePerDay } from "./health.js";
 import { completedIntakeRange } from "./intake-window.js";
 import { comparableLiftDates } from "./lift-comparability.js";
@@ -253,6 +254,8 @@ function contextConfounders(start: string, end: string): ConfounderEntry[] {
           ORDER BY COALESCE(start_date, ''), id LIMIT 100`
       )
       .all(start, end, end, start) as Array<Record<string, unknown>>;
+    // An injury closed through its twin training symptom ends on that symptom's date.
+    rows = withSymptomClosures(rows, localDateISO());
   } catch {
     return [];
   }
