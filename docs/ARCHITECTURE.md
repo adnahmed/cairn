@@ -1867,6 +1867,21 @@ quality weekday are PLANNED DOSE — both the longest-run and hard-cardio arms s
 next-morning physiology arm (and a poorly rated session) can call them harm (`plannedDoseOn`). Of 19
 days trained against the read, 8 had been flagged by the build working as written.
 
+**A run is graded by the personal HR model, never the watch (owner law, 2026-09-25).** For a run
+with an average heart rate and a usable personal model (not `insufficient`, a plausible easy line —
+the bar `runIntensityDiscipline` holds), `personalRunGradesHard` (`src/repo/training-read.ts`)
+REPLACES the intensity bars: it is hard when `classifyRunEffort` reads it quality against his own
+zones, when he NAMED it quality (`namesQualityRun`, `src/repo/stated-effort.ts` — "Hills",
+"5k+sprints", "5K Fast", "LT HR Test"; a lone place-name "hill" never counts; the title is his input,
+the `te_label` is not), or when `HARD_CARDIO_Z4_SEC` sat in heart-rate bins lying wholly above his
+threshold band (bin floor > `z4_top` — Garmin's bins are drawn on Garmin's zones, so a bin straddling
+his line proves nothing). Training effect, `te_label`, Garmin-zone Z4 minutes and the load-vs-median
+bar no longer speak for such a run: training load is Garmin's EPOC estimate, the quantity training
+effect is computed from, so it is the same judgement by another name (a conversational 157 read load
+219, "hard"). Rides, hikes and runs with no HR or no model keep the old bars. Read through against
+eight weeks of live runs: the 148 treadmill run and the 155–157 steady runs stop grading hard; the LT
+test (164 for 73 min), the 5k test, the 164 runs, "Hills", "5k+sprints" and "5K Fast" stay hard.
+
 **The athlete's stated effort outranks the watch's intensity grade (owner ruling, 2026-09-29).** A run
 the athlete SAYS was easy — `activities.rpe` in the talk-test band, `isStatedEasyRpe` (≤ 4,
 `src/repo/stated-effort.ts`) — skips the intensity bars (training effect, time at Z4+, load above the
