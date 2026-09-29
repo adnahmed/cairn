@@ -177,30 +177,181 @@ function checkinDraftComplete(draft: CheckinDraft | null): boolean {
   return !!draft && CHECKIN_FIELDS.every((field) => draft.picked[field.key] != null);
 }
 
+// The check-in line as it last stood today, remembered on this device so the next
+// paint of the Brief carries it in the SAME frame — the answered sentence or the
+// open form — instead of an empty slot that fills a round trip later and pushes the
+// rest of the Brief down under the reader. Date-keyed: yesterday's answer never
+// paints on today's Brief. The network read below reconciles it.
+const CHECKIN_PAINT_KEY = "cairn.checkin.paint.v1";
+type CheckinPaintMemo = { iso: string; answered: Partial<Record<CheckinField["key"], number>> | null };
+
+function readCheckinPaint(iso: string): CheckinPaintMemo | null {
+  try {
+    const raw = localStorage.getItem(CHECKIN_PAINT_KEY);
+    if (!raw) return null;
+    const memo = JSON.parse(raw) as CheckinPaintMemo | null;
+    return memo && memo.iso === iso ? memo : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCheckinPaint(iso: string, answered: Partial<Record<CheckinField["key"], number>> | null): void {
+  try {
+    localStorage.setItem(CHECKIN_PAINT_KEY, JSON.stringify({ iso, answered }));
+  } catch { /* private mode / full storage — the next paint just waits for the read */ }
+}
+
+function checkinAnsweredFields(c: CaptureCheckin | null | undefined): Partial<Record<CheckinField["key"], number>> | null {
+  if (!c) return null;
+  const out: Partial<Record<CheckinField["key"], number>> = {};
+  for (const field of CHECKIN_FIELDS) {
+    const rung = checkinRung((c as unknown as Record<string, unknown>)[field.key]);
+    if (rung != null) out[field.key] = rung;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 async function loadCheckin(): Promise<void> {
   const slot = view.querySelector<HTMLElement>("#checkinSlot");
   if (!slot) return;
   const today = localISO();
+  const hadDraft = !!checkinDraftFor(today);
+  // Same frame as the Brief: paint what this device last knew for today. It is
+  // quiet (no entrance) because it is what was already on screen.
+  if (!slot.innerHTML.trim() && !hadDraft) {
+    const memo = readCheckinPaint(today);
+    if (memo?.answered) {
+      slot.classList.add("slot-quiet");
+      renderCheckinDone(slot, memo.answered as unknown as CaptureCheckin);
+    } else if (memo && !checkinDismissedToday(today)) {
+      slot.classList.add("slot-quiet");
+      renderCheckinForm(slot, today);
+    }
+  }
   let existing: CaptureCheckin | null = null;
   try { existing = await api("/checkins?date=" + today) as CaptureCheckin | null; } catch { existing = null; }
   if (state.tab !== "today" || !slot.isConnected) return;
   // Mid-answer: the row stays a form until all three are in (or it is waved off).
   // A form already on screen is left completely alone — re-rendering under the
   // athlete's finger would drop the marks and the listeners mid-tap.
+  // (A draft the memo paint opened with nothing tapped yet is not an answer in
+  // progress — the server's word decides that row.)
   const draft = checkinDraftFor(today);
-  if (draft && !checkinDraftComplete(draft)) {
+  const answering = !!draft && (hadDraft || Object.keys(draft.picked).length > 0);
+  if (draft && answering && !checkinDraftComplete(draft)) {
     if (slot.querySelector(".checkin-form")) return;
     renderCheckinForm(slot, today);
     return;
   }
   if (checkinAnswered(existing)) {
+    if (draft && !answering) _checkinDraft = null;
+    writeCheckinPaint(today, checkinAnsweredFields(existing));
     renderCheckinDone(slot, existing as CaptureCheckin);
     return;
   }
   // Waved off this morning — stay gone until tomorrow. Asking again after a dismiss
   // is the definition of nagging.
   if (checkinDismissedToday(today)) { slot.innerHTML = ""; return; }
+  writeCheckinPaint(today, null);
+  if (slot.querySelector(".checkin-form")) return;
   renderCheckinForm(slot, today);
+}
+
+// ---- the check-in's save lane ----
+// A tap is answered on screen in the same frame (the dots fill, the word is said);
+// the write rides behind it. One save in flight at a time, and a tap that lands
+// while one is out is folded into the NEXT save — every save carries everything
+// answered so far (POST /checkins inserts, GET reads the newest), so the last one
+// to land is always the whole answer, never a partial that raced past it. A lost
+// connection queues the answer in the outbox (it replays on reconnect); a refusal
+// puts the dots back to what is actually saved and says so.
+type CheckinPicked = Partial<Record<CheckinField["key"], number>>;
+let _checkinPending: { iso: string; picked: CheckinPicked } | null = null;
+let _checkinSaving: Promise<void> | null = null;
+let _checkinSaved: { iso: string; picked: CheckinPicked } | null = null;
+
+function saveCheckin(iso: string, picked: CheckinPicked, onRefused: (saved: CheckinPicked) => void): Promise<void> {
+  _checkinPending = { iso, picked: { ...picked } };
+  if (!_checkinSaving) {
+    _checkinSaving = drainCheckinSaves(onRefused).finally(() => { _checkinSaving = null; });
+  }
+  return _checkinSaving;
+}
+
+async function drainCheckinSaves(onRefused: (saved: CheckinPicked) => void): Promise<void> {
+  let landed = false;
+  while (_checkinPending) {
+    const next = _checkinPending;
+    _checkinPending = null;
+    const body = JSON.stringify({ ...next.picked });
+    try {
+      const saved = await api("/checkins", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body,
+      }) as CaptureCheckin;
+      if (!saved || saved.error) throw new Error(String(saved?.error || "refused"));
+      _checkinSaved = next;
+      landed = true;
+    } catch (error) {
+      if (captureFailureIsTransient(error) && typeof outboxEnqueue === "function") {
+        const queued = await outboxEnqueue("checkin", "/checkins", { ...next.picked }).catch(() => null);
+        if (queued) { _checkinSaved = next; continue; }
+      }
+      _checkinPending = null;
+      const saved = _checkinSaved && _checkinSaved.iso === next.iso ? _checkinSaved.picked : {};
+      onRefused(saved);
+      toast("Couldn't save that — try again.");
+      return;
+    }
+  }
+  if (landed) checkinLanded();
+}
+
+// What a saved check-in changes: the Brief's read of the day, and the caches that
+// carry it. Never a rebuild of Today — the Brief reconciles in place, once the
+// answer has settled (all three in, or the athlete has left the row alone).
+const CHECKIN_SETTLE_MS = 3500;
+let _checkinRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function checkinLanded(): void {
+  try {
+    const invalidation = (globalThis as {
+      CairnWriteInvalidation?: { targetsForChatAction?(type: string): readonly string[]; invalidate?(targets: readonly string[], opts?: { keep?: readonly string[] }): unknown };
+    }).CairnWriteInvalidation;
+    const targets = invalidation?.targetsForChatAction?.("log_checkin");
+    // The Brief on screen is kept: it is reconciled in place just below.
+    if (targets) invalidation?.invalidate?.(targets, { keep: ["@brief"] });
+  } catch { /* cache hygiene is best-effort */ }
+  scheduleCheckinBriefRefresh(checkinDraftComplete(_checkinDraft) || !_checkinDraft ? 450 : CHECKIN_SETTLE_MS);
+}
+
+function scheduleCheckinBriefRefresh(delayMs: number): void {
+  const refresh = (globalThis as { refreshTodayBrief?: () => unknown }).refreshTodayBrief;
+  if (typeof refresh !== "function" || typeof setTimeout !== "function") return;
+  if (_checkinRefreshTimer) clearTimeout(_checkinRefreshTimer);
+  _checkinRefreshTimer = setTimeout(() => {
+    _checkinRefreshTimer = null;
+    // Still mid-answer and still touching it: wait for the row to go quiet.
+    if (_checkinSaving) { scheduleCheckinBriefRefresh(delayMs); return; }
+    try { void refresh(); } catch { /* the Brief keeps its read */ }
+  }, delayMs);
+}
+
+// A row changing height (the three scales folding into one sentence) eases from
+// its old height to its new one instead of snapping everything below it upward.
+function settleCheckinHeight(slot: HTMLElement, write: () => void): void {
+  const motion = typeof reducedMotion === "function" ? !reducedMotion() : false;
+  const from = motion && typeof slot.getBoundingClientRect === "function" ? slot.getBoundingClientRect().height : 0;
+  write();
+  if (!from || typeof slot.animate !== "function") return;
+  const to = slot.getBoundingClientRect().height;
+  if (Math.abs(to - from) < 2) return;
+  try {
+    slot.animate(
+      [{ height: `${from}px`, overflow: "hidden" }, { height: `${to}px`, overflow: "hidden" }],
+      { duration: 260, easing: "cubic-bezier(.2,.7,.2,1)" },
+    );
+  } catch { /* the new height stands */ }
 }
 
 const FEEL_FACES = ["·", "◦", "○", "◍", "●"]; // 1→5, quiet glyphs, no emoji
@@ -227,36 +378,50 @@ function renderCheckinForm(slot: HTMLElement, iso?: string): void {
       ${CHECKIN_FIELDS.map((field) => feelScale(field, picked[field.key] ?? null)).join("")}
       <button class="checkin-dismiss" id="checkinDismiss" type="button" aria-label="Not now">✕</button>
     </div>`;
+  const paintScale = (field: CheckinField, val: number | null | undefined) => {
+    // highlight selected + everything below it (a five-rung scale fill)
+    slot.querySelectorAll<HTMLElement>(`.feel-dot[data-feel="${field.key}"]`).forEach((d) => {
+      const on = val != null && Number(d.dataset.val) <= val;
+      d.classList.toggle("feel-dot-on", on);
+      d.setAttribute("aria-pressed", val != null && Number(d.dataset.val) === val ? "true" : "false");
+    });
+    const said = slot.querySelector<HTMLElement>(`[data-said="${field.key}"]`);
+    if (said) said.innerHTML = val != null ? escHtml(field.done[val - 1]) : "";
+  };
+  // A refused save puts the marks back to what is actually saved — reopening the
+  // row when it had already folded into its sentence.
+  const rollback = (saved: CheckinPicked) => {
+    if (!slot.isConnected) return;
+    const draft = checkinDraftFor(today);
+    if (!draft || !slot.querySelector(".checkin-form")) {
+      _checkinDraft = { iso: today, picked: { ...saved } };
+      writeCheckinPaint(today, null);
+      renderCheckinForm(slot, today);
+      return;
+    }
+    for (const field of CHECKIN_FIELDS) {
+      if (saved[field.key] != null) draft.picked[field.key] = saved[field.key];
+      else delete draft.picked[field.key];
+      if (slot.querySelector(".checkin-form")) paintScale(field, draft.picked[field.key] ?? null);
+    }
+  };
   slot.querySelectorAll<HTMLElement>(".feel-dot").forEach((b) =>
-    b.addEventListener("click", async () => {
+    b.addEventListener("click", () => {
       const field = CHECKIN_FIELDS.find((f) => f.key === b.dataset.feel);
-      if (!field) return;
+      if (!field) return Promise.resolve();
       const val = Number(b.dataset.val);
       picked[field.key] = val;
-      // highlight selected + everything below it (a five-rung scale fill)
-      slot.querySelectorAll<HTMLElement>(`.feel-dot[data-feel="${field.key}"]`).forEach((d) =>
-        d.classList.toggle("feel-dot-on", Number(d.dataset.val) <= val));
-      const said = slot.querySelector<HTMLElement>(`[data-said="${field.key}"]`);
-      if (said) said.innerHTML = escHtml(field.done[val - 1]);
-      try {
-        // POST /checkins INSERTS a row and GET ?date= reads the newest, so every
-        // tap has to carry everything answered so far — a partial body would drop
-        // the earlier scales off today's row.
-        const saved = await api("/checkins", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...picked }),
-        }) as CaptureCheckin;
-        if (saved && !saved.error) {
-          toast("Noted");
-          // The form stays mounted until all three are in; only then does the row
-          // become the answered sentence.
-          if (checkinDraftComplete({ iso: today, picked })) {
-            _checkinDraft = null;
-            renderCheckinDone(slot, saved);
-          }
-          reshapeToday(); // a fresh check-in can shift today's read — reflect it now
-        }
-      } catch { /* silent — it's optional */ }
+      // The answer is on screen in this frame; the network is behind it.
+      slot.classList.remove("slot-quiet");
+      paintScale(field, val);
+      const complete = checkinDraftComplete({ iso: today, picked });
+      if (complete) {
+        // All three in: the row folds into the sentence right away, in place.
+        _checkinDraft = null;
+        writeCheckinPaint(today, { ...picked });
+        settleCheckinHeight(slot, () => renderCheckinDone(slot, picked as unknown as CaptureCheckin));
+      }
+      return saveCheckin(today, picked, rollback);
     }));
   const dismiss = slot.querySelector("#checkinDismiss");
   if (dismiss) dismiss.addEventListener("click", () => {
@@ -266,10 +431,13 @@ function renderCheckinForm(slot: HTMLElement, iso?: string): void {
     const answered = _checkinDraft && _checkinDraft.iso === today ? _checkinDraft.picked : null;
     _checkinDraft = null;
     if (answered && CHECKIN_FIELDS.some((field) => answered[field.key] != null)) {
-      renderCheckinDone(slot, answered as unknown as CaptureCheckin);
+      writeCheckinPaint(today, { ...answered });
+      settleCheckinHeight(slot, () => renderCheckinDone(slot, answered as unknown as CaptureCheckin));
+      // Done answering: the Brief can take the answer in now.
+      if (_checkinSaved && _checkinSaved.iso === today) scheduleCheckinBriefRefresh(450);
       return;
     }
-    slot.innerHTML = "";
+    settleCheckinHeight(slot, () => { slot.innerHTML = ""; });
   });
 }
 
@@ -289,7 +457,11 @@ function renderCheckinDone(slot: HTMLElement, c: CaptureCheckin): void {
   // state — just never a number for it.
   if (!parts.length && c.mood != null) parts.push("you checked in");
   if (!parts.length) { slot.innerHTML = ""; return; }
-  slot.innerHTML = `<div class="checkin-done chip-in"><span class="checkin-done-mark" aria-hidden="true">✓</span> ${escHtml(parts.join(" · "))}</div>`;
+  const html = `<div class="checkin-done chip-in"><span class="checkin-done-mark" aria-hidden="true">✓</span> ${escHtml(parts.join(" · "))}</div>`;
+  // The same sentence already standing is left alone (no entrance re-played).
+  const standing = slot.querySelector(".checkin-done");
+  if (standing && standing.textContent === `✓ ${parts.join(" · ")}`) return;
+  slot.innerHTML = html;
 }
 
 // ---------- context tags: cheap one-tap life context (WHOOP-journal pattern) ----------
@@ -297,7 +469,6 @@ function renderCheckinDone(slot: HTMLElement, c: CaptureCheckin): void {
 // off. Tap tags today, tap again untags. No streaks, no history guilt: this is
 // evidence the insight generator quietly tests against outcomes, never advice, and
 // never gates anything. Renders nothing until the vocab + today's state are both in.
-let _tagToggleInFlight = false;
 async function loadTagChips(): Promise<void> {
   const slot = view.querySelector<HTMLElement>("#tagsSlot");
   if (!slot) return;
@@ -321,30 +492,43 @@ async function loadTagChips(): Promise<void> {
 
 function renderTagChips(slot: HTMLElement, vocab: CaptureContextTagDef[], onKeys: Set<string>): void {
   const chips = vocab.map((t) =>
-    `<button class="tag-chip${onKeys.has(t.key) ? " tag-chip-on" : ""}" data-tag="${escAttr(t.key)}" type="button">${escHtml(t.label)}</button>`
+    `<button class="tag-chip${onKeys.has(t.key) ? " tag-chip-on" : ""}" data-tag="${escAttr(t.key)}" type="button" aria-pressed="${onKeys.has(t.key) ? "true" : "false"}">${escHtml(t.label)}</button>`
   ).join("");
   slot.innerHTML = `<div class="tags-chips">${chips}</div>`;
   slot.querySelectorAll<HTMLElement>("[data-tag]").forEach((b) =>
     b.addEventListener("click", () => toggleTagChip(b)));
 }
 
+// A chip flips in the same frame it is tapped; the toggle rides behind it and the
+// server's answer settles the chip (it is the truth), a failure flips it back. One
+// toggle in flight per chip — the others stay tappable.
+const _tagTogglesInFlight = new Set<string>();
 async function toggleTagChip(chip: HTMLElement): Promise<void> {
-  if (_tagToggleInFlight) return;
   const key = chip.dataset.tag;
-  if (!key) return;
-  _tagToggleInFlight = true;
+  if (!key || _tagTogglesInFlight.has(key)) return;
+  _tagTogglesInFlight.add(key);
+  const was = chip.classList.contains("tag-chip-on");
+  const paint = (on: boolean) => {
+    chip.classList.toggle("tag-chip-on", on);
+    chip.setAttribute?.("aria-pressed", on ? "true" : "false");
+  };
+  paint(!was);
   try {
     const res = await api("/context-tags/toggle", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key }),
     }) as CaptureContextTagToggleResponse;
-    if (res && !res.error) {
-      chip.classList.toggle("tag-chip-on", !!res.on);
-    } else {
+    if (res && !res.error) paint(!!res.on);
+    else {
+      paint(was);
       toast("Couldn't save that — try again.");
     }
-  } catch { toast("Couldn't save that — try again."); }
-  _tagToggleInFlight = false;
+  } catch {
+    paint(was);
+    toast("Couldn't save that — try again.");
+  } finally {
+    _tagTogglesInFlight.delete(key);
+  }
 }
 
 let _captureReads: ReturnType<CaptureReadsRuntime["createController"]> | null = null;

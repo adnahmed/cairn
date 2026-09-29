@@ -70,6 +70,22 @@ type UiViewTransitionsClientApi = {
       el.addEventListener("animationend", done);
     }
 
+    // How long a transition may hold the screen still while its swap runs. One
+    // short frame budget: long enough for a synchronous or cache-warm paint to ride
+    // the crossfade, never long enough to read as a frozen tap.
+    const SWAP_BUDGET_MS = 160;
+
+    function boundedSwap(swap: Promise<unknown>): Promise<unknown> {
+      if (typeof setTimeout !== "function") return swap;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const budget = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, SWAP_BUDGET_MS);
+      });
+      return Promise.race([swap.then(() => undefined), budget]).finally(() => {
+        if (timer !== undefined && typeof clearTimeout === "function") clearTimeout(timer);
+      });
+    }
+
     function runViewSwap(fn: () => unknown): Promise<unknown> {
       try {
         return Promise.resolve(fn());
@@ -118,7 +134,18 @@ type UiViewTransitionsClientApi = {
         try {
           active = true;
           setKind(options.kind);
-          const transition = document.startViewTransition(() => runViewSwap(fn));
+          // The browser SUSPENDS RENDERING until the update callback settles. A swap
+          // that awaits the network (renderToday's data load, a Brief read) used to
+          // freeze the whole screen for that round trip — a tapped chip painted
+          // nothing for seconds, then everything jumped at once, and Chrome aborts a
+          // callback after 4 s. The freeze is bounded to one short frame budget: a
+          // swap that settles inside it is carried by the transition, a slower one
+          // keeps rendering and lands on its own when its data does.
+          let swap: Promise<unknown> | null = null;
+          const transition = document.startViewTransition(() => {
+            swap = runViewSwap(fn);
+            return boundedSwap(swap);
+          });
           const done = transition.updateCallbackDone || transition.finished || Promise.resolve();
           if (transition.ready) quietSecondaryTransitionPromise(transition.ready);
           if (transition.finished) {
@@ -128,9 +155,13 @@ type UiViewTransitionsClientApi = {
             );
             if (transition.finished !== done) quietSecondaryTransitionPromise(transition.finished);
           } else clearKind(options.kind);
-          return quietTransitionPromise(done).finally(() => {
-            active = false;
-          });
+          // Callers await the WHOLE swap (a morph class comes off after it), not just
+          // the bounded part the transition carried.
+          return quietTransitionPromise(done)
+            .finally(() => {
+              active = false;
+            })
+            .then(() => swap);
         } catch {
           active = false;
           clearKind(options.kind);

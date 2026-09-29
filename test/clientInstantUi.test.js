@@ -92,10 +92,13 @@ test("Session feedback dots roll back to the prior fill when the save is rejecte
 
 test("Today soft repaint suppresses the reveal stagger and restores scroll", () => {
   assert.match(todayScreen, /const prevY = typeof window !== "undefined" \? window\.scrollY : 0/);
-  assert.match(todayScreen, /todayView\.classList\.toggle\("today-soft", !!soft\)/);
+  // A soft repaint is quiet, and so is any rewrite of a Today already on screen for
+  // this date (a resume, a Brief kind change, the snapshot paint) — v2 wave 7.
+  assert.match(todayScreen, /const quietPaint = !!soft \|\| sameDateOnScreen;/);
+  assert.match(todayScreen, /todayView\.classList\.toggle\("today-soft", quietPaint\)/);
   assert.match(
     todayScreen,
-    /if\s*\(soft\)\s*\{\s*try\s*\{\s*window\.scrollTo\(\s*0\s*,\s*prevY\s*\);\s*\}\s*catch\s*\{\s*\}\s*\}/,
+    /if\s*\(quietPaint\)\s*\{\s*try\s*\{\s*window\.scrollTo\(\s*0\s*,\s*prevY\s*\);\s*\}\s*catch\s*\{\s*\}\s*\}/,
   );
   const styles = readFileSync(path.join(root, "public/styles.css"), "utf8");
   assert.match(styles, /\.today-soft \.reveal\{animation:none;transform:none\}/);

@@ -10,6 +10,11 @@
    but must feel silent — suppress the entrance stagger so a "nothing changed"
    refresh never re-flashes the whole screen (mirrors Stand's quietPaint). */
 .today-soft .reveal{animation:none;transform:none}
+/* A Today slot HELD across a same-date rewrite shows what it already showed, still
+   and inert, until its loader writes it again; a write that brings the same card
+   back stays quiet (.slot-quiet) — an unchanged card never re-plays its entrance
+   (today-slot-hold.ts). A real change in the slot animates as designed. */
+:is([data-held],.slot-quiet) :is(.reveal,.settle-in,.chip-in,.anim-in,.barfill){animation:none;transform:none}
 @keyframes chipin{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
 .chip-in{animation:chipin .22s var(--ease)}
 

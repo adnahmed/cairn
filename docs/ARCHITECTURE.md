@@ -5060,6 +5060,36 @@ What the build emits, and what a deploy ships:
   builder sets it. A local build keeps them, because the client test suite reads those per-module
   files directly.
 
+### Today feel: taps answer in-frame, rewrites stay quiet, one keyboard state
+
+- **A tap is answered in the frame it lands, and never rebuilds Today.** The check-in dots, the
+  fueling follow-through chip and the context tag chips mark their state synchronously, and the
+  write goes out behind them. `capture.ts` runs one check-in save at a time; taps that land while a
+  save is out fold into the next save. A transient failure queues the write in the outbox (kinds
+  `checkin` and `fueling`), and a refusal rolls the marks back and says so. A saved check-in
+  reconciles only the Brief, in place (`refreshBriefInPlace`), once the answer settles. The same
+  read touches nothing but the stamp. A changed read rewrites only the Brief and carries the
+  `#checkinSlot` NODE across. Only a changed kind of day earns one quiet soft repaint. It never
+  calls `reshapeToday()`.
+- **A view transition never waits on the network.** `withViewTransition` holds rendering for at most
+  one short frame budget (`SWAP_BUDGET_MS`). A swap still loading after that lands without the
+  crossfade. Before this, `startViewTransition(() => renderToday())` froze the whole screen for
+  renderToday's entire network chain.
+- **A same-date rewrite of Today is quiet.** A resume, an SWR refresh or a Brief kind change used to
+  rebuild everything. Now the entrance stagger is off (`today-soft`), the scroll is kept, and every
+  async slot keeps its content (`today-slot-hold.ts`: held copies are `inert` until the slot's own
+  loader writes it, an identical write stays `slot-quiet`, and a never-rewritten hold expires to
+  empty). The sessionStorage snapshot is the HYDRATED surface, saved once phase two settles. The
+  check-in line paints in the Brief's own frame from a date-keyed memo (`cairn.checkin.paint.v1`).
+  Each write stamps `.today-wrap[data-date]`, and a wrap for another date gives way to the
+  skeleton, so yesterday's Today never stands in for today's. A background soft repaint waits
+  until the athlete's hands have been off the screen for a beat.
+- **One app-wide keyboard state.** `html.kb-up` (`app/mobile-viewport.ts`, `keyboardUpState`)
+  requires a focused text field on a soft-keyboard device, visual-viewport geometry that shows an
+  occluding keyboard, and no pinch zoom. It hides the tab bar on every surface (Chat keeps its own
+  body classes for its column). Without it, `bottom: var(--vvb)` rode the bar up onto the keyboard.
+  Once the keyboard settles, the focused composer is brought fully into view.
+
 ### Runs are not plan items (client)
 
 Plan days hold lifts only; every run lives in Plan → Endurance, which reads runs solely from

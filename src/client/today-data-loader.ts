@@ -328,20 +328,50 @@ type TodayDataLoaderApi = {
     };
   }
 
+  // The athlete's hands on the screen. A background repaint that lands while they
+  // are mid-tap rebuilds the node under the finger, so the refresh waits until they
+  // have been still for a beat (it is only news, never urgent). Tracked once, from
+  // the first scheduled refresh, with a passive capture listener.
+  const HANDS_OFF_MS = 1800;
+  const HANDS_OFF_MAX_WAIT_MS = 12000;
+  let lastTouchAt = 0;
+  let touchWatch = false;
+  function watchTouches(): void {
+    if (touchWatch || typeof document === "undefined" || typeof document.addEventListener !== "function") return;
+    touchWatch = true;
+    const mark = () => {
+      lastTouchAt = Date.now();
+    };
+    document.addEventListener("pointerdown", mark, { capture: true, passive: true });
+    document.addEventListener("keydown", mark, { capture: true, passive: true });
+  }
+  function handsOnFor(now: number): number {
+    return lastTouchAt ? Math.max(0, HANDS_OFF_MS - (now - lastTouchAt)) : 0;
+  }
+
   function scheduleSoftRepaint(result: TodayDataLoadResult, deps: TodayDataRefreshDeps): void {
     if (!result.revalidations.length) return;
-    Promise.all(result.revalidations).then(() => {
+    watchTouches();
+    const startedAt = Date.now();
+    const attempt = () => {
       if (!result.changed()) return;
       if (!deps.isCurrentPoll(result.token) || deps.state.tab !== "today") return;
       const active = document.activeElement;
       if (active && (
         active.closest?.(".ex") ||
         active.closest?.(".addex") ||
-        active.closest?.(".wt-inline")
+        active.closest?.(".wt-inline") ||
+        active.closest?.(".checkin-form")
       )) return;
       if (deps.root.querySelector(".brief.is-thinking")) return;
+      const wait = handsOnFor(Date.now());
+      if (wait > 0 && Date.now() - startedAt < HANDS_OFF_MAX_WAIT_MS && typeof setTimeout === "function") {
+        setTimeout(attempt, wait);
+        return;
+      }
       deps.renderToday({ soft: true });
-    });
+    };
+    Promise.all(result.revalidations).then(attempt);
   }
 
   const CAIRN_TODAY_DATA_LOADER: TodayDataLoaderApi = {
