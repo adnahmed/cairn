@@ -11,8 +11,7 @@ type EnergyExpenditure = {
   tdee_basis?: unknown;
   basis?: unknown;
   coverage?: unknown;
-  // The server's read of the record's quality (repo/expenditure.ts): `intake` is
-  // "partial" when logged days look incomplete, which alone holds confidence low.
+  // The record's quality (repo/expenditure.ts); intake "partial" alone holds confidence low.
   quality?: { intake?: unknown; outcome?: unknown } | null;
   // Server loss-goal signal — populated only when there's a goal with weight still to
   // lose (see repo/profile.ts projectGoalPace), so its presence marks an intended deficit.
@@ -83,7 +82,7 @@ const ENERGY_ZONE_RANGE: Record<string, [number, number] | null> = {
 const ENERGY_ZONE_PHRASE: Record<string, string> = {
   high: "Your maintenance zone is dialed in.",
   medium: "Your maintenance zone is settling in.",
-  low: "Still a wide estimate this week — more logging narrows it.",
+  low: "Still a wide estimate this week — it narrows as the picture fills in.",
   none: "Not enough yet to place your maintenance zone.",
 };
 
@@ -120,12 +119,8 @@ function energyBasis(exp: EnergyExpenditure | null | undefined): string {
 // Adherence-neutral throughout: a thin week lowers confidence, it never blames.
 function energyRead(exp: EnergyExpenditure | null | undefined): EnergyRead {
   if (!exp || exp.tdee == null) {
-    return {
-      lead: "Not enough logged yet to read your energy balance.",
-      body: "Keep logging meals and the odd weigh-in when you can — a few weeks in, I'll read your real energy balance here.",
-      tone: "quiet",
-      dir: null,
-    };
+    const body = "Keep logging meals and the odd weigh-in when you can — a few weeks in, I'll read your real energy balance here.";
+    return { lead: "Not enough logged yet to read your energy balance.", body, tone: "quiet", dir: null };
   }
   const conf = String(exp.confidence);
   const trend = exp.trend_lb_wk == null ? null : Number(exp.trend_lb_wk);
@@ -144,37 +139,25 @@ function energyRead(exp: EnergyExpenditure | null | undefined): EnergyRead {
       ? String(cq.words)
       : null;
 
-  // Starting estimate — no outcome evidence yet. Calm, never a gap-as-failure.
-  // Asks for what the coverage rows under it say is missing — never more logging
-  // beside a row that says logging is steady.
-  if (conf === "none") {
-    const logSteady = energyCoverage(exp).logging === "solid";
+  // Starting estimate (none) or a loose week (low): calm, never a gap-as-failure, and
+  // never a confident pace claim. The lead asks for what the SAME coverage read the
+  // contributor rows print says is missing — never logging beside "Logging steady".
+  if (conf === "none" || conf === "low") {
+    const cov = energyCoverage(exp);
+    if (conf === "low") return { lead: looseLead(cov), body, tone: "read", dir };
+    const next = cov.logging === "solid" ? "with the log steady, a few weigh-ins turn" : "a few weeks of logging turns";
     const lead = exp.tdee_basis === "profile_seed"
-      ? logSteady
-        ? `Starting around ${kcalFmt(exp.tdee)} kcal/day — with the log steady, a few weigh-ins turn this into a real read.`
-        : `Starting around ${kcalFmt(exp.tdee)} kcal/day — a few weeks of logging turns this into a real read.`
-      : logSteady
+      ? `Starting around ${kcalFmt(exp.tdee)} kcal/day — ${next} this into a real read.`
+      : cov.logging === "solid"
         ? "Still early — the log is steady; a few weigh-ins bring your real energy balance into focus."
         : "Still early — keep logging and your real energy balance comes into focus.";
     return { lead, body, tone: "read", dir };
   }
 
-  // Loose week — the read is genuinely looser, so don't make a confident pace claim.
-  // The lead names what is loose from the SAME coverage read the contributor rows
-  // under it print, so the headline never asks for logged days beside a row saying
-  // logging is steady.
-  if (conf === "low") {
-    return { lead: looseLead(energyCoverage(exp)), body, tone: "read", dir };
-  }
-
   // Medium/high confidence but no scale trend yet — speak to the steady read.
   if (trend == null) {
-    return {
-      lead: `Best read is about ${kcalFmt(exp.tdee)} kcal/day to hold steady — a few weigh-ins will show which way you're moving.`,
-      body,
-      tone: "read",
-      dir: null,
-    };
+    const lead = `Best read is about ${kcalFmt(exp.tdee)} kcal/day to hold steady — a few weigh-ins will show which way you're moving.`;
+    return { lead, body, tone: "read", dir: null };
   }
 
   // Medium/high confidence with a real trend — speak to the intended outcome.
@@ -223,55 +206,45 @@ function energyHeroHtml(exp: EnergyExpenditure | null | undefined): string {
   ]);
 }
 
-// The one coverage read behind both the loose headline and the contributor rows:
-// logging is "thin" (too few logged days), "partial" (enough days, but some read as
-// incomplete — the server's own intake quality) or "solid"; weigh-ins "thin"/"solid",
-// or null when the payload says nothing about them. Adherence-neutral: a state, never
-// a failing.
+// The ONE coverage read behind the loose headline and the contributor rows: logging
+// "thin" (few logged days), "partial" (the server's intake quality says some days read
+// incomplete) or "solid"; weigh-ins "thin"/"solid", or null when the payload is silent.
 type EnergyCoverage = { logging: "thin" | "partial" | "solid"; weighIns: "thin" | "solid" | null };
-
 function energyCoverage(exp: EnergyExpenditure | null | undefined): EnergyCoverage {
   const cov = record(exp?.coverage);
   const intakeDays = Number(exp?.points ?? cov.intake_days);
   const weighDays = Number(cov.weigh_in_days);
   const partial = String(record(exp?.quality).intake || "") === "partial";
   const logging = !(Number.isFinite(intakeDays) && intakeDays >= 10) ? "thin" : partial ? "partial" : "solid";
-  const weighIns = Number.isFinite(weighDays) ? (weighDays >= 4 ? "solid" : "thin") : null;
-  return { logging, weighIns };
+  return { logging, weighIns: Number.isFinite(weighDays) ? (weighDays >= 4 ? "solid" : "thin") : null };
 }
 
 // What a loose read is waiting on, in the coverage read's own terms.
 function looseLead(cov: EnergyCoverage): string {
-  if (cov.logging === "thin") return "The picture's a little loose this week — a few more logged days will sharpen it.";
-  if (cov.logging === "partial")
-    return "The picture's a little loose this week — a few logged days read as partial, so it leans on your starting estimate for now.";
-  if (cov.weighIns === "thin") return "The picture's a little loose this week — a few more weigh-ins will sharpen the trend.";
+  const loose = "The picture's a little loose this week — ";
+  if (cov.logging === "thin") return `${loose}a few more logged days will sharpen it.`;
+  if (cov.logging === "partial") return `${loose}a few logged days read as partial, so it leans on your starting estimate for now.`;
+  if (cov.weighIns === "thin") return `${loose}a few more weigh-ins will sharpen the trend.`;
   return "The picture's still settling — the log is steady; the trend just needs a little longer to firm up.";
 }
+
+const LOGGING_STATE = {
+  solid: "steady this week — plenty to read",
+  partial: "a few days read as partial — the read stays looser",
+  thin: "light this week — the read stays looser",
+} as const;
 
 // Quiet contributor rows for the looser reads — what's thin, stated as calm
 // information (adherence-neutral), never as a failing. `quiet` pip = thin data,
 // "the read is looser"; `ok` when a signal is solid. Words, no numbers.
 function energyContribRows(exp: EnergyExpenditure | null | undefined): Array<{ label: string; state: string; tone: "ok" | "quiet" }> {
   const cov = energyCoverage(exp);
-  const rows: Array<{ label: string; state: string; tone: "ok" | "quiet" }> = [];
-  rows.push({
-    label: "Logging",
-    state:
-      cov.logging === "solid"
-        ? "steady this week — plenty to read"
-        : cov.logging === "partial"
-          ? "a few days read as partial — the read stays looser"
-          : "light this week — the read stays looser",
-    tone: cov.logging === "solid" ? "ok" : "quiet",
-  });
+  const rows: Array<{ label: string; state: string; tone: "ok" | "quiet" }> = [
+    { label: "Logging", state: LOGGING_STATE[cov.logging], tone: cov.logging === "solid" ? "ok" : "quiet" },
+  ];
   if (cov.weighIns) {
-    const weighSolid = cov.weighIns === "solid";
-    rows.push({
-      label: "Weigh-ins",
-      state: weighSolid ? "enough to see the trend" : "a few more sharpen the trend",
-      tone: weighSolid ? "ok" : "quiet",
-    });
+    const solid = cov.weighIns === "solid";
+    rows.push({ label: "Weigh-ins", state: solid ? "enough to see the trend" : "a few more sharpen the trend", tone: solid ? "ok" : "quiet" });
   }
   return rows;
 }
