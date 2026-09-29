@@ -2099,7 +2099,7 @@ function computeDayRead(
       hasFeltRestCorroboration(signalState.dimensions) ||
       (() => {
         const yesterday = addDaysISO(d, -1);
-        return !!yesterday && harmEvidenceOnDay(yesterday) != null;
+        return !!yesterday && signalInput(() => harmEvidenceOnDay(yesterday) != null, false);
       })());
   const stackedLoadingRest = consec >= 3 && !recoveryWeek;
   const FELT_LIGHT_VOICE_KEYS: ReadonlySet<string> = new Set(["felt_energy_light", "sleep_feel_light"]);
@@ -2669,7 +2669,10 @@ function computeDayRead(
       resolve: () => {
         // An easy/light effort already done today (a short walk, a recovery spin a lifter
         // doesn't count as their real work) — acknowledge it without telling them to rest.
-        if (!(trainedToday || bigActivity)) return null;
+        // On a weekday they lift, a run is not the lifting (liftDayStillOpen): the easy
+        // run on a stated Pull + run day leaves the Pull as planned, not "keep the rest
+        // of it easy".
+        if (!(trainedToday || (bigActivity && !liftDayStillOpen))) return null;
         return {
           outcome: DAY_READ_OUTCOMES.logged_light_work_today,
           read: {
