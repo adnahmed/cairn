@@ -1885,7 +1885,20 @@ run the model reads above easy is `moderate`; in the per-muscle dose a judged (o
 is moderate by its ordinary length (`CARDIO_GRADE.moderateMin`/`moderateKm`, the bar
 `isLoadRelevantEnduranceImpact` holds) instead of the watch's aerobic effect, and the modality's
 own long bar still makes it HEAVY — a long run stays a real leg dose for `acuteGate` whether or not
-it was hard (9.68 km at 157 is heavy by distance; 8.64 km at 148 is moderate). Read through against
+it was hard. Program state's `has_quality` (the "add a quality session" nudge) reads the same
+personal read for runs, falling back to the watch's label / anaerobic effect with no model.
+
+**How long is long is HIS question too (owner ruling, 2026-09-29).** For a RUN, the long bar behind
+the per-muscle HEAVY dose (the modality's 55 min / 9 km) and the day grade's hard-by-length arm
+(`CARDIO_GRADE.hardMin`/`hardKm`, 50 min / 9 km) come from `runLengthBars` (`run-intensity.ts`):
+`OWN_RUN_LONG_MULTIPLE` (1.5) × the median duration / distance of his runs over the
+`OWN_RUN_WINDOW_DAYS` (42) before the day, never below the fixed bar (fewer than
+`OWN_RUN_MIN_RUNS` (4) runs keeps the fixed bar exactly) and never above `OWN_RUN_BAR_CAP`
+(90 min / 16 km). The raised bar never demotes his long run: a run that clears the FIXED bar stays
+long on his stated long-run weekday or at `LONG_RUN_SHARE_OF_LONGEST` (75%) of the window's longest.
+Live read-through: his ordinary run is ~38 min / 6.6 km, so the bar sits at ~56 min / 9.8 km — the
+9.68 km Tuesday run at 157 becomes a moderate leg dose and no longer drives
+`endurance_lower_conflict`; the Sunday 17.7 km long run is heavy as ever. Read through against
 eight weeks of live runs: the 148 treadmill run and the 155–157 steady runs stop grading hard; the LT
 test (164 for 73 min), the 5k test, the 164 runs, "Hills", "5k+sprints" and "5K Fast" stay hard.
 

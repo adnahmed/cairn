@@ -348,7 +348,8 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   and a usable personal model is graded by that model and his own session title, never by training
   effect / `te_label` / Garmin zones / load (`personalRunRead`, `src/repo/run-intensity.ts` — the harm
   bar, the day grade and hybrid-load's per-muscle dose all ask it; length still makes a long run a
-  heavy leg dose), and is
+  heavy leg dose, and "long" is 1.5× his own six-week median run, never easier than the fixed bar —
+  `runLengthBars`), and is
   CLEARED when the next morning positively vouches (fresh readiness ≥ `SUPPORTIVE_READINESS`
   and no brake firing; absent data never vouches). "Morning readiness" comes from the ledger's own
   snapshot for that morning, since the stored Garmin value is the day's LAST sync and so is
