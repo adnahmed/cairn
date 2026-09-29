@@ -3437,6 +3437,14 @@ test("an illness holds the same line", () => {
   assert.notEqual(r.decision.rule_code, "outcome_feedback_soften");
 });
 
+test("an illness plus a run-down tap is still a rest day, in the illness's voice", () => {
+  repo.addContextEvent({ kind: "illness", title: "Head cold", start_date: REF });
+  repo.addCheckin(REF, { energy: 2, sleep_feel: 3, mood: 3, soreness: 2 });
+  const r = repo.dayRead(REF, { has_data: false, recovery: {} });
+  assert.equal(r.kind, "rest");
+  assert.doesNotMatch(r.why, /lighter version of the day/, `a tap's easy voice must not speak for an illness: ${r.why}`);
+});
+
 test("a felt-signal rest softens too, since that is the read they keep overruling", () => {
   // A low-energy check-in reaches rest through the unified protect posture, whose
   // evidence is recovery_capacity — nothing clinical, so the pattern applies.

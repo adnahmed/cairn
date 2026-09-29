@@ -748,6 +748,37 @@ test("injury modifies training while illness can protect recovery", () => {
   assert.equal(illness.action.readiness, "protect");
 });
 
+// Regression (w7 review): the felt-protect rung used to take the FIRST felt item, and
+// dimension order puts a check-in tap (recovery_capacity) ahead of an illness
+// (health_constraints). Illness plus an energy-2 tap then failed the corroboration test
+// and read EASY where illness alone read rest.
+test("an illness still rests the day when a run-down tap sits beside it", () => {
+  const date = localDaysAgo(0);
+  for (const checkin of [
+    { date, energy: 2, sleep_feel: 3 },
+    { date, energy: 3, sleep_feel: 1 },
+  ]) {
+    const state = repo.planningSignalState({
+      date,
+      checkin,
+      context: {
+        reduce_load: true,
+        active: [
+          {
+            kind: "illness",
+            title: "Head cold",
+            reduce_load: true,
+            reason: "An active illness calls for protecting recovery.",
+          },
+        ],
+      },
+    });
+    assert.equal(state.action.posture, "rest", JSON.stringify(checkin));
+    assert.equal(state.action.readiness, "protect");
+    assert.equal(state.action.voice.key, "illness", "the illness leads, so its voice speaks");
+  }
+});
+
 test("recovery protection outranks a simultaneous injury while preserving the work-around", () => {
   const date = localDaysAgo(0);
   const state = repo.planningSignalState({

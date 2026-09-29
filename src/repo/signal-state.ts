@@ -1507,18 +1507,22 @@ function actionState(
   );
   const done = active.find((item) => item.field === "completed_today" && item.direction === "support");
   if (done) return { readiness: "complete" as const, posture: "done" as const, evidence: [done] };
-  const feltProtect = active.find(
+  // The rest rung is decided over the WHOLE felt set, never the first match: dimension
+  // order puts recovery_capacity (a tap) ahead of health_constraints (illness), so a
+  // `find` handed back the tap on a sick morning with an energy-2 check-in, the
+  // corroboration test failed, and illness-plus-a-tap read EASY where illness alone
+  // read rest. Illness rests on its own and leads the evidence, so its voice speaks.
+  const feltProtect = active.filter(
     (item) =>
       item.safety_override &&
       item.direction === "constraint" &&
       FELT_PROTECT_FIELDS.has(item.field) &&
       item.age_days === 0
   );
-  if (
-    feltProtect &&
-    (feltProtect.field === "illness" || !!context.harmYesterday || active.some(FELT_REST_CORROBORATION))
-  )
-    return { readiness: "protect" as const, posture: "rest" as const, evidence: [feltProtect] };
+  const illness = feltProtect.find((item) => item.field === "illness");
+  if (illness) return { readiness: "protect" as const, posture: "rest" as const, evidence: [illness] };
+  if (feltProtect.length && (!!context.harmYesterday || active.some(FELT_REST_CORROBORATION)))
+    return { readiness: "protect" as const, posture: "rest" as const, evidence: [feltProtect[0]] };
   // Recovery and accumulated-load protection own the overall posture before a
   // simultaneous health work-around. The health dimension remains intact, so an
   // injury still caveats any movement; it just cannot reopen hard training on a
