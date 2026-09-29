@@ -223,7 +223,7 @@ test("default train Brief keeps freshness subtle without repeating a decision re
   assert.doesNotMatch(html, /planned_training|A programmed session is due/);
 });
 
-test("Today Brief handles done, provisional, and offline states", () => {
+test("Today Brief handles done and provisional states, and never carries agent health", () => {
   const brief = loadTodayBrief();
   // The finished-session "Log more" card already covers entry — no action needed.
   const done = brief.briefHtml(
@@ -237,63 +237,28 @@ test("Today Brief handles done, provisional, and offline states", () => {
     { isToday: true, showDone: true }
   );
   const provisional = brief.briefHtml(brief.provisionalRead(), { isToday: true, reducedMotion: false });
-  const offline = brief.briefHtml(
-    {
-      kind: "train",
-      headline: "Today",
-      why: "",
-      est_minutes: null,
-      signals: {},
-      agent_status: "all_failed",
-    },
-    { isToday: true }
-  );
-  const dismissed = brief.briefHtml(
-    {
-      kind: "train",
-      headline: "Today",
-      why: "",
-      est_minutes: null,
-      signals: {},
-      agent_status: "all_failed",
-    },
-    { isToday: true, offlineDismissed: true }
-  );
 
   assert.match(done, /TRAINED TODAY/);
   assert.doesNotMatch(done, /data-redirect=|data-override=/);
   assert.match(provisional, /aria-busy="true"/);
   assert.match(provisional, /is-thinking/);
-  assert.match(offline, /couldn't complete this read/);
-  assert.match(offline, /reliable baseline/);
-  assert.doesNotMatch(dismissed, /couldn't complete this read/);
 
-  const invalid = brief.briefHtml(
-    {
-      kind: "train",
-      headline: "Today",
-      why: "",
-      est_minutes: null,
-      signals: {},
-      agent_status: "all_failed",
-      agent_issue: "invalid_response",
-    },
-    { isToday: true }
-  );
-  const unreachable = brief.briefHtml(
-    {
-      kind: "train",
-      headline: "Today",
-      why: "",
-      est_minutes: null,
-      signals: {},
-      agent_status: "all_failed",
-      agent_issue: "unreachable",
-    },
-    { isToday: true }
-  );
-  assert.match(invalid, /didn't return a usable read/);
-  assert.match(unreachable, /Couldn't reach a coaching agent/);
+  // v2 wave 7: a read that fell back to Cairn's baseline reads like any other read.
+  // Where the agent layer stands lives in Settings > Agents, never on Today.
+  for (const [agent_status, agent_issue] of [
+    ["all_failed", undefined],
+    ["all_failed", "invalid_response"],
+    ["all_failed", "unreachable"],
+    ["unconfigured", undefined],
+  ]) {
+    const html = brief.briefHtml(
+      { kind: "train", headline: "Today", why: "", est_minutes: null, signals: {}, agent_status, agent_issue },
+      { isToday: true }
+    );
+    assert.doesNotMatch(html, /agent-offline|data-agentoffx/);
+    assert.doesNotMatch(html, /reliable baseline|Coaching is offline|coaching agent/i);
+  }
+  assert.equal(brief.agentOfflineNoticeHtml, undefined);
 });
 
 test("Today Brief offers one quiet entry on a done read with nothing below to start training from", () => {
@@ -933,7 +898,7 @@ test("Today Brief stamp falls back to the read's own time when the server sends 
 
 // ---- provenance behind the disclosure; the reason in the body ----
 
-test("the freshness stamp is provenance: hidden, muted, at the foot of the why disclosure", () => {
+test("the freshness stamp is provenance: hidden, muted, with the why disclosure under the why", () => {
   const brief = loadTodayBrief();
   const html = brief.briefHtml(
     {
@@ -949,8 +914,11 @@ test("the freshness stamp is provenance: hidden, muted, at the foot of the why d
   );
   assert.match(html, /<div class="brief-updated lbl" data-brief-stamp hidden>/);
   const stampAt = html.indexOf("data-brief-stamp");
-  assert.ok(stampAt > html.indexOf("brief-launch"), "the stamp sits below the actions");
+  // v2 wave 7: "tap to see why" sits right under the why it explains, not at the foot
+  // of the Brief among Around today's rows; the stamp rides with it.
+  assert.ok(stampAt > html.indexOf('brief-why"'), "the stamp follows the why");
   assert.ok(stampAt < html.indexOf("data-briefwhy"), "right before the disclosure toggle that opens it");
+  assert.ok(html.indexOf("data-briefwhy") < html.indexOf("brief-launch"), "the disclosure sits above the actions");
   // The decisive reason is coaching, not provenance: it prints in the body, once.
   assert.match(html, /<p class="brief-reason">The longer run needs a lighter follow-up\.<\/p>/);
   assert.equal(html.match(/lighter follow-up/g)?.length, 1);

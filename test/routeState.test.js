@@ -139,11 +139,27 @@ test("the redirect table covers every v1 tab and every v1 section", () => {
   }
 });
 
+// Today is Home (v2 wave 7): Today never carries a date. An old dated Today link is
+// flagged for the in-place rewrite; the router opens that day's own view.
+test("a dated Today link is rewritten, and a day view keeps its date", () => {
+  const routes = loadRoutes();
+  const old = routes.parseRoute("/app/today?date=2026-06-27");
+  assert.equal(old.tab, "today");
+  assert.equal(old.date, "2026-06-27");
+  assert.equal(old.legacy, true);
+  const day = routes.parseRoute("/app/today/day?date=2026-06-27");
+  assert.equal(day.tab, "day");
+  assert.equal(day.home, "today");
+  assert.equal(day.legacy, false);
+  assert.equal(routes.routeToUrl({ tab: "day", date: "2026-06-27" }), "/app/today/day?date=2026-06-27");
+  assert.equal(routes.homeOf("day"), "today");
+});
+
 test("a canonical v2 URL parses to its surface and is never re-redirected", () => {
   const routes = loadRoutes();
   const V2 = [
     ["/app/today", "today", null, "today"],
-    ["/app/today?date=2026-06-29", "today", null, "today"],
+    ["/app/today/day?date=2026-06-27", "day", null, "today"],
     ["/app/today/session?date=2026-06-29", "session", null, "today"],
     ["/app/today/fuel?date=2026-06-28", "plan", "food", "today"],
     ["/app/train", "progress", null, "train"],

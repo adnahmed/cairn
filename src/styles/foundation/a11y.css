@@ -66,7 +66,7 @@
   /* small status / completion / level dots get a defining ring so they read
      even where the fill is close to its surround */
   .stat-dot,.agentdot,.sync-dot,.checkin-open-dot,.savebar-dot,
-  .offline-dot,.noticed-dot,.agent-offline-dot,.ramp-step:not(.is-current) .ramp-dot{
+  .offline-dot,.noticed-dot,.agent-state-dot,.ramp-step:not(.is-current) .ramp-dot{
     box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 55%,transparent);
   }
   /* the sage current-phase dot already carries a glow; firm it to a defining ring */

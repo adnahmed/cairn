@@ -53,7 +53,7 @@ function calMonthHtml(ym: string, byDate: Map<string, CalendarCell>, todayIso: s
       cell && !future
         ? `${iso} · ${Number(cell.sets) || 0} sets · ${(Number(cell.tonnage) || 0).toLocaleString()} lb${cell.activity ? " · activity" : ""}`
         : iso;
-    cellsHtml += `<span class="cal-day${level != null ? ` cl${level}` : " cal-out"}${isToday ? " cal-today" : ""}${hasData ? " cal-has" : ""}"${hasData ? ` data-goto="${iso}"` : ""} title="${escAttr(title)}">${day}</span>`;
+    cellsHtml += `<span class="cal-day${level != null ? ` cl${level}` : " cal-out"}${isToday ? " cal-today" : ""}${hasData ? " cal-has" : ""}"${hasData ? ` data-goto="${iso}" data-open-day="${iso}" role="button" tabindex="0"` : ""} title="${escAttr(title)}">${day}</span>`;
   }
   // Only the newest (first-rendered) month grid carries the consistency line —
   // it reads as one line above the calendar, not per month.

@@ -5139,7 +5139,7 @@ via the Web Speech API rides the chat composer too, per the capture-in-Chat law)
 the scheduler) — and below it a quiet one-at-a-time **connection insight card** surfacing the latest
 non-weekly `/api/insights` with thumbs up/down (`PUT /api/insights/:id`) and optional gated
 `/api/insights/generate` (one `/api/insights` fetch split into the two surfaces), post-session 1-tap
-**autoregulation feedback** → `/api/sessions/:date/feedback`. It keeps the date picker, set-by-set
+**autoregulation feedback** → `/api/sessions/:date/feedback`. It keeps set-by-set
 logging with prefill + `N / M` progress, "+ Add exercise", and the bodyweight quick-add chip. The
 "Garmin · body's reaction" card (`garminSessionCard`) surfaces the reconciled strength session.
 

@@ -45,6 +45,8 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
     viewHomes: {
       today: "today",
       session: "today",
+      // Any day that is not today, read-only: a past day's record, a future day's preview.
+      day: "today",
       progress: "train",
       plan: "train",
       horizon: "horizon",
@@ -61,7 +63,7 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
       meals: "today",
       coach: "ask",
     },
-    tabs: ["today", "session", "stand", "plan", "progress", "chat", "me", "settings", "horizon", "you"],
+    tabs: ["today", "session", "stand", "plan", "progress", "chat", "me", "settings", "horizon", "you", "day"],
     sections: {
       plan: ["edit", "endurance", "food", "meals", "coach"],
       progress: ["overview", "trend", "volume", "endurance", "weight", "measurements", "calendar", "sessions", "program", "intake", "energy"],
@@ -157,6 +159,7 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
   function parseV2(home: string, section: string, nested: string, id: string | null): RouteTarget {
     if (home === "today") {
       if (section === "session") return target("session");
+      if (section === "day") return target("day");
       if (section === "fuel") return target("plan", "food");
       return target("today");
     }
@@ -216,7 +219,7 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
       const s = oneOf(section, SETTINGS_SECTIONS, null);
       return s ? target("settings", s) : target("you");
     }
-    if (tab === "session" || tab === "chat") return target(tab);
+    if (tab === "session" || tab === "chat" || tab === "day") return target(tab);
     if (tab === "horizon" || tab === "you") return parseV2(tab, section, nested, id);
     return target("today");
   }
@@ -257,8 +260,14 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
     // Anything not already in canonical form is rewritten in place by the shell.
     // Unrelated query params (?source=shortcut) are not a reason to rewrite.
     const canonicalPath = routeToUrl(route).split("?")[0];
+    // Today never carries a date (v2 wave 7): an old /app/today?date=<day> link is
+    // rewritten to that day's own view (/app/today/day?date=), or to plain Today.
     route.legacy =
-      url.pathname !== canonicalPath || params.has("tab") || params.has("jump") || params.has("health");
+      url.pathname !== canonicalPath ||
+      params.has("tab") ||
+      params.has("jump") ||
+      params.has("health") ||
+      (dest.tab === "today" && route.date != null);
     return route;
   }
 
@@ -274,6 +283,8 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
     switch (tab) {
       case "session":
         return `${base}/today/session`;
+      case "day":
+        return `${base}/today/day`;
       case "plan": {
         const s =
           oneOf(section, PLAN_SECTIONS, null) || oneOf(r.jump, PLAN_SECTIONS, null) || DEFS.defaults.planSection;

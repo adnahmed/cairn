@@ -376,7 +376,56 @@ export function getAgentStats(opts: { recent?: number; days?: number } = {}) {
     chat_turns,
     ...latencySummary(latencyRows),
     recent,
+    current: currentAgentHealth(),
   };
+}
+
+export interface CurrentAgentHealth {
+  /** ok: the newest attempt produced a result; failing: every attempt since the last good one failed; idle: none yet. */
+  state: "ok" | "failing" | "idle";
+  last_ok_at: string | null;
+  /** The first failed attempt after the last good one (null unless failing). */
+  failing_since: string | null;
+  /** The newest failed attempt's compact cause (null unless failing). */
+  error_class: string | null;
+}
+
+function sqliteUtcIso(value: unknown): string | null {
+  const s = typeof value === "string" ? value.trim() : "";
+  if (!s) return null;
+  const iso = s.includes("T") ? s : s.replace(" ", "T");
+  return /[zZ]|[+-]\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`;
+}
+
+/**
+ * Where the agent layer stands NOW, across builds: the newest attempt decides. It is a
+ * state, not a tally, so one bad morning clears itself the moment a later attempt
+ * succeeds (Settings > Agents prints it as one quiet line; the Brief no longer does).
+ */
+export function currentAgentHealth(): CurrentAgentHealth {
+  try {
+    const newest = db
+      .prepare(`SELECT ok, error_class, created_at FROM agent_runs ORDER BY id DESC LIMIT 1`)
+      .get() as any;
+    if (!newest) return { state: "idle", last_ok_at: null, failing_since: null, error_class: null };
+    const lastOk = db
+      .prepare(`SELECT id, created_at FROM agent_runs WHERE ok = 1 ORDER BY id DESC LIMIT 1`)
+      .get() as any;
+    if (newest.ok) {
+      return { state: "ok", last_ok_at: sqliteUtcIso(lastOk?.created_at), failing_since: null, error_class: null };
+    }
+    const firstFail = db
+      .prepare(`SELECT created_at FROM agent_runs WHERE ok = 0 AND id > ? ORDER BY id ASC LIMIT 1`)
+      .get(Number(lastOk?.id) || 0) as any;
+    return {
+      state: "failing",
+      last_ok_at: sqliteUtcIso(lastOk?.created_at),
+      failing_since: sqliteUtcIso(firstFail?.created_at ?? newest.created_at),
+      error_class: newest.error_class ?? null,
+    };
+  } catch {
+    return { state: "idle", last_ok_at: null, failing_since: null, error_class: null };
+  }
 }
 
 export const AGENT_RUN_LIMITS = { retention_days: AGENT_RUN_RETENTION_DAYS, row_cap: AGENT_RUN_ROW_CAP };

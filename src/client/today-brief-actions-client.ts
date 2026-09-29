@@ -7,30 +7,15 @@ type TodayBriefActionsDayRead = import("../contracts/client.js").ClientDayRead &
 };
 
 (() => {
-  let agentOfflineDismissed = false;
   // The date the server last refused a rest-trade on. Removing the button is not
   // enough on its own: the Brief repaints from the same read, `leaning` is still
   // true, and the offer comes straight back — so the refusal has to be state the
   // render can see. Per date, because tomorrow is a different question.
   let tradeRefusedDate = "";
 
-  function offlineDismissed(): boolean {
-    return agentOfflineDismissed;
-  }
-
   function tradeRefusedOn(date: unknown): boolean {
     const iso = String(date ?? "");
     return !!iso && tradeRefusedDate === iso;
-  }
-
-  function wireAgentOffline(scope: ParentNode | null | undefined, deps: ClientTodayBriefActionsDeps): void {
-    (scope || deps.root).querySelectorAll("[data-agentoffx]").forEach((button) =>
-      button.addEventListener("click", () => {
-        agentOfflineDismissed = true;
-        const el = button.closest(".agent-offline");
-        if (el) deps.collapseEl(el, () => el.remove());
-        else button.remove();
-      }));
   }
 
   function handleBriefRedirect(action: string | undefined, trigger: HTMLElement, deps: ClientTodayBriefActionsDeps): void {
@@ -162,8 +147,6 @@ type TodayBriefActionsDayRead = import("../contracts/client.js").ClientDayRead &
   ): void {
     const brief = deps.root.querySelector(".brief");
     if (!brief) return;
-    wireAgentOffline(brief, deps);
-
     brief.querySelectorAll<HTMLElement>("[data-override]").forEach((button) =>
       button.addEventListener("click", () => {
         const intent = button.dataset.override || "";
@@ -264,7 +247,6 @@ type TodayBriefActionsDayRead = import("../contracts/client.js").ClientDayRead &
   }
 
   const CAIRN_TODAY_BRIEF_ACTIONS_CLIENT = {
-    offlineDismissed,
     tradeRefusedOn,
     wireBriefActions,
   };

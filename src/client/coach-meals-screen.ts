@@ -234,11 +234,11 @@ function mountFuelSurface(token: number, date: string, today: string): void {
 }
 
 function renderFoodJournal(options: { history?: boolean } = {}): Promise<unknown> {
-  headerTitle.textContent = "Fuel";
   state.planSeg = "food";
   const token = ++pollToken;
   const today = localISO();
   const date = state.logDate || today;
+  CairnUiHeader.setEyebrowTitle(headerTitle, `Fuel · ${CairnUiHeader.shortDate(date)}`); // the Today home's eyebrow
   // Logging and ideas are about the rest of TODAY; another day is read and corrected only.
   const isToday = date === today;
   const primed = CairnFuelDeps.firstPaint(date, isToday); // cold: the slots' reads first, then ONE write

@@ -366,130 +366,156 @@ export function recentTraining(limit = 6): FeedRow[] {
     )
     .all(pull) as any[];
 
-  const sessions: FeedRow[] = sessRows.map((s) => {
-    // Read this session's sets ONCE — stats, meta, and the movement breakdown all
-    // derive from the same fetch (was two identical setsForSession queries).
-    const setRows = setsForSession(s.id) as any[];
-    const setCount = setRows.length;
-    const tonnage = Math.round(
-      setRows.reduce(
-        (t, x) => t + (Number(x.weight) > 0 && Number(x.reps) > 0 ? Number(x.weight) * Number(x.reps) : 0),
-        0
-      )
-    );
-    const exCount = new Set(setRows.map((x) => x.exercise)).size;
-    let g: any = null;
-    try {
-      g = s.garmin_json ? JSON.parse(s.garmin_json) : null;
-    } catch {
-      g = null;
-    }
-    const stats = [`${setCount} set${setCount === 1 ? "" : "s"}`, tonnage > 0 ? `${tonnage.toLocaleString()} lb` : null]
-      .filter(Boolean)
-      .join(" · ");
-    const detail = g
-      ? {
-          duration_min: g.duration_min ?? null,
-          avg_hr: g.avg_hr ?? null,
-          max_hr: g.max_hr ?? null,
-          calories: g.calories ?? null,
-          training_effect: g.training_effect ?? null,
-          aerobic_te: g.aerobic_te ?? null,
-          anaerobic_te: g.anaerobic_te ?? null,
-          hr_zones: Array.isArray(g.hr_zones) ? g.hr_zones : null,
-        }
-      : null;
-    return {
-      kind: "strength",
-      id: s.id,
-      date: s.date,
-      at: s.finished_at ? String(s.finished_at).replace(" ", "T") + "Z" : null,
-      // Content-true title: a session whose logged work diverged from its plan day
-      // is named from what was actually trained (not the stale plan-day label).
-      title: deriveSessionTitle(s.id, s.plan_day_id, s.day_name),
-      stats,
-      note: g && g.summary ? String(g.summary) : null,
-      source: g ? "garmin" : null,
-      meta: { sets: setCount, tonnage, exercises: exCount },
-      detail: detail && _hasAny(detail) ? detail : null,
-      movements: _sessionMovements(setRows),
-    };
-  });
+  const sessions: FeedRow[] = sessRows.map(_strengthFeedRow);
 
   // --- cardio / free-text activities, enriched from the linked Garmin row ---
-  const actRows = db
+  const actRows = db.prepare(`${ACTIVITY_FEED_SELECT} ORDER BY a.date DESC, a.id DESC LIMIT ?`).all(pull) as any[];
+
+  // One effort, one row: a hand log shadowing the watch's row of the same run
+  // (isShadowActivity) is folded into it here exactly as every counting read folds it.
+  // The hand log itself is kept — listActivities still returns it.
+  const activities: FeedRow[] = withoutShadowActivities(actRows).map(_activityFeedRow);
+
+  return _mergeFeed(sessions, activities).slice(0, lim);
+}
+
+/**
+ * One calendar day's training in the Lately feed's own row shape: the day's strength
+ * session (finished or not: the log is the truth of a past day) and its cardio
+ * efforts, shadows folded. The day record (src/domain/today/day-record.ts) reads it.
+ */
+export function trainingOnDate(date: string): FeedRow[] {
+  const d = String(date || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return [];
+  const sessRows = db
     .prepare(
-      `SELECT a.id, a.date, a.type, a.raw_text, a.notes, a.duration_min, a.distance_km, a.pace, a.rpe, a.source,
+      `SELECT s.id, s.date, s.finished_at, s.garmin_json, s.plan_day_id, pd.name AS day_name
+     FROM sessions s
+     LEFT JOIN plan_days pd ON pd.id = s.plan_day_id
+     WHERE s.date = ?
+       AND (s.finished_at IS NOT NULL OR EXISTS (SELECT 1 FROM logged_sets ls WHERE ls.session_id = s.id))
+     ORDER BY s.id DESC`
+    )
+    .all(d) as any[];
+  const actRows = db.prepare(`${ACTIVITY_FEED_SELECT} WHERE a.date = ? ORDER BY a.id DESC`).all(d) as any[];
+  return _mergeFeed(sessRows.map(_strengthFeedRow), withoutShadowActivities(actRows).map(_activityFeedRow));
+}
+
+const ACTIVITY_FEED_SELECT = `SELECT a.id, a.date, a.type, a.raw_text, a.notes, a.duration_min, a.distance_km, a.pace, a.rpe, a.source,
             a.external_id,
             g.start_time AS g_start, g.moving_min AS g_moving, g.avg_hr AS g_avg_hr, g.max_hr AS g_max_hr,
             g.calories AS g_cal, g.training_effect AS g_te, g.aerobic_te AS g_aer, g.anaerobic_te AS g_anaer,
             g.te_label AS g_telabel, g.vo2max AS g_vo2, g.avg_temp AS g_temp, g.avg_cadence AS g_cad,
             g.avg_power AS g_pow, g.avg_speed AS g_spd, g.elevation_loss_m AS g_eloss, g.hr_zones_json AS g_zones
      FROM activities a
-     LEFT JOIN garmin_activities g ON g.activity_id = a.id
-     ORDER BY a.date DESC, a.id DESC LIMIT ?`
-    )
-    .all(pull) as any[];
+     LEFT JOIN garmin_activities g ON g.activity_id = a.id`;
 
-  // One effort, one row: a hand log shadowing the watch's row of the same run
-  // (isShadowActivity) is folded into it here exactly as every counting read folds it.
-  // The hand log itself is kept — listActivities still returns it.
-  const activities: FeedRow[] = withoutShadowActivities(actRows).map((a) => {
-    let hr_zones: any = null;
-    try {
-      hr_zones = a.g_zones ? JSON.parse(a.g_zones) : null;
-    } catch {
-      hr_zones = null;
-    }
-    const detailRaw = {
-      moving_min: a.g_moving ?? null,
-      avg_hr: a.g_avg_hr ?? null,
-      max_hr: a.g_max_hr ?? null,
-      calories: a.g_cal ?? null,
-      training_effect: a.g_te ?? null,
-      aerobic_te: a.g_aer ?? null,
-      anaerobic_te: a.g_anaer ?? null,
-      te_label: a.g_telabel ?? null,
-      vo2max: a.g_vo2 ?? null,
-      avg_temp: a.g_temp ?? null,
-      avg_cadence: a.g_cad ?? null,
-      avg_power: a.g_pow ?? null,
-      avg_speed: a.g_spd ?? null,
-      elevation_loss_m: a.g_eloss ?? null,
-      hr_zones: Array.isArray(hr_zones) ? hr_zones : null,
-    };
-    const detail = _hasAny(detailRaw) ? detailRaw : null;
-    const stats = [
-      a.duration_min ? `${a.duration_min} min` : null,
-      a.distance_km ? `${a.distance_km} km` : null,
-      a.pace || null,
-      a.rpe != null ? `RPE ${a.rpe}` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-    return {
-      kind: "activity",
-      id: a.id,
-      date: a.date,
-      at: a.g_start ? String(a.g_start) : null, // real activity start (Garmin); manual logs stay date-only
-      title: a.type || a.raw_text || "activity",
-      stats: stats || a.notes || "",
-      note: _cardioNote(detail, a.type, a.duration_min),
-      source: a.g_start ? "garmin" : a.source || null,
-      meta: { duration_min: a.duration_min ?? null, distance_km: a.distance_km ?? null, pace: a.pace ?? null },
-      detail,
-    };
-  });
-
-  // Merge: date desc, then real timestamp desc (nulls last), then id desc.
-  const merged = [...sessions, ...activities].sort((x, y) => {
+// Merge: date desc, then real timestamp desc (nulls last), then id desc.
+function _mergeFeed(sessions: FeedRow[], activities: FeedRow[]): FeedRow[] {
+  return [...sessions, ...activities].sort((x, y) => {
     if (x.date !== y.date) return x.date < y.date ? 1 : -1;
     const tx = x.at ? Date.parse(x.at) || 0 : 0;
     const ty = y.at ? Date.parse(y.at) || 0 : 0;
     if (tx !== ty) return ty - tx;
     return y.id - x.id;
   });
-  return merged.slice(0, lim);
+}
+
+function _strengthFeedRow(s: any): FeedRow {
+  // Read this session's sets ONCE — stats, meta, and the movement breakdown all
+  // derive from the same fetch (was two identical setsForSession queries).
+  const setRows = setsForSession(s.id) as any[];
+  const setCount = setRows.length;
+  const tonnage = Math.round(
+    setRows.reduce(
+      (t, x) => t + (Number(x.weight) > 0 && Number(x.reps) > 0 ? Number(x.weight) * Number(x.reps) : 0),
+      0
+    )
+  );
+  const exCount = new Set(setRows.map((x) => x.exercise)).size;
+  let g: any = null;
+  try {
+    g = s.garmin_json ? JSON.parse(s.garmin_json) : null;
+  } catch {
+    g = null;
+  }
+  const stats = [`${setCount} set${setCount === 1 ? "" : "s"}`, tonnage > 0 ? `${tonnage.toLocaleString()} lb` : null]
+    .filter(Boolean)
+    .join(" · ");
+  const detail = g
+    ? {
+        duration_min: g.duration_min ?? null,
+        avg_hr: g.avg_hr ?? null,
+        max_hr: g.max_hr ?? null,
+        calories: g.calories ?? null,
+        training_effect: g.training_effect ?? null,
+        aerobic_te: g.aerobic_te ?? null,
+        anaerobic_te: g.anaerobic_te ?? null,
+        hr_zones: Array.isArray(g.hr_zones) ? g.hr_zones : null,
+      }
+    : null;
+  return {
+    kind: "strength",
+    id: s.id,
+    date: s.date,
+    at: s.finished_at ? String(s.finished_at).replace(" ", "T") + "Z" : null,
+    // Content-true title: a session whose logged work diverged from its plan day
+    // is named from what was actually trained (not the stale plan-day label).
+    title: deriveSessionTitle(s.id, s.plan_day_id, s.day_name),
+    stats,
+    note: g && g.summary ? String(g.summary) : null,
+    source: g ? "garmin" : null,
+    meta: { sets: setCount, tonnage, exercises: exCount },
+    detail: detail && _hasAny(detail) ? detail : null,
+    movements: _sessionMovements(setRows),
+  };
+}
+
+function _activityFeedRow(a: any): FeedRow {
+  let hr_zones: any = null;
+  try {
+    hr_zones = a.g_zones ? JSON.parse(a.g_zones) : null;
+  } catch {
+    hr_zones = null;
+  }
+  const detailRaw = {
+    moving_min: a.g_moving ?? null,
+    avg_hr: a.g_avg_hr ?? null,
+    max_hr: a.g_max_hr ?? null,
+    calories: a.g_cal ?? null,
+    training_effect: a.g_te ?? null,
+    aerobic_te: a.g_aer ?? null,
+    anaerobic_te: a.g_anaer ?? null,
+    te_label: a.g_telabel ?? null,
+    vo2max: a.g_vo2 ?? null,
+    avg_temp: a.g_temp ?? null,
+    avg_cadence: a.g_cad ?? null,
+    avg_power: a.g_pow ?? null,
+    avg_speed: a.g_spd ?? null,
+    elevation_loss_m: a.g_eloss ?? null,
+    hr_zones: Array.isArray(hr_zones) ? hr_zones : null,
+  };
+  const detail = _hasAny(detailRaw) ? detailRaw : null;
+  const stats = [
+    a.duration_min ? `${a.duration_min} min` : null,
+    a.distance_km ? `${a.distance_km} km` : null,
+    a.pace || null,
+    a.rpe != null ? `RPE ${a.rpe}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    kind: "activity",
+    id: a.id,
+    date: a.date,
+    at: a.g_start ? String(a.g_start) : null, // real activity start (Garmin); manual logs stay date-only
+    title: a.type || a.raw_text || "activity",
+    stats: stats || a.notes || "",
+    note: _cardioNote(detail, a.type, a.duration_min),
+    source: a.g_start ? "garmin" : a.source || null,
+    meta: { duration_min: a.duration_min ?? null, distance_km: a.distance_km ?? null, pace: a.pace ?? null },
+    detail,
+  };
 }
 
 export function getActivity(id: number) {

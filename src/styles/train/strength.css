@@ -324,6 +324,9 @@
   .pweek-detail-name{font-family:var(--font-display);font-size:1.12rem;font-weight:600;line-height:1.3;color:var(--ink)}
   .pweek-detail-status{font-size:.82rem;line-height:1.4;color:var(--ink-2)}
   .pweek-detail .strength-line-t{font-family:var(--font-display);font-size:1.05rem}
+  /* another day is a destination: its record, or its preview (v2 wave 7) */
+  .pweek-open{align-self:flex-start;margin-top:var(--space-2);padding:4px 0;font-size:var(--text-sm);color:var(--ink);
+    text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
 }
 @media (max-width:719.98px) and (prefers-reduced-motion:reduce){
   .pweek-token,.pweek-under{transition:none}

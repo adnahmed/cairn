@@ -136,17 +136,6 @@ type TodayPostRenderWiringApi = {
         deps.runFallbackRail(deps.isToday, deps.todayRailDeps());
       }
     }
-    deps.root.querySelector("#backToday")?.addEventListener("click", () => {
-      deps.state.logDate = deps.localISO();
-      deps.state.day = null;
-      deps.state.dayPicked = false;
-      deps.state.dayPickedOn = null;
-      // The stale ?date= outlives the state fix otherwise, and restores the day we
-      // just left on the next cold launch.
-      if (typeof syncRouteFromState === "function") syncRouteFromState("replace");
-      deps.renderToday();
-    });
-
     deps.root.querySelectorAll<HTMLElement>(".daybtn").forEach((button) => button.addEventListener("click", () => {
       deps.state.day = Number(button.dataset.day);
       // Choosing which plan day to run TODAY is not "browsing another day". Leaving

@@ -449,7 +449,9 @@ test("MCP modular tool sources are discovered without duplicate names", () => {
   // all pure reads (get_visit_questions runs the doctor-loop refresh like get_next_checkup).
   // The stones (v2 wave 4): +1 (get_today_stones) in src/surfaces/mcp/daily-driver.ts —
   // the MCP mirror of GET /api/today/stones, a pure read.
-  assert.equal(tools.length, 283,"tool count changes only for reviewed MCP additions");
+  // Today is Home (v2 wave 7): +1 (get_day_record) in src/surfaces/mcp/daily-driver.ts —
+  // the MCP mirror of GET /api/day-record, a pure read of any day that is not today.
+  assert.equal(tools.length, 284,"tool count changes only for reviewed MCP additions");
   assert.equal(new Set(tools).size, tools.length, "MCP tool names must be unique across modules");
   assert.doesNotMatch(mcp, /server\.tool\(/, "src/mcp.ts should stay a registry, not a tool-definition file");
   assert.doesNotMatch(mcp, /server\.tool\("get_chat_history"/);
@@ -4497,7 +4499,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     todayMainShellSource,
     /function leadHtml\(options: TodayMainShellLeadOptions, deps: TodayMainShellDeps\): string/
   );
-  assert.match(todayMainShellSource, /function weekFoldHtml\(compass: TodayMainShellCompass/);
+  assert.match(todayMainShellSource, /function weekFoldHtml\(\s*compass: TodayMainShellCompass/);
   assert.match(todayMainShellSource, /function wrapHtml\(content: string, options: \{ railHtml: string \}\): string/);
   assert.match(todayMainShellSource, /CairnTodayMainShell/);
   assert.match(todayPlanSurfaceSource, /type TodayPlanSurfaceDeps = \{/);

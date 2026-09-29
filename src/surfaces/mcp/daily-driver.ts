@@ -9,7 +9,7 @@ import {
 } from "../../domain/brain/index.js";
 import { allGuidelines, guidelineFor } from "../../domain/health/index.js";
 import { addMemory } from "../../domain/person/index.js";
-import { todayStones } from "../../domain/today/index.js";
+import { dayRecord, dayRecordDate, todayStones } from "../../domain/today/index.js";
 import { deriveInsightIntentKey, splitInsightIntentKey } from "../../repo/insight-intent.js";
 import { recordDismissal } from "../../repo/surface-dismissals.js";
 import { asText, type McpToolRegistrar } from "./shared.js";
@@ -30,6 +30,16 @@ export function registerDailyDriverTools(server: McpToolRegistrar) {
     "The six stones on Today (Strength, Endurance, Fuel, Recovery, Body, Heart) → { date, stones:[{key,label,word,tone,line,target:{tab,section}}] }, always six in that order. Each `word` is one or two plain words the server projects from the five signal dimensions and the domain reads (today's lift, the race build, today's intake, the weight trend, the lab read); `tone` is ok | watch | quiet; `line` is one athlete-facing sentence or null. A stone with no fresh signal reads \"quiet\" — never low; a partial intake day reads \"in progress\". No scores. Pure read, mirrors GET /api/today/stones. Pass `date` (YYYY-MM-DD; defaults to today).",
     { date: z.string().optional() },
     async ({ date }) => asText(todayStones(date))
+  );
+
+  server.tool(
+    "get_day_record",
+    "Any day that is not today, read-only → { date, relation: past|today|future, today, run_units, session, activities[], intake, read, weight_lb, lift, run, rest, caveats[], line }. A PAST day is its record: the logged strength session (title, sets, each movement's top set, skips, notes), the runs/rides, a food summary whose nutrient sums appear only when every entry carried them (`coverage` none|partial|complete — absent is absent, never low), a weigh-in, and the day read that stood. A FUTURE day is its preview: the planned lift (plan-day name/focus), the planned run (kind, label, the engine's km), `rest` when neither, and the life-context events active that day as `caveats`. Distances are km; `run_units` is the athlete's display unit. No scores. Pure read, mirrors GET /api/day-record. `date` is required (YYYY-MM-DD).",
+    { date: z.string() },
+    async ({ date }) => {
+      const day = dayRecordDate(date);
+      return asText(day ? dayRecord(day) : { error: "date (YYYY-MM-DD) required" });
+    }
   );
 
   server.tool(

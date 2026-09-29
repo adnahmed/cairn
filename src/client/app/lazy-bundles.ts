@@ -28,6 +28,7 @@ type CairnLazyBundleName = ClientLazyBundleName;
     "horizon": "/js/bundle-09-horizon.js",
     "ask": "/js/bundle-10-ask.js",
     "settings": "/js/bundle-11-settings.js",
+    "day": "/js/bundle-12-day.js",
   };
 
   // What else a bundle calls into at render time. Health reuses the body-metrics
@@ -39,10 +40,11 @@ type CairnLazyBundleName = ClientLazyBundleName;
     "horizon": ["train"],
     "ask": [],
     "settings": [],
+    day: [],
   };
 
   // Warm order after first paint: the homes a tap away first, Settings last.
-  const PREFETCH_ORDER: readonly CairnLazyBundleName[] = ["train", "ask", "horizon", "me-health", "settings"];
+  const PREFETCH_ORDER: readonly CairnLazyBundleName[] = ["train", "ask", "horizon", "day", "me-health", "settings"];
 
   const inflight = new Map<CairnLazyBundleName, Promise<void>>();
   const executed = new Set<CairnLazyBundleName>();

@@ -91,7 +91,7 @@ type TabSwitchOptions = {
         return skelLines(2) + skelLines(3);
       return segSkeleton("plan", PROGRESS_SEG, 3);
     }
-    if (tab === "horizon" || tab === "you") return skelLines(2) + skelLines(3);
+    if (tab === "horizon" || tab === "you" || tab === "day") return skelLines(2) + skelLines(3);
     if (tab === "me") {
       // The skeleton paints BEFORE renderTab awaits the lazy me-health bundle, so
       // ME_SEG (defined by that bundle) may not exist on the very first visit.

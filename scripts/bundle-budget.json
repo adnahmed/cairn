@@ -115,6 +115,17 @@
         "brotli": 32768
       }
     },
+    "public/js/bundle-12-day.js": {
+      "lazy": "day",
+      "measured": {
+        "raw": 11500,
+        "brotli": 3203
+      },
+      "budget": {
+        "raw": 12288,
+        "brotli": 4096
+      }
+    },
     "public/styles.css": {
       "measured": {
         "raw": 440974,

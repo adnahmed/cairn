@@ -190,11 +190,11 @@ test("the Today lead reserves the promotion container without disturbing the she
   assert.match(html, /id="attentionLead"/);
   // It sits under the coach's voice and above the capture row.
   assert.ok(html.indexOf(`id="cfocusSlot"`) < html.indexOf(`id="attentionLead"`));
-  assert.ok(html.indexOf(`id="attentionLead"`) < html.indexOf(`id="wtChipMini"`));
-  // Everything that was reachable before still is.
+  assert.ok(html.indexOf(`id="attentionLead"`) < html.indexOf(`id="tagsSlot"`));
+  // Everything that was reachable before still is (the weigh-in rides the week row).
   assert.match(html, /id="ctxBanner"/);
   assert.match(html, /id="sugSlot"/);
-  assert.match(html, /id="wtChipMini"/);
+  assert.match(shell.weekFoldHtml({}, { escapeHtml: String }, { currentWeight: 172.4 }), /id="wtChipMini"/);
 });
 
 // ---- promotion -------------------------------------------------------------

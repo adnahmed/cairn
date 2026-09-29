@@ -83,6 +83,8 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/changes-line-controller.ts", output: "public/js/changes-line-controller.js" },
   { source: "src/client/today-fuel-glance-client.ts", output: "public/js/today-fuel-glance-client.js" },
   { source: "src/client/today-worth-client.ts", output: "public/js/today-worth-client.js" },
+  { source: "src/client/day-open-client.ts", output: "public/js/day-open-client.js" },
+  { source: "src/client/day-record-client.ts", output: "public/js/day-record-client.js" },
   { source: "src/client/today-rail-controller.ts", output: "public/js/today-rail-controller.js" },
   { source: "src/client/today-plan-selection-client.ts", output: "public/js/today-plan-selection-client.js" },
   { source: "src/client/today-training-client.ts", output: "public/js/today-training-client.js" },
@@ -506,6 +508,9 @@ export const BUNDLES = [
       "public/js/today-screen-runtime-deps.js",
       "public/js/today-screen-runtime.js",
       "public/js/session-snapshot-client.js",
+      // Today is Home (v2 wave 7): opening any other day. EAGER and tiny: a day is
+      // opened from Train and Horizon too; the view itself is the lazy "day" bundle.
+      "public/js/day-open-client.js",
       // Train's energy read (and the hero it paints with) stays EAGER: Fuel paints
       // it (#energyCard) and it owns the nutrition_checkin job reconnector, which
       // must register at boot.
@@ -828,6 +833,15 @@ export const BUNDLES = [
       "public/js/settings-sources-automation-controller.js",
       "public/js/settings-screen.js",
     ],
+  },
+  {
+    output: "public/js/bundle-12-day.js",
+    label: "A day (record or preview)",
+    // LAZY: any day that is not today, read-only (v2 wave 7, "Today is Home"). The
+    // opener (day-open-client, eager in bundle-02) injects this on the first open.
+    lazy: "day",
+    views: ["day"],
+    inputs: ["public/js/day-record-client.js"],
   },
 ];
 

@@ -543,3 +543,33 @@ test("the delegated tap only reaches pickDay in the mobile layout; the desktop l
   assert.equal(queried, true, "a mobile tap still swaps the detail");
   assert.equal(week.isMobilePweekLayout(), true);
 });
+
+// v2 wave 7: another dated day in the strip is a destination — its record, or its
+// preview — while today's cell stays put (Today is Home).
+test("another dated day's detail opens that day; today's never does", () => {
+  const week = loadPlanWeek();
+  const cell = (date, weekday, status) => ({
+    date,
+    weekday,
+    dow: 1,
+    status,
+    plan_day: null,
+    session: null,
+    run: null,
+    hard: false,
+  });
+  const html = week.stripHtml({
+    as_of: "2026-04-22",
+    week_start: "2026-04-20",
+    days: [
+      cell("2026-04-20", "Mon", "done"),
+      cell("2026-04-22", "Wed", "today"),
+      cell("2026-04-24", "Fri", "upcoming"),
+    ],
+  });
+  assert.match(html, /data-open-day="2026-04-20">The day's record ›/);
+  assert.match(html, /data-open-day="2026-04-24">Preview the day ›/);
+  assert.doesNotMatch(html, /data-open-day="2026-04-22"/);
+  assert.match(html, /data-pweek-date="2026-04-24"/);
+  assert.doesNotMatch(html, /data-pweek-date="2026-04-22"/);
+});

@@ -136,10 +136,83 @@
 .today-rail > .today-more{margin:0}
 .today-rail > .today-more > .today-more-sum{min-height:44px;padding:0;border-bottom:1px solid var(--line)}
 
-/* the around-today rows run on without card gaps */
-.today-wrap #ctxEvents .ctxbanner{margin-bottom:0}
+/* =====================================================================
+   ONE vertical rhythm (v2 wave 7, "Today is Home"). Today reads as a few
+   sections, each one `--today-gap` below the last, and nothing else sets a gap
+   between them:
+     1. the Brief: the voice, then the NOW card (Today's ONE card, the focal item)
+     2. Fuel today: a mast and hairline rows, no card
+     3. Around today: a mast (the fold of the forward look), then hairline rows —
+        provenance, life context, the block thread, the context tags, today's run,
+        and the week row ("This week" + the weigh-in, one line)
+     4. Worth a look: a mast, hairline rows, and the "n more" fold at the foot
+   A mast is a 44px row (a fold's tap target, so every mast gets it) with its mono
+   label on the baseline and a hairline under it; a row is `--today-row` of padding over ONE hairline at its foot, so two
+   rows never draw a doubled rule.
+   ===================================================================== */
+.today-wrap{--today-gap:var(--space-8);--today-row:var(--space-6)}
+
+/* 2 · Fuel today: the glance loses its card and reads as a section */
+.today-wrap .tfuel-slot{margin-top:var(--today-gap)}
+.today-wrap .tfuel{background:none;border:0;border-radius:0;padding:0}
+.today-wrap .tfuel-head{min-height:44px;align-items:flex-end;margin:0;padding-bottom:var(--space-3);
+  border-bottom:1px solid var(--line)}
+.today-wrap .tfuel-head .lbl{color:var(--muted)}
+.today-wrap .tfuel-log{padding:0}
+.today-wrap .tfuel-meters{padding:var(--today-row) 0}
+.today-wrap .tfuel-empty{padding:var(--today-row) 0;margin:0}
+.today-wrap .tfuel-idea{padding:var(--today-row) 0;border-top:0;border-bottom:1px solid var(--line)}
+.today-wrap .tfuel-meters + .tfuel-idea,.today-wrap .tfuel-empty + .tfuel-idea{border-top:1px solid var(--line)}
+
+/* 3 · Around today: the mast */
+.today-wrap .brief-around{margin-top:var(--today-gap);border-top:0}
+.today-wrap .brief-around-sum{min-height:44px;align-items:flex-end;padding:0 0 var(--space-3);
+  border-bottom:1px solid var(--line)}
+.today-wrap .brief-around-body{padding:var(--today-row) 0;border-bottom:1px solid var(--line)}
+.today-wrap .brief{margin-bottom:0}
+.today-wrap .brief-around-plain .brief-around-sum{display:flex;cursor:default}
+/* ... and its rows: one hairline each, at the foot */
+.today-wrap .prov-line{margin:0;padding:var(--today-row) 0;border-top:0;border-bottom:1px solid var(--line)}
+.today-wrap #ctxEvents .ctxbanner,.today-wrap #ctxHealth .ctxbanner{margin:0;padding:var(--today-row) 0;border-top:0;
+  border-bottom:1px solid var(--line)}
+.today-wrap #ctxEvents:not(:empty) + #ctxHealth .ctxbanner{margin-top:0}
 .today-wrap .cfocus-thread-slot{margin:0}
-.today-wrap .capture-row{margin-top:var(--space-4);margin-bottom:var(--space-3)}
+.today-wrap .cfocus-thread{padding:var(--today-row) 0}
+/* the context tags scroll sideways edge to edge, so their hairline is drawn inside
+   the gutter, where every other row's rule sits */
+.today-wrap .capture-row{margin-top:0;margin-bottom:0;padding-top:var(--today-row);padding-bottom:var(--today-row);
+  background:linear-gradient(var(--line),var(--line)) no-repeat center bottom / calc(100% - 2 * var(--gutter,16px)) 1px}
+.today-wrap .capture-row:has(> .tags-slot:empty){display:none}
 .today-wrap .today-run-line{margin:0}
-.today-wrap .today-run-line .wrun-row{border-top:1px solid var(--line)}
-.today-wrap .weekfold{margin-top:0;border-top:0;padding-top:0}
+.today-wrap .today-run-line .wrun-row{border-top:0;padding:var(--today-row) 0;border-bottom:1px solid var(--line)}
+
+/* the week row: "This week" and its recap, the weigh-in chip, the fold's chevron */
+.today-wrap .weekrow{margin:0}
+.today-wrap .weekfold{margin:0;border-top:0;padding:0}
+.today-wrap .weekfold-sum{min-height:44px;padding:var(--space-4) 0;gap:var(--space-4);border-bottom:1px solid var(--line)}
+.today-wrap .weekfold-recap{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.today-wrap .weekfold-sum .wt-mini{margin-left:auto;height:30px}
+.today-wrap .weekfold-sum .weekfold-chev{margin-left:0}
+.today-wrap .weekfold[open] > .statstrip{margin:var(--today-row) 0 0}
+.today-wrap .weekfold[open]{padding-bottom:var(--today-row);border-bottom:1px solid var(--line)}
+.today-wrap .weekrow > .wt-inline:not([hidden]){display:flex;gap:6px;padding:var(--today-row) 0;margin:0;
+  border-bottom:1px solid var(--line)}
+
+/* 4 · Worth a look: the mast matches Around today's, and so do its rows */
+.today-wrap .today-rail .rail-mast{margin:var(--today-gap) 0 0;min-height:44px;align-items:flex-end;
+  padding-bottom:var(--space-3)}
+.today-wrap .today-rail .rail-mast-mark{margin-bottom:3px}
+.today-wrap :is(.today-rail,.today-more-body) > .agenda-card,
+.today-wrap .today-rail > .phone-coach,
+.today-wrap .today-rail > .app-readd,
+.today-wrap .today-rail .garmin-reconcile{padding-top:var(--today-row);padding-bottom:var(--today-row)}
+/* the fuller reads behind "n more" keep a hairline card, one row-gap apart; a card
+   is its own edge, so no rule is drawn under it (that would double its border) */
+.today-wrap .today-rail .today-more-body :is(.adjust-card,.weekahead,.insight-card,.weekly-card){margin:var(--today-row) 0 0}
+.today-wrap .today-rail .today-more-body{padding-bottom:var(--today-row)}
+.today-wrap .today-rail > .today-more > .today-more-sum{padding:0}
+/* the week's numbers inside the open fold are cells of the row, not cards: Today's
+   one card stays the NOW card */
+.today-wrap .weekfold .statstrip{gap:0}
+.today-wrap .weekfold .stat{background:none;border:0;box-shadow:none;border-radius:0}
+.today-wrap .weekfold .stat + .stat{border-left:1px solid var(--line)}

@@ -31,7 +31,7 @@ const deps = {
 test("app router derives tab names from the route contract", () => {
   const router = loadRouter();
   // The VIEWS (what renders). The five tab-bar homes are a layer over them.
-  assert.deepEqual(plain(router.ROUTE_TABS), ["today", "session", "stand", "plan", "progress", "chat", "me", "settings", "horizon", "you"]);
+  assert.deepEqual(plain(router.ROUTE_TABS), ["today", "session", "stand", "plan", "progress", "chat", "me", "settings", "horizon", "you", "day"]);
 });
 
 test("app router carries Horizon's and You's sub-views through state and back", () => {
@@ -236,13 +236,21 @@ test("app router never pins today's own date into the Today route", () => {
   });
   assert.deepEqual(plain(todayRoute), { tab: "today" });
 
-  // A deliberately chosen other day still belongs in the URL.
+  // Today is Home (v2 wave 7): Today never carries a date, whatever logDate says...
   const pastRoute = router.currentRouteState({
     state: { ...baseState, logDate: "2026-06-27", dayPicked: true },
     ...deps,
     defaultProgressSection: "sessions",
   });
-  assert.deepEqual(plain(pastRoute), { tab: "today", date: "2026-06-27" });
+  assert.deepEqual(plain(pastRoute), { tab: "today" });
+
+  // ...another day is its own destination, and IT carries the date.
+  const dayRoute = router.currentRouteState({
+    state: { ...baseState, tab: "day", dayDate: "2026-06-27" },
+    ...deps,
+    defaultProgressSection: "sessions",
+  });
+  assert.deepEqual(plain(dayRoute), { tab: "day", date: "2026-06-27" });
 
   // The open session destination keeps its explicit date either way.
   const sessionRoute = router.currentRouteState({
@@ -268,9 +276,17 @@ test("app router returns a dateless Today route to the measured day", () => {
     logDate: "2026-06-29",
   };
 
-  // Forward: pick 06-27, which the URL carries.
-  assert.equal(router.applyRouteState({ tab: "today", date: "2026-06-27" }, { state, ...deps }), "today");
-  assert.equal(state.logDate, "2026-06-27");
+  // An old dated Today link opens that day's own view, never Today wearing the date,
+  // and it leaves Today's log date alone.
+  assert.equal(router.applyRouteState({ tab: "today", date: "2026-06-27" }, { state, ...deps }), "day");
+  assert.equal(state.dayDate, "2026-06-27");
+  assert.equal(state.logDate, "2026-06-29");
+  // A day link that names today IS Today.
+  assert.equal(router.applyRouteState({ tab: "day", date: "2026-06-29" }, { state, ...deps }), "today");
+  assert.equal(router.applyRouteState({ tab: "day", date: null }, { state, ...deps }), "today");
+  assert.equal(router.applyRouteState({ tab: "day", date: "2026-07-02" }, { state, ...deps }), "day");
+  assert.equal(state.dayDate, "2026-07-02");
+  state.logDate = "2026-06-27";
 
   // Back: the popped entry is the dateless Today URL.
   assert.equal(router.applyRouteState({ tab: "today" }, { state, ...deps }), "today");

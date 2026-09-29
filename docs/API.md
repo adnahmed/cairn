@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**361 routes** across 124 groups.
+**362 routes** across 125 groups.
 
 ## `/activities`
 
@@ -222,6 +222,12 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | GET | `/api/daily-session/outcome` | Stage 4 — the post-session outcome reconciliation for a date: what was suggested vs what was actually trained (completed / substituted / skipped / reordered), progression evidence, feedback, and the adherence-neutral reason codes + confounders. Deterministic, agent-free. null (200) when the date has no reconciled daily-session composition. |
 | POST | `/api/daily-session/prepare` | Prepare (or explicitly replace) today's durable session without mutating the weekly plan. Plan sources snapshot a plan day; agent_suggest resolves a completed canonical job; athlete_override snapshots a user-authored payload. expected_active_id is assertion-only: it returns the matching active snapshot and bound session without creating/replacing anything. Different replacements stop once logging begins; exact retries remain safe. |
 | GET | `/api/daily-session/preview` | Read-only, authoritative candidate shown immediately before Start. This is built by the same adaptive seam prepare persists and never records a decision or creates a workout session.  A date with no weekly template day has nothing to preview — the ordinary case on a rest/unplanned day, and the PWA asks on EVERY Today render. That absence answers `200 + null` like every other single-row read here; 400 is reserved for malformed input (a bad date or constraint). Memoized on the response freshness key; a malformed request (400) is never remembered. |
+
+## `/day-record`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/day-record` | Any day that is not today, read-only (v2 wave 7: Today is Home). A past day is its record (the session, runs and rides, the food summary, a weigh-in, the day read that stood); a future day is its preview (the planned lift and run, and what is already known to shape it). Composed from the existing reads in src/domain/today/day-record.ts; changes nothing. ?date=YYYY-MM-DD is required. |
 
 ## `/dexa-targeting`
 

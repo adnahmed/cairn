@@ -30,6 +30,8 @@ type TodayCompassOptions = {
   isToday?: unknown;
   isEndurance?: unknown;
   isHybrid?: unknown;
+  /** false when the weigh-in chip already rides the week row (Today): one weight, said once. */
+  weightTile?: boolean;
 };
 
 type TodayCompassBuild = {
@@ -139,9 +141,10 @@ type TodayCompassBuild = {
         <div class="stat-n numeral" data-wtval>${options.currentWeight != null ? options.currentWeight : "—"}<span class="stat-plus">+</span></div>
         <div class="stat-l lbl">${stats.goal_weight_lb != null ? `lb → ${deps.escapeHtml(String(stats.goal_weight_lb))}` : "weight · lb"}</div>
       </button>`;
-    const cellsHtml = options.isEndurance ? `${mileageTile}${paceTile}${wtTile}`
-      : options.isHybrid ? `${adherenceTile}${mileageTile}${wtTile}`
-      : `${adherenceTile}${paceTile}${wtTile}`;
+    const weight = options.weightTile === false ? "" : wtTile;
+    const cellsHtml = options.isEndurance ? `${mileageTile}${paceTile}${weight}`
+      : options.isHybrid ? `${adherenceTile}${mileageTile}${weight}`
+      : `${adherenceTile}${paceTile}${weight}`;
     const liftBit = done ? `${done} lift${done === 1 ? "" : "s"}` : "";
     const cardioBits = [];
     if (stats.week_cardio) cardioBits.push(`${stats.week_cardio} cardio`);

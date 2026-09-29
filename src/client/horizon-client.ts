@@ -236,8 +236,13 @@
               ? `<div class="horizon-day-body">${line}${pills}</div>`
               : pills
             : `<span class="horizon-rest">Rest</span>`;
-        return `<li class="horizon-day${day.today ? " is-today" : ""}"${day.today ? ` aria-current="date"` : ""}>
-          <span class="horizon-day-when">${escHtml(day.weekday)}<b>${escHtml(day.day)}</b></span>${body}</li>`;
+        // Every dated day opens (v2 wave 7): today opens Today, another day its record
+        // or its preview, through the day view's one delegated opener.
+        const open = day.date
+          ? ` data-open-day="${escAttr(day.date)}" role="link" tabindex="0" aria-label="${escAttr(`${day.weekday} ${day.day}${day.today ? ", today" : ""}: open the day`)}"`
+          : "";
+        return `<li class="horizon-day${day.today ? " is-today" : ""}${day.date ? " is-open" : ""}"${day.today ? ` aria-current="date"` : ""}${open}>
+          <span class="horizon-day-when">${escHtml(day.weekday)}<b>${escHtml(day.day)}</b></span>${body}${day.date ? `<span class="horizon-day-go" aria-hidden="true">›</span>` : ""}</li>`;
       })
       .join("");
     // The server's week line, its first sentence as the serif voice and the rest under it.

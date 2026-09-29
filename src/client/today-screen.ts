@@ -193,9 +193,9 @@ function wireExerciseDecisionUndo(root: Element, repaint: () => Promise<unknown>
 }
 
 async function renderToday(opts: any = {}) {
-  // The data loader defaults an unset date too; doing it first lets the date-only
-  // reads below start before that load instead of after it.
-  if (!todayState.logDate) todayState.logDate = localISO();
+  // Today only ever renders today (v2 wave 7): a logDate left on another day by Session/Fuel is re-measured.
+  if (todayState.logDate !== localISO())
+    Object.assign(todayState, { logDate: localISO(), day: null, dayPicked: false, dayPickedOn: null });
   const enteredDate = todayState.logDate;
   // A soft (background stale-while-revalidate) repaint must feel silent: keep the
   // scroll position and suppress the `.reveal` entrance stagger so a "nothing
@@ -370,6 +370,7 @@ async function renderToday(opts: any = {}) {
       isToday,
       isEndurance: isEndurance(),
       isHybrid: isHybrid(),
+      weightTile: false, // the weigh-in chip rides the week row (weekFoldHtml): one weight, said once
     }
   );
 
@@ -546,7 +547,7 @@ async function renderToday(opts: any = {}) {
   }
 
   // ---- Trajectory tier (this week), quiet, below the fold ----
-  html += todayMainShell.weekFoldHtml(todayCompass, todayMainShellDeps());
+  html += todayMainShell.weekFoldHtml(todayCompass, todayMainShellDeps(), { currentWeight: curW });
 
   // The primary column (.today-main) holds the Brief, capture, and logging surface;
   // the rail (.today-rail) sits beside it on wide screens and stacks under it on

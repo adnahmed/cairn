@@ -63,7 +63,6 @@ type TodayBriefHtmlOptions = {
   activeOverride?: unknown;
   morph?: boolean;
   reducedMotion?: boolean;
-  offlineDismissed?: boolean;
   // The server already answered "no" to a rest-trade on this date. The offer stays
   // gone for the rest of the day rather than reappearing on the next repaint.
   tradeRefused?: boolean;
@@ -185,26 +184,10 @@ type TodayBriefHtmlOptions = {
     return !!primary && primary !== "brief";
   }
 
-  function todayBriefAgentOffline(status: unknown): boolean {
-    return status === "unconfigured" || status === "all_failed";
-  }
-
-  function todayBriefAgentOfflineNoticeHtml(status: unknown, issue?: unknown, dismissed?: boolean): string {
-    if (dismissed || !todayBriefAgentOffline(status)) return "";
-    const line =
-      status === "unconfigured"
-        ? "Coaching is offline — connect an agent in Settings for the agentic read."
-        : issue === "invalid_response"
-          ? "Coaching agents didn't return a usable read just now — showing Cairn's reliable baseline."
-          : issue === "unreachable"
-            ? "Couldn't reach a coaching agent just now — showing Cairn's reliable baseline."
-            : "The coaching layer couldn't complete this read just now — showing Cairn's reliable baseline.";
-    return `<div class="agent-offline" role="note">
-      <span class="agent-offline-dot" aria-hidden="true"></span>
-      <span class="agent-offline-text">${escHtml(line)}</span>
-      <button class="agent-offline-x" data-agentoffx aria-label="Dismiss">✕</button>
-    </div>`;
-  }
+  // Agent health is no longer the Brief's to say (v2 wave 7): a read that fell back to
+  // Cairn's own baseline reads exactly like any other read here, and where the agent
+  // layer stands NOW is one quiet line in You > Settings > Agents, which clears itself
+  // once a later run succeeds (agentStateLine, settings-client.ts).
 
   function todayBriefPeriodizationHtml(read: TodayBriefRead | null | undefined): string {
     const context = read?.periodization_context;
@@ -577,9 +560,6 @@ type TodayBriefHtmlOptions = {
     const failed = !!read?._failed;
     const thinking = provisional && !failed && !options.reducedMotion ? " is-thinking" : "";
     const busy = provisional && !failed ? ` aria-busy="true"` : "";
-    const offline = provisional
-      ? ""
-      : todayBriefAgentOfflineNoticeHtml(read?.agent_status, read?.agent_issue, options.offlineDismissed);
     // The lead arbitration's only mark on the Brief: a de-emphasis hook and the
     // band it landed in. Appended LAST so every existing class-list assertion (and
     // every existing rule) is untouched, and omitted entirely when no decision came.
@@ -603,6 +583,8 @@ type TodayBriefHtmlOptions = {
       <h2 class="brief-headline">${headline}</h2>
       ${focus && kind === "train" && !nowCard ? `<div class="brief-focus">${focus}</div>` : ""}
       ${why ? `<p class="brief-why">${why}</p>` : ""}
+      ${updated}
+      <button class="brief-why-more" data-briefwhy hidden>tap to see why</button>
       ${reason}
       ${checkinSlot}
       ${weekWins}
@@ -610,9 +592,6 @@ type TodayBriefHtmlOptions = {
       ${now}
       ${steer}
       ${context}
-      ${offline}
-      ${updated}
-      <button class="brief-why-more" data-briefwhy hidden>tap to see why</button>
     </section>`;
   }
 
@@ -776,8 +755,6 @@ type TodayBriefHtmlOptions = {
     visibleOverrides: todayBriefVisibleOverrides,
     attentionPrimary: todayBriefAttentionPrimary,
     yieldsLead: todayBriefYieldsLead,
-    agentOffline: todayBriefAgentOffline,
-    agentOfflineNoticeHtml: todayBriefAgentOfflineNoticeHtml,
     briefHtml: todayBriefHtml,
     materiallyDiffers: todayBriefMateriallyDiffers,
     signalsText: todayBriefSignalsText,
