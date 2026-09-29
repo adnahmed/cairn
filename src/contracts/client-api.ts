@@ -1320,6 +1320,12 @@ export interface ClientRaceBuildWeek {
   long_km: number;
   quality_hint: string;
   strength_hint: string;
+  /** The week's one coaching sentence, the athlete's register. */
+  focus: string;
+  /** The same week in a few words, for a ladder row. */
+  focus_short: string;
+  /** How lifting and running fit this week, in words; "" with no lifting or no running. */
+  with_lifting: string;
   current: boolean;
 }
 export interface ClientLegMapDay {
@@ -1333,6 +1339,12 @@ export interface ClientLegMapDay {
 export interface ClientRaceBuild {
   available: boolean;
   as_of: ISODateString | string;
+  /**
+   * What running the athlete has: `race` a dated build, `runs` running without one (the
+   * week and the closed weeks still ride on `this_week` / `review`), `none` a
+   * lifting-only athlete with no run or race surface at all.
+   */
+  running?: "race" | "runs" | "none";
   race: {
     event: string | null;
     date: ISODateString | string;

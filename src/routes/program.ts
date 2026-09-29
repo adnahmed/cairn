@@ -299,7 +299,7 @@ programRouter.get("/run-plan", (req, res) =>
 // habitual ride) with where heavy squats belong in this phase. Suggestion only;
 // {available:false, reason} without a dated race with a distance.
 programRouter.get("/race-build", (req, res) =>
-  res.json(raceBuild(req.query.date ? String(req.query.date) : undefined))
+  res.json(raceBuild(req.query.date ? String(req.query.date) : undefined, { describeRunning: true }))
 );
 // Rolling weekly run intentions: actual compatible logs close intentions and
 // suggested openings move around real strength/endurance load. Any completed

@@ -121,7 +121,7 @@ export function trainHomeResponses(viewQuery: unknown, dateQuery: unknown): Scre
     put(out, "/run-compliance", () => runComplianceRead(undefined));
     put(out, "/settings", () => settingsResponse());
     put(out, "/run-plan", () => weeklyRunPlan(undefined));
-    put(out, "/race-build", () => raceBuild(undefined));
+    put(out, "/race-build", () => raceBuild(undefined, { describeRunning: true }));
     put(out, `/training-agenda?date=${q(date)}`, () => flexibleTrainingAgenda(date));
     put(out, "/program-state", () => getProgramState(undefined));
     put(out, `/calibration/status?date=${q(date)}`, () => {
