@@ -25,7 +25,14 @@ import {
 import { CARDIO_GRADE, HARD_EFFORT } from "./heavy-load.js";
 import { activeRecoveryWeekLedger } from "./recovery-week-ledger.js";
 import type { HrModel } from "./hr-model.js";
-import { personalRunReadForRow, usablePersonalHrModel, type PersonalRunRead } from "./run-intensity.js";
+import {
+  isLongRunForAthlete,
+  personalRunReadForRow,
+  runLengthBars,
+  usablePersonalHrModel,
+  type PersonalRunRead,
+  type RunLengthBars,
+} from "./run-intensity.js";
 import { isStatedEasyRpe } from "./stated-effort.js";
 import { addDaysISO, localDateISO } from "./shared.js";
 import { median } from "../lib/numbers.js";
@@ -557,7 +564,8 @@ export function cardioEffort(
     te_label?: string | null;
     rpe?: number | null;
   },
-  personal?: PersonalRunRead | null
+  personal?: PersonalRunRead | null,
+  runLength?: { bars: RunLengthBars; date: string } | null
 ): TrainingLoad | null {
   const type = String(a.type || "").toLowerCase();
   const dur = a.duration_min != null ? Number(a.duration_min) : null;
@@ -585,7 +593,14 @@ export function cardioEffort(
       return "hard";
     if (trainingEffect >= 3 || /\btempo\b/.test(label)) return "moderate";
   }
-  if ((dur != null && dur >= CARDIO_GRADE.hardMin) || (dist != null && dist >= CARDIO_GRADE.hardKm)) return "hard";
+  // A run is hard on its length only when it is clearly past HIS ordinary run
+  // (runLengthBars: never easier than the fixed bar, his long-run day kept long).
+  if (
+    runLength
+      ? isLongRunForAthlete(runLength.bars, { date: runLength.date, minutes: dur, km: dist })
+      : (dur != null && dur >= CARDIO_GRADE.hardMin) || (dist != null && dist >= CARDIO_GRADE.hardKm)
+  )
+    return "hard";
   if ((dur != null && dur >= CARDIO_GRADE.moderateMin) || (dist != null && dist >= CARDIO_GRADE.moderateKm))
     return "moderate";
   return "easy";
@@ -630,8 +645,17 @@ export function dayLoad(
       .all(date) as any[];
     let model: HrModel | null | undefined;
     const personalModel = (): HrModel | null => (model === undefined ? (model = usablePersonalHrModel(date)) : model);
+    let bars: RunLengthBars | undefined;
     for (const a of withoutShadowActivities(rows)) {
-      bump(cardioEffort(a, isStatedEasyRpe(a.rpe) ? null : personalRunReadForRow(a, personalModel)));
+      const isRun = canonicalEnduranceSport(a.type).key === "run";
+      if (isRun && !bars) bars = runLengthBars(date, { min: CARDIO_GRADE.hardMin, km: CARDIO_GRADE.hardKm });
+      bump(
+        cardioEffort(
+          a,
+          isStatedEasyRpe(a.rpe) ? null : personalRunReadForRow(a, personalModel),
+          isRun && bars ? { bars, date } : null
+        )
+      );
     }
   }
   return best ?? "none";

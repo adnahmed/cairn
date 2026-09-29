@@ -58,6 +58,9 @@ import {
   sportPatternsForKey,
 } from "./endurance-sports.js";
 import { recentEnduranceImpacts, type EnduranceImpact } from "./hybrid-load.js";
+import type { HrModel } from "./hr-model.js";
+import { personalRunReadForRow, usablePersonalHrModel } from "./run-intensity.js";
+import { isStatedEasyRpe } from "./stated-effort.js";
 import { sessionNoteSuggestsFatigue, sessionNoteSuggestsRapidFade } from "./training-fatigue.js";
 import { getTrainingIntent } from "./training-intent.js";
 import { recoverySignalIsDecisionGrade } from "./sensor-cadence.js";
@@ -1405,17 +1408,35 @@ function enduranceState(date: string): EnduranceState {
     )
     .get(start4, date, ...activitySport.params) as any;
 
-  // Quality = a synced effort with a hard label or meaningful Z4+ time.
-  const quality = db
+  // Quality = a synced effort that was genuinely hard. A RUN with heart rate and a usable
+  // personal model is judged by that model and his own session title (run-intensity.ts,
+  // owner law 2026-09-25 — never the watch's te_label or anaerobic effect), and one he
+  // stated easy never counts; anything else keeps the watch's label / anaerobic-effect bar.
+  const qualityRows = db
     .prepare(
-      `SELECT COUNT(*) AS n FROM activities a JOIN garmin_activities g ON g.activity_id = a.id
-     WHERE a.date >= ? AND a.date <= ?
-       AND (${aSport.sql})
-       AND (UPPER(COALESCE(g.te_label,'')) IN ('TEMPO','THRESHOLD','VO2MAX','ANAEROBIC','LACTATE_THRESHOLD')
-            OR COALESCE(g.anaerobic_te,0) >= 2)`
+      `SELECT a.date AS date, a.type AS type, a.rpe AS rpe, a.raw_text AS raw_text,
+              g.te_label AS te_label, g.anaerobic_te AS anaerobic_te, g.avg_hr AS avg_hr,
+              COALESCE(g.moving_min, g.duration_min, a.duration_min) AS hr_minutes,
+              g.name AS g_name, g.hr_zones_json AS zones
+         FROM activities a JOIN garmin_activities g ON g.activity_id = a.id
+        WHERE a.date >= ? AND a.date <= ?
+          AND (${aSport.sql})`
     )
-    .get(start4, date, ...aSport.params) as any;
-  const hasQuality = Number(quality?.n ?? 0) > 0;
+    .all(start4, date, ...aSport.params) as any[];
+  const qualityModels = new Map<string, HrModel | null>();
+  const hasQuality = qualityRows.some((r) => {
+    if (isStatedEasyRpe(r.rpe)) return false;
+    const day = String(r.date).slice(0, 10);
+    const personal = personalRunReadForRow(r, () => {
+      if (!qualityModels.has(day)) qualityModels.set(day, usablePersonalHrModel(day));
+      return qualityModels.get(day) ?? null;
+    });
+    if (personal) return personal.hard;
+    return (
+      ["TEMPO", "THRESHOLD", "VO2MAX", "ANAEROBIC", "LACTATE_THRESHOLD"].includes(String(r.te_label ?? "").toUpperCase()) ||
+      Number(r.anaerobic_te ?? 0) >= 2
+    );
+  });
 
   // Easy-pace efficiency: avg pace (min/km) of the chosen endurance sport, recent half vs older half.
   // Shadows are dropped against the day's FULL sport set (a shadow's watch row may

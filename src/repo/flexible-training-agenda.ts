@@ -2,11 +2,12 @@ import { db } from "../db.js";
 import type { WeeklyRunPlan, RunPlanPrescription } from "./run-progression.js";
 import { weekAsPlanned, weeklyRunPlan } from "./run-progression.js";
 import { applyRunDayIntensity, type RunDayIntensity, runDayIntensity } from "./run-day-intensity.js";
-import { activitySportWhere, RUN_SPORT_PATTERNS } from "./endurance-sports.js";
+import { activitySportWhere, canonicalEnduranceSport, RUN_SPORT_PATTERNS } from "./endurance-sports.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
 import { cardioEffort, sessionLoad } from "./training-read.js";
 import type { HrModel } from "./hr-model.js";
-import { personalRunReadForRow, usablePersonalHrModel } from "./run-intensity.js";
+import { personalRunReadForRow, runLengthBars, usablePersonalHrModel } from "./run-intensity.js";
+import { CARDIO_GRADE } from "./heavy-load.js";
 import { isStatedEasyRpe } from "./stated-effort.js";
 import { addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
 import { mondayOf } from "../lib/dates.js";
@@ -405,7 +406,12 @@ function cardioConflictDates(start: string, through: string): Set<string> {
     };
     for (const row of rows) {
       const date = String(row.date);
-      const load = cardioEffort(row, isStatedEasyRpe(row.rpe) ? null : personalRunReadForRow(row, modelFor(date)));
+      const isRun = canonicalEnduranceSport(row.type).key === "run";
+      const load = cardioEffort(
+        row,
+        isStatedEasyRpe(row.rpe) ? null : personalRunReadForRow(row, modelFor(date)),
+        isRun ? { bars: runLengthBars(date, { min: CARDIO_GRADE.hardMin, km: CARDIO_GRADE.hardKm }), date } : null
+      );
       if (load === "moderate" || load === "hard") dates.add(String(row.date));
     }
     return dates;

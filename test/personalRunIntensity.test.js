@@ -19,6 +19,7 @@ import { harmEvidenceOnDay } from "../dist/repo/brain/read-adherence.js";
 import { recordCalibrationEvent } from "../dist/repo/calibration.js";
 import { getHrModel } from "../dist/repo/hr-model.js";
 import { namesQualityRun } from "../dist/repo/stated-effort.js";
+import { OWN_RUN_BAR_CAP, runLengthBars } from "../dist/repo/run-intensity.js";
 import { setActivityFeltEffort } from "../dist/repo/activity-effort.js";
 
 const REF = "2031-06-30";
@@ -272,4 +273,99 @@ test("day grade: a 30-minute run at 150 with effect 4.2 is moderate, not hard; a
 test("day grade: no model keeps the watch's effect bar", () => {
   watch({ date: REF, km: 5, minutes: 30, avgHr: 150, te: 4.2 });
   assert.equal(dayLoad(REF, { countsCardio: true }), "hard");
+});
+
+// ── how long is long: against his own ordinary run ──────────────────────────────
+
+// Six weeks of his ordinary running: ~38 min / ~6.7 km, and one 17.7 km long run.
+function ordinaryWeeks(anchor) {
+  const plan = [
+    [3, 38, 6.4],
+    [6, 36, 6.7],
+    [9, 41, 6.8],
+    [13, 31, 5.0],
+    [16, 38, 6.4],
+    [20, 105, 17.7],
+    [24, 30, 4.9],
+    [27, 37, 6.7],
+  ];
+  for (const [days, minutes, km] of plan)
+    repo.addActivity({ type: "run", date: shift(anchor, -days), duration_min: minutes, distance_km: km });
+}
+
+test("the long bar is 1.5× his own median run, never under the fixed bar, capped", () => {
+  assert.deepEqual(
+    (({ min, km, basis }) => ({ min, km, basis }))(runLengthBars(REF, { min: 55, km: 9 })),
+    { min: 55, km: 9, basis: "fixed" },
+    "no history: today's fixed bar exactly"
+  );
+  ordinaryWeeks(REF);
+  const own = runLengthBars(REF, { min: 55, km: 9 });
+  assert.equal(own.basis, "own");
+  assert.equal(own.min, 56); // 1.5 × the 37.5-minute median
+  assert.equal(own.km, 9.8); // 1.5 × the 6.55 km median
+  assert.equal(own.longest_km, 17.7);
+  // A big-volume runner's bar is capped: past 90 min / 16 km a run is long for anyone.
+  resetTables("activities");
+  for (const days of [2, 5, 8, 12, 15])
+    repo.addActivity({ type: "run", date: shift(REF, -days), duration_min: 80, distance_km: 15 });
+  const big = runLengthBars(REF, { min: 55, km: 9 });
+  assert.equal(big.min, OWN_RUN_BAR_CAP.min);
+  assert.equal(big.km, OWN_RUN_BAR_CAP.km);
+});
+
+test("leg dose: an ordinary-length Tuesday run for this runner is moderate, not heavy", () => {
+  ordinaryWeeks(REF); // REF is a Monday; the run below lands on Tuesday
+  const tue = shift(REF, 1);
+  repo.addActivity({ type: "run", date: tue, duration_min: 53.9, distance_km: 9.68 });
+  assert.equal(impactOn(tue).load, "moderate");
+  // With no history the fixed bar stands: 9.68 km is heavy.
+  resetTables("activities");
+  repo.addActivity({ type: "run", date: tue, duration_min: 53.9, distance_km: 9.68 });
+  assert.equal(impactOn(tue).load, "heavy");
+});
+
+test("leg dose: his long-run-day run stays heavy when it clears the fixed bar", () => {
+  repo.setProfile({
+    endurance_schedule: {
+      days: [
+        { dow: 0, kind: "long" },
+        { dow: 2, kind: "easy" },
+      ],
+      source: "athlete",
+    },
+  });
+  ordinaryWeeks(REF);
+  const sunday = shift(REF, 6); // REF is a Monday
+  repo.addActivity({ type: "run", date: sunday, duration_min: 53.9, distance_km: 9.68 });
+  assert.equal(impactOn(sunday).load, "heavy");
+  // A short Sunday jog is not the long run.
+  const next = shift(sunday, 7);
+  repo.addActivity({ type: "run", date: next, duration_min: 30, distance_km: 5 });
+  assert.notEqual(impactOn(next).load, "heavy");
+});
+
+test("day grade: a 54-minute run is a moderate day for this runner, a hard one for a novice", () => {
+  ordinaryWeeks(REF);
+  const tue = shift(REF, 1);
+  repo.addActivity({ type: "run", date: tue, duration_min: 54, distance_km: 8.6 });
+  assert.equal(dayLoad(tue, { countsCardio: true }), "moderate");
+  resetTables("activities");
+  repo.addActivity({ type: "run", date: tue, duration_min: 54, distance_km: 8.6 });
+  assert.equal(dayLoad(tue, { countsCardio: true }), "hard");
+});
+
+test("program state: a TEMPO-labelled 148 run is not the week's quality; a named hills session is", () => {
+  repo.setProfile({ primary_discipline: "hybrid", endurance_sport: "running" });
+  fieldTested();
+  watch({ date: shift(REF, -3), km: 8, minutes: 50, avgHr: 148, te: 3.4, label: "TEMPO" });
+  assert.equal(repo.getProgramState(REF).endurance?.has_quality, false);
+  watch({ date: shift(REF, -1), name: "Hills", km: 4.5, minutes: 29, avgHr: 149, te: 3.3 });
+  assert.equal(repo.getProgramState(REF).endurance?.has_quality, true);
+});
+
+test("program state: no model keeps the watch's label bar", () => {
+  repo.setProfile({ primary_discipline: "hybrid", endurance_sport: "running" });
+  watch({ date: shift(REF, -3), km: 8, minutes: 50, avgHr: 148, te: 3.4, label: "TEMPO" });
+  assert.equal(repo.getProgramState(REF).endurance?.has_quality, true);
 });

@@ -4,7 +4,14 @@
 import { db } from "../db.js";
 import { withoutShadowActivities } from "./activities.js";
 import type { HrModel } from "./hr-model.js";
-import { personalRunReadForRow, usablePersonalHrModel, type PersonalRunRead } from "./run-intensity.js";
+import {
+  isLongRunForAthlete,
+  personalRunReadForRow,
+  runLengthBars,
+  usablePersonalHrModel,
+  type PersonalRunRead,
+  type RunLengthBars,
+} from "./run-intensity.js";
 import { isStatedEasyRpe } from "./stated-effort.js";
 import { addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
 import {
@@ -108,9 +115,22 @@ function classifyImpactLoad(
   zones45: number,
   ascent: number | null,
   descent: number | null,
-  athlete: { stated_easy: boolean; personal: PersonalRunRead | null } = { stated_easy: false, personal: null },
+  athlete: {
+    stated_easy: boolean;
+    personal: PersonalRunRead | null;
+    /** A run's long bar, drawn from his own recent running (run-intensity.ts). */
+    run_length?: { bars: RunLengthBars; date: string } | null;
+  } = { stated_easy: false, personal: null },
 ): Pick<EnduranceImpact, "intensity" | "load" | "why"> {
-  const long = (dur != null && dur >= region.heavyMin) || (km != null && km >= region.heavyKm);
+  // A RUN is long against his own ordinary run (runLengthBars: 1.5× his six-week median,
+  // never under the modality's fixed bar, capped), and his long-run-day run or one of 75%
+  // of his longest stays long; every other modality keeps its fixed bar.
+  const runLength = athlete.run_length ?? null;
+  const long = runLength
+    ? isLongRunForAthlete(runLength.bars, { date: runLength.date, minutes: dur, km })
+    : (dur != null && dur >= region.heavyMin) || (km != null && km >= region.heavyKm);
+  // "Most of the way to long" stays on the modality's FIXED bar: it is what makes an
+  // ordinary run a moderate leg session, and only the HEAVY call is his to raise.
   const substantial =
     (dur != null && dur >= region.heavyMin * 0.7) || (km != null && km >= region.heavyKm * 0.7);
   // An ordinary session's length is a leg exposure on its own merits — the same bar
@@ -221,6 +241,11 @@ export function recentEnduranceImpacts(days = 3, date = localDateISO()): Enduran
       if (!models.has(date)) models.set(date, usablePersonalHrModel(date));
       return models.get(date) ?? null;
     };
+    const lengthBars = new Map<string, RunLengthBars>();
+    const barsFor = (date: string, region: EnduranceModality): RunLengthBars => {
+      if (!lengthBars.has(date)) lengthBars.set(date, runLengthBars(date, { min: region.heavyMin, km: region.heavyKm }));
+      return lengthBars.get(date) as RunLengthBars;
+    };
     // A hand-logged shadow of a synced effort is one endurance dose, not two legs
     // of residual for the same run.
     return withoutShadowActivities(acts)
@@ -251,7 +276,9 @@ export function recentEnduranceImpacts(days = 3, date = localDateISO()): Enduran
           Number.isFinite(descent) ? descent : null,
           (() => {
             const statedEasy = isStatedEasyRpe(a.rpe);
+            const day = String(a.date).slice(0, 10);
             return {
+              run_length: region.mode === "run" ? { bars: barsFor(day, region), date: day } : null,
               stated_easy: statedEasy,
               personal:
                 statedEasy || region.mode !== "run"
