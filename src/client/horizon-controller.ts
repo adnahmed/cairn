@@ -25,6 +25,10 @@
     let live = true;
     const lanes = new Map<Lane["key"], Lane>();
     let seasonMarkup: string | null = null;
+    /** The athlete's run units (settings.run_units), and the reads they are written over. */
+    let units: "km" | "mi" = "km";
+    let lastBuild: unknown = null;
+    let lastPlanWeek: unknown = null;
     /** The race week the rows hold open: null is this week, "" none, else a Monday. */
     let selectedWeek: string | null = null;
     let weekAsked = false;
@@ -35,14 +39,26 @@
       weekAsked = true;
       const held = host.querySelector<HTMLElement>("[data-horizon-weekview]");
       if (held && !held.firstElementChild) held.innerHTML = CairnHorizon.weekSkeletonHtml();
-      void read("/plan/week").then((planWeek) => {
+      void Promise.all([read("/plan/week"), unitsRead]).then(([planWeek]) => {
         if (!live || !host.isConnected) return;
+        lastPlanWeek = planWeek;
         // A failed read says so, and the next tap on Week asks again.
         if (planWeek == null) weekAsked = false;
         const slot = host.querySelector<HTMLElement>("[data-horizon-weekview]");
         if (!slot) return;
-        slot.innerHTML = CairnHorizon.weekHtml(CairnHorizonWeekModel.weekView(planWeek, deps.today), { enter: !calm() });
+        slot.innerHTML = CairnHorizon.weekHtml(CairnHorizonWeekModel.weekView(planWeek, deps.today, units), {
+          enter: !calm(),
+        });
       });
+    }
+
+    /** Repaint what is written in run units, from the reads already held: no second read. */
+    function repaintUnits(): void {
+      if (lastBuild != null) paint(CairnHorizonModel.raceLane(lastBuild, units), false);
+      const slot = host.querySelector<HTMLElement>("[data-horizon-weekview]");
+      if (slot && lastPlanWeek != null) {
+        slot.innerHTML = CairnHorizon.weekHtml(CairnHorizonWeekModel.weekView(lastPlanWeek, deps.today, units));
+      }
     }
 
     function setView(view: ClientHorizonView): void {
@@ -76,6 +92,11 @@
       Promise.resolve()
         .then(() => deps.load(path))
         .catch(() => null);
+    // The run units ride with the race and week reads; a failed settings read is km.
+    const unitsRead = read("/settings").then((value) => {
+      const settings = (value as { settings?: { run_units?: unknown } } | null)?.settings;
+      units = typeof runUnits === "function" ? runUnits(settings?.run_units) : settings?.run_units === "mi" ? "mi" : "km";
+    });
 
     function paint(lane: Lane, enter = true): void {
       if (!live || !host.isConnected) return;
@@ -107,7 +128,10 @@
       const timeline = read("/journey/timeline");
       const docs = read("/health-docs");
       const checkup = read("/health/next-checkup");
-      void read("/race-build").then((build) => paint(model.raceLane(build)));
+      void Promise.all([read("/race-build"), unitsRead]).then(([build]) => {
+        lastBuild = build;
+        paint(model.raceLane(build, units));
+      });
       void Promise.all([read("/journey"), timeline]).then(([journey, rows]) =>
         paint(model.goalLane(journey, rows, today))
       );
@@ -139,6 +163,17 @@
           selectedWeek = el.getAttribute("aria-expanded") === "true" ? "" : week;
           paint(lane, false);
           host.querySelector<HTMLElement>(`[data-horizon-week="${week}"]`)?.focus();
+        },
+        "horizon-units": (el) => {
+          const next = el.getAttribute("data-horizon-units") === "mi" ? "mi" : "km";
+          if (next === units) return;
+          // The switch answers at once; the setting follows (every endurance surface reads it).
+          units = next;
+          repaintUnits();
+          host.querySelector<HTMLElement>(`[data-horizon-units="${next}"]`)?.focus();
+          void Promise.resolve()
+            .then(() => deps.saveUnits?.(next))
+            .catch(() => {});
         },
         "horizon-go": (el, event) => {
           if (modified(event)) return;

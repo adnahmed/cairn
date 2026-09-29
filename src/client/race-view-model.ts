@@ -3,8 +3,9 @@
 // Pure shaping from GET /api/race-build onto what the race view prints. It is a READ
 // over raceBuild() and never a second engine: every week, kind and kilometre comes
 // from the server's ladder as given, the fit is the server's word, and the only
-// arithmetic here is scaling a bar against the ladder's own longest week. Run volume
-// is kilometres per week everywhere, whatever the pace units; nothing is a score.
+// arithmetic here is scaling a bar against the ladder's own longest week, and turning
+// the engine's kilometres into the athlete's run units (settings.run_units) for the
+// words; bars still scale on kilometres. Nothing is a score.
 {
   type RaceBuild = import("../contracts/client-api.js").ClientRaceBuild;
   type RaceWeek = import("../contracts/client-api.js").ClientRaceBuildWeek;
@@ -47,12 +48,35 @@
     return Number.isFinite(n) ? n : null;
   }
 
-  /** "32 km", "12.5 km": kilometres always, one decimal only when it has one. */
-  function kmText(km: unknown): string {
+  type Units = "km" | "mi";
+  const KM_PER_MILE = 1.609344;
+
+  function unitsOf(value: unknown): Units {
+    return typeof runUnits === "function" ? runUnits(value) : value === "mi" ? "mi" : "km";
+  }
+
+  /** "32 km", "12.5 km" (or "19.9 mi" in miles): one decimal only when it has one. */
+  function kmText(km: unknown, units?: unknown): string {
     const n = num(km);
     if (n == null || n < 0) return "";
-    const r = Math.round(n * 10) / 10;
-    return `${Number.isInteger(r) ? r : r.toFixed(1)} km`;
+    const mi = unitsOf(units) === "mi";
+    const r = Math.round((mi ? n / KM_PER_MILE : n) * 10) / 10;
+    return `${Number.isInteger(r) ? r : r.toFixed(1)} ${mi ? "mi" : "km"}`;
+  }
+
+  /**
+   * The server's own run sentences (a finish estimate's basis) say "12.3 km" and
+   * "5:10 /km"; in miles those figures are restated, the words left as written.
+   */
+  function runWords(value: unknown, units?: unknown): string {
+    const s = String(value || "").trim();
+    if (unitsOf(units) !== "mi") return s;
+    return s
+      .replace(/(\d+):(\d{2}) ?\/ ?km\b/g, (_m, mm: string, ss: string) => {
+        const sec = Math.round((Number(mm) * 60 + Number(ss)) * KM_PER_MILE);
+        return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} /mi`;
+      })
+      .replace(/(\d+(?:\.\d+)?) ?km\b/g, (_m, n: string) => kmText(Number(n), "mi"));
   }
 
   /** A finish clock: "1:59:59", or "58:40" under the hour. "" when there is none. */
@@ -110,16 +134,16 @@
     return km != null && km >= 20.5 && km <= 21.5 ? "Your half marathon" : "Your race";
   }
 
-  function soFarText(rung: number, logged: number | null): string {
+  function soFarText(rung: number, logged: number | null, units?: unknown): string {
     if (logged == null || logged <= 0) return "";
-    if (logged >= rung && rung > 0) return `${kmText(logged)} run, the week's ${kmText(rung)} is in.`;
-    return `${kmText(logged)} run so far of ${kmText(rung)}.`;
+    if (logged >= rung && rung > 0) return `${kmText(logged, units)} run, the week's ${kmText(rung, units)} is in.`;
+    return `${kmText(logged, units)} run so far of ${kmText(rung, units)}.`;
   }
 
   /** The week's running, in the server's words: its quality hint, then the long run. */
-  function runText(week: RaceWeek, long: number | null): string {
+  function runText(week: RaceWeek, long: number | null, units?: unknown): string {
     const hint = String(week.quality_hint || "").trim();
-    const longRun = long != null && long > 0 && week.kind !== "race" ? `Long run ${kmText(long)}.` : "";
+    const longRun = long != null && long > 0 && week.kind !== "race" ? `Long run ${kmText(long, units)}.` : "";
     return [hint, longRun].filter(Boolean).join(" ");
   }
 
@@ -139,7 +163,11 @@
    * one with running in it), then the ladder's weeks to race day. Null when there is no
    * ridge to draw. The logged weeks are the log's own kilometres, never re-derived.
    */
-  function terrainModel(build: RaceBuild | null | undefined, ladder: ClientRaceLadderModel): ClientHorizonTerrain | null {
+  function terrainModel(
+    build: RaceBuild | null | undefined,
+    ladder: ClientRaceLadderModel,
+    units?: unknown
+  ): ClientHorizonTerrain | null {
     const rows = Array.isArray(ladder?.rows) ? ladder.rows : [];
     if (rows.length < 2) return null;
     const first = rows[0].week_start;
@@ -159,6 +187,7 @@
       race_date: raceDate,
       race_label: [raceShortName(build?.race?.distance_km), raceDate ? shortDate(raceDate) : ""].filter(Boolean).join(" · "),
       as_of: dayKey(build?.as_of),
+      units: unitsOf(units),
     };
   }
 
@@ -190,7 +219,7 @@
   }
 
   /** The ladder: the server's weeks as rows, each bar against the ladder's longest week. */
-  function ladderModel(build: RaceBuild | null | undefined): ClientRaceLadderModel {
+  function ladderModel(build: RaceBuild | null | undefined, units?: unknown): ClientRaceLadderModel {
     const weeks = Array.isArray(build?.weeks) ? build.weeks : [];
     const kms = weeks.map((week) => Math.max(0, num(week.km) ?? 0));
     const maxKm = kms.length ? Math.max(...kms) : 0;
@@ -212,15 +241,15 @@
         out_word: out === 0 ? "Race week" : `${out} wk out`,
         date_word: shortDate(week.week_start),
         km,
-        km_text: kmText(km),
-        long_text: long != null && long > 0 && week.kind !== "race" ? `long ${kmText(long)}` : "",
+        km_text: kmText(km, units),
+        long_text: long != null && long > 0 && week.kind !== "race" ? `long ${kmText(long, units)}` : "",
         frac: frac(km),
         current,
         logged_km: loggedKm,
         logged_frac: loggedKm != null && maxKm > 0 ? frac(loggedKm) : null,
-        so_far_text: current ? soFarText(km, loggedKm) : "",
+        so_far_text: current ? soFarText(km, loggedKm, units) : "",
         race_day_text: week.kind === "race" && raceDay ? `Race day, ${raceDay}` : "",
-        run_text: runText(week, long),
+        run_text: runText(week, long, units),
         lift_text: String(week.strength_hint || "").trim(),
       };
     });
@@ -230,11 +259,11 @@
       : taper.current
         ? "This week is the taper: the volume comes down so race day finds you fresh."
         : `The taper starts the week of ${taper.date_word}, the week before race week.`;
-    return { rows, max_km: maxKm, taper_text: taperText };
+    return { rows, max_km: maxKm, taper_text: taperText, units: unitsOf(units) };
   }
 
   /** The finish estimate against the target: the server's fit word, never a gap as a grade. */
-  function estimateModel(build: RaceBuild | null | undefined): ClientRaceEstimateModel {
+  function estimateModel(build: RaceBuild | null | undefined, units?: unknown): ClientRaceEstimateModel {
     const p = build?.prediction || null;
     const target = build?.race?.target || null;
     const fit = p && target && p.fit && FIT_WORD[p.fit] ? p.fit : null;
@@ -243,7 +272,7 @@
         ? "Holding steady over the last month."
         : `${Math.max(1, Math.round(Math.abs(num(p.trend.delta_sec) ?? 0) / 60))} min ${p.trend.word} over the last month.`
       : "";
-    const basis = p && String(p.basis_detail || "").trim() ? `From ${String(p.basis_detail).trim()}.` : "";
+    const basis = p && String(p.basis_detail || "").trim() ? `From ${runWords(p.basis_detail, units)}.` : "";
     let line = fit ? FIT_LINE[fit] : "";
     if (p && !target) line = "No target time on the race, so the estimate is where today's running reads.";
     if (!p) line = "No finish estimate yet. A recent run or the watch's race predictor gives one.";
@@ -291,15 +320,15 @@
   function viewModel(value: unknown, opts: { units?: unknown } = {}): ClientRaceViewModel | null {
     if (!isShowable(value)) return null;
     const race = value.race as NonNullable<RaceBuild["race"]>;
-    const ladder = ladderModel(value);
+    const ladder = ladderModel(value, opts.units);
     return {
       event: eventName(race),
       countdown: countdownText(race, Array.isArray(value.weeks) ? value.weeks : []),
       race_day: longDate(race.date),
       phase_word: PHASE_WORD[race.phase] || "",
-      estimate: estimateModel(value),
+      estimate: estimateModel(value, opts.units),
       ladder,
-      terrain: terrainModel(value, ladder),
+      terrain: terrainModel(value, ladder, opts.units),
       paces: pacesModel(value, opts.units),
       notes: notesModel(value),
     };
@@ -309,6 +338,7 @@
     FIT_WORD,
     KIND_WORD,
     kmText,
+    runWords,
     clock,
     longDate,
     isShowable,

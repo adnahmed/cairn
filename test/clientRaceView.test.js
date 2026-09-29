@@ -180,14 +180,16 @@ test("a taper week that is this week says so", () => {
   assert.match(host.querySelector(".race-ladder-taper").textContent, /This week is the taper/);
 });
 
-test("run volume is km per week, whatever the pace units", () => {
+test("run volume and paces both follow the athlete's run units", () => {
   const win = load();
   const host = paint(win, build(), { units: "mi" });
-  for (const km of host.querySelectorAll(".race-ladder-km")) assert.match(km.textContent, /^\d+(\.\d)? km$/);
-  assert.doesNotMatch(host.querySelector(".race-ladder").textContent, /\bmi\b|mile/);
-  assert.equal(host.querySelector(".race-ladder-unit").textContent, "km per week");
-  // Paces follow the athlete's units; volume never does.
+  for (const km of host.querySelectorAll(".race-ladder-km")) assert.match(km.textContent, /^\d+(\.\d)? mi$/);
+  assert.doesNotMatch(host.querySelector(".race-ladder").textContent, /\bkm\b/);
+  assert.equal(host.querySelector(".race-ladder-unit").textContent, "mi per week");
   assert.match(host.querySelector(".race-view-pace dd").textContent, /\/mi/);
+  const metric = paint(win, build());
+  assert.equal(metric.querySelector(".race-ladder-unit").textContent, "km per week");
+  for (const km of metric.querySelectorAll(".race-ladder-km")) assert.match(km.textContent, /^\d+(\.\d)? km$/);
 });
 
 // ---------- the head and the estimate ----------

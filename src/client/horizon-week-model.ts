@@ -38,7 +38,7 @@
    */
   const RUN_KIND_WORD: Readonly<Record<string, string>> = { easy: "Easy run", quality: "Quality run", long: "Long run" };
 
-  function weekView(value: unknown, today: string): ClientHorizonWeek | null {
+  function weekView(value: unknown, today: string, units?: unknown): ClientHorizonWeek | null {
     const read = record(value) as PlanWeek | null;
     const days = Array.isArray(read?.days) ? (read.days as PlanWeekDay[]) : [];
     if (!read || !days.length) return null;
@@ -76,7 +76,7 @@
         const label = (settled ? RUN_KIND_WORD[String(run.kind)] : "") || text(run.label) || "Run";
         pills.push({
           stone: "endurance",
-          text: km != null && km > 0 ? `${label} · ${CairnRaceViewModel.kmText(km)}` : label,
+          text: km != null && km > 0 ? `${label} · ${CairnRaceViewModel.kmText(km, units)}` : label,
           state: run.status === "completed" ? "done" : past ? "open" : "planned",
         });
       }
@@ -90,7 +90,7 @@
         line,
       };
     });
-    const line = text(read.progress?.line) || text(read.summary);
+    const line = CairnRaceViewModel.runWords(text(read.progress?.line) || text(read.summary), units);
     return { line, days: out };
   }
 

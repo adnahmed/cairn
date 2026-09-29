@@ -5974,7 +5974,13 @@ declare global {
     /** The week's lifting in the server's words (its strength hint). */
     lift_text: string;
   };
-  type ClientRaceLadderModel = { rows: ClientRaceLadderRow[]; max_km: number; taper_text: string };
+  type ClientRaceLadderModel = {
+    rows: ClientRaceLadderRow[];
+    max_km: number;
+    taper_text: string;
+    /** The run units the row words are written in; the numbers (`km`, `max_km`) stay kilometres. */
+    units?: "km" | "mi";
+  };
   type ClientRaceEstimateModel = {
     fit: import("./client-api.js").ClientRaceFit | null;
     /** "Fits", "Stretch" or "Beyond horizon" — the whole vocabulary; "" without a target. */
@@ -6003,7 +6009,7 @@ declare global {
     load(): Promise<unknown>;
     /** A build the screen already holds; painted at once, no second read. */
     initial?: unknown;
-    /** Pace units only; run volume is kilometres per week everywhere. */
+    /** Run units for distance and pace (settings.run_units); the engine stays in km. */
     units?: "km" | "mi";
     reducedMotion?(): boolean;
   };
@@ -6014,16 +6020,23 @@ declare global {
     CairnRaceViewModel: {
       FIT_WORD: Record<import("./client-api.js").ClientRaceFit, string>;
       KIND_WORD: Record<ClientRaceLadderRow["kind"], string>;
-      kmText(km: unknown): string;
+      /** Kilometres from the engine, written in the athlete's run units. */
+      kmText(km: unknown, units?: unknown): string;
+      /** A server run sentence with its km figures and /km paces restated in the run units. */
+      runWords(value: unknown, units?: unknown): string;
       clock(sec: unknown): string;
       longDate(iso: unknown): string;
       isShowable(value: unknown): value is ClientRaceBuild;
-      ladderModel(build: ClientRaceBuild | null | undefined): ClientRaceLadderModel;
-      terrainModel(build: ClientRaceBuild | null | undefined, ladder: ClientRaceLadderModel): ClientHorizonTerrain | null;
+      ladderModel(build: ClientRaceBuild | null | undefined, units?: unknown): ClientRaceLadderModel;
+      terrainModel(
+        build: ClientRaceBuild | null | undefined,
+        ladder: ClientRaceLadderModel,
+        units?: unknown
+      ): ClientHorizonTerrain | null;
       raceShortName(distanceKm: unknown): string;
       /** The race build's one serif line ("Five weeks of build, then the half."). */
       buildVoice(ladder: ClientRaceLadderModel, race: ClientRaceBuild["race"] | null | undefined): string;
-      estimateModel(build: ClientRaceBuild | null | undefined): ClientRaceEstimateModel;
+      estimateModel(build: ClientRaceBuild | null | undefined, units?: unknown): ClientRaceEstimateModel;
       viewModel(value: unknown, opts?: { units?: unknown }): ClientRaceViewModel | null;
     };
     CairnRaceLadder: {
@@ -6115,6 +6128,8 @@ declare global {
     race_label: string;
     /** The build read's own "as of" day: where the now line stands. */
     as_of: string;
+    /** The units the chart writes; the weeks' `km` stays kilometres. */
+    units?: "km" | "mi";
   };
   type ClientHorizonSeasonMark = { date: string; label: string; kind: string; side: "behind" | "ahead" };
   type ClientHorizonSeason = {
@@ -6134,12 +6149,14 @@ declare global {
     navigate(target: ClientHorizonTarget): void;
     hrefFor?(target: ClientHorizonTarget): string | null;
     reducedMotion?(): boolean;
+    /** Save the athlete's run units (settings.run_units); the controller repaints on its own. */
+    saveUnits?(units: "km" | "mi"): Promise<unknown>;
   };
   interface Window {
     CairnHorizonModel: {
       LAB_KINDS: Readonly<Record<string, string>>;
       TARGETS: Readonly<Record<string, ClientHorizonTarget>>;
-      raceLane(build: unknown): ClientHorizonLane;
+      raceLane(build: unknown, units?: unknown): ClientHorizonLane;
       goalLane(journey: unknown, timeline: unknown, today: string): ClientHorizonLane;
       labsLane(docs: unknown, checkup: unknown, timeline: unknown, today: string): ClientHorizonLane;
       ladderAhead(ladder: ClientRaceLadderModel): ClientRaceLadderModel | null;
@@ -6153,7 +6170,7 @@ declare global {
       ): ClientHorizonSeason | null;
     };
     CairnHorizonWeekModel: {
-      weekView(planWeek: unknown, today: string): ClientHorizonWeek | null;
+      weekView(planWeek: unknown, today: string, units?: unknown): ClientHorizonWeek | null;
     };
     CairnHorizonChart: {
       BODY_MARK_KINDS: ReadonlySet<string>;

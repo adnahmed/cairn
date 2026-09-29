@@ -4,7 +4,7 @@
 //
 //   - Race: GET /api/race-build through the race view's own model (race-view-model),
 //     never a second engine. The lane keeps the ladder from this week forward, with
-//     kilometres per week and the server's fit word; no race is "No race set", with
+//     distance per week in the athlete's run units and the server's fit word; no race is "No race set", with
 //     the way to set one, never an empty lane.
 //   - Goal line: GET /api/journey (the phase read) and the non-lab rows of
 //     GET /api/journey/timeline (the goal date, phase window, block boundary, re-tests).
@@ -116,10 +116,15 @@
     const rows = Array.isArray(ladder?.rows) ? ladder.rows : [];
     if (!rows.length) return null;
     const here = rows.findIndex((row) => row.current);
-    return { rows: rows.slice(here >= 0 ? here : 0), max_km: ladder.max_km, taper_text: ladder.taper_text };
+    return {
+      rows: rows.slice(here >= 0 ? here : 0),
+      max_km: ladder.max_km,
+      taper_text: ladder.taper_text,
+      units: ladder.units,
+    };
   }
 
-  function raceLane(value: unknown): Lane {
+  function raceLane(value: unknown, units?: unknown): Lane {
     const links = [{ label: "The race build", target: copyTarget(TARGETS.race) }];
     if (!record(value) || !("available" in (value as object))) {
       return lane("race", "Race", {
@@ -128,7 +133,7 @@
         links,
       });
     }
-    const model = CairnRaceViewModel.viewModel(value);
+    const model = CairnRaceViewModel.viewModel(value, { units });
     if (!model) {
       const reason = text((value as RaceBuild).reason);
       return lane("race", "Race", {

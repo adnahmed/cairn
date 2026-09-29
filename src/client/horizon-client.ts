@@ -5,7 +5,8 @@
 // every word, and each lane has its own loading shape. A lane's rows run behind → a
 // "Today" mark → ahead, the same rail the road-ahead card draws. Each link carries a
 // real href (so a long-press or a new tab works) and `data-horizon-go`, the key the
-// controller resolves to a route. Kilometres per week and fit words only; no score.
+// controller resolves to a route. Distance per week (km or mi, the athlete's pick) and
+// fit words only; no score.
 {
   type Lane = ClientHorizonLane;
   type Row = ClientHorizonRow;
@@ -78,6 +79,13 @@
         ? CairnHorizonChart.terrainSvg(lane.terrain, { selected })
         : "";
     return chart ? `<figure class="horizon-chart-card is-terrain">${chart}</figure>` : "";
+  }
+
+  /** The km / mi switch: the athlete's run units, saved to settings from any surface. */
+  function unitsHtml(units: "km" | "mi"): string {
+    const btn = (value: "km" | "mi") =>
+      `<button type="button" class="end-unit-btn${units === value ? " on" : ""}" data-horizon-units="${value}" aria-pressed="${units === value}">${value}</button>`;
+    return `<div class="end-units horizon-units" role="group" aria-label="Distance and pace units">${btn("km")}${btn("mi")}</div>`;
   }
 
   /** Which week the rows hold open: the picked one, none (""), or this week. */
@@ -166,7 +174,10 @@
       // The race build: one serif line, the terrain, the weeks, then the estimate as a footnote.
       return `<section class="${cls} is-build" aria-labelledby="${id}">
         <header class="horizon-lane-head">
-          <span class="lbl horizon-lane-kicker">${escHtml(lane.title)}</span>
+          <div class="horizon-lane-kickrow">
+            <span class="lbl horizon-lane-kicker">${escHtml(lane.title)}</span>
+            ${unitsHtml(lane.ladder?.units === "mi" ? "mi" : "km")}
+          </div>
           <h2 class="horizon-lane-title is-voice" id="${id}">${escHtml(lane.voice)}</h2>
           ${lane.lede ? `<p class="horizon-lane-lede">${escHtml(lane.lede)}</p>` : ""}
         </header>

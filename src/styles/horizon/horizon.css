@@ -17,6 +17,8 @@
 .horizon-lane-card{display:grid;gap:var(--space-5);min-width:0}
 .horizon-lane-head{display:grid;gap:var(--space-2);padding:0;margin:0;max-width:none}
 .horizon-lane-kicker{color:var(--muted)}
+.horizon-lane-kickrow{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-width:0}
+.horizon-units{padding-top:0}
 .horizon-lane-title{margin:0;font-family:var(--font-display);font-weight:400;
   font-size:1.62rem;line-height:1.1;letter-spacing:-.005em;color:var(--ink);text-wrap:balance;overflow-wrap:anywhere}
 .horizon-lane-card.is-labs .horizon-lane-title{font-size:1.25rem}

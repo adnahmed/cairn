@@ -24,6 +24,7 @@
   type Season = ClientHorizonSeason;
 
   const DAY = 86400000;
+  const KM_PER_MILE = 1.609344;
   /** How old the latest weigh-in may be and still anchor the projection fan. */
   const FAN_ANCHOR_DAYS = 3;
   /** How far past the season's own end (today, goal, window, race) a mark may widen it. */
@@ -99,7 +100,10 @@
     const lastStart = dayNum(weeks[weeks.length - 1].week_start);
     const end = raceDay >= lastStart && raceDay < lastStart + 7 ? raceDay + 1 : Math.max(raceDay + 1, lastStart + 7);
     const X = (n: number): number => L + ((n - first) / (end - first)) * (R - L);
-    const km = (w: ClientHorizonTerrainWeek): number => Math.max(0, Number(w.km) || 0);
+    // The engine's kilometres, drawn in the athlete's run units.
+    const mi = terrain.units === "mi";
+    const km = (w: ClientHorizonTerrainWeek): number => Math.max(0, Number(w.km) || 0) / (mi ? KM_PER_MILE : 1);
+    const unit = mi ? "mi" : "km";
     const maxKm = Math.max(...weeks.map(km));
     const { top, step } = axisTop(maxKm);
     const Y = (k: number): number => base - (k / top) * (base - ceil);
@@ -126,7 +130,7 @@
     for (let k = step; k <= top; k += step) {
       g += `<line class="hz-grid" x1="${L}" x2="${R}" y1="${fx(Y(k))}" y2="${fx(Y(k))}"/><text class="hz-axis" x="${L - 5}" y="${fx(Y(k) + 3)}" text-anchor="end">${k}</text>`;
     }
-    g += `<text class="hz-axis" x="${L}" y="12">KM PER WEEK</text>`;
+    g += `<text class="hz-axis" x="${L}" y="12">${mi ? "MI" : "KM"} PER WEEK</text>`;
     // The wash stands on the week the rows below hold open (this week unless another is picked).
     const selected =
       (opts.selected ? ahead.find((w) => w.week_start === opts.selected) : null) ||
@@ -187,8 +191,8 @@
     g += `<text class="hz-axis" x="${fx(rx)}" y="${fx(Y(0) + 14)}" text-anchor="end">${escHtml(monoDate(terrain.race_date || isoOf(raceDay)))}</text>`;
     const logged = weeks.filter((w) => w.logged);
     const label = [
-      logged.length ? `Logged: ${logged.map((w) => `${monoDate(w.week_start)} ${kmWord(km(w))} km`).join(", ")}` : "",
-      `Kilometres per week to race day: ${ahead.map((w) => `${monoDate(w.week_start)} ${kmWord(km(w))} km`).join(", ")}`,
+      logged.length ? `Logged: ${logged.map((w) => `${monoDate(w.week_start)} ${kmWord(km(w))} ${unit}`).join(", ")}` : "",
+      `${mi ? "Miles" : "Kilometres"} per week to race day: ${ahead.map((w) => `${monoDate(w.week_start)} ${kmWord(km(w))} ${unit}`).join(", ")}`,
     ]
       .filter(Boolean)
       .join(". ");

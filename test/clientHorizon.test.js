@@ -1065,3 +1065,73 @@ test("a hidden Week panel holds no busy skeleton; opening it shows one until the
   assert.equal(week.querySelector('[aria-busy="true"]'), null);
   assert.ok(week.querySelector(".horizon-days"));
 });
+
+// ---------- run units (settings.run_units) ----------
+
+test("run units: miles restate every distance on the race lane, the chart and the week; bars still scale on km", () => {
+  const win = load();
+  const read = build({
+    prediction: { ...build().prediction, basis_detail: "your 16 km run on Sep 10 (5:10 /km), extended to race distance" },
+  });
+  const km = win.CairnHorizonModel.raceLane(read);
+  const mi = win.CairnHorizonModel.raceLane(read, "mi");
+  const row = mi.ladder.rows[0];
+  assert.equal(row.km, 32); // the engine's kilometres, untouched
+  assert.equal(row.km_text, "19.9 mi");
+  assert.equal(row.frac, km.ladder.rows[0].frac);
+  assert.equal(mi.ladder.units, "mi");
+  assert.equal(mi.terrain.units, "mi");
+  assert.equal(km.ladder.units, "km");
+  assert.equal(win.CairnRaceViewModel.kmText(21.0975, "mi"), "13.1 mi");
+  assert.equal(win.CairnRaceViewModel.kmText(21.0975), "21.1 km");
+  assert.equal(
+    win.CairnRaceViewModel.runWords("your 16 km run on Sep 10 (5:10 /km), extended", "mi"),
+    "your 9.9 mi run on Sep 10 (8:19 /mi), extended"
+  );
+  assert.equal(win.CairnRaceViewModel.runWords("your 16 km run (5:10 /km)", "km"), "your 16 km run (5:10 /km)");
+
+  const svg = win.CairnHorizonChart.terrainSvg(mi.terrain);
+  assert.match(svg, /MI PER WEEK/);
+  assert.match(svg, /Miles per week to race day/);
+  assert.doesNotMatch(svg, / km[,"]/);
+
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.laneHtml(mi);
+  assert.equal(host.querySelector('[data-horizon-units="mi"]').getAttribute("aria-pressed"), "true");
+  assert.equal(host.querySelector('[data-horizon-units="km"]').getAttribute("aria-pressed"), "false");
+  assert.doesNotMatch(host.querySelector(".horizon-weeks").textContent, /\bkm\b/);
+
+  const week = win.CairnHorizonWeekModel.weekView(planWeek(), TODAY, "mi");
+  assert.equal(week.line, "One of three lifting days in. 4 mi over one run.");
+  assert.equal(week.days[1].pills[0].text, "Easy run · 3.1 mi");
+});
+
+test("run units: the controller reads settings, and the km/mi switch repaints at once and saves", async () => {
+  const win = load();
+  const host = createHost(win.document);
+  host.innerHTML = win.CairnHorizon.shellHtml();
+  const root = host.querySelector("[data-horizon]");
+  const { load: loader } = reads({ extra: { "/settings": { settings: { run_units: "mi" } } } });
+  const saved = [];
+  win.CairnHorizonController.mount(root, {
+    today: TODAY,
+    load: loader,
+    navigate: () => {},
+    saveUnits: (u) => {
+      saved.push(u);
+      return Promise.resolve({});
+    },
+  });
+  await flush();
+  await flush();
+  const km = () => root.querySelector('[data-horizon-lane="race"] .horizon-week-km').textContent;
+  assert.match(km(), / mi$/);
+  await root.querySelector('[data-horizon-units="km"]').click();
+  await flush();
+  assert.match(km(), / km$/);
+  assert.equal(root.querySelector('[data-horizon-units="km"]').getAttribute("aria-pressed"), "true");
+  assert.deepEqual(saved, ["km"]);
+  // The picked unit again is a no-op, never a second save.
+  await root.querySelector('[data-horizon-units="km"]').click();
+  assert.deepEqual(saved, ["km"]);
+});
