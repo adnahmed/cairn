@@ -793,14 +793,17 @@ export const RUN_DAY_WORD_DOWN_VARIANTS: readonly Say[] = [
   (_cause, _day, session) => `Easy today, as you said; the ${session} will come round again.`,
 ];
 // A HARD floor: no run at all today, whatever the week planned. `session` names the
-// run the week put here ("the hills", "the long run", "the run").
+// run the week put here ("the hills", "the long run", "the run"). The sentence is the
+// RUN's, never the day's: it rides under a lift the Brief may still have on (pain the
+// run loads leaves a Pull day standing), so it says the run sits out, never that the
+// whole day is rest — the Brief alone speaks for the day.
 export const RUN_DAY_REST_FLOOR_VARIANTS: readonly Say[] = [
   (cause, _day, session) =>
-    `${cap(cause)} — today reads as rest rather than a run; an easy walk if you'd like to move, and ${session} can wait.`,
+    `${cap(cause)} — no run today; an easy walk if you'd like to move, and ${session} will keep.`,
   (cause, day, session) =>
-    `${cap(cause)}, so ${day} is better as a rest day than a run — gentle movement only if it feels good; ${session} can wait.`,
+    `${cap(cause)}, so there's no run ${day} — gentle movement only if it feels good; ${session} can wait.`,
   (cause, _day, session) =>
-    `${cap(cause)} — let today be rest instead of a run, an easy walk at most; ${session} will keep.`,
+    `${cap(cause)} — no running today, an easy walk at most; ${session} will keep.`,
 ];
 export const RUN_DAY_LONG_SHORTEN_VARIANTS: readonly Say[] = [
   (cause) => `${cap(cause)} — keep the long run, but shorter and fully easy today.`,
@@ -1187,7 +1190,7 @@ export function applyRunDayIntensity<
     out.target_zone = null;
     out.target_distance_km = null;
     if ("target_duration_min" in out) out.target_duration_min = null;
-    out.note = "Rest today — an easy walk is plenty if you'd like to move.";
+    out.note = "No run today — an easy walk is plenty if you'd like to move.";
   } else if (adj.kind === "quality" && run.kind_label === "easy" && qualityRun) {
     out.kind_label = "quality";
     out.label = qualityRun.label ?? "Quality run";

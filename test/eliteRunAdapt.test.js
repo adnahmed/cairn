@@ -348,6 +348,16 @@ test("every morning sentence is a variant set of three or more, grammar-clean an
   }
 });
 
+test("every rest-floor phrasing speaks for the run, never a verdict on the whole day", () => {
+  // It rides under a lift the Brief may keep on (pain the run loads leaves a Pull day
+  // standing), so "Tuesday is better as a rest day" would be a second voice for the day.
+  for (const say of RUN_DAY_VARIANT_SETS.rest_floor) {
+    const sentence = say("that sore spot is still active", "Tuesday", "the run");
+    assert.match(sentence, /\bno run\b|no running/i, sentence);
+    assert.doesNotMatch(sentence, /rest day|reads as rest|today be rest/i, sentence);
+  }
+});
+
 // ---------- one morning, one answer, on every surface ----------
 // Today is a stated LONG run day that carries no lifting, so the Brief speaks it through
 // the stated-run-day rule; the plan, the agenda intent and the Brief must agree.
@@ -516,6 +526,10 @@ test("a hard floor (rest-grade readiness, illness, pain) makes ANY run day rest 
       assert.equal(adj.reason_code, `floor:${floor}`);
       assert.equal(violatesReadingGrammar(adj.why), null, adj.why);
       assert.doesNotMatch(adj.why, /\d/);
+      // The run's sentence, never the day's: it rides under a lift the Brief may keep
+      // on, so it names the run sitting out and never calls the whole day rest.
+      assert.match(adj.why, /\bno run\b|no running/i, adj.why);
+      assert.doesNotMatch(adj.why, /rest day|today reads as rest|let today be rest/i, adj.why);
     }
     // A hard floor still reaches through the week's structure — except race day itself.
     assert.equal(runDayIntensity(TODAY, quality, { locks: ["taper"], evidence: ev([floor]) }).dose, "rest");

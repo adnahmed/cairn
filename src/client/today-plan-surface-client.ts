@@ -235,26 +235,35 @@ type TodayRunLineDeps = Pick<TodayPlanSurfaceDeps, "escapeHtml"> & {
     if (!intent) return "";
     const kind = intent.kind === "quality" ? "quality" : intent.kind === "long" ? "long" : "easy";
     const kindWord = kind === "quality" ? "Quality" : kind === "long" ? "Long" : "Easy";
-    const label = String(intent.label || "").trim() || `${kindWord} run`;
-    const dose: string[] = [];
-    const km = Number(intent.target_distance_km);
-    const min = Number(intent.target_duration_min);
-    if (intent.target_distance_km != null && Number.isFinite(km) && km > 0) {
-      dose.push(deps.formatDistance ? deps.formatDistance(km, options.units) : `${Number.isInteger(km) ? km : km.toFixed(1)} km`);
-    } else if (intent.target_duration_min != null && Number.isFinite(min) && min > 0) {
-      dose.push(`${Math.round(min)} min`);
-    }
-    if (intent.target_zone) dose.push(String(intent.target_zone));
-    // This morning's call on a quality or long run, in its own words (the server
-    // decided it — kind, label and dose above already carry the answer).
+    // This morning's call on the run, in its own words (the server decided it — kind,
+    // label and dose already carry the answer).
     const adjustment = intent.adjustment && typeof intent.adjustment === "object"
       ? (intent.adjustment as Record<string, unknown>)
       : null;
     const why = adjustment ? String(adjustment.why || "").trim() : "";
+    // One day, one voice: this line speaks for the RUN only, under a Brief that speaks
+    // for the day. Its kicker says so ("Run · …", never "Today · …", which read as a
+    // second verdict on the day), and a run the morning rested says it sits out in the
+    // run's own words rather than the slot's "Rest or an easy walk" — the Brief may
+    // still have the lift on.
+    const rested = adjustment?.dose === "rest";
+    const label = rested ? "Sits out today" : String(intent.label || "").trim() || `${kindWord} run`;
+    const kicker = rested ? "Run" : `Run · ${kindWord}`;
+    const dose: string[] = [];
+    const km = Number(intent.target_distance_km);
+    const min = Number(intent.target_duration_min);
+    if (rested) {
+      // No distance, pace or zone for a run that is not happening.
+    } else if (intent.target_distance_km != null && Number.isFinite(km) && km > 0) {
+      dose.push(deps.formatDistance ? deps.formatDistance(km, options.units) : `${Number.isInteger(km) ? km : km.toFixed(1)} km`);
+    } else if (intent.target_duration_min != null && Number.isFinite(min) && min > 0) {
+      dose.push(`${Math.round(min)} min`);
+    }
+    if (!rested && intent.target_zone) dose.push(String(intent.target_zone));
     return `<div class="today-run-line reveal" style="--i:3;margin-top:10px" data-today-run>
-        <div class="wrun-row wrun-${kind}">
+        <div class="wrun-row wrun-${kind}${rested ? " wrun-rested" : ""}">
           <div class="wrun-row-head">
-            <span class="wrun-kind">${deps.escapeHtml(`Today · ${kindWord}`)}</span>
+            <span class="wrun-kind">${deps.escapeHtml(kicker)}</span>
             <span class="wrun-label">${deps.escapeHtml(label)}</span>
           </div>
           ${dose.length ? `<div class="wrun-pres">${deps.escapeHtml(dose.join(" · "))}</div>` : ""}

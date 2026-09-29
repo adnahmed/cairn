@@ -191,7 +191,9 @@ test("today's run is one line from the agenda, outside the lift card, and only f
   const deps = { escapeHtml: escHtml, formatDistance: (km, units) => (units === "mi" ? `${km} mi?` : `${km} km`) };
   const line = surface.runLineHtml(agenda, { date: "2031-09-24", syncLine: '<div data-cardio-sync></div>' }, deps);
   assert.match(line, /data-today-run/);
-  assert.match(line, /Today · Easy/);
+  // The line speaks for the RUN, never for the day (the Brief does that).
+  assert.match(line, /Run · Easy/);
+  assert.doesNotMatch(line, /Today · /);
   assert.match(line, /Easy &lt;run&gt;/);
   assert.doesNotMatch(line, /Easy <run>/);
   assert.match(line, /6 km · Z2/);
@@ -204,6 +206,29 @@ test("today's run is one line from the agenda, outside the lift card, and only f
   const done = { available: true, intents: [{ ...agenda.intents[0], status: "completed" }] };
   assert.equal(surface.runLineHtml(done, { date: "2031-09-24" }, deps), "", "a run already in speaks in the Brief line");
   assert.equal(surface.runLineHtml(null, { date: "2031-09-24" }, deps), "");
+
+  // One day, one voice: a run the morning rested under a lift the Brief keeps on says
+  // the RUN sits out, in the run's own words — never the slot's "Rest or an easy walk"
+  // (a second verdict on the whole day), and never a distance or zone.
+  const rested = {
+    available: true,
+    intents: [
+      {
+        kind: "easy",
+        label: "Rest or an easy walk",
+        status: "open",
+        suggested_date: "2031-09-24",
+        target_distance_km: null,
+        target_zone: null,
+        adjustment: { dose: "rest", why: "That sore spot is still active — no run today; an easy walk if you'd like to move, and the run will keep." },
+      },
+    ],
+  };
+  const restLine = surface.runLineHtml(rested, { date: "2031-09-24" }, deps);
+  assert.match(restLine, /<span class="wrun-kind">Run<\/span>/);
+  assert.match(restLine, /Sits out today/);
+  assert.match(restLine, /data-today-run-why/);
+  assert.doesNotMatch(restLine, /Rest or an easy walk|Today · |wrun-pres/);
   assert.equal(surface.runLineHtml({ available: false, intents: [] }, { date: "2031-09-24" }, deps), "");
 
   // Wired into Today OUTSIDE the plan region: its own slot after the lift card /
