@@ -128,7 +128,7 @@ type MealRowPlannerContext = {
       : "";
     return `<section class="mealday${isToday ? " mealday-today" : ""} reveal" style="${stagger(dayIndex + 2)}" data-mday="${dayIndex}">
       <div class="mealday-head">
-        <div><div class="lbl">${isToday ? `<span class="mealday-now">Today</span> · ` : ""}${escHtml(context.weekOf)}</div><h2 class="mealday-name">${escHtml(d.day || `Day ${dayIndex + 1}`)}</h2></div>
+        <div><div class="lbl">${isToday ? `<span class="mealday-now">Today</span> · ` : ""}${escHtml(weekOfText(String(context.weekOf ?? "")))}</div><h2 class="mealday-name">${escHtml(d.day || `Day ${dayIndex + 1}`)}</h2></div>
         ${totals}
       </div>
       ${bar}
@@ -155,9 +155,15 @@ type MealRowPlannerContext = {
     return words ? `<span class="mp-badge ${words[1]}">${escHtml(words[0])}</span>` : "";
   }
 
+  // A week's start in words ("Sep 29"), never the raw ISO key the plan stores.
+  function weekOfText(weekOf: string): string {
+    const chart = (globalThis as { CairnUiChart?: { dateLabel?: (value: unknown) => string } }).CairnUiChart;
+    return /^\d{4}-\d{2}-\d{2}$/.test(weekOf) && chart?.dateLabel ? chart.dateLabel(weekOf) || weekOf : weekOf;
+  }
+
   function planWeekLabel(plan: unknown): string {
     const weekOf = mealsCtxFor(plan).weekOf;
-    return weekOf ? `Week of ${weekOf}` : "A week of ideas";
+    return weekOf ? `Week of ${weekOfText(weekOf)}` : "A week of ideas";
   }
 
   // A draft is a week of IDEAS the athlete asked for: keeping it changes nothing they

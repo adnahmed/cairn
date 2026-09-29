@@ -328,7 +328,7 @@ type MealPlannerPaint = {
     const stateLabel = needsRefresh ? "NEEDS REFRESH" : autonomy ? "COMING NEXT" : isDraft ? "REVIEW" : kept;
     return `<div class="mealhero reveal" style="${stagger(0)}">
         <div class="mp-hero-head">
-          <span class="lbl">${stateLabel} · Week of ${escHtml(ctx.weekOf)}</span>
+          <span class="lbl">${stateLabel} · ${escHtml(mealRows.planWeekLabel(p))}</span>
           ${mealRows.planBadge(visibleStatus)}
         </div>
         <div class="mp-hero-nums">

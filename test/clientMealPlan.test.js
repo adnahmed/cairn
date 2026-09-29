@@ -17,6 +17,8 @@ function testEsc(value) {
 
 function loadMealPlan() {
   const context = {
+    // The shared date words (ui-chart.ts): a week is spoken "Jun 30", never its ISO key.
+    CairnUiChart: { dateLabel: (iso) => (iso === "2026-06-30" ? "Jun 30" : String(iso)) },
     Array,
     Date,
     JSON,
@@ -248,7 +250,8 @@ test("meal-plan helper selects and renders the current weekly planner shell", ()
   assert.equal(painted.context.targetKcal, 2400);
   assert.equal(painted.context.todayName, "tue");
   assert.match(painted.html, /mealhero/);
-  assert.match(painted.html, /Week of 2026-06-30<\/span>/);
+  assert.match(painted.html, /Week of Jun 30<\/span>/);
+  assert.doesNotMatch(painted.html, />[^<]*2026-06-30/, "no raw ISO date reaches the page");
   assert.doesNotMatch(painted.html, /chef/, "the producer never reaches the athlete");
   assert.match(painted.html, /steady &lt;week&gt;/);
   assert.match(painted.html, /fasted &lt;AM&gt;/);
@@ -410,7 +413,8 @@ test("meal-plan helper keeps review-required and applied states distinct", () =>
     new Date(2026, 6, 12)
   );
 
-  assert.match(review, /REVIEW · Week/);
+  // A plan with no week on it says so in words, never a bare "Week of ".
+  assert.match(review, /REVIEW · (Week of \w|A week of ideas)/);
   assert.match(review, /IDEAS TO LOOK OVER/);
   assert.match(review, /Nothing changes unless you keep them/);
   assert.match(review, />Keep these ideas</);
@@ -418,7 +422,7 @@ test("meal-plan helper keeps review-required and applied states distinct", () =>
   assert.doesNotMatch(review, />(draft|review)<\/span>/);
   assert.match(review, /data-mkeep="review&lt;2&gt;"/);
   assert.doesNotMatch(review, /data-meal-decision-undo|THIS WEEK'S IDEAS/);
-  assert.match(applied, /THIS WEEK'S IDEAS · Week/);
+  assert.match(applied, /THIS WEEK'S IDEAS · (Week of \w|A week of ideas)/);
   assert.match(applied, /RECENTLY UPDATED/);
   assert.match(applied, /<summary>Why<\/summary>/);
   assert.match(applied, /Training volume rose while protein remains anchored/);
