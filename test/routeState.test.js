@@ -155,6 +155,24 @@ test("a dated Today link is rewritten, and a day view keeps its date", () => {
   assert.equal(routes.homeOf("day"), "today");
 });
 
+// A day opened from Train or Horizon is read under that home, so the tab bar lights
+// the place the back link returns to — the route carries the origin.
+test("a day view carries the home it was opened under", () => {
+  const routes = loadRoutes();
+  for (const home of ["train", "horizon"]) {
+    const day = routes.parseRoute(`/app/${home}/day?date=2026-06-27`);
+    assert.equal(day.tab, "day");
+    assert.equal(day.home, home);
+    assert.equal(day.section, home);
+    assert.equal(day.date, "2026-06-27");
+    assert.equal(day.legacy, false, "canonical, never rewritten");
+    assert.equal(routes.routeToUrl({ tab: "day", section: home, date: "2026-06-27" }), `/app/${home}/day?date=2026-06-27`);
+    assert.equal(routes.homeOf("day", home), home);
+  }
+  assert.equal(routes.routeToUrl({ tab: "day", section: null, date: "2026-06-27" }), "/app/today/day?date=2026-06-27");
+  assert.equal(routes.homeOf("day", "bogus"), "today");
+});
+
 test("a canonical v2 URL parses to its surface and is never re-redirected", () => {
   const routes = loadRoutes();
   const V2 = [

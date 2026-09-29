@@ -142,6 +142,12 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
   // Which tab-bar button a view lights. Plan is the one view split across homes.
   function homeOf(view: unknown, section?: unknown): CairnRouteHome {
     const v = viewFor(view);
+    // A day is read under the home it was opened from (/app/train/day?date=), so the
+    // lit tab and the "‹ Train" back link name the same place. Today is its default.
+    if (v === "day") {
+      const home = cleanSegment(section);
+      return (HOMES.has(home) ? home : DEFS.viewHomes.day) as CairnRouteHome;
+    }
     if (v === "plan") {
       const s = oneOf(section, PLAN_SECTIONS, DEFS.defaults.planSection) || DEFS.defaults.planSection;
       return DEFS.planHomes[s as keyof typeof DEFS.planHomes] as CairnRouteHome;
@@ -157,6 +163,8 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
 
   // The canonical v2 grammar: /app/<home>/<section>[/<nested>].
   function parseV2(home: string, section: string, nested: string, id: string | null): RouteTarget {
+    // Any home can hold a day's view: the section carries that home unless it is Today's own.
+    if (section === "day") return target("day", home === "today" ? null : home);
     if (home === "today") {
       if (section === "session") return target("session");
       if (section === "day") return target("day");
@@ -284,7 +292,7 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
       case "session":
         return `${base}/today/session`;
       case "day":
-        return `${base}/today/day`;
+        return `${base}/${homeOf("day", section)}/day`;
       case "plan": {
         const s =
           oneOf(section, PLAN_SECTIONS, null) || oneOf(r.jump, PLAN_SECTIONS, null) || DEFS.defaults.planSection;

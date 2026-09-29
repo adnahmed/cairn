@@ -1855,6 +1855,8 @@ declare global {
     openDay(date: unknown): void;
     origin(): { tab: ClientTabName; label: string } | null;
     takeOrigin(): { tab: ClientTabName; label: string } | null;
+    /** "Train" — a home as its tab-bar button names it. */
+    homeLabel(home: unknown): string;
   };
   /** LAZY "day" bundle (day-record-client.ts): reach only through withBundle("day"). */
   declare function renderDay(): Promise<void>;

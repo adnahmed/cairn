@@ -228,10 +228,10 @@ type DayRecord = import("../contracts/day-record.js").DayRecord;
     root.querySelector<HTMLElement>("[data-day-back]")?.addEventListener("click", () => {
       // Opened from inside the app: step back through history, so Back and this link
       // agree and no loop of entries builds up. A cold deep link has nowhere to go
-      // back to: it lands on Today, the home the day lives under.
+      // back to: it lands on the home the day is read under (its route says which).
       const back = CairnDayOpen.takeOrigin();
       if (back && typeof history !== "undefined" && history.length > 1) history.back();
-      else activateTab("today");
+      else activateTab(state.dayHome || "today");
     });
     const log = root.querySelector<HTMLElement>("[data-day-log]");
     log?.addEventListener("click", () => {
@@ -247,7 +247,7 @@ type DayRecord = import("../contracts/day-record.js").DayRecord;
 
   async function renderDay(): Promise<void> {
     const date = String(state.dayDate || "");
-    const backLabel = CairnDayOpen.origin()?.label || "Today";
+    const backLabel = CairnDayOpen.origin()?.label || CairnDayOpen.homeLabel(state.dayHome || "today");
     if (!ISO.test(date) || date === localISO()) {
       activateTab("today", { replace: true });
       return;

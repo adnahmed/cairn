@@ -61,6 +61,29 @@ test("app router carries Horizon's and You's sub-views through state and back", 
   assert.equal(state.youStone, null);
 });
 
+// A day opened from Train is read under Train: the home rides the route both ways, so
+// a reload of /app/train/day keeps Train lit and a URL written from state names it.
+test("app router carries a day view's home through state and back", () => {
+  const router = loadRouter();
+  const state = { tab: "today", day: null, dayPicked: false, plan: [], today: {}, logDate: "2026-06-29" };
+  assert.equal(router.applyRouteState({ tab: "day", section: "train", date: "2026-06-20" }, { state, ...deps }), "day");
+  assert.equal(state.dayDate, "2026-06-20");
+  assert.equal(state.dayHome, "train");
+  assert.deepEqual(plain(router.currentRouteState({ state: { ...state, tab: "day" }, ...deps, defaultProgressSection: null })), {
+    tab: "day",
+    date: "2026-06-20",
+    section: "train",
+  });
+  assert.equal(lastRoutes.routeToUrl({ tab: "day", date: "2026-06-20", section: "train" }), "/app/train/day?date=2026-06-20");
+  // Today's own day view carries no home.
+  assert.equal(router.applyRouteState({ tab: "day", section: null, date: "2026-06-20" }, { state, ...deps }), "day");
+  assert.equal(state.dayHome, null);
+  assert.deepEqual(plain(router.currentRouteState({ state: { ...state, tab: "day" }, ...deps, defaultProgressSection: null })), {
+    tab: "day",
+    date: "2026-06-20",
+  });
+});
+
 test("a parsed v1 URL applies to the same state its v2 twin does", () => {
   const router = loadRouter();
   const pairs = [

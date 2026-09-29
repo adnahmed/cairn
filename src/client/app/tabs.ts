@@ -40,11 +40,13 @@ type TabSwitchOptions = {
     return "today";
   }
 
-  // The tab-bar home a view lives under. Only Plan needs its section: the editor
-  // is Train's, the race view Horizon's, Fuel Today's and Changes Ask's.
+  // The tab-bar home a view lives under. Plan needs its section (the editor is
+  // Train's, the race view Horizon's, Fuel Today's and Changes Ask's), and a day view
+  // lives under the home it was opened from.
   function homeOfView(tab: ClientTabName): ClientHomeName {
     const routes = window.CairnRoutes;
-    const section = tab === "plan" ? state.planJump || state.planSeg || "edit" : null;
+    const section =
+      tab === "plan" ? state.planJump || state.planSeg || "edit" : tab === "day" ? state.dayHome || null : null;
     return routes && typeof routes.homeOf === "function" ? routes.homeOf(tab, section) : (tab as ClientHomeName);
   }
 

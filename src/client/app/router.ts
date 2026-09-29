@@ -99,6 +99,13 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
     learned: "learned",
   };
 
+  // The home a day view is read under, when it is not Today's own (null = Today).
+  const DAY_HOMES = new Set<string>(["train", "horizon", "ask", "you"]);
+  function dayHomeOf(section: unknown): ClientHomeName | null {
+    const s = String(section || "");
+    return DAY_HOMES.has(s) ? (s as ClientHomeName) : null;
+  }
+
   function applyRouteState(route: AppRoute | null | undefined, options: ApplyRouteOptions): ClientTabName {
     if (!route) return "today";
     const { state } = options;
@@ -113,6 +120,9 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
       dayWanted && route.date && !isLocalToday(route.date) ? "day" : requested === "day" ? "today" : requested;
     if (tab === "day") {
       state.dayDate = route.date;
+      // The home the day is read under rides in the path (/app/train/day): a reload or
+      // a Back into it keeps the tab it was opened from lit.
+      state.dayHome = dayHomeOf(requested === "day" ? route.section : null);
       return tab;
     }
     if (tab === "today") {
@@ -178,6 +188,8 @@ type AppRouterRoot = typeof globalThis & { CairnAppRouter?: ClientAppRouterApi }
       // Today never carries a date: it is always today.
     } else if (tab === "day") {
       if (state.dayDate) route.date = state.dayDate;
+      const home = dayHomeOf(state.dayHome);
+      if (home) route.section = home as AppRoute["section"];
     } else if (tab === "session") {
       if (state.logDate) route.date = state.logDate;
     } else if (tab === "plan") {

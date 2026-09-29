@@ -14,12 +14,17 @@ type DayOpenOrigin = { tab: ClientTabName; label: string };
   // back through history. Unknown on a cold deep link: then Today, its home.
   let from: DayOpenOrigin | null = null;
 
-  function homeLabel(tab: ClientTabName): string {
+  function homeFor(tab: ClientTabName): ClientHomeName {
     const routes = window.CairnRoutes;
     const home =
       routes && typeof routes.homeOf === "function"
-        ? routes.homeOf(tab, tab === "plan" ? state.planJump || state.planSeg : null)
+        ? routes.homeOf(tab, tab === "plan" ? state.planJump || state.planSeg : tab === "day" ? state.dayHome : null)
         : "today";
+    return (home || "today") as ClientHomeName;
+  }
+
+  /** "Train" — a home as its tab-bar button names it. */
+  function homeLabel(home: unknown): string {
     return String(home || "today").replace(/^./, (c) => c.toUpperCase());
   }
 
@@ -31,7 +36,13 @@ type DayOpenOrigin = { tab: ClientTabName; label: string };
       activateTab("today");
       return;
     }
-    if (state.tab !== "day") from = { tab: state.tab, label: homeLabel(state.tab) };
+    if (state.tab !== "day") {
+      // The day is read UNDER the home it was opened from: the route carries it
+      // (/app/train/day), the tab bar keeps it lit and the back link names it.
+      const home = homeFor(state.tab);
+      from = { tab: state.tab, label: homeLabel(home) };
+      state.dayHome = home;
+    }
     state.dayDate = iso;
     try {
       window.scrollTo(0, 0);
@@ -77,6 +88,6 @@ type DayOpenOrigin = { tab: ClientTabName; label: string };
     });
   }
 
-  const CAIRN_DAY_OPEN = { openDay, origin, takeOrigin };
+  const CAIRN_DAY_OPEN = { openDay, origin, takeOrigin, homeLabel };
   Object.assign(globalThis, { CairnDayOpen: CAIRN_DAY_OPEN, openDay });
 }

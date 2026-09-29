@@ -95,4 +95,6 @@ export type ClientRouteSection =
   | ClientMeSection
   | ClientSettingsSection
   | ClientHorizonSection
-  | ClientYouSection;
+  | ClientYouSection
+  // The day view's section is the home it was opened under (/app/train/day).
+  | ClientHomeName;

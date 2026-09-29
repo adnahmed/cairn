@@ -3,6 +3,7 @@ import type {
   ClientDayRead,
   ClientGoalCheck,
   ClientHealthSection,
+  ClientHomeName,
   ClientHorizonSection,
   ClientMeSection,
   ClientPlanDay,
@@ -53,6 +54,9 @@ export type ClientAppState = {
   // The day the "day" view shows (/app/today/day?date=): any day that is not today,
   // read-only. Today itself never rides here; Today always renders today.
   dayDate?: string | null;
+  // The home the day view is read under — where it was opened from (/app/train/day):
+  // the tab bar lights it and the back link returns to it. Null/"today" = Today.
+  dayHome?: ClientHomeName | null;
   youSeg?: ClientYouSection | null;
   youStone?: string | null;
   pendingHealthScroll?: "hbDirectives" | string | null;

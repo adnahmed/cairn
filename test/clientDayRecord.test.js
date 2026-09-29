@@ -205,3 +205,18 @@ test("opening a day: today opens Today, another day its own view; junk opens not
   assert.equal(prevented, true);
   assert.equal(context.state.dayDate, "2026-09-26");
 });
+
+// One day, one place: a day opened from Train is read UNDER Train. The route carries
+// that home (/app/train/day), so the lit tab and the "‹ Train" back link agree, and a
+// cold open of that URL steps back to Train, not Today.
+test("a day opened from Train lives under Train: its home rides in state, its back link names it", () => {
+  const { day, context } = load();
+  day.openDay("2026-09-27");
+  assert.equal(context.state.dayHome, "train");
+  assert.equal(context.CairnDayOpen.origin()?.label, "Train");
+  assert.equal(context.CairnDayOpen.homeLabel("horizon"), "Horizon");
+  // A cold deep link has no in-app origin: the route's home names Back and is where it goes.
+  const src = readFileSync(join(root, "src/client/day-record-client.ts"), "utf8");
+  assert.match(src, /activateTab\(state\.dayHome \|\| "today"\)/);
+  assert.match(src, /CairnDayOpen\.homeLabel\(state\.dayHome \|\| "today"\)/);
+});
