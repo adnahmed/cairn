@@ -1333,6 +1333,46 @@ export function renderRunZones(ctx: PartialCoachContext): string {
   return `\nRUN HR ZONES (the user's real bpm bands — prescribe runs to these, not a vague effort): ${bands}.${z.note ? ` ${z.note}` : ""}\n`;
 }
 
+// renderRecentCardio: the last week of runs and cardio, one plain line per effort,
+// from DATA.recent_cardio (src/repo/recent-cardio.ts). Rendered as prose ABOVE the
+// DATA block on purpose: the same rows inside a several-hundred-KB single-line JSON
+// were not found — a chat coach told the athlete his morning run's distance, pace
+// and heart rate "aren't visible in my data" while the row sat in DATA. `focus`
+// picks the binding guidance: chat answers questions about a run; the weekly read
+// reads the week's running as a whole. "" when the context carries no read.
+export function renderRecentCardio(ctx: PartialCoachContext, focus: "chat" | "weekly"): string {
+  const read = ctx?.recent_cardio as any;
+  if (!read || !Array.isArray(read.rows)) return "";
+  const days = Number(read.window_days) || 7;
+  if (!read.rows.length) {
+    return focus === "chat"
+      ? `\nRECENT RUNS & CARDIO (last ${days} days): nothing logged or synced. If they ask about a run, say plainly that none is on the record yet — a watch sync can lag — and take their description as the account.\n`
+      : "";
+  }
+  const lines = read.rows.map((r: any) => {
+    const when = `${r.when}${r.when === r.date ? "" : ` ${r.date}`}${r.started ? `, started ${r.started}` : ""}`;
+    const what = `${r.type}${r.title ? ` "${r.title}"` : ""} [activity_id ${r.activity_id}]`;
+    const facts: string[] = [];
+    if (r.distance) facts.push(r.distance);
+    if (r.duration_min != null) facts.push(`${r.duration_min} min`);
+    if (r.pace) facts.push(r.pace);
+    if (r.avg_hr != null) facts.push(`avg HR ${Math.round(r.avg_hr)}${r.max_hr != null ? `, max ${Math.round(r.max_hr)}` : ""}`);
+    if (r.stated_rpe != null) facts.push(`their stated effort rpe ${r.stated_rpe}${r.stated_easy ? " (easy, in their words)" : ""}`);
+    if (r.personal_effort) facts.push(`their own HR model reads it ${r.personal_effort}`);
+    if (r.note) facts.push(`note: ${r.note}`);
+    return `- ${when} — ${what}: ${facts.join(" · ") || "no metrics recorded"}`;
+  });
+  const head = `\nRECENT RUNS & CARDIO (last ${days} days, newest first; what they logged or their watch synced; distance and pace in ${read.units === "mi" ? "miles" : "km"}):\n${lines.join("\n")}\n`;
+  if (focus === "weekly") {
+    return `${head}- This is the week's running as it happened. Speak to it in plain words; their stated effort outranks the watch, and their own HR model's read is context — never Garmin's training-effect label.\n`;
+  }
+  return `${head}- THIS IS THE RUN DATA. When they ask about a run, answer from its line: distance, time, pace, heart rate, and how they said it felt. Never say a run listed here is missing, "not visible", or "hasn't synced / pulled through".
+- Cairn keeps these SUMMARY metrics — not a heart-rate graph, per-mile splits or a GPS track. Don't claim those are pending or ask them to wait for them; read the run from what is here.
+- Their stated effort outranks the watch and the model: if they called it conversational, it was — the model's read is context, never an argument. Never grade a run by Garmin's training-effect label.
+- A run they describe that is NOT listed: say what IS listed (the latest effort and its day) — the watch may not have synced yet — and take their description as the account meanwhile.
+`;
+}
+
 // renderRunPlan: this week's PERIODIZED run mix from the deterministic engine —
 // the FLOOR the agent REFINES, never reinvents (exactly as renderProgramState
 // floors the strength evolution). Folds the mix summary, the quality focus, the

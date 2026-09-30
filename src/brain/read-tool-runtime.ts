@@ -257,8 +257,12 @@ function readTrainingWindow(
     .all(start, end, COACH_READ_TOOL_CATALOG.read_training_window.max_rows + 1) as MutableRow[];
   const activityRows = db
     .prepare(
-      `SELECT id, date, type, duration_min, distance_km, pace, rpe, notes, source
-       FROM activities WHERE date BETWEEN ? AND ? ORDER BY date DESC, id DESC LIMIT ?`
+      // The heart rate lives on the linked watch row, not the activity: without the join
+      // a run read back from here carried its HR only inside a free-text notes string.
+      `SELECT a.id, a.date, a.type, a.duration_min, a.distance_km, a.pace, a.rpe, a.notes, a.source,
+              g.avg_hr, g.max_hr
+       FROM activities a LEFT JOIN garmin_activities g ON g.activity_id = a.id
+       WHERE a.date BETWEEN ? AND ? ORDER BY a.date DESC, a.id DESC LIMIT ?`
     )
     .all(start, end, COACH_READ_TOOL_CATALOG.read_training_window.max_rows + 1) as MutableRow[];
   const events: MutableRow[] = [

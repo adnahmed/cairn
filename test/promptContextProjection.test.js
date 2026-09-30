@@ -134,7 +134,7 @@ const SITES = [
   {
     site: "weekly_read",
     build: () => buildWeeklyReadPrompt(),
-    kept: ["recent_sessions", "recovery", "day_intake", "recent_decisions", "run_compliance"],
+    kept: ["recent_sessions", "recovery", "day_intake", "recent_decisions", "run_compliance", "recent_cardio"],
     dropped: ["health", "imaging", "health_review", "garmin", "signal_state", "day_read"],
   },
   {
@@ -150,6 +150,9 @@ const SITES = [
       "recent_decisions",
       "imaging",
       "typical_training_hour",
+      // The last week of runs read the way a coach reads one — the chat coach once told
+      // the athlete his morning run's numbers were "not visible" with the raw row in DATA.
+      "recent_cardio",
     ],
     dropped: [],
   },

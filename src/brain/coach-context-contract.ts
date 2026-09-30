@@ -6,6 +6,7 @@ import type { ResolvedTrainingIntent } from "../repo/training-intent.js";
 import type { EffectiveLocationContext } from "../repo/location-context.js";
 import type { FuelDemandWeek } from "../repo/fuel-demand.js";
 import type { ClientIntakeBand } from "../contracts/fuel.js";
+import type { RecentCardioRead } from "../repo/recent-cardio.js";
 
 export type CoachRecord = Record<string, any>;
 export type CoachGoalMode = "lose" | "maintain" | "gain";
@@ -313,6 +314,10 @@ export interface CoachContextEnvelope {
   plan: CoachRecord[];
   recent_sessions: CoachRecord[];
   recent_activities: CoachRecord[];
+  /** The last week of runs/cardio read the way a coach reads a run: display units,
+   * pace, avg/max HR off the linked watch row, the stated effort and the personal
+   * HR model's read (src/repo/recent-cardio.ts). */
+  recent_cardio: RecentCardioRead;
   training_signals: CoachRecord;
   garmin: CoachRecord | null;
   memory: CoachMemory[];

@@ -2831,6 +2831,20 @@ raw `JSON.stringify(ctx)`, and never trim by slicing a serialized string — tha
 malformed JSON. Note also that adding a key to `getCoachContext()` does NOT make it reach any prompt
 until the relevant sites list it.
 
+**In DATA is not the same as seen.** Chat's DATA is one single-line JSON of several hundred KB, and a
+row inside it can go unfound: on 2026-09-29 the chat coach told the athlete his morning run's
+distance, pace and heart rate "aren't visible in my data" while the synced row sat in
+`recent_activities` — km-only, heart rate packed into a free-text `notes` string. So the facts a
+question is most likely to be ABOUT get a rendered prose block above DATA as well as a DATA key.
+Runs are `recent_cardio` (`src/repo/recent-cardio.ts`, in the `ENDURANCE` bundle): the last seven
+days, one row per effort — when (today / yesterday / weekday, watch start time), title,
+`activity_id`, distance and pace in the athlete's `run_units`, duration, avg/max HR off the linked
+Garmin row, the athlete's stated rpe, and the personal HR model's read. Garmin's training-effect
+number never rides there (a synced row's auto-summary `notes` is dropped). `renderRecentCardio`
+prints it for chat — with the rules that a listed run is never "missing", that Cairn stores summary
+metrics and no HR streams or splits, and that a stated effort outranks the model — and for the
+weekly read. The day read already renders `CARDIO TODAY` off `getCardioForDate`.
+
 ---
 
 ## Chat turns (`src/chatTurns.ts`)

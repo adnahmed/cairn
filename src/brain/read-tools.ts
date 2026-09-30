@@ -50,7 +50,7 @@ export const COACH_READ_TOOL_CATALOG: Readonly<Record<CoachReadToolName, CoachRe
   read_training_window: {
     name: "read_training_window",
     description:
-      "A date-ordered event stream for the last N weeks: every session with its dose and feedback, every cardio activity, and skipped days, so consistency, volume trend, and missed work can be judged as a whole. Use it for the shape of recent training. It does not detail one exercise's sets (read_exercise_history) or the athlete's physiology (read_recovery_window).",
+      "A date-ordered event stream for the last N weeks: every session with its dose and feedback, every cardio activity (distance, duration, pace, average/max heart rate, the athlete's stated rpe), and skipped days, so consistency, volume trend, and missed work can be judged as a whole. Use it for the shape of recent training. It does not detail one exercise's sets (read_exercise_history) or the athlete's physiology (read_recovery_window).",
     effect: "read",
     launches_agent: false,
     exposes_sensitive_raw_data: false,
