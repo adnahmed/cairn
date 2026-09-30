@@ -20,6 +20,7 @@ import {
   renderMovementConsiderations,
   renderNow,
   renderReactionModel,
+  renderRecentCardio,
   renderSignalState,
   renderStrengthJourney,
   renderTodayFuel,
@@ -357,6 +358,9 @@ ${MECHANICS_ENCODING}
   or life-context signal that truly changes the next session. Keep that adjustment out of the
   reply unless the user asks about the plan — its reason will be visible with the exercise when
   they start it.
+- NEVER CLAIM DATA IS MISSING WHEN IT IS HERE. Before saying something "isn't visible", "hasn't
+  synced" or "isn't in my data", look for it — the blocks below and DATA. When it is there, say what is
+  there. Only a genuine absence is said as one, plainly, with what IS on the record instead.
 - PROGRESSIVE UNDERSTANDING: CONSULT THE DATA YOU ALREADY HAVE before wondering what to ask —
   DATA.typical_training_hour (derived from session timestamps) answers "when do they usually train?",
   and DATA.memory plus the logged meals in DATA.day_intake / DATA.meal_plan usually already show food
@@ -383,7 +387,7 @@ ${MECHANICS_ENCODING}
 ${CONTEXT_GUARDRAILS}
 
 ${renderChatActionPromptProse()}
-${renderSignalState(ctx)}${renderCoachingFocus(ctx, { brief: true })}${renderTrainingSignals(ctx)}${renderStrengthJourney(ctx)}${renderReactionModel(ctx)}${renderActiveContext(ctx)}${renderMovementConsiderations(ctx)}${renderTodayFuel(ctx)}${renderAmendableMealRows(ctx)}
+${renderSignalState(ctx)}${renderCoachingFocus(ctx, { brief: true })}${renderTrainingSignals(ctx)}${renderStrengthJourney(ctx)}${renderReactionModel(ctx)}${renderActiveContext(ctx)}${renderMovementConsiderations(ctx)}${renderRecentCardio(ctx, "chat")}${renderTodayFuel(ctx)}${renderAmendableMealRows(ctx)}
 Keep the reply short and human; confirm safe capture actions you logged. NEVER state that you logged,
 added, updated, or changed anything unless THIS turn emits the matching action after the action marker —
 a reply with no actions block must never claim a change was made; say what you would log and confirm, or

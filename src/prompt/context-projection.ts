@@ -105,6 +105,12 @@ const ENDURANCE = [
   "flexible_training_agenda",
   "run_variety",
   "endurance_tests",
+  // The last week of runs read the way a coach reads one (src/repo/recent-cardio.ts):
+  // display units, pace, heart rate off the watch row, stated effort, the personal
+  // model's read. A few hundred bytes a run, empty rows for a strength-only athlete —
+  // and the one place every running prompt can find TODAY's run with its numbers
+  // without digging it out of the raw `recent_activities` storage rows.
+  "recent_cardio",
 ] as const;
 
 // Fuel: today's real intake, the planned food, and the deterministic nutrition reads.

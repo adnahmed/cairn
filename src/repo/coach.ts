@@ -26,6 +26,7 @@ import { weekLayoutRead } from "../domain/training/week-layout.js";
 import { raceBuild } from "./race-build.js";
 import { enduranceTestsDue, runVarietyRead, runZones, weeklyRunPlan } from "./run-progression.js";
 import { hrModelForCoach } from "./hr-model.js";
+import { recentCardioRead } from "./recent-cardio.js";
 import { calibrationForCoach } from "./calibration.js";
 import { flexibleTrainingAgenda } from "./flexible-training-agenda.js";
 import { dexaTargeting } from "./dexa-targeting.js";
@@ -814,6 +815,7 @@ function buildTrainingSlice(
   | "plan"
   | "recent_sessions"
   | "recent_activities"
+  | "recent_cardio"
   | "training_signals"
   | "garmin"
   | "program_block"
@@ -853,6 +855,10 @@ function buildTrainingSlice(
     plan: getPlan(),
     recent_sessions: recentSessions,
     recent_activities: listActivities(15),
+    // The same runs read the way a coach reads one — display units, pace, heart rate
+    // off the watch row, stated effort, the personal model's read — and windowed to a
+    // week so "how was my run this morning" finds today's row on its own.
+    recent_cardio: recentCardioRead(today),
     // Deterministic progression-readiness + autoregulation rollup computed from the
     // athlete's own recent sets + 1-tap feedback — so logged performance VISIBLY
     // steers the next recommendation instead of being inferred from a raw array.

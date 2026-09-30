@@ -40,6 +40,7 @@ import {
   renderPerformance,
   renderProgramState,
   renderReactionModel,
+  renderRecentCardio,
   renderRunCompliance,
   renderRunPlan,
   renderStrengthSchedule,
@@ -1040,7 +1041,7 @@ THE CONSTITUTION (binding):
   nothing to take a step toward — and the ONE move this week that moves toward it. A strength objective
   carries a fit word (fits / stretch / beyond this block): say it in those words, never as a percent or
   a countdown. Leave it null when road_ahead names nothing.
-${renderRunCompliance(context, "weekly")}
+${renderRunCompliance(context, "weekly")}${renderRecentCardio(context, "weekly")}
 ${renderTodayFuel(context)}
 ${renderStreamingContract(
   'write how their week actually went in ONE or two warm plain sentences (the same reading that goes in the JSON\'s "text")',
