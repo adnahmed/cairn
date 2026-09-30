@@ -719,7 +719,11 @@ function surplusStep(
   if (!(current > 0) || repCeiling == null || !top || top.weight == null || top.reps == null) return ordinary;
   if (Math.abs(Number(top.weight) - current) > 0.1) return ordinary;
   const reps = Number(top.reps);
-  const reserveBeyond = top.rir != null ? Math.max(0, Number(top.rir) - RIR_IN_RESERVE) : 0;
+  // A grind never buys more than one notch: a set rated RIR 0–1 spent its reserve.
+  if (top.rir != null && Number(top.rir) < RIR_IN_RESERVE) return ordinary;
+  // The reserve is SIGNED against the two-rep reserve the ceiling assumes: RIR 3 adds
+  // a rep of room, and an unrated set is read at the reserve (adds nothing).
+  const reserveBeyond = top.rir != null ? Number(top.rir) - RIR_IN_RESERVE : 0;
   const surplus = Math.max(0, reps - repCeiling) + reserveBeyond;
   if (surplus < SURPLUS_STEP_MIN_REPS) return ordinary;
   const ceil = phaseStepCeiling(group, current, phaseScale);
@@ -2108,6 +2112,12 @@ function repsPrescription(
   // the RIR wording is picked ONLY when an RIR was actually logged.
   const sayEffort = <T>(withRir: readonly T[], inReps: readonly T[], code: string): T =>
     say(rirLogged ? withRir : inReps, code);
+  // A sentence that CREDITS the work "at RIR 2+" names the rating the athlete gave.
+  // Reserve counted at the ceiling can reach two on a set logged at RIR 0 (ten reps on
+  // a 6–8 card), but the athlete said zero — so such a set is credited in reps.
+  const rirVouched = rirLogged && (lastRir as number) >= RIR_IN_RESERVE;
+  const sayCredit = <T>(withRir: readonly T[], inReps: readonly T[], code: string): T =>
+    say(rirVouched ? withRir : inReps, code);
   // The LOAD step is earned only when EVERY working set capped the range (double
   // progression). With no rep range, fall back to a strong top set (RIR 2+ / progressing).
   // An INTENSIFICATION phase buys the step with intensity instead of completeness: a
@@ -2404,7 +2414,7 @@ function repsPrescription(
     why =
       policy && policy.rep_saturation > 0
         ? say(voice.ACCUMULATION_REP_STAGE, "accumulation_rep_stage")(repCeiling as number)
-        : sayEffort(voice.REP_STAGE_OVERLOAD, voice.REP_STAGE_OVERLOAD_REPS, "rep_stage_overload")(
+        : sayCredit(voice.REP_STAGE_OVERLOAD, voice.REP_STAGE_OVERLOAD_REPS, "rep_stage_overload")(
             repHigh as number
           );
   } else if (
@@ -2462,15 +2472,15 @@ function repsPrescription(
                 // that, so the sentence says so rather than claiming every set capped.
                 // The bar it cleared is the CEILING (the range's top plus whatever the
                 // phase saturates on), never the plain rep_high.
-                sayEffort(voice.PUSH_TOP_SET_OVERLOAD, voice.PUSH_TOP_SET_OVERLOAD_REPS, "push_top_set_overload")(
+                sayCredit(voice.PUSH_TOP_SET_OVERLOAD, voice.PUSH_TOP_SET_OVERLOAD_REPS, "push_top_set_overload")(
                   repCeiling as number
                 )
             : hasRange
-              ? sayEffort(voice.EARNED_RANGE_OVERLOAD, voice.EARNED_RANGE_OVERLOAD_REPS, "earned_range_overload")(
+              ? sayCredit(voice.EARNED_RANGE_OVERLOAD, voice.EARNED_RANGE_OVERLOAD_REPS, "earned_range_overload")(
                   repHigh as number,
                   repLow as number
                 )
-              : sayEffort(voice.EARNED_OPEN_OVERLOAD, voice.EARNED_OPEN_OVERLOAD_REPS, "earned_open_overload");
+              : sayCredit(voice.EARNED_OPEN_OVERLOAD, voice.EARNED_OPEN_OVERLOAD_REPS, "earned_open_overload");
     }
   } else if (phaseHolds) {
     // The work earned something and the WEEK is the reason it waits.
@@ -2688,11 +2698,11 @@ function repsPrescription(
     else if (baseWeight < 0) nextWeight = assistStepNext(baseWeight, group, brakeCtx?.personalModifier, phaseStepScale);
     else nextWeight = loadStepFrom(baseWeight);
     why = hasRange
-      ? sayEffort(voice.EARNED_RANGE_OVERLOAD, voice.EARNED_RANGE_OVERLOAD_REPS, "earned_range_overload")(
+      ? sayCredit(voice.EARNED_RANGE_OVERLOAD, voice.EARNED_RANGE_OVERLOAD_REPS, "earned_range_overload")(
           repHigh as number,
           repLow as number
         )
-      : sayEffort(voice.EARNED_OPEN_OVERLOAD, voice.EARNED_OPEN_OVERLOAD_REPS, "earned_open_overload");
+      : sayCredit(voice.EARNED_OPEN_OVERLOAD, voice.EARNED_OPEN_OVERLOAD_REPS, "earned_open_overload");
   }
 
   // A LOAD STEP IS TAKEN FROM THE WEIGHT THAT WAS WORKED. When the latest session
