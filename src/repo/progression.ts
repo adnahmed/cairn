@@ -75,9 +75,11 @@ import {
   sessionFirstSetAt,
   sinceClause,
   type SlotAuthorship,
-  exposurePerformedPrescription,
+  latestLiftExposure,
+  latestWorkingSets,
   slotAuthorship,
   slotStamp,
+  testedSlotAuthorship,
 } from "./prescription-authorship.js";
 import { painAreaLoadsGroup } from "./pain-relevance.js";
 import {
@@ -150,15 +152,7 @@ import {
   enduranceOverlapsMovement,
   OUTCOME_FACTS_SCHEMA_VERSION,
 } from "./daily-reconciliation.js";
-import {
-  type ChallengeAchieved,
-  type ChallengePrescribed,
-  cappedShortOfSets,
-  type DoseChallengeVerdict,
-  doseChallengeVerdict,
-  harderLoad,
-  loadAtOrAbove,
-} from "./outcome-comparability.js";
+import { harderLoad, loadAtOrAbove, readStoredDose } from "./outcome-comparability.js";
 
 export {
   loadPhrase,
@@ -986,46 +980,6 @@ function steppedUpFromReserve(
   return reserved && planWeight <= clampedOverload(working, group);
 }
 
-function latestWorkingSets(name: string): { weight: number | null; reps: number | null; rir: number | null }[] {
-  const ids = progressionLineageIds(name);
-  if (!ids.length) return [];
-  const inIds = ids.map(() => "?").join(",");
-  const latestSession = (
-    db
-      .prepare(
-        `SELECT s.id, s.date FROM logged_sets ls JOIN sessions s ON s.id = ls.session_id
-         WHERE ls.exercise_id IN (${inIds}) AND ls.reps IS NOT NULL
-         ORDER BY s.date DESC, s.id DESC LIMIT 1`
-      )
-      .get(...ids) as any
-  );
-  if (!latestSession?.date || latestSession?.id == null) return [];
-  const rows = db
-    .prepare(
-      `SELECT ls.weight AS weight, ls.reps AS reps, ls.rir AS rir
-       FROM logged_sets ls
-      WHERE ls.exercise_id IN (${inIds}) AND ls.session_id = ? AND ls.reps IS NOT NULL`
-    )
-    .all(...ids, latestSession.id) as any[];
-  if (!rows.length) return [];
-  // The working weight is the hardest (largest signed) weight in the session; sets
-  // at it are the working sets. Bodyweight (null) is the zero of that signed scale:
-  // harder than any assist, easier than any added load — so bodyweight sets beside
-  // an assisted finisher ARE the working sets (the assisted set is the back-off),
-  // while bodyweight sets beside loaded ones are warm-ups. A session with nothing
-  // weighted is a bodyweight session and every logged set counts.
-  const signed = (r: any): number => (r.weight == null ? 0 : Number(r.weight));
-  let topW: number | null = null;
-  for (const r of rows) {
-    if (topW == null || signed(r) > topW) topW = signed(r);
-  }
-  const working = rows.filter((r) => signed(r) === topW);
-  return working.map((r) => ({
-    weight: r.weight ?? null,
-    reps: r.reps != null ? Number(r.reps) : null,
-    rir: plausibleRir(r.rir),
-  }));
-}
 
 function metSnapshottedPrescription(dose: any): boolean {
   if (!dose || typeof dose !== "object") return false;
@@ -1070,33 +1024,6 @@ function fullLoadThroughConfound(dose: any, reasons: readonly string[]): boolean
   return reference != null && reference > 0 && top != null && loadAtOrAbove(top, reference);
 }
 
-// The stored dose re-read through the current challenge rule. Only a dose that carries
-// its per-set detail can be re-derived; anything older keeps its stored verdict.
-function rederivedChallenge(dose: any): { verdict: DoseChallengeVerdict; capped_short: boolean } | null {
-  const detail = dose?.achieved?.sets_detail;
-  if (!Array.isArray(detail) || !detail.length || !dose?.prescribed) return null;
-  const n = (v: unknown): number | null => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
-  const prescribed: ChallengePrescribed = {
-    sets: n(dose.prescribed.sets),
-    rep_low: n(dose.prescribed.rep_low),
-    rep_high: n(dose.prescribed.rep_high),
-    target_weight: n(dose.prescribed.target_weight),
-    target_seconds: n(dose.prescribed.target_seconds),
-  };
-  const achieved: ChallengeAchieved = {
-    sets: n(dose.achieved.sets) ?? detail.length,
-    top_weight: n(dose.achieved.top_weight),
-    top_reps: n(dose.achieved.top_reps),
-    top_seconds: n(dose.achieved.top_seconds),
-    sets_detail: detail.map((set: any) => ({
-      weight: n(set?.weight),
-      reps: n(set?.reps),
-      duration_sec: n(set?.duration_sec),
-    })),
-  };
-  return { verdict: doseChallengeVerdict(prescribed, achieved), capped_short: cappedShortOfSets(prescribed, achieved) };
-}
-
 function linkedDoseEligibility(
   sessionId: number | null | undefined,
   movement: string,
@@ -1136,11 +1063,12 @@ function linkedDoseEligibility(
   // The stored numbers are re-read under the CURRENT verdict rule (a heavier set at
   // fewer reps meets a lighter card — outcome-comparability.ts), so a dose written
   // before that rule speaks the same as one written after it.
-  const challenge = dose ? rederivedChallenge(dose) : null;
-  const verdict = challenge?.verdict ?? dose?.challenge_verdict;
-  // One set short of the card with every working set past the top of the range: the
-  // LOAD question is answered (cappedShortOfSets) — the shortfall is volume's to read.
-  const cappedShort = challenge?.capped_short === true && dose?.relevant_symptom !== true;
+  // ONE reading of the dose (readStoredDose) — shared with the response ledger and the
+  // session dose log. One set short of the card with every working set past the top of
+  // the range: the LOAD question is answered — the shortfall is volume's to read.
+  const reading = dose ? readStoredDose(dose) : null;
+  const verdict = reading?.verdict ?? dose?.challenge_verdict;
+  const cappedShort = reading?.capped_short === true;
   const ownShortfall =
     !cappedShort &&
     Number.isFinite(prescribedSets) &&
@@ -1896,20 +1824,16 @@ function repsPrescription(
   // A slot written with NO load on a lift with loaded history is still grounded
   // (planUnset below): from the sessions under this prescription when there are any,
   // else the latest history, exactly as before the stamp existed.
-  const writtenAuthorship = slotAuthorship(plan?.prescribed_at ?? null, lastExposureOf(name, last), date);
   // Written after the last session — but did that session already DO it? A catch-up that
-  // lands the plan on the load the log just lifted is tested by that log
-  // (exposurePerformedPrescription), and its evidence starts with that session.
-  const authorship =
-    writtenAuthorship.untested &&
-    last?.date &&
-    exposurePerformedPrescription(latestWorkingSets(name), {
-      weight: planWeight,
-      rep_low: repLow,
-      sets: plan?.sets,
-    })
-      ? { ...writtenAuthorship, untested: false, since: String(last.date), since_at: null }
-      : writtenAuthorship;
+  // lands the plan on the load the log just lifted is tested by that log, and its
+  // evidence starts with that session (testedSlotAuthorship — the one reading).
+  const authorship = testedSlotAuthorship(
+    plan?.prescribed_at ?? null,
+    lastExposureOf(name, last),
+    { weight: planWeight, rep_low: repLow, sets: plan?.sets },
+    () => latestWorkingSets(name),
+    date
+  );
   const underPrescription = workingWeightUnderPrescription(name, authorship);
   const loggedWorking = planWeight == null ? (underPrescription ?? recentWorkingWeight(name)) : underPrescription;
   const recentWorking = unreachable(loggedWorking) ? achievable : loggedWorking;
@@ -3298,8 +3222,17 @@ export function planDayProgression(
         block,
         cut,
         liftState: liftStateFor(String(it.name), states),
+        blockPhase: () => resolvedPhaseOf(block, drive, deloadEvidence),
         restoreKeys: owedRestoreKeys,
-        since: slotAuthorship(slotStamps.get(Number(it.plan_item_id)) ?? null, null, readDay),
+        // The catch-up's window starts where the prescription's evidence does — the
+        // same tested-by-log reading nextPrescription uses.
+        since: testedSlotAuthorship(
+          slotStamps.get(Number(it.plan_item_id)) ?? null,
+          latestLiftExposure(String(it.name)),
+          { weight: p.current?.weight, rep_low: p.current?.rep_low, sets: p.current?.sets },
+          () => latestWorkingSets(String(it.name)),
+          readDay
+        ),
         lightWeek,
       });
       out.push({ ...stepped, plan_item_id: it.plan_item_id, day_number: dayNumber });

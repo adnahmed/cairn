@@ -16,7 +16,13 @@ import { db, isoDaysAgo, repo } from "./_seed.js";
 import { reconcileDailySession } from "../dist/repo/daily-reconciliation.js";
 import { nextPrescription } from "../dist/repo/progression.js";
 import { getProgramState } from "../dist/repo/program-state.js";
-import { cappedShortOfSets, doseChallengeVerdict, setMeetsPrescription } from "../dist/repo/outcome-comparability.js";
+import {
+  cappedShortOfSets,
+  doseChallengeVerdict,
+  HEAVIER_SET_REP_SLACK,
+  readStoredDose,
+  setMeetsPrescription,
+} from "../dist/repo/outcome-comparability.js";
 import { exposurePerformedPrescription } from "../dist/repo/prescription-authorship.js";
 
 function reset() {
@@ -95,6 +101,27 @@ test("pure: a heavier set at fewer reps meets a lighter card; one set short past
     "a heavy triple is not the card's work"
   );
   assert.equal(setMeetsPrescription({ weight: 135, reps: 10, duration_sec: null }, card), false, "a back-off is not");
+  // A heavier set meets the card only within HEAVIER_SET_REP_SLACK of its rep floor.
+  assert.equal(HEAVIER_SET_REP_SLACK, 2);
+  assert.equal(
+    setMeetsPrescription({ weight: 185, reps: 5, duration_sec: null }, card),
+    false,
+    "185 × 5 against 8–10 is a strength set, not the card's work, whatever Epley says"
+  );
+  assert.equal(setMeetsPrescription({ weight: 185, reps: 6, duration_sec: null }, card), true, "185 × 6 is in reach");
+  assert.equal(
+    doseChallengeVerdict(card, {
+      sets: 2,
+      top_weight: 185,
+      top_reps: 7,
+      top_seconds: null,
+      sets_detail: [
+        { weight: 185, reps: 7, duration_sec: null },
+        { weight: 185, reps: 7, duration_sec: null },
+      ],
+    }),
+    "exceeded"
+  );
   const achieved = {
     sets: 4,
     top_weight: 185,
@@ -107,7 +134,8 @@ test("pure: a heavier set at fewer reps meets a lighter card; one set short past
       { weight: 135, reps: 10, duration_sec: null },
     ],
   };
-  assert.equal(doseChallengeVerdict(card, achieved), "exceeded");
+  // One of the two heavier sets is a 5 — too far under the floor to be the card's work.
+  assert.equal(doseChallengeVerdict(card, achieved), "under_prescribed");
 
   const deadlift = { sets: 3, rep_low: 5, rep_high: 6, target_weight: 225, target_seconds: null };
   const detail = (rows) => ({
@@ -182,10 +210,22 @@ test("pure: a prescription is performed only AT its written load", () => {
       [
         { weight: 80, reps: 10 },
         { weight: 80, reps: 10 },
+        { weight: 80, reps: 10 },
       ],
       rx
     ),
     true
+  );
+  assert.equal(
+    exposurePerformedPrescription(
+      [
+        { weight: 80, reps: 10 },
+        { weight: 80, reps: 10 },
+      ],
+      rx
+    ),
+    false,
+    "two sets do not perform a three-set card (a rewrite that raises sets is tested when done)"
   );
   assert.equal(exposurePerformedPrescription([{ weight: 80, reps: 10 }], rx), false, "one set is not a session");
   assert.equal(
@@ -259,7 +299,7 @@ test("deadlift: short AND not past the top still holds — the rule needs the ov
   assert.equal(p.suggested.weight, 225);
 });
 
-test("squat: 185 × 7 at RIR 4 on a 164 × 8–10 card is harder work; the plan written onto 185 is tested by it", () => {
+test("squat: 185 × 7, 185 × 5 on a 164 × 8–10 card is one card set, and a 3-set plan written onto 185 stays untested", () => {
   repo.setSettings({ training_drive: "push" });
   makeExercise("Back Squat", "quads");
   planSlot({ exercise: "Back Squat", sets: 2, rep_low: 8, rep_high: 10, target_weight: 164, focus: "Lower A" });
@@ -280,17 +320,36 @@ test("squat: 185 × 7 at RIR 4 on a 164 × 8–10 card is harder work; the plan 
     [135, 10, 5],
   ]);
   const dose = outcome.facts.dose_evidence.find((d) => d.exercise === "Back Squat");
-  assert.equal(dose.challenge_verdict, "exceeded", "heavier than the card at the card's own estimated floor");
+  assert.equal(dose.challenge_verdict, "under_prescribed", "185 × 5 is too far under the card's floor to count");
 
-  // The plan is then rewritten onto the load the log lifted — after that session.
+  // The plan is then rewritten onto 185 for THREE sets — after that session, which did two.
   db.prepare(`UPDATE plan_items SET sets = 3, rep_low = 5, rep_high = 7, target_weight = 185, prescribed_at = ?`).run(
     isoDaysAgo(5)
   );
   const p = nextPrescription("Back Squat", undefined, NO_BRAKES);
-  assert.ok(!p.untested, "185 for 5–7 is what the log already did");
+  assert.equal(p.untested, true, "two sets at 185 did not perform a three-set card");
+  assert.equal(p.action, "hold", p.why);
+  assert.equal(p.suggested.weight, 185);
+});
+
+test("a plan written onto the load the log lifted at the FULL set count is tested by it", () => {
+  repo.setSettings({ training_drive: "push" });
+  makeExercise("Front Squat", "quads");
+  planSlot({ exercise: "Front Squat", sets: 3, rep_low: 5, rep_high: 7, target_weight: 185, focus: "Lower A" });
+  logSets("Front Squat", 16, [
+    [225, 5, 2],
+    [225, 5, 2],
+    [225, 5, 2],
+  ]);
+  logSets("Front Squat", 4, [
+    [185, 7, 3],
+    [185, 7, 3],
+    [185, 7, 3],
+  ]);
+  db.prepare(`UPDATE plan_items SET prescribed_at = ?`).run(isoDaysAgo(0));
+  const p = nextPrescription("Front Squat", undefined, NO_BRAKES);
+  assert.ok(!p.untested, "three sets of 185 × 7 performed the card");
   assert.equal(p.action, "overload", p.why);
-  // 185 × 7 with four in reserve supports ~195 for seven; two notches.
-  assert.equal(p.suggested.weight, 195);
 });
 
 test("barbell curl: a catch-up onto 80 × 10 × 3 the day after lifting it is not an untested number", () => {
@@ -348,6 +407,91 @@ test("reps past the ceiling are reserve: 10 at RIR 0 on a 6–8 card is not a gr
   const p = nextPrescription("Chest-Supported Row", undefined, NO_BRAKES);
   assert.equal(p.action, "overload", p.why);
   assert.ok(p.suggested.weight > 100);
+  // …but a set rated RIR 0 spent its reserve: the ordinary single step, and the card
+  // never claims "RIR 2+" of a set he rated zero.
+  assert.equal(p.suggested.weight, 105, p.why);
+  assert.doesNotMatch(p.why, /RIR 2\+/);
+});
+
+test("surplus pricing reads the logged RIR signed: RIR 0 buys one notch, RIR 4 at the ceiling buys more", () => {
+  makeExercise("Barbell Row", "back");
+  planSlot({ exercise: "Barbell Row", sets: 3, rep_low: 6, rep_high: 8, target_weight: 225, focus: "Pull" });
+  logSets("Barbell Row", 9, [
+    [225, 8, 2],
+    [225, 8, 2],
+    [225, 8, 1],
+  ]);
+  logSets("Barbell Row", 2, [
+    [225, 10, 0],
+    [225, 10, 0],
+    [225, 10, 0],
+  ]);
+  const grind = nextPrescription("Barbell Row", undefined, NO_BRAKES);
+  assert.equal(grind.action, "overload", grind.why);
+  assert.equal(grind.suggested.weight, 230, "ten at RIR 0 is an eight-rep max at RIR 2: one notch");
+
+  reset();
+  makeExercise("Barbell Row", "back");
+  planSlot({ exercise: "Barbell Row", sets: 3, rep_low: 6, rep_high: 8, target_weight: 225, focus: "Pull" });
+  logSets("Barbell Row", 9, [
+    [225, 8, 2],
+    [225, 8, 2],
+    [225, 8, 1],
+  ]);
+  logSets("Barbell Row", 2, [
+    [225, 8, 4],
+    [225, 8, 4],
+    [225, 8, 4],
+  ]);
+  const reserve = nextPrescription("Barbell Row", undefined, NO_BRAKES);
+  assert.equal(reserve.action, "overload", reserve.why);
+  assert.ok(
+    reserve.suggested.weight > 230,
+    `RIR 4 at the ceiling shows room past one notch (${reserve.suggested.weight})`
+  );
+  assert.match(reserve.why, /RIR 2\+/);
+
+  reset();
+  makeExercise("Barbell Row", "back");
+  planSlot({ exercise: "Barbell Row", sets: 3, rep_low: 6, rep_high: 8, target_weight: 225, focus: "Pull" });
+  logSets("Barbell Row", 9, [
+    [225, 8, 2],
+    [225, 8, 2],
+    [225, 8, 1],
+  ]);
+  logSets("Barbell Row", 2, [
+    [225, 12, 1],
+    [225, 12, 1],
+    [225, 12, 1],
+  ]);
+  const past = nextPrescription("Barbell Row", undefined, NO_BRAKES);
+  assert.equal(past.action, "overload", past.why);
+  assert.equal(past.suggested.weight, 230, "a set rated RIR 1 never earns more than the ordinary step");
+});
+
+test("a capped-short dose is ONE reading: the load is met, the missing set is volume", () => {
+  const dose = {
+    challenge_verdict: "under_prescribed",
+    prescribed: { sets: 3, rep_low: 5, rep_high: 6, target_weight: 225, target_seconds: null },
+    achieved: {
+      sets: 2,
+      top_weight: 225,
+      top_reps: 8,
+      top_seconds: null,
+      sets_detail: [
+        { weight: 225, reps: 6, duration_sec: null },
+        { weight: 225, reps: 8, duration_sec: null },
+      ],
+    },
+  };
+  const reading = readStoredDose(dose);
+  assert.equal(reading.capped_short, true);
+  assert.equal(
+    readStoredDose({ ...dose, relevant_symptom: true }).capped_short,
+    false,
+    "a symptom keeps the ordinary read"
+  );
+  assert.equal(readStoredDose({ challenge_verdict: "met" }).verdict, "met", "no detail: the stored verdict stands");
 });
 
 test("a bodyweight set on a loaded lift never reads as its best — the split squat climbing 60 → 90 is not sliding", () => {
@@ -393,4 +537,75 @@ test("a bodyweight set on a loaded lift never reads as its best — the split sq
   assert.notEqual(state.status, "regressing", `60 → 70 → 90 is not a slide (${state.trend_per_wk}/wk)`);
   const p = nextPrescription("Bulgarian Split Squat", undefined, NO_BRAKES);
   assert.notEqual(p.action, "deload", p.why);
+});
+
+test("the capped-short deadlift reads the same everywhere: no log-confirmed shortfall, the response ledger says met", async () => {
+  const { sessionHasComparableDoseShortfall, sessionLogContradictsLowRating } = await import(
+    "../dist/repo/session-dose-log.js"
+  );
+  const { recentMovementResponse } = await import("../dist/repo/training-response.js");
+  makeExercise("Barbell Deadlift", "hamstrings");
+  planSlot({ exercise: "Barbell Deadlift", sets: 3, rep_low: 5, rep_high: 6, target_weight: 225, focus: "Lower B" });
+  const outcome = composedSession("Barbell Deadlift", 4, { sets: 3, rep_low: 5, rep_high: 6, target_weight: 225 }, [
+    [135, 10, 10],
+    [225, 6, 2],
+    [225, 8, 2],
+  ]);
+  const sessionId = Number(outcome.session_id);
+  assert.equal(
+    sessionHasComparableDoseShortfall(sessionId),
+    false,
+    "a capped-short dose is a volume fact, not a shortfall toward a fatigue deload"
+  );
+  assert.equal(sessionLogContradictsLowRating(sessionId), true, "the load was met — the log outranks a low rating");
+  const response = recentMovementResponse("Barbell Deadlift");
+  assert.equal(response.latest_verdict, "met");
+});
+
+test("one loaded day on a bodyweight lift does not strip its bodyweight est-1RM; two loaded sessions do", () => {
+  repo.setProfile({ weight_lb: 170 });
+  makeExercise("Walking Lunge", "quads");
+  logSets("Walking Lunge", 30, [[0, 8]]);
+  logSets("Walking Lunge", 20, [[0, 9]]);
+  logSets("Walking Lunge", 10, [[10, 5]]);
+  logSets("Walking Lunge", 3, [[0, 10]]);
+  let points = repo.getProgress("Walking Lunge").points;
+  assert.ok(
+    points.filter((pt) => pt.topWeight === 0).every((pt) => pt.best1rm != null),
+    "one weighted try does not make it a loaded lift"
+  );
+  logSets("Walking Lunge", 2, [[15, 5]]);
+  points = repo.getProgress("Walking Lunge").points;
+  assert.ok(
+    points.filter((pt) => pt.topWeight === 0).every((pt) => pt.best1rm == null),
+    "two loaded sessions: the zero-load sets carry no bodyweight-scale est-1RM"
+  );
+});
+
+test("program-state reads a slot's authorship the way the prescription does: a restatement of the log is tested", () => {
+  makeExercise("Incline Bench Press", "chest");
+  planSlot({ exercise: "Incline Bench Press", sets: 3, rep_low: 6, rep_high: 8, target_weight: 135, focus: "Push" });
+  for (const [daysAgo, load] of [
+    [43, 165],
+    [36, 160],
+    [29, 155],
+    [22, 150],
+    [15, 145],
+    [8, 135],
+  ])
+    logSets("Incline Bench Press", daysAgo, [
+      [load, 6, 1],
+      [load, 6, 1],
+      [load, 6, 1],
+    ]);
+  const settled = getProgramState().lifts.find((l) => l.exercise === "Incline Bench Press");
+  assert.equal(settled.status, "regressing", settled.why);
+  // A catch-up restating exactly what the log did (3 × 6 @ 135) — written after it.
+  db.prepare(`UPDATE plan_items SET prescribed_at = ?`).run(isoDaysAgo(0));
+  const restated = getProgramState().lifts.find((l) => l.exercise === "Incline Bench Press");
+  assert.equal(restated.status, "regressing", "the log already tested it: the slide still reads");
+  // A rewrite that raises the set count has not been done yet: its trend waits.
+  db.prepare(`UPDATE plan_items SET sets = 4`).run();
+  const raised = getProgramState().lifts.find((l) => l.exercise === "Incline Bench Press");
+  assert.equal(raised.status, "new", raised.why);
 });

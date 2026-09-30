@@ -234,6 +234,11 @@ const epleyLoad = (weight: number, reps: number): number => weight * (1 + reps /
  * athlete who out-loaded his plan as under-prescribed, and nothing he did could step it.
  * Loaded reps work only for the heavier arm; a timed item keeps its plain seconds test.
  */
+// How far under the card's rep floor a HEAVIER set may land and still meet it on its
+// Epley-equivalent: 185 × 7 against 8–10 @ 175 is the same work; 185 × 5 against it is
+// a different set (a strength single-digit), not the prescribed hypertrophy dose.
+export const HEAVIER_SET_REP_SLACK = 2;
+
 export function setMeetsPrescription(set: ChallengeSet, prescribed: ChallengePrescribed): boolean {
   const target = prescribed.target_weight;
   const seconds = prescribed.target_seconds;
@@ -244,6 +249,7 @@ export function setMeetsPrescription(set: ChallengeSet, prescribed: ChallengePre
   if (plain) return true;
   if (seconds != null || target == null || !(target > 0) || prescribed.rep_low == null) return false;
   if (set.weight == null || !(set.weight > target) || set.reps == null || !(set.reps > 0)) return false;
+  if (set.reps < prescribed.rep_low - HEAVIER_SET_REP_SLACK) return false;
   return epleyLoad(set.weight, set.reps) + 1e-9 >= epleyLoad(target, prescribed.rep_low);
 }
 
@@ -295,4 +301,61 @@ export function cappedShortOfSets(prescribed: ChallengePrescribed, achieved: Cha
   if (working.length >= sets || working.length < Math.max(2, sets - 1)) return false;
   if (!working.every((set) => (set.reps as number) >= top)) return false;
   return working.some((set) => (set.reps as number) > top);
+}
+
+/**
+ * ONE READING OF A STORED DOSE. The stored `challenge_verdict` was written under the
+ * rule of its day; every consumer re-reads the stored numbers under the CURRENT rule
+ * (a heavier set at fewer reps meets a lighter card), so a dose written before a rule
+ * speaks the same as one written after it. `capped_short` marks a dose one set short
+ * with every working set past the top of the range (cappedShortOfSets): its load
+ * question is answered and the missing set is volume's — never a log-confirmed
+ * shortfall, never an under-prescribed verdict to hold the lift on. A movement-relevant
+ * symptom keeps the ordinary reading. A dose with no per-set detail keeps its stored
+ * verdict. Consumers: progression's linkedDoseEligibility, the movement-response
+ * ledger (training-response.ts) and the session dose log (session-dose-log.ts).
+ */
+export interface StoredDoseReading {
+  /** The verdict under the current rule; the stored one when it cannot be re-derived. */
+  verdict: string;
+  /** The stored verdict re-derived from per-set detail (false = the stored verdict stands). */
+  rederived: boolean;
+  capped_short: boolean;
+}
+
+export function readStoredDose(dose: any): StoredDoseReading {
+  const stored = String(dose?.challenge_verdict ?? "");
+  const detail = dose?.achieved?.sets_detail;
+  if (!Array.isArray(detail) || !detail.length || !dose?.prescribed || typeof dose.prescribed !== "object") {
+    return { verdict: stored, rederived: false, capped_short: false };
+  }
+  const n = (v: unknown): number | null => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+  const prescribed: ChallengePrescribed = {
+    sets: n(dose.prescribed.sets),
+    rep_low: n(dose.prescribed.rep_low),
+    rep_high: n(dose.prescribed.rep_high),
+    target_weight: n(dose.prescribed.target_weight),
+    target_seconds: n(dose.prescribed.target_seconds),
+  };
+  const achieved: ChallengeAchieved = {
+    sets: n(dose.achieved.sets) ?? detail.length,
+    top_weight: n(dose.achieved.top_weight),
+    top_reps: n(dose.achieved.top_reps),
+    top_seconds: n(dose.achieved.top_seconds),
+    sets_detail: detail.map((set: any) => ({
+      weight: n(set?.weight),
+      reps: n(set?.reps),
+      duration_sec: n(set?.duration_sec),
+    })),
+  };
+  return {
+    verdict: doseChallengeVerdict(prescribed, achieved),
+    rederived: true,
+    capped_short: dose?.relevant_symptom !== true && cappedShortOfSets(prescribed, achieved),
+  };
+}
+
+/** The reading's load answer: met/exceeded, or a capped-short dose (its load is answered). */
+export function storedDoseMetLoad(reading: StoredDoseReading): boolean {
+  return reading.capped_short || reading.verdict === "met" || reading.verdict === "exceeded";
 }

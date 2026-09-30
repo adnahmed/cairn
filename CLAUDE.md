@@ -493,7 +493,8 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   Details in `docs/ARCHITECTURE.md`.
 - **When a slot was prescribed has one source** — `src/repo/prescription-authorship.ts` stamps every plan
   write and answers fresh/untested/since for every consumer; never re-derive it. An untested slot holds
-  at the plan — unless its latest exposure already lifted it at the written load. Details in `docs/ARCHITECTURE.md` "Prescription authorship".
+  at the plan — unless its latest exposure already lifted it at the written load and full set count
+  (`testedSlotAuthorship`, the one reading the prescription, program-state and set catch-up share). Details in `docs/ARCHITECTURE.md` "Prescription authorship".
 - **Weekly volume has a contextual floor and the log is truth for set count** — `volume-floor.ts`
   (muscle/strength intent only; endurance-carried groups and light weeks exempt), held by plan
   quality, the redraw precheck and `setCatchUp`. Details in `docs/ARCHITECTURE.md`.

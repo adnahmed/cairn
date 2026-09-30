@@ -14,7 +14,7 @@
 // ============================================================================
 import { db } from "../db.js";
 import { daysBetweenISO, localDateISO } from "./shared.js";
-import { newestStampByExercise, slotAuthorship } from "./prescription-authorship.js";
+import { latestWorkingSets, newestSlotByExercise, testedSlotAuthorship } from "./prescription-authorship.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
 import { getRecoverySummary } from "./coach.js";
 import { currentTrainingDataVersion, registerTrainingCacheClear, trainingBackstopSignature } from "./training-cache.js";
@@ -690,7 +690,7 @@ function liftStates(date: string): LiftState[] {
     .all(date) as any[];
 
   // When each movement's plan slot was prescribed — ONE read (prescription-authorship.ts).
-  const stamps = newestStampByExercise();
+  const slots = newestSlotByExercise();
   const out: LiftState[] = [];
   for (const e of exs) {
     const name = String(e.name);
@@ -706,7 +706,16 @@ function liftStates(date: string): LiftState[] {
     // trend: a slot written after the lift was last trained has nothing of its own to
     // read yet, and a freshly written one is not "flat" on weeks of the old one. (A
     // slide AFTER a fresh rewrite still reads — only an untested slot hides it.)
-    const authorship = slotAuthorship(stamps.get(Number(e.id)) ?? null, last_trained, date);
+    // The same tested-by-log reading the prescription uses (prescription-authorship.ts):
+    // a catch-up written onto the load the log just performed is not "untested".
+    const slot = slots.get(Number(e.id)) ?? null;
+    const authorship = testedSlotAuthorship(
+      slot?.prescribed_at ?? null,
+      last_trained,
+      { weight: slot?.weight, rep_low: slot?.rep_low, sets: slot?.sets },
+      () => latestWorkingSets(name),
+      date
+    );
     const represcribed =
       !dormant &&
       ((authorship.untested && (graded.status === "plateaued" || graded.status === "regressing")) ||
