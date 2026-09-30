@@ -487,6 +487,16 @@ function longRunStep(longBase: number, out: number, longPeak: number): number {
  * already past, no distance, or a distance short enough that mileage is not the
  * limiter.
  */
+/**
+ * Where a build's reachable peak sits against the volume the distance leans on, in three
+ * plain bands — a FIT, never a grade. The one band rule: raceRamp's own walk and the
+ * engine's race-feasibility sentence (which reads the race ladder's peak) both ask it.
+ */
+export function raceRampFitFor(reachablePeakKm: number, demandPeakKm: number): RaceRampFit {
+  const reach = demandPeakKm > 0 ? Math.min(1, reachablePeakKm / demandPeakKm) : 1;
+  return reach >= 1 - 1e-9 ? "fits" : reach >= 0.85 ? "stretch" : "beyond_horizon";
+}
+
 export function raceRamp(
   goal: RaceRampGoal | null | undefined,
   todayISO: string,
@@ -599,8 +609,7 @@ export function raceRamp(
   // How the two compare, in three plain bands. This is a FIT, never a grade: an
   // athlete whose life will not hold 40 km weeks is not failing at anything, and
   // the only thing this decides is which sentence gets said.
-  const reach = peak > 0 ? Math.min(1, constrained_peak_km / peak) : 1;
-  const fit: RaceRampFit = reach >= 1 - 1e-9 ? "fits" : reach >= 0.85 ? "stretch" : "beyond_horizon";
+  const fit = raceRampFitFor(constrained_peak_km, peak);
 
   // --- this week's ask, from the CONSTRAINED trajectory ---
   // The largest safe step, and never more than the ideal curve wanted anyway (a

@@ -260,3 +260,30 @@ test("harm already in this week: the ladder does not resume next week through it
   // Only that one rung: the floor itself still stands for the weeks after.
   assert.equal(harmed.at(-1).kind, "race");
 });
+
+test("the engine's race-feasibility sentence reads the ladder's own peak — one walk, one number", () => {
+  // The live disagreement: the ladder resumed toward the demonstrated floor and peaked
+  // high, while the engine's sentence walked raceRamp's own path off the lighter week
+  // and said the build lands far lower. Both now read raceLadderFor.
+  seedAthlete();
+  const peak = peakOf(raceBuild(TODAY).weeks);
+  const plan = repo.weeklyRunPlan(TODAY, { adjustToday: false });
+  assert.equal(plan.goal_feasibility.constrained_peak_km, peak.km);
+  const ramp = raceRamp(goal, "2031-09-29", 17, 12.9, null, { week_km: 32.5, long_km: 17.7 });
+  assert.notEqual(
+    Math.round(ramp.constrained_peak_km),
+    Math.round(peak.km),
+    "raceRamp's own walk would have said another number"
+  );
+  const landing = plan.rationale.find((line) =>
+    /by race day|come race day|race day arrives|lands near|shaping up|heads toward|tracking close|Not far off/.test(
+      line
+    )
+  );
+  if (plan.goal_feasibility.status !== "fits") {
+    assert.ok(landing, plan.rationale.join(" | "));
+    assert.match(landing, new RegExp(`\\b${Math.round(peak.km)}\\b`));
+  } else {
+    assert.equal(landing, undefined, "a build that reaches the demand needs no sentence");
+  }
+});

@@ -45,9 +45,7 @@ import { withoutShadowActivities } from "../activity-shadow.js";
 import { activeRecoveryWeek } from "../recovery-week.js";
 import { longPeakTargetKm } from "../run-ramp.js";
 import { readinessBand, readsRestGradeReadiness, SUPPORTIVE_READINESS } from "../readiness-bands.js";
-import { RECOVERY_BASELINE_MIN_POINTS } from "../baseline-bands.js";
-import { sampleSd } from "../recovery-science.js";
-import { recoveryTrendBars } from "../recovery-trend.js";
+import { nightPastBand, overnightBrakes, personalBand, type PersonalBand } from "../overnight-band.js";
 import { SENSOR_MAX_AGE_DAYS, isReadDayReadiness, sensorIsCurrent } from "../sensor-freshness.js";
 import { addDaysISO, daysBetweenISO, localDateISO } from "../shared.js";
 import { currentTrainingDataVersion, registerTrainingCacheClear } from "../training-cache.js";
@@ -942,6 +940,11 @@ interface MorningDecisionRow {
 
 export interface MorningDecision extends MorningRead {
   id: number;
+  // The chosen read was written at or before the date's first logged training (or the
+  // date carries no set/session instant at all). False when every predictive read of
+  // the date came after the work — commentary on it, whose readiness may be the
+  // post-workout sync.
+  beforeTraining: boolean;
   // The read's own context blob, already parsed. `null` when the column was empty or
   // unparseable — never a partial object.
   context: Record<string, unknown> | null;
@@ -1045,6 +1048,7 @@ function morningDecisionsByDate(from: string, to: string): Map<string, MorningDe
 
   const trained = firstTrainingInstantByDate(from, to);
   const chosen = new Map<string, MorningDecisionRow>();
+  const chosenBeforeTraining = new Set<string>();
   for (const [date, list] of byDate) {
     const cutoff = trained.get(date) ?? null;
     // `<=`, not `<`: these stamps are second-granular, so a read and a set written in
@@ -1055,6 +1059,7 @@ function morningDecisionsByDate(from: string, to: string): Map<string, MorningDe
     // commentary on finished work. The earliest of them is then the closest thing to
     // a morning read that exists, which is also what the old first-write rule picked.
     chosen.set(date, before.at(-1) ?? list[0]!);
+    if (before.length) chosenBeforeTraining.add(date);
   }
 
   const out = new Map<string, MorningDecision>();
@@ -1081,6 +1086,7 @@ function morningDecisionsByDate(from: string, to: string): Map<string, MorningDe
     const signals = (context as any)?.signals;
     out.set(date, {
       id: row.id,
+      beforeTraining: chosenBeforeTraining.has(date),
       kind: row.kind,
       softened: signals?.outcome_feedback?.applied === true,
       easySoftened: signals?.easy_outcome_feedback?.applied === true,
@@ -1303,13 +1309,16 @@ const NO_SOFTENING: RestOverrideSoftening = Object.freeze({
 // RECOVERY_BASELINE_MIN_POINTS of them (the same floor their visible "usual range"
 // uses). One night is judged by one of THEIR standard deviations — never narrower than
 // recoveryTrendBars, the one answer to "is this drift meaningful for this person" —
-// because a single night is noisier than the medians those bars were written for. Only
+// because a single night is noisier than the medians those bars were written for. And a
+// night must MISS that line meaningfully to brake (2026-09-29, overnight-band.ts): past
+// it by the smallest worthwhile change, or past it on two consecutive readings. A lone
+// hair-past night is a caveat — never harm, never a vouch. Only
 // the night dated the morning itself may speak for it — the one-night law isLastNight
 // states for sleep: the training day's own morning is not its answer.
 //
 // And a brake is charged only at its ONSET. When the reading before it (the training
-// day's own morning, or the newest one within the signal's age bound) already sat past
-// the same band, the dip was there before the work and the work did not cause it — the
+// day's own morning, or the newest one within the signal's age bound) already braked
+// against the same band, the dip was there before the work and the work did not cause it — the
 // episode is charged once, to the day it began after.
 //
 // With too few nights for a band, the watch's own personal-baseline verdicts stand in,
@@ -1352,8 +1361,9 @@ export interface HarmEvidence {
 // (chosen exactly as morningDecisionsByDate chooses it) recorded the readiness the
 // brain actually saw when it made the call, in `signals.fatigue.readiness`. That
 // snapshot is used only when it is about the right date and the read itself called
-// it fresh. Failing that, the Garmin row is honest ONLY on a date carrying no
-// training at all; on a training date the morning value is simply unknowable, and
+// it fresh. Failing a read from before the work, the watch's own wake-up reading from
+// the raw payload is the morning (watchWakeReadiness, below). Failing both, the Garmin
+// row is honest ONLY on a date carrying no training at all; on a training date the morning value is simply unknowable, and
 // unknowable is absent, never a brake and never reassurance.
 // `Number(null)` is 0, not NaN — the trap that has already read an unrated session as
 // the worst possible one elsewhere in this file. A readiness column is null far more
@@ -1365,7 +1375,7 @@ function readingNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function ledgerMorningReadiness(morning: string): number | null {
+function ledgerMorningSnapshot(morning: string): { value: number; beforeTraining: boolean } | null {
   let decision: MorningDecision | undefined;
   try {
     decision = morningDecisionsByDate(morning, morning).get(morning);
@@ -1376,7 +1386,198 @@ function ledgerMorningReadiness(morning: string): number | null {
   if (!readiness || typeof readiness !== "object") return null;
   if (String(readiness.current_date ?? "") !== morning) return null;
   if (String(readiness.freshness ?? "") !== "fresh") return null;
-  return readingNumber(readiness.current);
+  const value = readingNumber(readiness.current);
+  return value == null ? null : { value, beforeTraining: decision?.beforeTraining !== false };
+}
+
+// ---------- THE WATCH'S OWN WAKE-UP READING (2026-09-29) ----------
+//
+// Garmin keeps every readiness recompute of the day in the raw payload
+// (`raw_json.trainingReadiness`, newest first), each stamped (`timestamp`, GMT) and
+// tagged with what triggered it (`inputContext`): AFTER_WAKEUP_RESET is the reading
+// the watch takes when the athlete wakes; AFTER_POST_EXERCISE_RESET and
+// UPDATE_REALTIME_VARIABLES are the day's later recomputes. The stored column keeps
+// only the newest, which on a training day is the post-workout number.
+//
+// Example case: a Tuesday run graded hard, and the Wednesday it was judged by carried a
+// 06:17 wake-up readiness of 64 — a lift at 10:10, then a 72 at 16:20 — while Cairn's
+// only read of that date was its midnight precompute, with no fresh readiness in it.
+// The morning was "unknowable", so the hard day stayed harm.
+//
+// So when Cairn has no morning read of its own from before the first training, the
+// watch's wake-up reading is the morning's readiness — the LATEST wake-up reset stamped
+// strictly before the date's first training instant (a lifted set, a set-less session,
+// a synced activity's own start), or the latest of the date when nothing was trained.
+// Never a post-exercise or real-time recompute, and never a reading at or after the
+// work. An activity whose start cannot be placed in time (a hand-logged run carries only
+// a date) makes the ordering unknowable, and unknowable is absent.
+function parseUtcInstant(value: unknown): number | null {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const iso = text.includes("T") ? text : text.replace(" ", "T");
+  const ms = Date.parse(/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(iso) ? iso : `${iso}Z`);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+// The first instant anything was trained on `date`, UTC ms: `null` when nothing was,
+// `NaN` when something was but its start cannot be placed.
+function firstTrainingInstantMs(date: string): number | null {
+  let first: number | null = null;
+  const take = (ms: number | null) => {
+    if (ms != null && (first == null || ms < first)) first = ms;
+  };
+  const lifted = firstTrainingInstantByDate(date, date).get(date);
+  if (lifted) take(parseUtcInstant(lifted));
+  let unplaceable = false;
+  try {
+    const rows = db
+      .prepare(
+        `SELECT a.id AS id, ga.raw_json AS raw
+           FROM activities a LEFT JOIN garmin_activities ga ON ga.activity_id = a.id
+          WHERE a.date = ?`
+      )
+      .all(date) as Array<{ id: number; raw: string | null }>;
+    for (const row of rows) {
+      let raw: any = null;
+      try {
+        raw = row.raw ? JSON.parse(row.raw) : null;
+      } catch {
+        raw = null;
+      }
+      const begin = Number(raw?.beginTimestamp);
+      const ms = Number.isFinite(begin) && begin > 0 ? begin : parseUtcInstant(raw?.startTimeGMT);
+      if (ms == null) unplaceable = true;
+      else take(ms);
+    }
+  } catch {
+    unplaceable = true;
+  }
+  // The watch's own sessions too (a synced strength workout is a session, never an
+  // activities row, and its imported sets are stamped when the sync landed them).
+  try {
+    const rows = db.prepare(`SELECT raw_json AS raw FROM garmin_activities WHERE date = ?`).all(date) as Array<{
+      raw: string | null;
+    }>;
+    for (const row of rows) {
+      try {
+        const raw = row.raw ? JSON.parse(row.raw) : null;
+        const begin = Number(raw?.beginTimestamp);
+        take(Number.isFinite(begin) && begin > 0 ? begin : parseUtcInstant(raw?.startTimeGMT));
+      } catch {
+        /* an unreadable payload adds no instant; the activities pass above owns placeability */
+      }
+    }
+  } catch {
+    /* same contract */
+  }
+  if (unplaceable) return Number.NaN;
+  return first;
+}
+
+// ---------- A READING THAT ONLY RESTATES THE WORKOUT IS NOT EVIDENCE ABOUT IT ----------
+// (owner ruling, 2026-09-29.) Garmin's readiness is a blend of factors, and one of them
+// — recovery time — is computed from the PREVIOUS workout's own load (its EPOC). On a
+// night the watch recorded no valid sleep, the wake-up score has little else to go on,
+// so a low score driven by that factor is the workout's load restated as a number: it
+// is not the body answering the workout, and charging it as harm against that same
+// workout is circular. Example case: a 17.7 km long run, then a no-sleep wake-up score
+// of 17 whose lowest factor was recovery time (50 h, POOR) — sleep absent, HRV
+// moderate, load balance good.
+//
+// So a wake-up reading RESTATES LOAD when (`wakeReadingRestatesLoad`):
+//   • the watch says the night had no valid sleep (`validSleep === false`, stated, not
+//     inferred from absence), AND
+//   • its recovery-time factor is the lowest of the factors it actually read
+//     (`READINESS_FACTOR_PERCENT_KEYS`; a factor with feedback NONE reports 0 and is
+//     not a factor), AND
+//   • that factor's own feedback is POOR / VERY_POOR (`RECOVERY_TIME_DRIVEN_FEEDBACK`).
+// Such a reading below SUPPORTIVE_READINESS is ABSENT as evidence about the day before —
+// never rest-grade harm, never the low morning that keeps a hard day from being vouched
+// for (absence still never vouches). At or above it, it stays a genuine vouch: a good
+// score despite a recovery-time penalty is conservative evidence. A no-sleep reading
+// whose lowest factor is something else (HRV status, stress history, load balance), and
+// every reading with a valid sleep, count exactly as before. The day's OWN plan still
+// reads the plain score (withMorningReadiness): recovery time is real advice about today.
+export const RECOVERY_TIME_DRIVEN_FEEDBACK: ReadonlySet<string> = new Set(["POOR", "VERY_POOR"]);
+export const READINESS_FACTOR_PERCENT_KEYS = [
+  "sleepScoreFactorPercent",
+  "recoveryTimeFactorPercent",
+  "acwrFactorPercent",
+  "stressHistoryFactorPercent",
+  "hrvFactorPercent",
+  "sleepHistoryFactorPercent",
+] as const;
+
+export function wakeReadingRestatesLoad(entry: any): boolean {
+  if (entry?.validSleep !== false) return false;
+  const recovery = readingNumber(entry?.recoveryTimeFactorPercent);
+  if (recovery == null) return false;
+  if (!RECOVERY_TIME_DRIVEN_FEEDBACK.has(String(entry?.recoveryTimeFactorFeedback ?? "").toUpperCase())) return false;
+  for (const key of READINESS_FACTOR_PERCENT_KEYS) {
+    // A factor the watch could not read reports percent 0 with feedback NONE: not a
+    // factor at all (no sleep, no stress history), so it never outranks recovery time.
+    const feedback = String(entry?.[key.replace("Percent", "Feedback")] ?? "").toUpperCase();
+    if (!feedback || feedback === "NONE") continue;
+    const value = readingNumber(entry?.[key]);
+    if (value != null && value < recovery) return false;
+  }
+  return true;
+}
+
+export interface WatchWakeReading {
+  score: number;
+  /** The low score restates the prior workout's load (see above). */
+  restates_load: boolean;
+}
+
+export function watchWakeReading(morning: string): WatchWakeReading | null {
+  let rows: Array<{ raw_json: string | null }> = [];
+  try {
+    rows = db
+      .prepare(`SELECT raw_json FROM garmin_daily_metrics WHERE date = ? AND raw_json IS NOT NULL ORDER BY id DESC`)
+      .all(morning) as Array<{ raw_json: string | null }>;
+  } catch {
+    return null;
+  }
+  const wakes: Array<{ at: number; score: number; restates_load: boolean }> = [];
+  for (const row of rows) {
+    let raw: any = null;
+    try {
+      raw = JSON.parse(String(row.raw_json));
+    } catch {
+      continue;
+    }
+    const entries = raw?.trainingReadiness;
+    for (const entry of Array.isArray(entries) ? entries : entries ? [entries] : []) {
+      if (String(entry?.inputContext ?? "") !== "AFTER_WAKEUP_RESET") continue;
+      if (entry?.calendarDate != null && String(entry.calendarDate).slice(0, 10) !== morning) continue;
+      const at = parseUtcInstant(entry?.timestamp);
+      const score = readingNumber(entry?.score);
+      if (at == null || score == null || score < 0) continue;
+      wakes.push({ at, score, restates_load: wakeReadingRestatesLoad(entry) });
+    }
+  }
+  if (!wakes.length) return null;
+  const firstTraining = firstTrainingInstantMs(morning);
+  if (firstTraining != null && Number.isNaN(firstTraining)) return null;
+  const usable = wakes.filter((wake) => firstTraining == null || wake.at < firstTraining).sort((a, b) => a.at - b.at);
+  const latest = usable.at(-1);
+  return latest ? { score: latest.score, restates_load: latest.restates_load } : null;
+}
+
+export function watchWakeReadiness(morning: string): number | null {
+  return watchWakeReading(morning)?.score ?? null;
+}
+
+// The morning's readiness, in one ladder: Cairn's own read from before the first
+// training; else the watch's wake-up reading before it; else Cairn's read written after
+// the work (the closest thing to a morning read the ledger holds). Null when none speaks.
+function ladderMorningReadiness(morning: string): number | null {
+  const ledger = ledgerMorningSnapshot(morning);
+  if (ledger?.beforeTraining) return ledger.value;
+  const wake = watchWakeReadiness(morning);
+  if (wake != null) return wake;
+  return ledger?.value ?? null;
 }
 
 // ---------- A RECOMPUTE AFTER TRAINING READS THE MORNING'S READINESS ----------
@@ -1384,9 +1585,10 @@ function ledgerMorningReadiness(morning: string): number | null {
 // The watch keeps recomputing readiness through the day and the row keeps the LAST
 // sync, so once the athlete has trained, today's row is the post-workout number: the
 // ~16:00 recompute read "readiness is low" off the session it was describing. The
-// morning is the ledger's own snapshot of it (ledgerMorningReadiness — the last
-// predictive read before the first logged set). So when `date` has training on it and
-// the summary's readiness is dated `date`, that snapshot replaces it; with no snapshot
+// morning is the ledger's own snapshot of it, else the watch's own wake-up reading
+// (ladderMorningReadiness — the last predictive read before the first logged set, then
+// the wake-up reset stamped before the work). So when `date` has training on it and
+// the summary's readiness is dated `date`, that morning value replaces it; with neither
 // the reading is ABSENT, never the afternoon value. Anything else passes through
 // untouched — a d-1 row is already refused by isReadDayReadiness downstream.
 // "Trained" is WORK logged — a set or an activity — never a bare session row, which
@@ -1396,7 +1598,7 @@ export function withMorningReadiness<T>(rec: T, date: string): T {
   const summary = rec as any;
   const quality = summary?.quality?.training_readiness ?? summary?.recovery?.quality?.training_readiness;
   if (!summary?.recovery || String(quality?.latest_date ?? "") !== date || !workLoggedOn(date)) return rec;
-  const morning = ledgerMorningReadiness(date);
+  const morning = ladderMorningReadiness(date);
   const patchedQuality = {
     ...quality,
     latest_value: morning,
@@ -1484,7 +1686,10 @@ registerTrainingCacheClear(() => {
   memoVersion = currentTrainingDataVersion();
 });
 
-function memoFor<T>(store: Map<string, T>, morning: string, compute: () => T): T {
+// `store` is a getter, read AFTER the version check: handed the map itself, the first
+// call after a write was given the map from BEFORE the clear, answered out of it, and
+// served the stale value the clear existed to drop.
+function memoFor<T>(store: () => Map<string, T>, morning: string, compute: () => T): T {
   const version = currentTrainingDataVersion();
   if (version !== memoVersion) {
     readinessMemo = new Map();
@@ -1495,16 +1700,17 @@ function memoFor<T>(store: Map<string, T>, morning: string, compute: () => T): T
   }
   // Only closed mornings are cacheable — see above.
   if (morning >= localDateISO()) return compute();
-  if (store.has(morning)) return store.get(morning) as T;
+  const map = store();
+  if (map.has(morning)) return map.get(morning) as T;
   const value = compute();
-  store.set(morning, value);
+  map.set(morning, value);
   return value;
 }
 
 // The newest wearable row that may speak for `morning`. Per-field freshness is still
 // asked individually by each caller.
 function morningMetricsRow(morning: string): any {
-  return memoFor(metricsRowMemo, morning, () => morningMetricsRowUncached(morning));
+  return memoFor(() => metricsRowMemo, morning, () => morningMetricsRowUncached(morning));
 }
 
 function morningMetricsRowUncached(morning: string): any {
@@ -1532,12 +1738,17 @@ function morningMetricsRowUncached(morning: string): any {
 // The ONE lookup both the physiology brake and the hard-cardio absorption test use,
 // so the two cannot disagree about what the body said.
 function morningReadiness(morning: string): number | null {
-  return memoFor(readinessMemo, morning, () => morningReadinessUncached(morning));
+  return memoFor(() => readinessMemo, morning, () => morningReadinessUncached(morning));
 }
 
 function morningReadinessUncached(morning: string): number | null {
-  const fromLedger = ledgerMorningReadiness(morning);
-  if (fromLedger != null) return fromLedger;
+  // As EVIDENCE about the day before, a low wake-up reading that only restates that
+  // day's load is absent — and so is every other rung's copy of the same morning (a
+  // ledger read that morning saw the same penalised number). See wakeReadingRestatesLoad.
+  const wake = watchWakeReading(morning);
+  if (wake?.restates_load && wake.score < SUPPORTIVE_READINESS) return null;
+  const fromLadder = ladderMorningReadiness(morning);
+  if (fromLadder != null) return fromLadder;
   if (trainedOnDate(morning)) return null;
   const row = morningMetricsRow(morning);
   if (!row) return null;
@@ -1558,7 +1769,7 @@ function nextMorningPhysiologyBrake(date: string): HarmEvidence | null {
   if (!morning) return null;
   // Keyed by the MORNING, which is what the answer is about — `date` only names the
   // day the brake is being attributed to, and the returned evidence carries it.
-  const found = memoFor(brakeMemo, morning, () => nextMorningPhysiologyBrakeUncached(date, morning));
+  const found = memoFor(() => brakeMemo, morning, () => nextMorningPhysiologyBrakeUncached(date, morning));
   return found ? { ...found, date } : null;
 }
 
@@ -1571,9 +1782,11 @@ function nextMorningPhysiologyBrakeUncached(date: string, morning: string): Harm
       detail: `readiness ${readiness} on ${morning}`,
     };
   }
-  // The overnight arms charge only an ONSET (see PERSONAL_BAND_DAYS above).
+  // The overnight arms charge only a BRAKE, and only at its ONSET (see
+  // PERSONAL_BAND_DAYS above and overnight-band.ts): a lone marginal night is a caveat.
   const overnight = overnightPhysiology(morning);
-  const onset = overnight.hrv?.onset ? overnight.hrv : overnight.rhr?.onset ? overnight.rhr : null;
+  const charged = (arm: OvernightArm | null): boolean => !!arm && arm.brake && arm.onset;
+  const onset = charged(overnight.hrv) ? overnight.hrv : charged(overnight.rhr) ? overnight.rhr : null;
   return onset ? { date, kind: "physiology_brake", detail: onset.detail } : null;
 }
 
@@ -1581,8 +1794,13 @@ function nextMorningPhysiologyBrakeUncached(date: string, morning: string): Harm
 interface OvernightArm {
   // Machine register provenance ("hrv 38 below own band 41 on …").
   detail: string;
-  // False when the reading before it already sat past the same line: the episode
-  // started earlier, so this morning is its continuation, not news about yesterday.
+  // The night is a brake: a meaningful miss, or a miss the reading before it
+  // corroborates (overnight-band.ts). False for a lone marginal night — a caveat that
+  // is neither harm nor a vouch.
+  brake: boolean;
+  // True only on the morning the episode first reads as a brake. False when the
+  // reading before it already braked: the episode started earlier, so this morning is
+  // its continuation, not news about yesterday.
   onset: boolean;
 }
 
@@ -1599,7 +1817,7 @@ interface OvernightNight {
 }
 
 function overnightPhysiology(morning: string): OvernightPhysiology {
-  return memoFor(physiologyMemo, morning, () => overnightPhysiologyUncached(morning));
+  return memoFor(() => physiologyMemo, morning, () => overnightPhysiologyUncached(morning));
 }
 
 // The athlete's nights up to `morning`, Garmin preferred per field per date (the same
@@ -1639,100 +1857,125 @@ function overnightNights(from: string, to: string): Map<string, OvernightNight> 
   return byDate;
 }
 
-// The line one night has to cross to count, off the athlete's own nights before
-// `morning`: their mean, less (HRV) or plus (resting HR) one of their own standard
-// deviations, never narrower than recoveryTrendBars. Null below the band's floor.
-function personalLine(
+// The athlete's own band for one overnight field off their nights before `morning`,
+// inside the band window (PERSONAL_BAND_DAYS plus the signal's age bound). Null below
+// the band's floor. `personalBand` (overnight-band.ts) is the one formula.
+function bandBefore(
   nights: Map<string, OvernightNight>,
   field: "hrv_ms" | "resting_hr",
-  morning: string
-): number | null {
+  morning: string,
+  from: string
+): PersonalBand | null {
   const values: number[] = [];
   for (const [date, night] of nights) {
     const value = night[field];
-    if (date < morning && value != null) values.push(value);
+    if (date < morning && date >= from && value != null) values.push(value);
   }
-  return personalBand(values, field)?.line ?? null;
-}
-
-/**
- * The athlete's OWN band for one overnight field, from their own earlier readings: the
- * mean, and the line one night has to cross to count (mean less — HRV — or plus —
- * resting HR — one of their own standard deviations, never narrower than
- * recoveryTrendBars). Null below RECOVERY_BASELINE_MIN_POINTS. The one formula the harm
- * arms and the run morning read (run-day-intensity.ts) both charge a night against.
- */
-export function personalBand(
-  values: readonly number[],
-  field: "hrv_ms" | "resting_hr"
-): { mean: number; line: number } | null {
-  if (values.length < RECOVERY_BASELINE_MIN_POINTS) return null;
-  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-  const sd = sampleSd([...values]) ?? 0;
-  const bars = recoveryTrendBars({ hrv: mean, rhr: mean });
-  return { mean, line: field === "hrv_ms" ? mean - Math.max(bars.hrv, sd) : mean + Math.max(bars.rhr, sd) };
+  return personalBand(values, field);
 }
 
 function overnightPhysiologyUncached(morning: string): OvernightPhysiology {
   const none: OvernightPhysiology = { hrv: null, rhr: null };
   const lookback = Math.max(SENSOR_MAX_AGE_DAYS.hrv, SENSOR_MAX_AGE_DAYS.resting_hr);
-  const from = addDaysISO(morning, -(PERSONAL_BAND_DAYS + lookback));
-  if (!from) return none;
+  const bandFrom = addDaysISO(morning, -(PERSONAL_BAND_DAYS + lookback));
+  // Two readings further back than the band window: the episode test walks the reading
+  // before last night's and the one before that (see overnightArm).
+  const from = addDaysISO(morning, -(PERSONAL_BAND_DAYS + 3 * lookback));
+  if (!from || !bandFrom) return none;
   const nights = overnightNights(from, morning);
   // Only the night dated the morning itself answers for the day before it.
   const tonight = nights.get(morning);
   if (!tonight) return none;
-  // The newest earlier reading of a field that may still speak for `morning` — the
-  // other end of the episode test.
-  const before = (field: keyof OvernightNight, signal: "hrv" | "resting_hr"): OvernightNight | null => {
+  // The newest reading of a field before `at` that may still speak for `at` — one step
+  // back along the chain of consecutive readings.
+  const before = (
+    field: keyof OvernightNight,
+    signal: "hrv" | "resting_hr",
+    at: string
+  ): { date: string; night: OvernightNight } | null => {
     let found: { date: string; night: OvernightNight } | null = null;
     for (const [date, night] of nights) {
-      if (date >= morning || night[field] == null || !sensorIsCurrent(signal, date, morning)) continue;
+      if (date >= at || night[field] == null || !sensorIsCurrent(signal, date, at)) continue;
       if (!found || date > found.date) found = { date, night };
     }
-    return found?.night ?? null;
+    return found;
+  };
+
+  // One banded arm: last night against the athlete's own band (overnight-band.ts). A
+  // meaningful miss brakes alone; a marginal one brakes only when the reading before it
+  // also sat past the line — two consecutive readings, sustained suppression. Each
+  // reading is judged against the band as it stood on ITS morning (a dip night pulls the
+  // next night's band down with it, so one shared line would hide the second reading).
+  // The episode is charged ONCE, at its onset: the morning it first reads as a brake.
+  // When the reading before already braked (its own miss meaningful, or corroborated by
+  // the one before it), the dip was there before the work and this morning continues it.
+  const pastOwnBand = (field: "hrv_ms" | "resting_hr", at: { date: string; night: OvernightNight } | null) => {
+    if (!at) return null;
+    const atFrom = addDaysISO(at.date, -(PERSONAL_BAND_DAYS + lookback));
+    return atFrom ? nightPastBand(at.night[field], bandBefore(nights, field, at.date, atFrom), field) : null;
+  };
+  const bandedArm = (
+    field: "hrv_ms" | "resting_hr",
+    signal: "hrv" | "resting_hr",
+    band: PersonalBand,
+    detail: (value: number, line: number) => string
+  ): OvernightArm | null => {
+    const value = tonight[field];
+    const past = nightPastBand(value, band, field);
+    if (value == null || past == null) return null;
+    const prior = before(field, signal, morning);
+    const priorPast = pastOwnBand(field, prior);
+    const priorPrior = prior && priorPast ? before(field, signal, prior.date) : null;
+    const priorPriorPast = pastOwnBand(field, priorPrior);
+    const brake = overnightBrakes(past, priorPast);
+    return {
+      detail: detail(value, band.line),
+      brake,
+      onset: brake && !overnightBrakes(priorPast, priorPriorPast),
+    };
   };
 
   let hrv: OvernightArm | null = null;
-  const hrvLine = personalLine(nights, "hrv_ms", morning);
-  if (hrvLine != null) {
-    if (tonight.hrv_ms != null && tonight.hrv_ms < hrvLine) {
-      const prior = before("hrv_ms", "hrv")?.hrv_ms ?? null;
-      hrv = {
-        detail: `hrv ${Math.round(tonight.hrv_ms)} below own band ${hrvLine.toFixed(1)} on ${morning}`,
-        onset: !(prior != null && prior < hrvLine),
-      };
-    }
+  const hrvBand = bandBefore(nights, "hrv_ms", morning, bandFrom);
+  if (hrvBand) {
+    hrv = bandedArm(
+      "hrv_ms",
+      "hrv",
+      hrvBand,
+      (value, line) => `hrv ${Math.round(value)} below own band ${line.toFixed(1)} on ${morning}`
+    );
   } else if (tonight.hrv_status && HRV_BRAKE_STATUSES.has(tonight.hrv_status)) {
-    const prior = before("hrv_status", "hrv")?.hrv_status ?? null;
+    // The watch's own verdict word is already a seven-day read, so it stands as a brake.
+    const prior = before("hrv_status", "hrv", morning)?.night.hrv_status ?? null;
     hrv = {
       detail: `hrv status ${tonight.hrv_status} on ${morning}`,
+      brake: true,
       onset: !(prior != null && HRV_BRAKE_STATUSES.has(prior)),
     };
   }
 
   let rhr: OvernightArm | null = null;
-  const rhrLine = personalLine(nights, "resting_hr", morning);
-  if (rhrLine != null) {
-    if (tonight.resting_hr != null && tonight.resting_hr > rhrLine) {
-      const prior = before("resting_hr", "resting_hr")?.resting_hr ?? null;
-      rhr = {
-        detail: `resting hr ${Math.round(tonight.resting_hr)} above own band ${rhrLine.toFixed(1)} on ${morning}`,
-        onset: !(prior != null && prior > rhrLine),
-      };
-    }
+  const rhrBand = bandBefore(nights, "resting_hr", morning, bandFrom);
+  if (rhrBand) {
+    rhr = bandedArm(
+      "resting_hr",
+      "resting_hr",
+      rhrBand,
+      (value, line) => `resting hr ${Math.round(value)} above own band ${line.toFixed(1)} on ${morning}`
+    );
   } else if (
     tonight.resting_hr != null &&
     tonight.hr_7d_avg != null &&
     tonight.resting_hr >= tonight.hr_7d_avg + RESTING_HR_BRAKE_DELTA_BPM
   ) {
-    const earlier = before("resting_hr", "resting_hr");
+    const earlier = before("resting_hr", "resting_hr", morning)?.night ?? null;
     const continuing =
       earlier?.resting_hr != null &&
       earlier.hr_7d_avg != null &&
       earlier.resting_hr >= earlier.hr_7d_avg + RESTING_HR_BRAKE_DELTA_BPM;
     rhr = {
       detail: `resting hr ${Math.round(tonight.resting_hr)} vs 7-day ${Math.round(tonight.hr_7d_avg)} on ${morning}`,
+      brake: true,
       onset: !continuing,
     };
   }
@@ -1769,9 +2012,30 @@ function nextMorningAbsorbedIt(date: string): boolean {
   const readiness = morningReadiness(morning);
   if (readiness == null || readiness < SUPPORTIVE_READINESS) return false;
   // "No brake at all" means the RAW overnight read, not the onset-only charge: a dip
-  // that began before the work is not news about the day, but it is not a vouch either.
+  // that began before the work is not news about the day, but it is not a vouch either
+  // — and neither is a lone marginal night (a caveat, overnight-band.ts).
   const overnight = overnightPhysiology(morning);
   return nextMorningPhysiologyBrake(date) == null && !overnight.hrv && !overnight.rhr;
+}
+
+// Did the morning after `date` speak, and speak clean? It spoke when the ladder can
+// place a readiness on it or a night of HRV or resting HR is dated it; it is clean when
+// that readiness is not rest-grade and no overnight arm BRAKES — whether or not the
+// brake is an onset (a dip carried over from before the work is still not a clean
+// answer), while a lone marginal night stays the caveat it is everywhere else. The
+// run-capacity read (run-capacity.ts) asks it before letting a key run clear an earlier
+// harm day: a key run with no morning after it has not been answered yet, and silence
+// never vouches.
+export function nextMorningClean(date: string): boolean {
+  const morning = addDaysISO(date, 1);
+  if (!morning) return false;
+  const readiness = morningReadiness(morning);
+  const night = overnightNights(morning, morning).get(morning);
+  const spoke = readiness != null || (!!night && (night.hrv_ms != null || night.resting_hr != null));
+  if (!spoke) return false;
+  if (readiness != null && readsRestGradeReadiness(readiness)) return false;
+  const overnight = overnightPhysiology(morning);
+  return !overnight.hrv?.brake && !overnight.rhr?.brake;
 }
 
 // ---------- THE BUILD'S OWN PRESCRIPTION IS NOT HARM ----------
@@ -1813,23 +2077,37 @@ function plannedDoseOn(
 // evidence says so? Null means "nothing says it cost them" — which includes an
 // unrated lifting day, deliberately. Exported so the reads that consult it can carry
 // the provenance instead of a bare boolean.
-export function harmEvidenceOnDay(date: string): HarmEvidence | null {
-  try {
-    const row = db
-      .prepare(`SELECT MIN(performance) AS worst FROM sessions WHERE date = ? AND performance IS NOT NULL`)
-      .get(date) as { worst?: number | null } | undefined;
-    // An aggregate ALWAYS returns a row, so an unrated day arrives as `worst: null`
-    // — and `Number(null)` is 0, not NaN, which read every unrated session as the
-    // worst possible one and made the common case (they log the work, they don't
-    // rate it) permanently unreachable. Test the absence before coercing.
-    if (row?.worst != null) {
-      const worst = Number(row.worst);
-      if (Number.isFinite(worst) && worst < NO_HARM_PERFORMANCE) {
-        return { date, kind: "rated_poorly", detail: `performance ${worst}` };
+//
+// `opts.domain: "running"` asks the question about the RUNNING alone (2026-09-29): the
+// run-capacity read (run-capacity.ts) must not let a lifting session rated under par
+// void a running week. A session rating is a fact about the lifting, so that arm is
+// skipped; the hard-effort arm asks only whether a RUN graded hard; the longest-run arm
+// is running already, and the next-morning arms read the whole body, which the running
+// is part of. Every other caller keeps the whole-day question.
+export interface HarmEvidenceOptions {
+  domain?: "running";
+}
+
+export function harmEvidenceOnDay(date: string, opts: HarmEvidenceOptions = {}): HarmEvidence | null {
+  const running = opts.domain === "running";
+  if (!running) {
+    try {
+      const row = db
+        .prepare(`SELECT MIN(performance) AS worst FROM sessions WHERE date = ? AND performance IS NOT NULL`)
+        .get(date) as { worst?: number | null } | undefined;
+      // An aggregate ALWAYS returns a row, so an unrated day arrives as `worst: null`
+      // — and `Number(null)` is 0, not NaN, which read every unrated session as the
+      // worst possible one and made the common case (they log the work, they don't
+      // rate it) permanently unreachable. Test the absence before coercing.
+      if (row?.worst != null) {
+        const worst = Number(row.worst);
+        if (Number.isFinite(worst) && worst < NO_HARM_PERFORMANCE) {
+          return { date, kind: "rated_poorly", detail: `performance ${worst}` };
+        }
       }
+    } catch {
+      /* an unreadable sessions table is not evidence of harm */
     }
-  } catch {
-    /* an unreadable sessions table is not evidence of harm */
   }
   try {
     const novelty = longestRunNovelty(date);
@@ -1856,7 +2134,12 @@ export function harmEvidenceOnDay(date: string): HarmEvidence | null {
     // vouching next morning retires this arm, and only this arm.
     // Hard on the stated QUALITY day is what that day is for, and a planned long run
     // grades hard on load by being long — same rule, judged by the next morning only.
-    if (!planned.quality && !plannedLong && hardCardioDayIntense(date) && !nextMorningAbsorbedIt(date))
+    if (
+      !planned.quality &&
+      !plannedLong &&
+      hardCardioDayIntense(date, undefined, running ? { sport: "run" } : undefined) &&
+      !nextMorningAbsorbedIt(date)
+    )
       return { date, kind: "hard_cardio", detail: "cardio graded hard on intensity" };
   } catch {
     /* same contract: a failed read finds no harm, it does not invent one */

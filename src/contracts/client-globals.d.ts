@@ -6068,6 +6068,11 @@ declare global {
     rows: ClientRaceLadderRow[];
     max_km: number;
     taper_text: string;
+    /**
+     * Why the build climbs from the week it does when a bigger recent week is set aside,
+     * in the run units; "" when nothing is set aside.
+     */
+    capacity_text?: string;
     /** The run units the row words are written in; the numbers (`km`, `max_km`) stay kilometres. */
     units?: "km" | "mi";
   };

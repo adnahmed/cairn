@@ -36,9 +36,11 @@
     if (!model || !Array.isArray(model.rows) || !model.rows.length) return "";
     const rows = model.rows.map((row, index) => rowHtml(row, index, opts)).join("");
     const taper = model.taper_text ? `<p class="race-ladder-taper">${escHtml(model.taper_text)}</p>` : "";
+    const capacity = model.capacity_text ? `<p class="race-ladder-capacity">${escHtml(model.capacity_text)}</p>` : "";
     const mi = model.units === "mi";
     return `<div class="race-ladder">
       <div class="race-ladder-head"><span class="lbl">The build, week by week</span><span class="race-ladder-unit">${mi ? "mi" : "km"} per week</span></div>
+      ${capacity}
       <ol class="race-ladder-list" aria-label="${mi ? "Miles" : "Kilometres"} per week to race day">${rows}</ol>
       ${taper}
     </div>`;

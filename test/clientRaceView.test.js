@@ -246,6 +246,29 @@ test("run volume and paces both follow the athlete's run units", () => {
   for (const km of metric.querySelectorAll(".race-ladder-km")) assert.match(km.textContent, /^\d+(\.\d)? km$/);
 });
 
+test("a bigger week set aside is said above the ladder, in the athlete's units", () => {
+  const win = load();
+  const capacity = {
+    floor_km: 23.4,
+    floor_week_start: "2026-09-07",
+    best_week_km: 32.5,
+    set_aside: [{ week_start: "2026-09-14", km: 32.5, kind: "physiology_brake" }],
+    note: "Your 32.5 km week had a rough night after it, with HRV well under your usual, so the build climbs from your 23.4 km week.",
+  };
+  const metric = paint(win, build({ capacity }));
+  const line = metric.querySelector(".race-ladder-capacity");
+  assert.equal(line.textContent, capacity.note);
+  assert.doesNotMatch(line.textContent, SCORE);
+  const miles = paint(win, build({ capacity }), { units: "mi" });
+  assert.equal(
+    miles.querySelector(".race-ladder-capacity").textContent,
+    "Your 20.2 mi week had a rough night after it, with HRV well under your usual, so the build climbs from your 14.5 mi week."
+  );
+  // Nothing set aside, nothing said — and an older payload without the field says nothing.
+  assert.equal(paint(win, build({ capacity: { ...capacity, set_aside: [], note: "" } })).querySelector(".race-ladder-capacity"), null);
+  assert.equal(paint(win, build()).querySelector(".race-ladder-capacity"), null);
+});
+
 test("a server sentence restates a range whole in miles, never half of it", () => {
   const { runWords } = load().CairnRaceViewModel;
   assert.equal(runWords("easy at 5:10–5:40 /km", "mi"), "easy at 8:19–9:07 /mi");

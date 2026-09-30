@@ -170,6 +170,23 @@ test("weeklyRunPlan: the week after the ramp's reset picks up from the level the
   );
 });
 
+test("weeklyRunPlan: a reset whose own long run the body paid for steps off the reset, not the paused level", () => {
+  // The same lighter reset week — but the morning after its long run read rest-grade.
+  // Capacity is never pushed through harm (2026-09-29): the reset resume takes the same
+  // closed-week guard the capacity resume does.
+  seedHalfRunner();
+  run("2031-09-23", 4.3);
+  run("2031-09-25", 5.7);
+  run("2031-09-28", 14.1);
+  repo.upsertGarminDailyMetric({ date: "2031-09-29", training_readiness: 1 });
+  const plan = repo.weeklyRunPlan("2031-09-29");
+  assert.ok(!plan.rationale.some((l) => /Picking the build back up/.test(l)), plan.rationale.join(" | "));
+  assert.ok(
+    plan.goal_feasibility.week_km < raceRamp(goal, "2031-09-29", 32.4, 17.6).required_km,
+    `the ramp does not step off the paused 32.4 (got ${plan.goal_feasibility.week_km})`
+  );
+});
+
 test("weeklyRunPlan: a reset week that was an absence keeps the ordinary reactive anchor", () => {
   seedHalfRunner();
   run("2031-09-23", 4.3);

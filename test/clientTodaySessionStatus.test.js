@@ -326,6 +326,11 @@ test("Today feedback markup owns scale, done state, and empty state", () => {
   // be a numeric grade on how the athlete felt — the one thing Cairn never shows.
   assert.match(form, /aria-label="soreness: fresh"/);
   assert.doesNotMatch(form, /aria-label="soreness \d"/);
+  // The two scales fill alike but mean opposite things (more soreness is worse, more
+  // performance is better), so each names its two ends in words under its dots.
+  assert.match(form, /<div class="feel-ends"[^>]*><span>fresh<\/span><span>very sore<\/span><\/div>/);
+  assert.match(form, /<div class="feel-ends"[^>]*><span>well under par<\/span><span>well above expected<\/span><\/div>/);
+  assert.match(form, /data-feel="performance" data-val="2" title="under par"/);
   // A stored note never becomes an editable field again: the pain mini-UI is gone
   // from the finish form entirely (pain arrives in words). The done line below
   // still SHOWS it — display is not the same as asking someone to fill it in.

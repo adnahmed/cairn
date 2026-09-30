@@ -1402,6 +1402,22 @@ export interface ClientRaceBuild {
     typical_load: "light" | "moderate" | "heavy";
     placement: string;
   } | null;
+  /**
+   * What the running has demonstrated: the week the build climbs from and the bigger
+   * weeks set aside because the body paid for them. `note` is one plain-word sentence
+   * in km ("" when nothing is set aside); render it through runWords for run units.
+   */
+  capacity?: {
+    floor_km: number | null;
+    floor_week_start: ISODateString | string | null;
+    best_week_km: number | null;
+    set_aside: {
+      week_start: ISODateString | string;
+      km: number;
+      kind: "rated_poorly" | "hard_cardio" | "longest_run" | "readiness_rest_grade" | "physiology_brake";
+    }[];
+    note: string;
+  } | null;
   review: {
     weeks: { week_start: ISODateString | string; km: number; runs: number }[];
     longest_recent_km: number | null;

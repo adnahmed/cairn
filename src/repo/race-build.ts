@@ -53,9 +53,16 @@ import {
   type RaceRampGoal,
 } from "./run-ramp.js";
 import { weekAsPlanned, weeklyRunPlan, type WeeklyRunPlan } from "./run-progression.js";
-import { closedWeekRunHarm, demonstratedLongKm, demonstratedRunCapacity } from "./run-capacity.js";
+import {
+  capacitySetAsideLine,
+  closedWeekRunHarm,
+  demonstratedLongKm,
+  demonstratedRunCapacity,
+} from "./run-capacity.js";
+import type { HarmEvidenceKind } from "./brain/read-adherence.js";
 import { localDateISO } from "./shared.js";
 import { planDayStrengthGroups } from "./training-read.js";
+import { registerRaceLadderPeak } from "./race-ladder-hook.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -209,6 +216,20 @@ export interface RaceBuild {
     clean: boolean;
   } | null;
   ride: RidePattern | null;
+  /**
+   * What the running has already demonstrated, read at the Sunday this week is planned
+   * from (run-capacity.ts): the week the build climbs from, and the bigger weeks set
+   * aside because the body paid for them. `note` is the one plain-word sentence saying
+   * so, in km ("" when nothing is set aside) — the page restates its figures in the
+   * athlete's run units. Null on a read with no dated race.
+   */
+  capacity: {
+    floor_km: number | null;
+    floor_week_start: string | null;
+    best_week_km: number | null;
+    set_aside: { week_start: string; km: number; kind: HarmEvidenceKind }[];
+    note: string;
+  } | null;
   review: {
     weeks: { week_start: string; km: number; runs: number }[];
     longest_recent_km: number | null;
@@ -1065,6 +1086,7 @@ export function raceBuild(
       leg_map: [],
       strength: null,
       ride: null,
+      capacity: null,
       review: { weeks: [], longest_recent_km: null, volume_word: null },
       why: "",
       reason,
@@ -1125,57 +1147,7 @@ export function raceBuild(
   const qualityPace = paces && qualityKey ? paces.bands.find((b) => b.key === qualityKey) ?? null : null;
 
   // ---- the ladder ----
-  const review = weeklyReview(asOf, logRuns);
-  const anchorKm = weekKm > 0 ? weekKm : review.weeks.at(-1)?.km || 0;
-  const anchorLong = longKm ?? review.longest_recent_km ?? 0;
-  const rampGoal = { ...goal, date: goal.date, distance_km: distance };
-  // The engine's own prescription is the truth for this week, and the rung the rest
-  // of the ladder steps off (see projectRaceBuildWeeks).
-  // The engine already knows next week (an upcoming recovery week, a hold, a stated
-  // schedule change); handed to the ladder, the second rung is the engine's own number
-  // rather than a projection that disagrees with the run list one card down.
-  //
-  // But only once THIS week's volume is in the bank. The engine sizes a week off the
-  // Mon–Sun before it, so asked about next Monday mid-week it anchors on the three or
-  // four kilometres logged so far and hands back a collapsed rung the ladder then
-  // walks from. Until the log has caught up with this week's prescription, next week
-  // steps off the prescription (the walk's own projection) instead.
-  const thisMonday = mondayOf(asOf);
-  const loggedThisWeek = logRuns.filter((r) => r.date >= thisMonday && r.date <= asOf).reduce((s, r) => s + r.km, 0);
-  const thisWeekBanked = weekKm > 0 && loggedThisWeek >= weekKm;
-  const nextMonday = addDaysISO(thisMonday, 7);
-  const nextPlan = nextMonday && thisWeekBanked ? safe(() => weeklyRunPlan(nextMonday)) : null;
-  const nextRuns = nextPlan?.available ? nextPlan.runs : [];
-  const nextKm = round1(nextRuns.reduce((s, r) => s + (r.target_distance_km != null ? Number(r.target_distance_km) : 0), 0));
-  const nextLong = nextRuns.find((r) => r.kind_label === "long");
-  const priorWeekKm = review.weeks.find((w) => w.week_start === addDaysISO(thisMonday, -7))?.km ?? null;
-  // What the running has already shown, read at the same closed week the engine plans
-  // this week from (the Sunday before this Monday).
-  const shownCapacity = safe(() => demonstratedRunCapacity(addDaysISO(thisMonday, -1) ?? asOf));
-  const weeks = projectRaceBuildWeeks(
-    rampGoal,
-    asOf,
-    anchorKm,
-    anchorLong,
-    weekKm > 0 ? { km: weekKm, long_km: longKm } : null,
-    nextKm > 0 ? { km: nextKm, long_km: nextLong?.target_distance_km != null ? Number(nextLong.target_distance_km) : null } : null,
-    {
-      priorWeekKm,
-      closedWeeksKm: review.weeks.map((w) => w.km),
-      demonstratedLongKm: demonstratedLongKm(asOf, logRuns),
-      demonstratedWeekKm: shownCapacity?.floor_km ?? null,
-      bestWeekKm: shownCapacity?.best_week_km ?? null,
-      currentWeekHarmed: safe(() => closedWeekRunHarm(asOf)) != null,
-      // The engine's own run week, when its run count is fixed — so a projected rung is
-      // what the engine will prescribe in those runs, not a volume they cannot carry.
-      capacity: plan?.goal_feasibility?.capacity
-        ? {
-            shape: plan.goal_feasibility.capacity,
-            demonstratedMidweekKm: plan.goal_feasibility.capacity.demonstrated_midweek_km,
-          }
-        : null,
-    }
-  );
+  const { weeks, review, shownCapacity } = raceLadderFor({ ...goal, date: goal.date, distance_km: distance }, asOf, plan, logRuns);
 
   // ---- the ring: runs, strength, ride ----
   // Runs are the engine's week (never plan rows); strength is the lifting week laid onto
@@ -1267,7 +1239,7 @@ export function raceBuild(
   const why = pickDayVariant(WHY_VARIANTS, asOf, "race-build:why")
     .replace("{weeks}", String(weeksToRace))
     .replace("{event}", event)
-    .replace("{km}", String(Math.round(weekKm || anchorKm)))
+    .replace("{km}", String(Math.round(weekKm || review.weeks.at(-1)?.km || 0)))
     .replace("{long}", String(longKm != null ? round1(longKm) : round1(weeks[0]?.long_km ?? 0)))
     .replace("{estimate}", estimateSentence(prediction, target))
     .trim();
@@ -1293,11 +1265,98 @@ export function raceBuild(
     leg_map,
     strength,
     ride,
+    capacity: shownCapacity
+      ? {
+          floor_km: shownCapacity.floor_km,
+          floor_week_start: shownCapacity.floor_week_start,
+          best_week_km: shownCapacity.best_week_km,
+          set_aside: shownCapacity.set_aside.map((w) => ({ week_start: w.week_start, km: w.km, kind: w.harm.kind })),
+          note: capacitySetAsideLine(shownCapacity, asOf),
+        }
+      : null,
     review,
     why,
     reason: null,
   };
 }
+
+/**
+ * The ladder from `asOf`'s week to race week, off the engine's own week `plan` — the ONE
+ * walk every surface reads: the race build prints it, and the engine's race-feasibility
+ * sentence reads its peak through race-ladder-hook.ts (the engine cannot import this
+ * module back). `logRuns` is the recent-runs read raceBuild already holds.
+ */
+export function raceLadderFor(
+  goal: RaceRampGoal & { date: string; distance_km: number },
+  asOf: string,
+  plan: Pick<WeeklyRunPlan, "available" | "runs" | "planned_runs" | "goal_feasibility"> | null,
+  logRuns: RunRow[] = recentRuns(asOf, 42)
+): { weeks: RaceBuildWeek[]; review: RaceBuild["review"]; shownCapacity: ReturnType<typeof demonstratedRunCapacity> | null } {
+  const runs = plan?.available ? weekAsPlanned(plan) : [];
+  const weekKm = round1(runs.reduce((s, r) => s + (r.target_distance_km != null ? Number(r.target_distance_km) : 0), 0));
+  const longRun = runs.find((r) => r.kind_label === "long") ?? null;
+  const longKm = longRun?.target_distance_km != null ? Number(longRun.target_distance_km) : null;
+  const review = weeklyReview(asOf, logRuns);
+  const anchorKm = weekKm > 0 ? weekKm : review.weeks.at(-1)?.km || 0;
+  const anchorLong = longKm ?? review.longest_recent_km ?? 0;
+  // The engine's own prescription is the truth for this week, and the rung the rest
+  // of the ladder steps off (see projectRaceBuildWeeks).
+  // The engine already knows next week (an upcoming recovery week, a hold, a stated
+  // schedule change); handed to the ladder, the second rung is the engine's own number
+  // rather than a projection that disagrees with the run list one card down.
+  //
+  // But only once THIS week's volume is in the bank. The engine sizes a week off the
+  // Mon–Sun before it, so asked about next Monday mid-week it anchors on the three or
+  // four kilometres logged so far and hands back a collapsed rung the ladder then
+  // walks from. Until the log has caught up with this week's prescription, next week
+  // steps off the prescription (the walk's own projection) instead.
+  const thisMonday = mondayOf(asOf);
+  const loggedThisWeek = logRuns.filter((r) => r.date >= thisMonday && r.date <= asOf).reduce((s, r) => s + r.km, 0);
+  const thisWeekBanked = weekKm > 0 && loggedThisWeek >= weekKm;
+  const nextMonday = addDaysISO(thisMonday, 7);
+  const nextPlan = nextMonday && thisWeekBanked ? safe(() => weeklyRunPlan(nextMonday)) : null;
+  const nextRuns = nextPlan?.available ? nextPlan.runs : [];
+  const nextKm = round1(nextRuns.reduce((s, r) => s + (r.target_distance_km != null ? Number(r.target_distance_km) : 0), 0));
+  const nextLong = nextRuns.find((r) => r.kind_label === "long");
+  const priorWeekKm = review.weeks.find((w) => w.week_start === addDaysISO(thisMonday, -7))?.km ?? null;
+  // What the running has already shown, read at the same closed week the engine plans
+  // this week from (the Sunday before this Monday).
+  const shownCapacity = safe(() => demonstratedRunCapacity(addDaysISO(thisMonday, -1) ?? asOf));
+  const weeks = projectRaceBuildWeeks(
+    goal,
+    asOf,
+    anchorKm,
+    anchorLong,
+    weekKm > 0 ? { km: weekKm, long_km: longKm } : null,
+    nextKm > 0 ? { km: nextKm, long_km: nextLong?.target_distance_km != null ? Number(nextLong.target_distance_km) : null } : null,
+    {
+      priorWeekKm,
+      closedWeeksKm: review.weeks.map((w) => w.km),
+      demonstratedLongKm: demonstratedLongKm(asOf, logRuns),
+      demonstratedWeekKm: shownCapacity?.floor_km ?? null,
+      bestWeekKm: shownCapacity?.best_week_km ?? null,
+      currentWeekHarmed: safe(() => closedWeekRunHarm(asOf)) != null,
+      // The engine's own run week, when its run count is fixed — so a projected rung is
+      // what the engine will prescribe in those runs, not a volume they cannot carry.
+      capacity: plan?.goal_feasibility?.capacity
+        ? {
+            shape: plan.goal_feasibility.capacity,
+            demonstratedMidweekKm: plan.goal_feasibility.capacity.demonstrated_midweek_km,
+          }
+        : null,
+    }
+  );
+  return { weeks, review, shownCapacity };
+}
+
+// The engine's race-feasibility sentence reads the same walk (race-ladder-hook.ts).
+registerRaceLadderPeak((asOf, plan) => {
+  const goal = getEnduranceGoal(asOf);
+  const distance = Number(goal?.distance_km);
+  if (!goal?.is_race || !goal.date || !(distance > 0) || goal.phase === "past") return null;
+  const weeks = raceLadderFor({ ...goal, date: goal.date, distance_km: distance }, asOf, plan as any).weeks;
+  return weeks.find((w) => w.kind === "peak")?.km ?? null;
+});
 
 function planDayName(dayNumber: number): string | null {
   try {

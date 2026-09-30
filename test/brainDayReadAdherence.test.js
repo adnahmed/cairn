@@ -1524,9 +1524,11 @@ test("harmEvidenceOnDay issues a bounded number of statements, and repeats are c
   const second = countingStatements(() => harmEvidenceOnDay(day));
 
   // Before the memo this shape issued 28 statements on the first call and 28 again on
-  // the second; it now issues 18 and 5. The bounds sit just above each, so a return of
-  // the duplicate work fails here rather than quietly costing a ladder ten times over.
-  assert.ok(first <= 20, `one call should stay bounded, issued ${first}`);
+  // the second; it now issues 22 and 5 (the watch's wake-up readiness rung added one
+  // raw-payload read per morning resolved, 2026-09-29). The bounds sit just above each,
+  // so a return of the duplicate work fails here rather than quietly costing a ladder
+  // ten times over.
+  assert.ok(first <= 23, `one call should stay bounded, issued ${first}`);
   assert.ok(second <= 8, `a repeat should reuse the memoized morning, issued ${second}`);
   assert.ok(second < first, `a repeat must be cheaper than the first, ${second} vs ${first}`);
   // And the answer is unchanged by the memo.

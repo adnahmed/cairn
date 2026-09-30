@@ -19,6 +19,7 @@ import { flexibleTrainingAgenda } from "../dist/repo/flexible-training-agenda.js
 import { planWeek } from "../dist/domain/training/plan-week.js";
 import { dayFuelDemand } from "../dist/repo/fuel-demand.js";
 import { violatesReadingGrammar } from "../dist/repo/day-read-grammar.js";
+import { personalBand } from "../dist/repo/overnight-band.js";
 import {
   classifyRunWord,
   LONG_BRAKE_FACTOR,
@@ -174,6 +175,37 @@ test("the same trimmed week on a low-HRV morning (below their OWN band) goes eas
   assert.equal(plan.today_adjustment.reason_code, "floor:hrv_below_own_band");
   assert.match(plan.today_adjustment.why, /HRV/);
   assert.equal(violatesReadingGrammar(plan.today_adjustment.why), null);
+});
+
+// The run morning judges last night exactly as the harm arms do (overnight-band.ts): a
+// hair under their own line is a caveat, never a floor; two readings in a row past it
+// are sustained suppression and turn the quality day easy (owner ruling 2026-09-29).
+function ownBandBefore(date) {
+  const values = [];
+  for (let back = 1; back <= 30; back++) {
+    const row = db.prepare(`SELECT hrv_ms FROM garmin_daily_metrics WHERE date = ?`).get(addDays(date, -back));
+    if (row?.hrv_ms != null) values.push(Number(row.hrv_ms));
+  }
+  return personalBand(values, "hrv_ms");
+}
+
+test("a night a hair under their own band is a caveat on the run morning, never a floor", () => {
+  qualityTodayAthlete();
+  const band = ownBandBefore(TODAY);
+  tonight({ ...GOOD_NIGHT, hrv_ms: Math.round((band.line - 0.1) * 10) / 10 });
+  const ev = runMorningEvidence(TODAY);
+  assert.ok(!ev.floors.includes("hrv_below_own_band"), JSON.stringify(ev));
+  assert.ok(!ev.supports.includes("hrv_at_usual"), "…and not a support either");
+});
+
+test("two nights in a row past their own band are a floor on the run morning", () => {
+  qualityTodayAthlete();
+  const yesterday = addDays(TODAY, -1);
+  const before = ownBandBefore(yesterday);
+  repo.upsertGarminDailyMetric({ date: yesterday, hrv_ms: Math.round((before.line - 0.1) * 10) / 10, sleep_min: 460 });
+  const band = ownBandBefore(TODAY);
+  tonight({ ...GOOD_NIGHT, hrv_ms: Math.round((band.line - 0.1) * 10) / 10 });
+  assert.ok(runMorningEvidence(TODAY).floors.includes("hrv_below_own_band"));
 });
 
 test("the same trimmed week after a short night goes easy", () => {
