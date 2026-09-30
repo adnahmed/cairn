@@ -75,6 +75,7 @@ import {
   sessionFirstSetAt,
   sinceClause,
   type SlotAuthorship,
+  exposurePerformedPrescription,
   slotAuthorship,
   slotStamp,
 } from "./prescription-authorship.js";
@@ -148,7 +149,15 @@ import {
   enduranceOverlapsMovement,
   OUTCOME_FACTS_SCHEMA_VERSION,
 } from "./daily-reconciliation.js";
-import { harderLoad, loadAtOrAbove } from "./outcome-comparability.js";
+import {
+  type ChallengeAchieved,
+  type ChallengePrescribed,
+  cappedShortOfSets,
+  type DoseChallengeVerdict,
+  doseChallengeVerdict,
+  harderLoad,
+  loadAtOrAbove,
+} from "./outcome-comparability.js";
 
 export {
   loadPhrase,
@@ -314,7 +323,8 @@ export interface Prescription {
       | "partial"
       | "under_prescribed"
       | "full_comparable"
-      | "full_load_through_confound";
+      | "full_load_through_confound"
+      | "capped_short_set";
   };
 }
 
@@ -686,6 +696,39 @@ function clampedOverload(
   return rounded;
 }
 
+// A SURPLUS BUYS A BIGGER STEP. The ordinary earned step is one plate-grid notch
+// (~2.5% of the bar), sized for a set that just capped the range. A top set that ran
+// two or more reps PAST the ceiling — or finished there with a rating well above the
+// two-rep reserve — has shown more than one notch of room, and a notch at a time asks
+// it to prove the same thing again and again while the card trails the log: 225 × 8 at
+// RIR 2 on a 5–6 card supports ~237 for six. So the step may reach the load that top
+// set supports at the ceiling (Epley, keeping the two-rep reserve), bounded by twice
+// the per-session ceiling and the 10% fraction, on the same plate grid. Never smaller
+// than the ordinary step; never when the lift's own learned response asks for smaller
+// steps; never under a deep cut (sliding or faster than lean-safe).
+const SURPLUS_STEP_MIN_REPS = 2;
+function surplusStep(
+  current: number,
+  group: string | null,
+  top: { weight: number | null; reps: number | null; rir: number | null } | null,
+  repCeiling: number | null,
+  ordinary: number,
+  phaseScale: number
+): number {
+  if (!(current > 0) || repCeiling == null || !top || top.weight == null || top.reps == null) return ordinary;
+  if (Math.abs(Number(top.weight) - current) > 0.1) return ordinary;
+  const reps = Number(top.reps);
+  const reserveBeyond = top.rir != null ? Math.max(0, Number(top.rir) - RIR_IN_RESERVE) : 0;
+  const surplus = Math.max(0, reps - repCeiling) + reserveBeyond;
+  if (surplus < SURPLUS_STEP_MIN_REPS) return ordinary;
+  const ceil = phaseStepCeiling(group, current, phaseScale);
+  const supported = (current * (1 + (reps + reserveBeyond) / 30)) / (1 + repCeiling / 30);
+  const bound = Math.min(current + 2 * ceil, current * (1 + STEP_FRAC * (phaseScale > 0 ? phaseScale : 1)));
+  const grid = isIsolationGroup(group) || ceil % 5 !== 0 ? 2.5 : 5;
+  const candidate = Math.floor(Math.min(bound, supported) / grid + 1e-9) * grid;
+  return candidate > ordinary ? candidate : ordinary;
+}
+
 // The next load one ordinary earned step above `current` — the plate grid and the
 // per-session cap an overload takes, with no phase pacing or learned modifier. The
 // daily reach prices its heavier look off this, so a reach is never a bigger jump
@@ -1022,6 +1065,33 @@ function fullLoadThroughConfound(dose: any, reasons: readonly string[]): boolean
   return reference != null && reference > 0 && top != null && loadAtOrAbove(top, reference);
 }
 
+// The stored dose re-read through the current challenge rule. Only a dose that carries
+// its per-set detail can be re-derived; anything older keeps its stored verdict.
+function rederivedChallenge(dose: any): { verdict: DoseChallengeVerdict; capped_short: boolean } | null {
+  const detail = dose?.achieved?.sets_detail;
+  if (!Array.isArray(detail) || !detail.length || !dose?.prescribed) return null;
+  const n = (v: unknown): number | null => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+  const prescribed: ChallengePrescribed = {
+    sets: n(dose.prescribed.sets),
+    rep_low: n(dose.prescribed.rep_low),
+    rep_high: n(dose.prescribed.rep_high),
+    target_weight: n(dose.prescribed.target_weight),
+    target_seconds: n(dose.prescribed.target_seconds),
+  };
+  const achieved: ChallengeAchieved = {
+    sets: n(dose.achieved.sets) ?? detail.length,
+    top_weight: n(dose.achieved.top_weight),
+    top_reps: n(dose.achieved.top_reps),
+    top_seconds: n(dose.achieved.top_seconds),
+    sets_detail: detail.map((set: any) => ({
+      weight: n(set?.weight),
+      reps: n(set?.reps),
+      duration_sec: n(set?.duration_sec),
+    })),
+  };
+  return { verdict: doseChallengeVerdict(prescribed, achieved), capped_short: cappedShortOfSets(prescribed, achieved) };
+}
+
 function linkedDoseEligibility(
   sessionId: number | null | undefined,
   movement: string,
@@ -1058,7 +1128,16 @@ function linkedDoseEligibility(
     : null;
   const prescribedSets = Number(dose?.prescribed?.sets);
   const achievedSets = Number(dose?.achieved?.sets);
+  // The stored numbers are re-read under the CURRENT verdict rule (a heavier set at
+  // fewer reps meets a lighter card — outcome-comparability.ts), so a dose written
+  // before that rule speaks the same as one written after it.
+  const challenge = dose ? rederivedChallenge(dose) : null;
+  const verdict = challenge?.verdict ?? dose?.challenge_verdict;
+  // One set short of the card with every working set past the top of the range: the
+  // LOAD question is answered (cappedShortOfSets) — the shortfall is volume's to read.
+  const cappedShort = challenge?.capped_short === true && dose?.relevant_symptom !== true;
   const ownShortfall =
+    !cappedShort &&
     Number.isFinite(prescribedSets) &&
     prescribedSets > 0 &&
     (!Number.isFinite(achievedSets) || achievedSets < prescribedSets);
@@ -1109,13 +1188,21 @@ function linkedDoseEligibility(
             ),
           performed_at_full_load: dose.performed_at_full_load === true,
         });
+  // The capped-short dose's only "shortfall" is the missing set: that reason is
+  // volume's, never this lift's comparability.
+  if (cappedShort && !perDose.comparable) {
+    const rest = perDose.non_comparable_reasons.filter((reason: string) => reason !== "partial");
+    perDose.non_comparable_reasons = rest;
+    perDose.comparable = rest.length === 0;
+  }
   if (!perDose.comparable) {
-    if (fullLoadThroughConfound(dose, perDose.non_comparable_reasons)) {
+    if (fullLoadThroughConfound({ ...dose, challenge_verdict: verdict }, perDose.non_comparable_reasons)) {
       return { linked_outcome: true, eligible: true, reason: "full_load_through_confound" };
     }
     return { linked_outcome: true, eligible: false, reason: "non_comparable" };
   }
-  if (dose.challenge_verdict !== "met" && dose.challenge_verdict !== "exceeded") {
+  if (cappedShort) return { linked_outcome: true, eligible: true, reason: "capped_short_set" };
+  if (verdict !== "met" && verdict !== "exceeded") {
     // A plan re-ground must not turn a dose that met its own composition snapshot
     // into a blocker. When the plan is still behind logged reality and this dose
     // completed that snapshot, a later target rewrite may make the stored verdict
@@ -1124,7 +1211,7 @@ function linkedDoseEligibility(
     // movement-relevant symptom still holds the lift out of the comparable set
     // (a handicapped dose that cleared full load counts only through
     // fullLoadThroughConfound above, under its own reason).
-    if (opts?.planBehind && metSnapshottedPrescription(dose)) {
+    if (opts?.planBehind && metSnapshottedPrescription({ ...dose, challenge_verdict: verdict })) {
       return { linked_outcome: true, eligible: true, reason: "full_comparable" };
     }
     return { linked_outcome: true, eligible: false, reason: "under_prescribed" };
@@ -1688,6 +1775,7 @@ export function nextPrescription(
     // here. Absent OR null means "whatever the athlete has standing" — there is no
     // meaningful third state to preserve, unlike the block/cut/estimate thunks.
     drive: opts?.drive ?? readTrainingDrive(),
+    deloadEvidence: deloadEvidenceThunk(date),
     // The band is a property of THIS movement on THIS day, so it is read per lift.
     // The read returns null before touching its heavier queries when nothing has
     // been stated about the movement, which is the ordinary case.
@@ -1707,7 +1795,25 @@ function holdLikeMovement(name: string, group: string | null): boolean {
   return classifyPattern(name, group ?? undefined) === "carry" || detectExerciseMode(name) === "timed";
 }
 
+// Whether the loaded-weeks evidence calls for a deload (program-state's mesocycle,
+// read past the block's own suppression). Lazy: only a scheduled deload week asks.
+function deloadEvidenceThunk(date: string): () => boolean {
+  let cached: boolean | null = null;
+  return () => {
+    if (cached == null) {
+      try {
+        cached = getProgramState(date).mesocycle?.deload_evidence === true;
+      } catch {
+        cached = false;
+      }
+    }
+    return cached;
+  };
+}
+
 interface PrescCtx {
+  /** Lazy: does the loaded-weeks evidence call for a deload? (scheduled deload weeks only) */
+  deloadEvidence?: () => boolean;
   canonGroup: MuscleGroup | null;
   autoreg: AutoregSignals | null;
   acute: Map<MuscleGroup, AcuteGateReading> | null;
@@ -1801,7 +1907,20 @@ function repsPrescription(
   // A slot written with NO load on a lift with loaded history is still grounded
   // (planUnset below): from the sessions under this prescription when there are any,
   // else the latest history, exactly as before the stamp existed.
-  const authorship = slotAuthorship(plan?.prescribed_at ?? null, lastExposureOf(name, last), date);
+  const writtenAuthorship = slotAuthorship(plan?.prescribed_at ?? null, lastExposureOf(name, last), date);
+  // Written after the last session — but did that session already DO it? A catch-up that
+  // lands the plan on the load the log just lifted is tested by that log
+  // (exposurePerformedPrescription), and its evidence starts with that session.
+  const authorship =
+    writtenAuthorship.untested &&
+    last?.date &&
+    exposurePerformedPrescription(latestWorkingSets(name), {
+      weight: planWeight,
+      rep_low: repLow,
+      sets: plan?.sets,
+    })
+      ? { ...writtenAuthorship, untested: false, since: String(last.date), since_at: null }
+      : writtenAuthorship;
   const underPrescription = workingWeightUnderPrescription(name, authorship);
   const loggedWorking = planWeight == null ? (underPrescription ?? recentWorkingWeight(name)) : underPrescription;
   const recentWorking = unreachable(loggedWorking) ? achievable : loggedWorking;
@@ -1925,8 +2044,22 @@ function repsPrescription(
   // false for it and a deload week does not restrain the push rule on accessory
   // work. That is the existing "accessories never periodize" design, not an
   // oversight — the easy week is about the lifts the block is actually running.
+  //
+  // A SCHEDULED deload is the calendar's, not the body's. Deload-due is earned by loaded
+  // weeks and a log-confirmed shortfall, never a weeks count (program-state.ts) — yet a
+  // block's last week read as a deload by date alone and held every main lift for it,
+  // the week after eight new bests. For an athlete who has asked to be pushed, that
+  // week runs as intensification unless the loaded-weeks evidence ALSO calls for the
+  // deload. An EARNED easy week (an applied recovery week) still holds for everyone,
+  // and a steady athlete keeps the block's scheduled week as written.
+  const scheduledDeloadRuns =
+    brakeCtx?.block?.scheduled_deload === true &&
+    (brakeCtx?.drive ?? "steady") === "push" &&
+    !(brakeCtx?.deloadEvidence?.() ?? false);
   const policy: PhaseProgressionPolicy | null =
-    brakeCtx?.block && mainLift ? phaseProgressionPolicy(brakeCtx.block.phase) : null;
+    brakeCtx?.block && mainLift
+      ? phaseProgressionPolicy(scheduledDeloadRuns ? "intensification" : brakeCtx.block.phase)
+      : null;
   // DOUBLE PROGRESSION, grounded in what was ACTUALLY logged: advance REPS within the
   // prescribed range first, and only add LOAD once EVERY working set has hit the TOP of
   // the range — then reset reps to the bottom at the new load. `allSetsAtTop` reads the
@@ -1963,6 +2096,13 @@ function repsPrescription(
   // (unless the trend independently reads progressing, which it always did), and
   // RIR ≥ 2 still counts even below the ceiling for the rep stage.
   const rirLogged = lastRir != null;
+  // RESERVE IS COUNTED AT THE CEILING. A rating is the reps left after the set, and a set
+  // that ran PAST the top of the range already spent reserve the card never asked for:
+  // 10 reps at RIR 0 on a 6–8 card was RIR 2 at the eighth rep. Reading the raw rating
+  // called that a grind and held a lift that had just out-done its card by two reps.
+  const overshootOf = (reps: number | null | undefined): number =>
+    hasRange && reps != null ? Math.max(0, Number(reps) - (repCeiling as number)) : 0;
+  const topReserve = rirLogged ? (lastRir as number) + overshootOf(topReps) : null;
   // A step is earned by CURRENT work. A lift that sat out of the rotation past
   // LIFT_CURRENT_WINDOW_DAYS while the athlete kept training re-baselines at its last
   // load when it comes back — a July top set does not buy a heavier card in September.
@@ -1975,7 +2115,7 @@ function repsPrescription(
   const strong =
     current &&
     doseEligibility.eligible &&
-    (status === "progressing" || (rirLogged ? (lastRir as number) >= RIR_IN_RESERVE : true));
+    (status === "progressing" || (topReserve != null ? topReserve >= RIR_IN_RESERVE : true));
   // The card must not tell an athlete who never logs RIR to come back at "RIR 2+".
   // Where a phrasing names the rating, the same meaning also exists spoken in reps;
   // the RIR wording is picked ONLY when an RIR was actually logged.
@@ -2007,14 +2147,16 @@ function repsPrescription(
   // It takes a SESSION, not a set: a lone logged top set is trusted for reading the
   // working weight, but it is not evidence the card was worked through, so at least two
   // capped working sets are required (or the whole card, when it asks for one).
-  const workingRir = workingSets.map((s) => s.rir).filter((r): r is number => r != null);
+  const workingRir = workingSets
+    .filter((s) => s.rir != null)
+    .map((s) => (s.rir as number) + overshootOf(s.reps));
   const cappedWithReserve =
     hasRange &&
     allSetsAtTop &&
     workingSets.length >= Math.min(sets, 2) &&
     (workingRir.length > 0
       ? workingRir.every((r) => r >= RIR_IN_RESERVE)
-      : rirLogged && (lastRir as number) >= RIR_IN_RESERVE);
+      : topReserve != null && topReserve >= RIR_IN_RESERVE);
   // A recovery or peak week adds nothing new — neither load nor another rep. The
   // work was real; it just waits for the week to turn over.
   const phaseHolds = !!policy?.holds_load && (earnedByWork || repStageEligible);
@@ -2022,6 +2164,17 @@ function repsPrescription(
   // The phase's PACING of an earned step. Outside a block this is 1 — the step size
   // the engine has always produced.
   const phaseStepScale = policy?.step_scale ?? 1;
+  // The earned LOAD step off `from`: the ordinary notch, widened by a demonstrated
+  // surplus (surplusStep) unless the lift's learned response or a deep cut says smaller.
+  const loadStepFrom = (from: number): number => {
+    const ordinary = clampedOverload(from, group, brakeCtx?.personalModifier, phaseStepScale);
+    const learnedSmaller = (brakeCtx?.personalModifier?.scale ?? 1) < 1;
+    // A confounded day that cleared full load is a LOWER BOUND that may count toward
+    // the step (fullLoadThroughConfound) — never the evidence for a bigger one.
+    if (learnedSmaller || doseEligibility.reason === "full_load_through_confound") return ordinary;
+    if ((brakeCtx?.cut?.() ?? NO_CUT_PRESSURE).deep) return ordinary;
+    return surplusStep(from, group, last, repCeiling, ordinary, phaseStepScale);
+  };
   // How much this lift's estimated single deserves to be trusted, and whether an
   // apparent slip is worth pausing over rather than deloading. Read at most once
   // per lift per pass, and ONLY from the two branches below that consult it.
@@ -2167,7 +2320,7 @@ function repsPrescription(
       8,
       Math.max(2, PLATEAU_VARY_WEEKS + (cut.any ? PLATEAU_CUT_PATIENCE_WEEKS : 0) + counsel.patience - (counsel.doubt ? 1 : 0))
     );
-    const grinding = lastRir != null && lastRir <= 1;
+    const grinding = topReserve != null && topReserve <= 1;
     const flatLong = flatWeeks >= varyAfterWeeks;
     // An ISOLATION grind whose next load step is too coarse to take (a 15 lb lateral
     // raise whose next step is 20): a tenth off is the same coarse jump the other way,
@@ -2306,7 +2459,7 @@ function repsPrescription(
           ? say(voice.ASSIST_TO_BODYWEIGHT, "assist_to_bodyweight")
           : say(voice.ASSIST_PEEL, "assist_peel");
     } else {
-      nextWeight = clampedOverload(baseWeight, group, brakeCtx?.personalModifier, phaseStepScale);
+      nextWeight = loadStepFrom(baseWeight);
       // The phase, when there is one, owns the sentence: the same earned step means
       // something different in a volume stretch than in a sharpening one.
       why =
@@ -2362,7 +2515,7 @@ function repsPrescription(
           ? say(voice.ACCUMULATION_TOP_SET_ONLY_HOLD, "accumulation_top_set_only_hold")(repCeiling as number)
           : say(voice.TOP_SET_ONLY_HOLD, "top_set_only_hold")(repCeiling as number);
       fallthroughHold = true;
-    } else if (rirLogged && (lastRir as number) <= 1) {
+    } else if (topReserve != null && topReserve <= 1) {
       // The range was finished, but the athlete rated the last set a grind. The
       // not-earned sentence would ask for work they already did; the honest reason
       // for the hold is the effort they reported.
@@ -2414,7 +2567,7 @@ function repsPrescription(
       if (baseWeight < 0) {
         nextWeight = assistStepNext(baseWeight, group, brakeCtx?.personalModifier, phaseStepScale);
       } else {
-        nextWeight = clampedOverload(baseWeight, group, brakeCtx?.personalModifier, phaseStepScale);
+        nextWeight = loadStepFrom(baseWeight);
       }
     } else if (!atOrPastCeiling && action === "overload" && repStep) {
       action = "hold";
@@ -2535,7 +2688,7 @@ function repsPrescription(
     status !== "regressing" &&
     mayPromoteLoad &&
     doseEligibility.eligible &&
-    doseEligibility.reason === "full_comparable" &&
+    (doseEligibility.reason === "full_comparable" || doseEligibility.reason === "capped_short_set") &&
     (response.latest_verdict === "met" || response.latest_verdict === "exceeded") &&
     hasRange &&
     allSetsAtTop
@@ -2546,7 +2699,7 @@ function repsPrescription(
     repStep = false;
     if (baseWeight == null) nextWeight = null;
     else if (baseWeight < 0) nextWeight = assistStepNext(baseWeight, group, brakeCtx?.personalModifier, phaseStepScale);
-    else nextWeight = clampedOverload(baseWeight, group, brakeCtx?.personalModifier, phaseStepScale);
+    else nextWeight = loadStepFrom(baseWeight);
     why = hasRange
       ? sayEffort(voice.EARNED_RANGE_OVERLOAD, voice.EARNED_RANGE_OVERLOAD_REPS, "earned_range_overload")(
           repHigh as number,
@@ -2781,7 +2934,7 @@ function repsPrescription(
     pain_protected: painProtected || undefined,
     movement_response: response.verdict,
     rep_step: repStep || undefined,
-    block_phase: brakeCtx?.block?.phase,
+    block_phase: scheduledDeloadRuns ? "intensification" : brakeCtx?.block?.phase,
     top_set: topSet,
     escalated,
     dose_eligibility: doseEligibility,

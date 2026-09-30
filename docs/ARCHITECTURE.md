@@ -812,6 +812,14 @@ follows. A dose performed at full load drops `recovery_dose` and `travel` from t
 scoping) is unchanged — the write path and `repairOutcomeComparability()` both call the same function
 now, so there is one truth rather than two.
 
+**The challenge verdict and the load question.** `doseChallengeVerdict` (same module, pure) is the
+one met/exceeded/under rule: the write path stores it and `linkedDoseEligibility` (progression.ts)
+re-derives it off the stored `sets_detail`, so old rows follow the current rule. A set HEAVIER than
+the card whose Epley single matches the card's own floor meets it (185 × 7 against 164 × 8–10 is harder
+work, not a miss). And `cappedShortOfSets` answers the LOAD question apart from the set count: one set
+short, with every working set at the load capping the range and one going past it, is eligible
+(`capped_short_set`) — the missing set is volume's (ledger, set catch-up), never a veto on the step.
+
 The session-level `recovery` flag is now STRUCTURED, never a regex over stored decision prose.
 `structuredRecovery(date, composition)` is true only for an active/recheck `recovery_cycles` row at
 that date, a stored `recovery_cycle` on the decision `constraints`/`provenance`/`decision` node (or its
@@ -838,7 +846,14 @@ LOGGED RIR still speaks in both directions — RIR ≤1 was a grind and holds th
 independently reads `progressing`); RIR ≥2 counts even below the ceiling for the rep stage. Card copy
 must never tell an athlete who has never logged RIR to come back at "RIR 2+" — `progression-voice.ts`
 picks the RIR-flavored phrasing only when an RIR was actually logged for that exposure; an athlete who
-never rates gets the identical meaning spoken in reps instead.
+never rates gets the identical meaning spoken in reps instead. Reserve is read AT the ceiling: reps past
+the top count as reserve (10 at RIR 0 on a 6–8 card is RIR 2 at the eighth rep), so an overshoot is
+never a grind. And a surplus buys a bigger step (`surplusStep`): a top set two or more reps past the
+ceiling (or finished with reserve beyond two) may step to the load it supports at the ceiling, bounded
+by twice the per-session ceiling and the 10% fraction — never under a learned smaller-step response, a
+confounded dose or a deep cut. A block's SCHEDULED last-week deload, for a push-drive athlete, runs as
+intensification unless the loaded-weeks evidence (`mesocycle.deload_evidence`) also calls for it; an
+applied recovery week still holds everyone.
 
 ### Prescription authorship (`src/repo/prescription-authorship.ts`)
 
@@ -879,7 +894,9 @@ reads once, never per item. Consumers:
   loaded carry's load; `earnedLifts` (`daily-decision.ts`) earns no floor; the program-state read
   does not call its old slide or stall this slot's trend. So a composition hold anchors on the plan
   load and the slot never hosts a reach (reach needs an overload/carry candidate). One session on or
-  after `prescribed_at` and the ordinary ladder resumes.
+  after `prescribed_at` and the ordinary ladder resumes. A slot whose latest exposure already did it
+  — two working sets AT the written load, the range's floor in reps (`exposurePerformedPrescription`)
+  — is tested by that session (a catch-up written onto the load just lifted); heavier logs never are.
 - **`fresh`** (within `PRESCRIPTION_SETTLE_DAYS`): no rotation for a plateau measured before it
   (the reps vary guards), and program state does not call it flat.
 - **`since`**: re-grounding reads only loaded sessions logged under the current prescription

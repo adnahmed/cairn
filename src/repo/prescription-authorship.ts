@@ -23,6 +23,12 @@
 //                catch-up, earned floor, reach, or in-flight anchor off older work;
 //   - `since`    the date evidence about THIS prescription starts (the set-count
 //                catch-up and re-grounding count only exposures on or after it).
+// One exception to `untested`, and it is the log's: a prescription the latest
+// exposure ALREADY PERFORMED (`exposurePerformedPrescription` — its working sets AT
+// the written load, the range's floor in reps, at least two of them) was tested
+// before it was written. A catch-up that writes the plan onto 80 × 10 × 3 the day
+// after the athlete lifted 80 × 10 × 3 is the log restated, not a new number nobody
+// has trained, and holding it "until trained once" held a lift he had just trained.
 import { db } from "../db.js";
 import { isoDate, isoDay } from "../lib/dates.js";
 import { daysBetweenISO, localDateISO } from "./shared.js";
@@ -317,4 +323,39 @@ export function stampsByPlanKey(): Record<string, string | null> {
     /* pre-v111 schema */
   }
   return out;
+}
+
+/**
+ * Did the lift's latest logged exposure already perform this prescription? Pure. The
+ * working sets are that session's sets at its top load (progression's
+ * latestWorkingSets). Loaded or assisted targets only; a slot with no load has nothing
+ * to have performed. At least two working sets — or the whole card when it asks for
+ * one — AT the written load (a plan written under heavier logs is a deliberate choice,
+ * never "already performed"), each reaching the range's floor.
+ */
+export function exposurePerformedPrescription(
+  workingSets: readonly { weight: number | null; reps: number | null }[],
+  prescription: {
+    weight: number | null | undefined;
+    rep_low: number | null | undefined;
+    sets: number | null | undefined;
+  }
+): boolean {
+  const target = prescription.weight;
+  const floor = prescription.rep_low;
+  if (target == null || !Number.isFinite(Number(target)) || Number(target) === 0) return false;
+  if (floor == null || !Number.isFinite(Number(floor))) return false;
+  const wanted = Math.max(1, Math.min(Number(prescription.sets) > 0 ? Number(prescription.sets) : 3, 2));
+  const t = Number(target);
+  const performed = workingSets.filter((set) => {
+    const w = set.weight;
+    if (w == null || !Number.isFinite(Number(w))) return false;
+    // Same sign only: a positive log on an assisted slot is the typing slip, not a harder load.
+    if (t < 0 !== Number(w) < 0) return false;
+    // AT the written load, not above it: a plan written UNDER heavier logs is a
+    // deliberate choice (a reset, a lighter block) that the fresh-prescription hold
+    // exists to protect — heavier work is not "this prescription performed".
+    return Math.abs(Number(w) - t) <= 0.1 && set.reps != null && Number(set.reps) >= Number(floor);
+  });
+  return performed.length >= wanted;
 }

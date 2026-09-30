@@ -692,6 +692,12 @@ export interface ActiveBlockContext {
   focus: Focus;
   week_index: number;
   total_weeks: number;
+  /**
+   * The phase is the block's own SCHEDULED deload (its stored last-week phase), not an
+   * applied recovery week. The calendar put it there; the progression math asks the
+   * loaded-weeks evidence whether it is also earned (progression.ts). Omit-when-false.
+   */
+  scheduled_deload?: true;
 }
 
 /**
@@ -703,11 +709,15 @@ export function activeBlockContext(date?: string): ActiveBlockContext | null {
   try {
     const block = getActiveBlock();
     if (!block) return null;
+    const phase = effectivePhase(block, date);
     return {
-      phase: effectivePhase(block, date),
+      phase,
       focus: block.focus,
       week_index: block.week_index,
       total_weeks: block.total_weeks,
+      ...(phase === "deload" && block.phase === "deload" && !activeRecoveryWeek(date)
+        ? { scheduled_deload: true as const }
+        : {}),
     };
   } catch {
     return null;

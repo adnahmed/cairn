@@ -208,9 +208,10 @@ test("(a) a week short on quads fills one set on Leg Extension; the squat is unt
 
 test("(b) an untested slot never takes a set, and the heavy anchor is never the fallback", () => {
   seedWeek();
-  // Leg Extension re-prescribed after it was last trained: untested until run at it.
+  // Leg Extension re-prescribed (a new load) after it was last trained: untested until
+  // run at it. A restamp at the load the log already lifted would be tested by that log.
   db.prepare(
-    `UPDATE plan_items SET prescribed_at = ? WHERE exercise_id = (SELECT id FROM exercises WHERE name = 'Leg Extension')`
+    `UPDATE plan_items SET prescribed_at = ?, target_weight = target_weight + 5 WHERE exercise_id = (SELECT id FROM exercises WHERE name = 'Leg Extension')`
   ).run(TUE);
   const legExtRx = planDayProgression(3).find((p) => p.exercise === "Leg Extension");
   assert.equal(legExtRx.untested, true);
@@ -224,7 +225,7 @@ test("(b) an untested slot never takes a set, and the heavy anchor is never the 
   assert.equal(byName(card, "Back Squat").sets, 3, "the anchor keeps its prescription");
 
   // Every quads slot untested: nothing to fill at all, and the snapshot stays idle.
-  db.prepare(`UPDATE plan_items SET prescribed_at = ?`).run(TUE);
+  db.prepare(`UPDATE plan_items SET prescribed_at = ?, target_weight = target_weight + 5 WHERE target_weight > 0`).run(TUE);
   const idle = decideWednesday();
   assert.equal("weekly_dose" in idle.snapshot, false);
   assert.equal("dose" in idle.envelope, false);
