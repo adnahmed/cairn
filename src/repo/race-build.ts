@@ -42,6 +42,7 @@ import { recentEnduranceImpacts, type EnduranceImpact } from "./hybrid-load.js";
 import { heavyLowerWeekdaySlots, thisWeekPlanDayMap } from "./plan-selection.js";
 import { dowToDayNumber, getEnduranceGoal, isoDow, statedRunDows } from "./profile.js";
 import { strengthScheduleRead } from "./strength-schedule.js";
+import { weekLayoutClosed } from "./week-layout-closed.js";
 import { ENDURANCE_CHRONIC_FLOOR_KM } from "./program-state.js";
 import {
   acwrCeilingKm,
@@ -1237,6 +1238,8 @@ export function raceBuild(
             liftDaysSource: lifting.source,
             enduranceDows: statedRunDows(),
             weekdayMap,
+            // Only the days still ahead: never a move onto (or of) a day already trained.
+            closed: weekLayoutClosed(asOf, { runPlan: plan ?? null }),
           });
         })
       : opts.weekLayout;

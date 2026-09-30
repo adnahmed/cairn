@@ -28,6 +28,7 @@ import { enduranceTestsDue, runVarietyRead, runZones, weeklyRunPlan } from "./ru
 import { hrModelForCoach } from "./hr-model.js";
 import { calibrationForCoach } from "./calibration.js";
 import { flexibleTrainingAgenda } from "./flexible-training-agenda.js";
+import { weekLayoutClosed } from "./week-layout-closed.js";
 import { dexaTargeting } from "./dexa-targeting.js";
 import { muscleGroupTrajectory, planExerciseNames, testWeekDue } from "./muscle-trajectory.js";
 import { coachingFocus } from "./coaching-focus.js";
@@ -1381,6 +1382,7 @@ function getCoachContextFromSnapshot(): CoachContext {
         liftDaysSource: strengthScheduleView?.source ?? null,
         enduranceDows: statedRunDows(),
         weekdayMap,
+        closed: weekLayoutClosed(today, { agenda: flexibleTrainingAgendaView ?? undefined, runPlan: runPlanView ?? null }),
       });
     } catch {
       return null;

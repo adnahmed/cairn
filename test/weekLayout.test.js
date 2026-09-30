@@ -772,3 +772,118 @@ test("a cardio item written into the plan is not a run: with no run plan or agen
   assert.equal(read.source, "none");
   assert.equal(read.clean, true, "with no run anywhere there is nothing to stack against");
 });
+
+// ── only the days still ahead (weekLayoutClosed) ─────────────────────────────
+// Live, Tuesday 2026-09-29: Monday's Push and Tuesday's Pull were logged and the week's
+// quality run was run early, on Tuesday. The read still said "Swap Wednesday's Lower A
+// day with Tuesday's Pull, so Thursday's quality run isn't running on worked legs" — a
+// move onto a day already trained, to protect a run already run.
+
+function hybridFiveDayWeek() {
+  upperDay(1, "Push");
+  upperDay(2, "Pull");
+  heavyLowerDay(3, "Lower A");
+  upperDay(4, "Upper Body & Arms");
+  heavyLowerDay(5, "Lower B");
+  runDay(2, "Easy run", 5);
+  runDay(4, "Threshold intervals", 8);
+  runDay(7, "Long run", 12);
+}
+const monToFri = () =>
+  new Map([
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 4],
+    [5, 5],
+  ]);
+const TUESDAY = fwd(1);
+const calendarLayout = (closed, date = TUESDAY) =>
+  layout(date, { strengthDows: [1, 2, 3, 4, 5], enduranceDows: [2, 4, 0], weekdayMap: monToFri(), closed });
+
+test("with nothing closed the old read still names Tuesday (the live repro)", () => {
+  hybridFiveDayWeek();
+  const read = calendarLayout(undefined);
+  assert.equal(read.clean, false);
+  assert.deepEqual(read.suggested_move, { from: 3, to: 2 }, read.suggestion);
+});
+
+test("a day already trained is never the slot or the swap partner", () => {
+  hybridFiveDayWeek();
+  const read = calendarLayout({ days: [1, 2], runs_done: { quality: false, long: false } });
+  assert.equal(read.clean, false, "Wednesday's legs still sit before Thursday's quality run");
+  assert.doesNotMatch(String(read.suggestion), /Monday|Tuesday/, read.suggestion);
+  assert.ok(read.suggested_move, read.suggestion);
+  assert.ok(![1, 2].includes(read.suggested_move.to), JSON.stringify(read.suggested_move));
+  // Nothing open clears it and Friday already carries legs, so the run cannot slide:
+  // the remaining upper day — Thursday's own — is the trade.
+  assert.deepEqual(read.suggested_move, { from: 3, to: 4 });
+  assert.match(read.suggestion, /Upper Body & Arms/);
+  assert.match(read.suggestion, /Thursday/);
+  assert.equal(violatesReadingGrammar(read.suggestion), null, read.suggestion);
+});
+
+test("a key run already completed this week is no collision: the live Tuesday reads clean", () => {
+  hybridFiveDayWeek();
+  const read = calendarLayout({ days: [1, 2], runs_done: { quality: true, long: false } });
+  assert.equal(read.clean, true, JSON.stringify(read.collisions));
+  assert.equal(read.suggestion, null);
+  assert.equal(read.quality_run_day, 4, "the reported run days stay where the week placed them");
+});
+
+test("a heavy day already trained is history, not a collision to fix", () => {
+  heavyLowerDay(1, "Lower");
+  upperDay(3, "Upper");
+  runDay(2, "Tempo run", 8);
+  const weekdayMap = new Map([
+    [1, 1],
+    [3, 3],
+  ]);
+  const opts = { strengthDows: [1, 3], enduranceDows: [2], weekdayMap };
+  assert.equal(layout(TUESDAY, opts).clean, false, "Monday's legs sat before Tuesday's tempo");
+  const read = layout(TUESDAY, { ...opts, closed: { days: [1] } });
+  assert.equal(read.clean, true, JSON.stringify(read.collisions));
+});
+
+test("with no lift slot left, sliding the quality run a day later is the lightest fix", () => {
+  upperDay(1, "Push");
+  upperDay(2, "Pull");
+  heavyLowerDay(3, "Lower");
+  upperDay(4, "Upper");
+  runDay(4, "Tempo run", 8);
+  runDay(7, "Long run", 14);
+  const weekdayMap = new Map([
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 4],
+  ]);
+  const said = new Set();
+  for (const date of [TUESDAY, fwd(8), fwd(15)]) {
+    const read = layout(date, {
+      strengthDows: [1, 2, 3, 4],
+      enduranceDows: [4, 0],
+      weekdayMap,
+      closed: { days: [1, 2] },
+    });
+    assert.equal(read.clean, false);
+    assert.equal(read.suggested_move, null, "no strength move is offered");
+    assert.match(read.suggestion, /Thursday/);
+    assert.match(read.suggestion, /Friday/);
+    assert.doesNotMatch(read.suggestion, /Monday|Tuesday/);
+    assert.equal(violatesReadingGrammar(read.suggestion), null, read.suggestion);
+    said.add(read.suggestion);
+  }
+  assert.ok(said.size >= 1);
+});
+
+test("template space keeps its ring read; only a completed run closes there", () => {
+  heavyLowerDay(5);
+  upperDay(2);
+  runDay(6, "Long run", 18);
+  const plain = layout(REF);
+  const withDays = layout(REF, { closed: { days: [1, 2, 3, 4, 5] } });
+  assert.deepEqual(withDays.suggested_move, plain.suggested_move, "no dated week on a template ring");
+  const runDone = layout(REF, { closed: { runs_done: { long: true } } });
+  assert.equal(runDone.clean, true);
+});

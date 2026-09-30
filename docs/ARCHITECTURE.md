@@ -496,7 +496,12 @@ strength day the ring reaches twice in a five-day lifting week is heavy on both 
 (no lifting week known, or `program-state`, which cannot import plan-selection) it stays on the
 template ring. **Only a lift the day BEFORE a long/quality run collides.** Heavy legs the morning
 after is the stacking the race build's own strength hint prescribes, so the read no longer flags it
-(three hard days in a row is still a stack). Adjacency is judged on the heaviest lower day AND every
+(three hard days in a row is still a stack). **Only the days still ahead** (`closed`, derived once by `weekLayoutClosed`,
+`src/repo/week-layout-closed.ts`, for the strip, the race build and the coach context): on the calendar
+a suggestion never names a past weekday, or today once its lift is logged, a collision on one is
+history, and a key run already completed this week (on whatever day) is no collision. With no open
+slot left the read offers the run one day later, then a same-day trade with the quality day's upper
+session, before the go-lighter words. Adjacency is judged on the heaviest lower day AND every
 other lower day carrying squat/hinge work (an accessory-only leg day never collides). The runs come
 from the engine's week (`source:"run_plan"`), then the agenda — never from the plan, which holds no
 runs. The race ladder takes the

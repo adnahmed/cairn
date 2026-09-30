@@ -223,6 +223,29 @@ const UNMOVABLE_VARIANTS: ReadonlyArray<(lift: string, runDay: string, run: stri
     `${cap(lift)} and ${runDay}'s ${run} can't be separated this week — keep one of the two honest and easy.`,
 ];
 
+// The week has no clean slot left for the lift, but the key run itself has an open day
+// after it: nudging the run one day later is the lightest fix left, and it is said as a
+// suggestion about the RUN, never as a move nobody can make any more.
+const RUN_LATER_VARIANTS: ReadonlyArray<(lift: string, runDay: string, run: string, later: string) => string> = [
+  (lift, runDay, run, later) =>
+    `${runDay}'s ${run} could slide to ${later} this week, which gives ${lift} a day of room before it.`,
+  (lift, runDay, run, later) =>
+    `Nudging the ${run} from ${runDay} to ${later} is the lightest fix left this week: ${lift} then has a day to settle first.`,
+  (lift, runDay, run, later) =>
+    `With the rest of the week already set, taking ${runDay}'s ${run} on ${later} instead gives ${lift} its room more simply than moving a lift.`,
+];
+
+// The last lift move left: trade the leg day onto the QUALITY run's own day, where an
+// upper-body session sits. The legs and the run then share one day (the run first, the
+// lift hours later) and the day before the run is free. Only ever offered when no open
+// day clears the week and the run cannot slide later; never onto a long-run day.
+const SAME_DAY_SWAP_VARIANTS: ReadonlyArray<(lift: string, other: string, to: string, run: string) => string> = [
+  (lift, other, to, run) =>
+    `Trading ${lift} for ${to}'s ${other} puts the legs on the ${run}'s own day — run first, lift hours later — and keeps the day before it fresh.`,
+  (lift, other, to, run) =>
+    `${cap(lift)} could swap with ${to}'s ${other}: the ${run} and the leg work then share ${to}, hours apart, with fresh legs going into the run.`,
+];
+
 const UNMOVABLE_STACK_VARIANTS: ReadonlyArray<(span: string) => string> = [
   (span) => `The hard days run ${span} and the week has nowhere else to put them — keep the middle one modest.`,
   (span) => `${cap(span)} are hard back to back with no clean gap available; ease one of them rather than all three.`,
@@ -367,6 +390,25 @@ function detectCollisions(
   return out;
 }
 
+// ---- what is already behind the athlete ----
+
+// A collision is only something to fix while it is still AHEAD. An adjacency whose lift
+// day or run day is already closed (past, or today with the lift logged) happened; a
+// stack none of whose heavy days is still open has nothing left in it to move. The
+// read never asks the athlete to move a day they have already trained.
+function liveCollisions(
+  collisions: WeekLayoutCollision[],
+  heavy: number[],
+  closed: ReadonlySet<number>
+): WeekLayoutCollision[] {
+  if (!closed.size) return collisions;
+  return collisions.filter((c) =>
+    c.kind === "double_day_stack"
+      ? c.days.some((d) => heavy.includes(d) && !closed.has(d))
+      : !c.days.some((d) => closed.has(d))
+  );
+}
+
 // ---- the smallest move that clears it ----
 
 // Where this heavy day could go instead: the NEAREST free slot whose move leaves the
@@ -390,16 +432,66 @@ function clearingSlot(
   long: number | null,
   quality: number | null,
   loads: HeavyLowerDayLoad[],
-  planDays: ReadonlySet<number>
+  planDays: ReadonlySet<number>,
+  closed: ReadonlySet<number> = new Set()
 ): number | null {
+  // A closed day is never a slot: the athlete cannot lift a leg day into a day that has
+  // already been trained or has already gone by.
   const candidates = [...planDays]
-    .filter((t) => t !== move && t !== long && t !== quality && !heavy.includes(t))
+    .filter((t) => t !== move && t !== long && t !== quality && !heavy.includes(t) && !closed.has(t))
     .sort((a, b) => Math.abs(a - move) - Math.abs(b - move) || a - b);
   for (const to of candidates) {
     const swap = (days: number[]) => days.map((d) => (d === move ? to : d));
-    if (!detectCollisions(swap(keyLower), swap(heavy), long, quality, loads).length) return to;
+    const moved = swap(heavy);
+    if (!liveCollisions(detectCollisions(swap(keyLower), moved, long, quality, loads), moved, closed).length) return to;
   }
   return null;
+}
+
+// The quality run's own day, when it holds a lighter strength session that the leg day
+// can trade with and that trade clears every live collision. Calendar space only (the
+// swap partner has to be a named session on that weekday). null otherwise.
+function sameDaySwapSlot(
+  move: number,
+  keyLower: number[],
+  heavy: number[],
+  long: number | null,
+  quality: number | null,
+  loads: HeavyLowerDayLoad[],
+  strengthAt: ReadonlyMap<number, string>,
+  closed: ReadonlySet<number>
+): number | null {
+  if (quality == null || quality === long || closed.has(quality) || heavy.includes(quality) || !strengthAt.has(quality))
+    return null;
+  const swap = (days: number[]) => days.map((d) => (d === move ? quality : d));
+  const moved = swap(heavy);
+  return liveCollisions(detectCollisions(swap(keyLower), moved, long, quality, loads), moved, closed).length
+    ? null
+    : quality;
+}
+
+// When no lift slot is left, the lightest remaining fix may be the RUN: one day later,
+// onto an open day that is not a heavy leg day, not the other key run, and inside this
+// week (a run is never pushed past Sunday into a week it does not belong to), and only
+// when that clears every live collision. null when it does not.
+function laterRunSlot(
+  kind: "long" | "quality",
+  keyLower: number[],
+  heavy: number[],
+  long: number | null,
+  quality: number | null,
+  loads: HeavyLowerDayLoad[],
+  closed: ReadonlySet<number>
+): number | null {
+  const day = kind === "long" ? long : quality;
+  if (day == null || day >= 7) return null;
+  const later = day + 1;
+  if (closed.has(later) || heavy.includes(later) || later === (kind === "long" ? quality : long)) return null;
+  const nextLong = kind === "long" ? later : long;
+  const nextQuality = kind === "quality" ? later : quality;
+  return liveCollisions(detectCollisions(keyLower, heavy, nextLong, nextQuality, loads), heavy, closed).length
+    ? null
+    : later;
 }
 
 /**
@@ -436,6 +528,20 @@ export function weekLayoutRead(
      * about Friday and Saturday, not about day 1 and day 6.
      */
     weekdayMap?: ReadonlyMap<number, number> | null;
+    /**
+     * What of THIS week is already behind the athlete (`weekLayoutClosed`,
+     * src/repo/week-layout-closed.ts — injected for the same leaf reason). `days` are
+     * weekday slots (Mon = 1 … Sun = 7): every weekday before the read day, plus the
+     * read day once its lift is logged. They are honoured in CALENDAR space only — a
+     * template ring has no dated week to close. No suggestion ever names one of them
+     * (not the day to move, not where to, not a swap partner), and a collision on one
+     * is history. `runs_done` marks a key run already completed this week, on whatever
+     * day it was run: its collision is spent, in either space.
+     */
+    closed?: {
+      days?: readonly number[] | null;
+      runs_done?: { long?: boolean; quality?: boolean } | null;
+    } | null;
   }
 ): WeekLayoutRead {
   const d = date || localDateISO();
@@ -467,7 +573,6 @@ export function weekLayoutRead(
   }
 
   const placement = runPlacement(opts);
-  const { long, quality } = placement;
   const source = placement.source;
 
   // ---- calendar space ----
@@ -505,6 +610,15 @@ export function weekLayoutRead(
     loads = loads.flatMap((l) => (landings.get(l.day_number) ?? []).map((w) => ({ ...l, day_number: w })));
     planDays = new Set([...planDays].flatMap((dn) => landings.get(dn) ?? []));
   }
+  // What is already behind the athlete this week. Days close only on the calendar; a
+  // completed key run is spent in either space, and so is a run placed on a closed day
+  // (it was run, or it went by — either way it is not ahead to protect).
+  const closed = new Set<number>(weekMap ? (opts?.closed?.days ?? []).filter(onRing) : []);
+  const runsDone = opts?.closed?.runs_done ?? null;
+  const openRun = (day: number | null, done: boolean | undefined): number | null =>
+    day == null || done || closed.has(day) ? null : day;
+  const long = openRun(placement.long, runsDone?.long);
+  const quality = openRun(placement.quality, runsDone?.quality);
   const heavy = loads.map((l) => l.day_number);
   const top = loads[0];
   // Ties are kept whole: two lower days carrying identical work are genuinely both the
@@ -514,12 +628,16 @@ export function weekLayoutRead(
         .filter((l) => l.tonnage === top.tonnage && l.compound_sets === top.compound_sets && l.sets === top.sets)
         .map((l) => l.day_number)
     : [];
+  // The run days the read reports stay where the week placed them; only the collision
+  // test reads past a run that is already done.
   if (!heavy.length || (long == null && quality == null))
-    return CLEAN(heaviest, heavy, long, quality, source, stated, space);
+    return CLEAN(heaviest, heavy, placement.long, placement.quality, source, stated, space);
 
-  const keyLower = keyLowerDays(heaviest, loads);
-  const collisions = detectCollisions(keyLower, heavy, long, quality, loads);
-  if (!collisions.length) return CLEAN(heaviest, heavy, long, quality, source, stated, space);
+  // A heavy day already trained is history: it never leads an adjacency. (It still
+  // counts as a hard day in a stack, where it is real fatigue beside what is ahead.)
+  const keyLower = keyLowerDays(heaviest, loads).filter((day) => !closed.has(day));
+  const collisions = liveCollisions(detectCollisions(keyLower, heavy, long, quality, loads), heavy, closed);
+  if (!collisions.length) return CLEAN(heaviest, heavy, placement.long, placement.quality, source, stated, space);
 
   // The lead: an adjacency collision names a concrete move, so it speaks ahead of the
   // stack (which is usually the same problem seen wider).
@@ -531,10 +649,10 @@ export function weekLayoutRead(
   if (lead.kind === "double_day_stack") {
     // Move a heavy day out of the stack — the heaviest one in it when there is one,
     // otherwise the last, which is the one carrying the most accumulated fatigue.
-    const inStack = lead.days.filter((day) => heavy.includes(day));
+    const inStack = lead.days.filter((day) => heavy.includes(day) && !closed.has(day));
     const move = inStack.find((day) => heaviest.includes(day)) ?? inStack[inStack.length - 1];
     const span = `${weekday(lead.days[0])} to ${weekday(lead.days[lead.days.length - 1])}`;
-    const to = move == null ? null : clearingSlot(move, keyLower, heavy, long, quality, loads, planDays);
+    const to = move == null ? null : clearingSlot(move, keyLower, heavy, long, quality, loads, planDays, closed);
     if (move != null && to != null) suggested_move = { from: move, to };
     const other = to == null ? null : (strengthAt.get(to) ?? null);
     suggestion =
@@ -557,24 +675,51 @@ export function weekLayoutRead(
     const runWord = lead.kind === "heavy_lower_adjacent_long_run" ? "long run" : "quality run";
     const move = lead.days.find((day) => day !== runDay) as number;
     const lift = strengthDayLabel(byDay.get(move), move);
-    const to = clearingSlot(move, keyLower, heavy, long, quality, loads, planDays);
+    const to = clearingSlot(move, keyLower, heavy, long, quality, loads, planDays, closed);
     if (to != null) suggested_move = { from: move, to };
     const other = to == null ? null : (strengthAt.get(to) ?? null);
+    const runKind = lead.kind === "heavy_lower_adjacent_long_run" ? "long" : "quality";
+    const later = to == null ? laterRunSlot(runKind, keyLower, heavy, long, quality, loads, closed) : null;
+    const sameDay =
+      to == null && later == null
+        ? sameDaySwapSlot(move, keyLower, heavy, long, quality, loads, strengthAt, closed)
+        : null;
+    if (sameDay != null) suggested_move = { from: move, to: sameDay };
     suggestion =
-      to != null && other
-        ? pickDayVariant(SWAP_VARIANTS, d, `week-layout:${lead.kind}`)(lift, other, weekday(to), weekday(runDay as number), runWord)
-        : to != null
-        ? pickDayVariant(MOVE_VARIANTS, d, `week-layout:${lead.kind}`)(
+      to == null && later != null
+        ? pickDayVariant(RUN_LATER_VARIANTS, d, `week-layout:${lead.kind}:run-later`)(
             lift,
-            weekday(to),
             weekday(runDay as number),
-            runWord
+            runWord,
+            weekday(later)
           )
-        : pickDayVariant(UNMOVABLE_VARIANTS, d, `week-layout:${lead.kind}:held`)(
-            lift,
-            weekday(runDay as number),
-            runWord
-          );
+        : sameDay != null
+          ? pickDayVariant(SAME_DAY_SWAP_VARIANTS, d, `week-layout:${lead.kind}:same-day`)(
+              lift,
+              strengthAt.get(sameDay) as string,
+              weekday(sameDay),
+              "quality run"
+            )
+          : to != null && other
+            ? pickDayVariant(SWAP_VARIANTS, d, `week-layout:${lead.kind}`)(
+                lift,
+                other,
+                weekday(to),
+                weekday(runDay as number),
+                runWord
+              )
+            : to != null
+              ? pickDayVariant(MOVE_VARIANTS, d, `week-layout:${lead.kind}`)(
+                  lift,
+                  weekday(to),
+                  weekday(runDay as number),
+                  runWord
+                )
+              : pickDayVariant(UNMOVABLE_VARIANTS, d, `week-layout:${lead.kind}:held`)(
+                  lift,
+                  weekday(runDay as number),
+                  runWord
+                );
   }
 
   return {
@@ -585,8 +730,8 @@ export function weekLayoutRead(
     suggested_move,
     heaviest_lower_days: heaviest,
     heavy_lower_days: heavy,
-    long_run_day: long,
-    quality_run_day: quality,
+    long_run_day: placement.long,
+    quality_run_day: placement.quality,
     lift_days: stated.lift_days,
     lift_days_source: stated.lift_days_source,
     run_days: stated.run_days,
