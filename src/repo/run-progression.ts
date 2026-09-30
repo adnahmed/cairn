@@ -56,6 +56,7 @@ import {
   easyRunCapKm,
   isRampDownWeekOn,
   raceRamp,
+  raceRampFitFor,
   recoveryEasyCapKm,
   RESET_TAKEN_FRACTION,
   type RunWeekShape,
@@ -66,6 +67,7 @@ import {
 } from "./run-ramp.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
 import { harmEvidenceOnDay, withMorningReadiness } from "./brain/read-adherence.js";
+import { raceLadderPeak } from "./race-ladder-hook.js";
 // A function-only cycle (the agenda reads this module's weeklyRunPlan at call time):
 // the morning read asks the agenda's own observation read whether the week's quality
 // is already in, so the two can never disagree about it.
@@ -2379,12 +2381,33 @@ export function weeklyRunPlan(
           }
         })() ?? ramp)
       : ramp;
-  const goal_feasibility =
+  // Where the build LANDS is the race ladder's peak — the same walk the race build
+  // prints (raceLadderFor, read through race-ladder-hook.ts), so the sentence below
+  // and the ladder can never name two different peaks. raceRamp's own walk stands in
+  // only where there is no ladder peak to read (the taper, a nested next-week read).
+  const ladderPeakKm =
+    ramp && !ramp.taper_week
+      ? raceLadderPeak(d, {
+          available: true,
+          runs,
+          goal_feasibility: capacityShape
+            ? { capacity: { ...capacityShape, demonstrated_midweek_km: demonstratedMidweekKm } }
+            : null,
+        })
+      : null;
+  const reachablePeakKm = ladderPeakKm ?? fitRamp?.constrained_peak_km ?? null;
+  const feasibilityFit =
     ramp && fitRamp
+      ? ladderPeakKm != null
+        ? raceRampFitFor(ladderPeakKm, ramp.ideal_peak_km)
+        : fitRamp.fit
+      : null;
+  const goal_feasibility =
+    ramp && fitRamp && feasibilityFit && reachablePeakKm != null
       ? {
-          status: fitRamp.fit,
+          status: feasibilityFit,
           week_km: ramp.required_km,
-          constrained_peak_km: fitRamp.constrained_peak_km,
+          constrained_peak_km: reachablePeakKm,
           ideal_peak_km: ramp.ideal_peak_km,
           capacity: capacityShape
             ? { ...capacityShape, demonstrated_midweek_km: demonstratedMidweekKm }
@@ -2394,10 +2417,10 @@ export function weeklyRunPlan(
   // Silent in the taper: the build is behind the athlete by then, and "run the day off
   // what you've built, or move the target" said in race week is not a choice anyone
   // can act on. The machine register above still carries the fit.
-  if (ramp && fitRamp && fitRamp.fit !== "fits" && !ramp.taper_week) {
-    const variants = fitRamp.fit === "stretch" ? TIMELINE_CLOSE_VARIANTS : TIMELINE_FIT_VARIANTS;
+  if (ramp && feasibilityFit && reachablePeakKm != null && feasibilityFit !== "fits" && !ramp.taper_week) {
+    const variants = feasibilityFit === "stretch" ? TIMELINE_CLOSE_VARIANTS : TIMELINE_FIT_VARIANTS;
     const say = pickDayVariant(variants, d, "run-ramp-timeline");
-    rationale.push(say(Math.round(fitRamp.constrained_peak_km), Math.round(ramp.ideal_peak_km)));
+    rationale.push(say(Math.round(reachablePeakKm), Math.round(ramp.ideal_peak_km)));
     // …and the RATE, when the rate is what the calendar broke rather than the
     // volume. Silent inside the margin, where the required step is the sustainable
     // one and the sentence above has already covered it.

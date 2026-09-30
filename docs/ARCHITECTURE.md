@@ -4414,7 +4414,14 @@ spike landing on a down week takes the down week — the smaller factor), and le
 applies after. With a dated race the ramp's own countdown (`down_week`) is the reset cadence, so the
 plan and the race ladder label the same week; the lifting block's week index is the fallback only
 without a race. `goal_feasibility` (`fits`/`stretch`/`beyond_horizon`) reports
-the gap honestly through rotated fit prose that offers the athlete a choice, never a quota. A
+the gap honestly through rotated fit prose that offers the athlete a choice, never a quota. **Where
+the build lands is the race ladder's peak — one walk (2026-09-29)**: `constrained_peak_km` and the
+fit sentence read `raceLadderFor`'s peak rung (`src/repo/race-build.ts`, reached through
+`src/repo/race-ladder-hook.ts` because race-build imports the engine), fed this week's own
+prescription and fixed-count run week, and the band is `raceRampFitFor`, the rule raceRamp uses too.
+raceRamp's own walk stands in only where there is no ladder peak (the taper, or a next-week plan read
+from inside a ladder walk). Live case: the ladder resumed toward the demonstrated floor and peaked at
+37.6 km while the sentence walked off the lighter week and said "about 27 km a week by race day". A
 demonstrated long run is a floor as well as a ceiling — bounded by the race curve, a 1.15× step,
 0.55× of the week, and the room the week has left; on a spike week it sits at most 0.85× the
 demonstrated longest. A scheduled down week HOLDS that longest when it was taken well
