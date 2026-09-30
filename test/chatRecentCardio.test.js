@@ -2,7 +2,7 @@
 //
 // The live case (2026-09-29): the athlete asked the chat coach how his morning run
 // went. The synced row was there — 9.68 km, 53.9 min, 5:34/km, avg HR 157 on the
-// linked Garmin row, "Cambridge Running" — and the coach answered that "the specific
+// linked Garmin row, "Boston Running" — and the coach answered that "the specific
 // Garmin metrics (distance, pace, and heart rate) for this morning's run aren't
 // visible in my data right now", then on a follow-up that the "heart rate graph,
 // splits, and exact pace" had not "pulled through". The only run evidence it had was
@@ -36,7 +36,7 @@ beforeEach(() => {
 const shiftDays = (iso, days) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
 
 let seq = 0;
-function watchRun({ date, km = 9.68, minutes = 53.9, avgHr = 157, maxHr = 170, name = "Cambridge Running" }) {
+function watchRun({ date, km = 9.68, minutes = 53.9, avgHr = 157, maxHr = 170, name = "Boston Running" }) {
   seq += 1;
   repo.upsertGarminActivity({
     external_id: `cardio-${seq}`,
@@ -81,7 +81,7 @@ test("chat DATA carries this morning's watch run with its numbers", () => {
   assert.equal(row.date, today);
   assert.equal(row.when, "today");
   assert.equal(row.started, "6:34 AM");
-  assert.equal(row.title, "Cambridge Running");
+  assert.equal(row.title, "Boston Running");
   assert.equal(row.distance_km, 9.68);
   assert.equal(row.distance, "6.01 mi");
   assert.equal(row.duration_min, 53.9);
@@ -95,7 +95,7 @@ test("chat DATA carries this morning's watch run with its numbers", () => {
 
   const block = cardioBlock(prompt);
   assert.match(block, new RegExp(`- today ${today}, started 6:34 AM — run`));
-  assert.match(block, /"Cambridge Running" \[activity_id \d+\]: 6\.01 mi · 53\.9 min · 8:58\/mi · avg HR 157, max 170/);
+  assert.match(block, /"Boston Running" \[activity_id \d+\]: 6\.01 mi · 53\.9 min · 8:58\/mi · avg HR 157, max 170/);
   assert.match(block, /Never say a run listed here is missing/);
   assert.match(block, /not a heart-rate graph, per-mile splits or a GPS track/);
   assert.ok(!/effect 4\.5/.test(block), "Garmin's training effect never rides in the block");
@@ -155,7 +155,7 @@ test("every site that carries the endurance bundle carries recent_cardio; the we
   assert.deepEqual(Object.keys(projectCoachContext({ recent_cardio: { rows: [] } }, "chat")), ["recent_cardio"]);
   const weekly = buildWeeklyReadPrompt();
   assert.match(weekly, /RECENT RUNS & CARDIO/);
-  assert.match(weekly, /"Cambridge Running"/);
+  assert.match(weekly, /"Boston Running"/);
 });
 
 test("the bounded read tool returns a run's heart rate as a field", () => {

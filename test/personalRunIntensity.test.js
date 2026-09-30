@@ -42,7 +42,7 @@ let seq = 0;
 function watch({
   date,
   type = "running",
-  name = "Cambridge Running",
+  name = "Boston Running",
   km = 8,
   minutes = 45,
   avgHr,
@@ -176,8 +176,8 @@ test("time in bins wholly above the threshold band is hard; a straddling bin pro
 
 test("a place name is not a session word", () => {
   assert.equal(namesQualityRun("Beacon Hill Running"), false);
-  assert.equal(namesQualityRun("Cambridge Running"), false);
-  assert.equal(namesQualityRun("Cambridge - Base"), false);
+  assert.equal(namesQualityRun("Boston Running"), false);
+  assert.equal(namesQualityRun("Boston - Base"), false);
   assert.equal(namesQualityRun("hill repeats"), true);
   assert.equal(namesQualityRun("5K Fast"), true);
   assert.equal(namesQualityRun("LT HR Test and sightseeing"), true);
@@ -205,7 +205,7 @@ test("a ride is not a run: its bars are unchanged", () => {
   watch({
     date: REF,
     type: "mountain_biking",
-    name: "Cambridge Mountain Biking",
+    name: "Boston Mountain Biking",
     km: 30,
     minutes: 150,
     avgHr: 140,
