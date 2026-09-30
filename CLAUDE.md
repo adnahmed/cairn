@@ -382,7 +382,9 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   log confirms plus physiology — never from a weeks-since count. Ratings and notes are supporting
   copy; an applied recovery week only resets the count; a block in weeks 1–2 or its own
   deload/realization phase never reads deload-due — and for a push-drive athlete a block's scheduled
-  last-week deload holds nothing unless that loaded-weeks evidence earns it (`scheduled_deload`).
+  last-week deload holds nothing unless that loaded-weeks evidence earns it (`scheduled_deload`) —
+  every surface that names the week reads ONE resolution (`src/repo/block-phase.ts`), and a fresh
+  block after such a skip does not hide a deload the loaded weeks call for.
 - **Assist is a sign, and the sign is guarded at log time.** A positive weight typed onto a
   negative-history lift within 1.5× the recent assist band is stored negative (`assistSignContext`,
   `src/repo/sessions.ts`; Garmin imports opt out). An exercise's NAME is never a sign — only its
@@ -491,7 +493,8 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   Details in `docs/ARCHITECTURE.md`.
 - **When a slot was prescribed has one source** — `src/repo/prescription-authorship.ts` stamps every plan
   write and answers fresh/untested/since for every consumer; never re-derive it. An untested slot holds
-  at the plan — unless its latest exposure already lifted it at the written load. Details in `docs/ARCHITECTURE.md` "Prescription authorship".
+  at the plan — unless its latest exposure already lifted it at the written load and full set count
+  (`testedSlotAuthorship`, the one reading the prescription, program-state and set catch-up share). Details in `docs/ARCHITECTURE.md` "Prescription authorship".
 - **Weekly volume has a contextual floor and the log is truth for set count** — `volume-floor.ts`
   (muscle/strength intent only; endurance-carried groups and light weeks exempt), held by plan
   quality, the redraw precheck and `setCatchUp`. Details in `docs/ARCHITECTURE.md`.

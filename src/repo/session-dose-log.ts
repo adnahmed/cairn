@@ -21,7 +21,7 @@ import { db } from "../db.js";
 // The signed load comparison and the full-load reference pick have ONE home.
 // outcome-comparability.ts imports nothing, so this costs no cycle — and a local
 // copy is how the two readings drift apart.
-import { harderLoad, loadAtOrAbove } from "./outcome-comparability.js";
+import { harderLoad, loadAtOrAbove, readStoredDose, storedDoseMetLoad } from "./outcome-comparability.js";
 
 // The per-dose full-load reference reconciliation persists on schema-4 rows
 // (`FullLoadReference` in outcome-comparability.ts). Read structurally off
@@ -43,9 +43,28 @@ type DoseRow = {
   movement_key?: unknown;
   mode?: unknown;
   full_load_reference?: FullLoadReferenceRow | null;
-  prescribed?: { sets?: unknown; target_weight?: unknown; target_seconds?: unknown } | null;
-  achieved?: { sets?: unknown; top_weight?: unknown; top_reps?: unknown; top_seconds?: unknown } | null;
+  relevant_symptom?: unknown;
+  prescribed?: {
+    sets?: unknown;
+    rep_low?: unknown;
+    rep_high?: unknown;
+    target_weight?: unknown;
+    target_seconds?: unknown;
+  } | null;
+  achieved?: {
+    sets?: unknown;
+    top_weight?: unknown;
+    top_reps?: unknown;
+    top_seconds?: unknown;
+    sets_detail?: unknown;
+  } | null;
 };
+
+// ONE reading of a stored dose (outcome-comparability.ts readStoredDose): the verdict
+// under the current rule, and whether it is a capped-short dose — one set short with
+// every working set past the range's top, a VOLUME fact, never a shortfall read here.
+const doseVerdict = (dose: DoseRow): string => readStoredDose(dose).verdict;
+const doseCappedShort = (dose: DoseRow): boolean => readStoredDose(dose).capped_short;
 
 type OutcomeFacts = {
   schema_version?: unknown;
@@ -96,6 +115,7 @@ function ownSetShortfall(dose: DoseRow): boolean {
 }
 
 function doseOwnShortfall(dose: DoseRow): boolean {
+  if (doseCappedShort(dose)) return false;
   const reasons = Array.isArray(dose?.non_comparable_reasons)
     ? dose.non_comparable_reasons.map(String)
     : [];
@@ -111,13 +131,13 @@ function hasOwnDoseShortfall(facts: OutcomeFacts | null): boolean {
 }
 
 function isMetOrExceeded(dose: DoseRow): boolean {
-  const verdict = String(dose?.challenge_verdict ?? "");
-  return verdict === "met" || verdict === "exceeded";
+  return storedDoseMetLoad(readStoredDose(dose));
 }
 
 function isPartialOrUnderPrescribed(dose: DoseRow): boolean {
+  if (doseCappedShort(dose)) return false;
   if (doseOwnShortfall(dose)) return true;
-  const verdict = String(dose?.challenge_verdict ?? "");
+  const verdict = doseVerdict(dose);
   return verdict === "under_prescribed" || verdict === "partial";
 }
 
@@ -129,7 +149,7 @@ function finiteOrNull(value: unknown): number | null {
 
 /** A lift the day actually asked for. One with nothing prescribed is ignored. */
 function dosePrescribed(dose: DoseRow): boolean {
-  const verdict = String(dose?.challenge_verdict ?? "");
+  const verdict = doseVerdict(dose);
   const sets = finiteOrNull(dose?.prescribed?.sets);
   if (sets != null && sets > 0) return true;
   if (finiteOrNull(dose?.prescribed?.target_weight) != null) return true;
@@ -145,7 +165,7 @@ function dosePrescribed(dose: DoseRow): boolean {
  * reads both.)
  */
 function doseExceeded(dose: DoseRow): boolean {
-  if (String(dose?.challenge_verdict ?? "") === "exceeded") return true;
+  if (doseVerdict(dose) === "exceeded") return true;
   const prescribedSets = finiteOrNull(dose?.prescribed?.sets);
   const achievedSets = finiteOrNull(dose?.achieved?.sets);
   if (prescribedSets != null && prescribedSets > 0 && achievedSets != null && achievedSets > prescribedSets) {
@@ -228,7 +248,7 @@ export function doseContradictionTally(sessionId: number): DoseContradictionTall
       continue;
     }
     if (doseUnderFullLoad(dose)) tally.under_full_load++;
-    const verdict = String(dose?.challenge_verdict ?? "");
+    const verdict = doseVerdict(dose);
     // An own-dose shortfall — fewer sets than asked, or a persisted "partial" —
     // is a shortfall whatever the verdict says. Otherwise volume the athlete
     // added past the prescription reads as exceeded even where the verdict is

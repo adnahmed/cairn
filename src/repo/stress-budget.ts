@@ -199,7 +199,8 @@ function stressRaceRead(date: string, lowerOnCard: boolean): StressBudgetSnapsho
   if (!tomorrow) return undefined;
   const tomorrowRun = placedKeyRunOn(tomorrow, planFor(tomorrow));
   if (tomorrowRun && !alreadyRun(tomorrow, tomorrowRun)) return { ...base, key_run: { kind: tomorrowRun, in_days: 1 } };
-  if (tomorrowRun) return undefined;
+  // A key run already done off tomorrow's slot leaves tomorrow empty of one — it does
+  // not end the look-ahead: the long run the day after still has today as its eve.
   // The day after tomorrow counts only when tomorrow holds no lifting: today is then
   // the last lift day before the run.
   if (safeRead(() => strengthPlanDayOn(tomorrow)) != null) return undefined;

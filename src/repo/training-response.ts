@@ -1,5 +1,6 @@
 import { db } from "../db.js";
 import { exerciseIdentityKey } from "./exercise-canon.js";
+import { readStoredDose } from "./outcome-comparability.js";
 
 export type ChallengeVerdict = "not_attempted" | "under_prescribed" | "met" | "exceeded" | "no_target";
 
@@ -67,10 +68,24 @@ export function recentMovementResponse(
     if (matchedIntent == null) matchedIntent = String(dose.intent_key);
     if (dose.intent_key !== matchedIntent) continue;
     considered++;
-    if ((facts.confidence !== "moderate" && facts.confidence !== "high") || facts.dose_context?.comparable !== true) {
+    // ONE reading of the dose (readStoredDose), the same progression's eligibility uses:
+    // the verdict under the current rule, and a capped-short dose — one set short, every
+    // working set past the range's top — reads as the load met; its only
+    // non-comparable reason, its own missing set, is volume's.
+    const reading = readStoredDose(dose);
+    const reasons: string[] = Array.isArray(dose.non_comparable_reasons)
+      ? dose.non_comparable_reasons.map(String)
+      : Array.isArray(facts.dose_context?.non_comparable_reasons)
+        ? facts.dose_context.non_comparable_reasons.map(String)
+        : [];
+    const comparable =
+      facts.dose_context?.comparable === true ||
+      (reading.capped_short && reasons.length > 0 && reasons.every((reason) => reason === "partial"));
+    if ((facts.confidence !== "moderate" && facts.confidence !== "high") || !comparable) {
       continue;
     }
-    if (verdicts.length < 2) verdicts.push(dose.challenge_verdict as ChallengeVerdict);
+    if (verdicts.length < 2)
+      verdicts.push((reading.capped_short ? "met" : reading.verdict || dose.challenge_verdict) as ChallengeVerdict);
   }
   if (verdicts.length < 2) {
     return {

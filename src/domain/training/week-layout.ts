@@ -297,6 +297,20 @@ export function runPlacement(opts?: { runPlan?: WeeklyRunPlan | null; agenda?: F
   return { long: null, quality: null, source: "none" };
 }
 
+// Every weekday this week already gives a run, of any kind — the run engine's own
+// slots, else the agenda's provisional ones. A run is never slid onto one of them.
+function weekRunDays(opts?: { runPlan?: WeeklyRunPlan | null; agenda?: FlexibleTrainingAgenda | null }): Set<number> {
+  const days = new Set<number>();
+  const runPlan = opts?.runPlan;
+  if (runPlan?.available && Array.isArray(runPlan.runs))
+    for (const r of runPlan.runs) if (onRing(Number(r.day_number))) days.add(Number(r.day_number));
+  const agenda = opts?.agenda;
+  if (!days.size && agenda?.available && Array.isArray(agenda.intents))
+    for (const i of agenda.intents)
+      if (onRing(Number(i.provisional_day_number))) days.add(Number(i.provisional_day_number));
+  return days;
+}
+
 // ---- collisions ----
 
 // Maximal runs of ≥3 consecutive HARD days, where hard = any genuine heavy-lower day
@@ -474,6 +488,10 @@ function sameDaySwapSlot(
 // onto an open day that is not a heavy leg day, not the other key run, and inside this
 // week (a run is never pushed past Sunday into a week it does not belong to), and only
 // when that clears every live collision. null when it does not.
+//
+// The athlete's stated run days are the run engine's calendar (CLAUDE.md "stated run
+// days"): with a stated schedule the run only slides onto another STATED run weekday,
+// and never onto a day that already holds a run of any kind. `runnable` answers both.
 function laterRunSlot(
   kind: "long" | "quality",
   keyLower: number[],
@@ -481,12 +499,14 @@ function laterRunSlot(
   long: number | null,
   quality: number | null,
   loads: HeavyLowerDayLoad[],
-  closed: ReadonlySet<number>
+  closed: ReadonlySet<number>,
+  runnable: (day: number) => boolean
 ): number | null {
   const day = kind === "long" ? long : quality;
   if (day == null || day >= 7) return null;
   const later = day + 1;
   if (closed.has(later) || heavy.includes(later) || later === (kind === "long" ? quality : long)) return null;
+  if (!runnable(later)) return null;
   const nextLong = kind === "long" ? later : long;
   const nextQuality = kind === "quality" ? later : quality;
   return liveCollisions(detectCollisions(keyLower, heavy, nextLong, nextQuality, loads), heavy, closed).length
@@ -617,6 +637,14 @@ export function weekLayoutRead(
   const runsDone = opts?.closed?.runs_done ?? null;
   const openRun = (day: number | null, done: boolean | undefined): number | null =>
     day == null || done || closed.has(day) ? null : day;
+  // Where a run may slide to (laterRunSlot): a stated run weekday when the athlete has
+  // a run schedule, and in every case a day the week has not already given a run.
+  const statedRunDays = new Set(
+    (opts?.enduranceDows ?? []).map((dow) => (Number(dow) === 0 ? 7 : Number(dow))).filter(onRing)
+  );
+  const occupiedRunDays = weekRunDays(opts);
+  const runnableDay = (day: number): boolean =>
+    !occupiedRunDays.has(day) && (!statedRunDays.size || statedRunDays.has(day));
   const long = openRun(placement.long, runsDone?.long);
   const quality = openRun(placement.quality, runsDone?.quality);
   const heavy = loads.map((l) => l.day_number);
@@ -679,7 +707,8 @@ export function weekLayoutRead(
     if (to != null) suggested_move = { from: move, to };
     const other = to == null ? null : (strengthAt.get(to) ?? null);
     const runKind = lead.kind === "heavy_lower_adjacent_long_run" ? "long" : "quality";
-    const later = to == null ? laterRunSlot(runKind, keyLower, heavy, long, quality, loads, closed) : null;
+    const later =
+      to == null ? laterRunSlot(runKind, keyLower, heavy, long, quality, loads, closed, runnableDay) : null;
     const sameDay =
       to == null && later == null
         ? sameDaySwapSlot(move, keyLower, heavy, long, quality, loads, strengthAt, closed)

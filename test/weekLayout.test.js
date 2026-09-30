@@ -862,7 +862,8 @@ test("with no lift slot left, sliding the quality run a day later is the lightes
   for (const date of [TUESDAY, fwd(8), fwd(15)]) {
     const read = layout(date, {
       strengthDows: [1, 2, 3, 4],
-      enduranceDows: [4, 0],
+      // Friday is one of his stated run days with no run on it this week.
+      enduranceDows: [4, 5, 0],
       weekdayMap,
       closed: { days: [1, 2] },
     });
@@ -875,6 +876,54 @@ test("with no lift slot left, sliding the quality run a day later is the lightes
     said.add(read.suggestion);
   }
   assert.ok(said.size >= 1);
+});
+
+test("a run only slides onto a stated run weekday — never an unstated day", () => {
+  upperDay(1, "Push");
+  upperDay(2, "Pull");
+  heavyLowerDay(3, "Lower");
+  upperDay(4, "Upper");
+  runDay(4, "Tempo run", 8);
+  runDay(7, "Long run", 14);
+  const weekdayMap = new Map([
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 4],
+  ]);
+  // Stated run days are Thursday and Sunday only: Friday is not his to run on.
+  const read = layout(TUESDAY, {
+    strengthDows: [1, 2, 3, 4],
+    enduranceDows: [4, 0],
+    weekdayMap,
+    closed: { days: [1, 2] },
+  });
+  assert.equal(read.clean, false);
+  assert.doesNotMatch(String(read.suggestion), /Friday/, read.suggestion);
+});
+
+test("a run never slides onto a day that already holds a run", () => {
+  upperDay(1, "Push");
+  upperDay(2, "Pull");
+  heavyLowerDay(3, "Lower");
+  upperDay(4, "Upper");
+  runDay(4, "Tempo run", 8);
+  runDay(5, "Easy run", 6);
+  runDay(7, "Long run", 14);
+  const weekdayMap = new Map([
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 4],
+  ]);
+  const read = layout(TUESDAY, {
+    strengthDows: [1, 2, 3, 4],
+    enduranceDows: [4, 5, 0],
+    weekdayMap,
+    closed: { days: [1, 2] },
+  });
+  assert.equal(read.clean, false);
+  assert.doesNotMatch(String(read.suggestion), /to Friday|on Friday instead|slide to Friday/, read.suggestion);
 });
 
 test("template space keeps its ring read; only a completed run closes there", () => {

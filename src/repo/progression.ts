@@ -75,9 +75,11 @@ import {
   sessionFirstSetAt,
   sinceClause,
   type SlotAuthorship,
-  exposurePerformedPrescription,
+  latestLiftExposure,
+  latestWorkingSets,
   slotAuthorship,
   slotStamp,
+  testedSlotAuthorship,
 } from "./prescription-authorship.js";
 import { painAreaLoadsGroup } from "./pain-relevance.js";
 import {
@@ -102,6 +104,7 @@ import {
   type PhaseProgressionPolicy,
   phaseProgressionPolicy,
 } from "./program-blocks.js";
+import { deloadEvidenceReader, resolvedPhaseOf, scheduledDeloadSkipped } from "./block-phase.js";
 // THE THREE LEARNED SEAMS the decision consults but never obeys blindly: how much
 // this lift's est-1RM deserves to be trusted, what the ledger's own verdicts said
 // about it, and whether the movement itself has been flagged as one to be careful
@@ -149,15 +152,7 @@ import {
   enduranceOverlapsMovement,
   OUTCOME_FACTS_SCHEMA_VERSION,
 } from "./daily-reconciliation.js";
-import {
-  type ChallengeAchieved,
-  type ChallengePrescribed,
-  cappedShortOfSets,
-  type DoseChallengeVerdict,
-  doseChallengeVerdict,
-  harderLoad,
-  loadAtOrAbove,
-} from "./outcome-comparability.js";
+import { harderLoad, loadAtOrAbove, readStoredDose } from "./outcome-comparability.js";
 
 export {
   loadPhrase,
@@ -718,7 +713,11 @@ function surplusStep(
   if (!(current > 0) || repCeiling == null || !top || top.weight == null || top.reps == null) return ordinary;
   if (Math.abs(Number(top.weight) - current) > 0.1) return ordinary;
   const reps = Number(top.reps);
-  const reserveBeyond = top.rir != null ? Math.max(0, Number(top.rir) - RIR_IN_RESERVE) : 0;
+  // A grind never buys more than one notch: a set rated RIR 0–1 spent its reserve.
+  if (top.rir != null && Number(top.rir) < RIR_IN_RESERVE) return ordinary;
+  // The reserve is SIGNED against the two-rep reserve the ceiling assumes: RIR 3 adds
+  // a rep of room, and an unrated set is read at the reserve (adds nothing).
+  const reserveBeyond = top.rir != null ? Number(top.rir) - RIR_IN_RESERVE : 0;
   const surplus = Math.max(0, reps - repCeiling) + reserveBeyond;
   if (surplus < SURPLUS_STEP_MIN_REPS) return ordinary;
   const ceil = phaseStepCeiling(group, current, phaseScale);
@@ -981,46 +980,6 @@ function steppedUpFromReserve(
   return reserved && planWeight <= clampedOverload(working, group);
 }
 
-function latestWorkingSets(name: string): { weight: number | null; reps: number | null; rir: number | null }[] {
-  const ids = progressionLineageIds(name);
-  if (!ids.length) return [];
-  const inIds = ids.map(() => "?").join(",");
-  const latestSession = (
-    db
-      .prepare(
-        `SELECT s.id, s.date FROM logged_sets ls JOIN sessions s ON s.id = ls.session_id
-         WHERE ls.exercise_id IN (${inIds}) AND ls.reps IS NOT NULL
-         ORDER BY s.date DESC, s.id DESC LIMIT 1`
-      )
-      .get(...ids) as any
-  );
-  if (!latestSession?.date || latestSession?.id == null) return [];
-  const rows = db
-    .prepare(
-      `SELECT ls.weight AS weight, ls.reps AS reps, ls.rir AS rir
-       FROM logged_sets ls
-      WHERE ls.exercise_id IN (${inIds}) AND ls.session_id = ? AND ls.reps IS NOT NULL`
-    )
-    .all(...ids, latestSession.id) as any[];
-  if (!rows.length) return [];
-  // The working weight is the hardest (largest signed) weight in the session; sets
-  // at it are the working sets. Bodyweight (null) is the zero of that signed scale:
-  // harder than any assist, easier than any added load — so bodyweight sets beside
-  // an assisted finisher ARE the working sets (the assisted set is the back-off),
-  // while bodyweight sets beside loaded ones are warm-ups. A session with nothing
-  // weighted is a bodyweight session and every logged set counts.
-  const signed = (r: any): number => (r.weight == null ? 0 : Number(r.weight));
-  let topW: number | null = null;
-  for (const r of rows) {
-    if (topW == null || signed(r) > topW) topW = signed(r);
-  }
-  const working = rows.filter((r) => signed(r) === topW);
-  return working.map((r) => ({
-    weight: r.weight ?? null,
-    reps: r.reps != null ? Number(r.reps) : null,
-    rir: plausibleRir(r.rir),
-  }));
-}
 
 function metSnapshottedPrescription(dose: any): boolean {
   if (!dose || typeof dose !== "object") return false;
@@ -1065,33 +1024,6 @@ function fullLoadThroughConfound(dose: any, reasons: readonly string[]): boolean
   return reference != null && reference > 0 && top != null && loadAtOrAbove(top, reference);
 }
 
-// The stored dose re-read through the current challenge rule. Only a dose that carries
-// its per-set detail can be re-derived; anything older keeps its stored verdict.
-function rederivedChallenge(dose: any): { verdict: DoseChallengeVerdict; capped_short: boolean } | null {
-  const detail = dose?.achieved?.sets_detail;
-  if (!Array.isArray(detail) || !detail.length || !dose?.prescribed) return null;
-  const n = (v: unknown): number | null => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
-  const prescribed: ChallengePrescribed = {
-    sets: n(dose.prescribed.sets),
-    rep_low: n(dose.prescribed.rep_low),
-    rep_high: n(dose.prescribed.rep_high),
-    target_weight: n(dose.prescribed.target_weight),
-    target_seconds: n(dose.prescribed.target_seconds),
-  };
-  const achieved: ChallengeAchieved = {
-    sets: n(dose.achieved.sets) ?? detail.length,
-    top_weight: n(dose.achieved.top_weight),
-    top_reps: n(dose.achieved.top_reps),
-    top_seconds: n(dose.achieved.top_seconds),
-    sets_detail: detail.map((set: any) => ({
-      weight: n(set?.weight),
-      reps: n(set?.reps),
-      duration_sec: n(set?.duration_sec),
-    })),
-  };
-  return { verdict: doseChallengeVerdict(prescribed, achieved), capped_short: cappedShortOfSets(prescribed, achieved) };
-}
-
 function linkedDoseEligibility(
   sessionId: number | null | undefined,
   movement: string,
@@ -1131,11 +1063,12 @@ function linkedDoseEligibility(
   // The stored numbers are re-read under the CURRENT verdict rule (a heavier set at
   // fewer reps meets a lighter card — outcome-comparability.ts), so a dose written
   // before that rule speaks the same as one written after it.
-  const challenge = dose ? rederivedChallenge(dose) : null;
-  const verdict = challenge?.verdict ?? dose?.challenge_verdict;
-  // One set short of the card with every working set past the top of the range: the
-  // LOAD question is answered (cappedShortOfSets) — the shortfall is volume's to read.
-  const cappedShort = challenge?.capped_short === true && dose?.relevant_symptom !== true;
+  // ONE reading of the dose (readStoredDose) — shared with the response ledger and the
+  // session dose log. One set short of the card with every working set past the top of
+  // the range: the LOAD question is answered — the shortfall is volume's to read.
+  const reading = dose ? readStoredDose(dose) : null;
+  const verdict = reading?.verdict ?? dose?.challenge_verdict;
+  const cappedShort = reading?.capped_short === true;
   const ownShortfall =
     !cappedShort &&
     Number.isFinite(prescribedSets) &&
@@ -1775,7 +1708,7 @@ export function nextPrescription(
     // here. Absent OR null means "whatever the athlete has standing" — there is no
     // meaningful third state to preserve, unlike the block/cut/estimate thunks.
     drive: opts?.drive ?? readTrainingDrive(),
-    deloadEvidence: deloadEvidenceThunk(date),
+    deloadEvidence: deloadEvidenceReader(date),
     // The band is a property of THIS movement on THIS day, so it is read per lift.
     // The read returns null before touching its heavier queries when nothing has
     // been stated about the movement, which is the ordinary case.
@@ -1793,22 +1726,6 @@ const CARRY_REPS_AS_SECONDS = 25;
 // name-level timed detector already calls a hold (plank, hang, wall sit).
 function holdLikeMovement(name: string, group: string | null): boolean {
   return classifyPattern(name, group ?? undefined) === "carry" || detectExerciseMode(name) === "timed";
-}
-
-// Whether the loaded-weeks evidence calls for a deload (program-state's mesocycle,
-// read past the block's own suppression). Lazy: only a scheduled deload week asks.
-function deloadEvidenceThunk(date: string): () => boolean {
-  let cached: boolean | null = null;
-  return () => {
-    if (cached == null) {
-      try {
-        cached = getProgramState(date).mesocycle?.deload_evidence === true;
-      } catch {
-        cached = false;
-      }
-    }
-    return cached;
-  };
 }
 
 interface PrescCtx {
@@ -1907,20 +1824,16 @@ function repsPrescription(
   // A slot written with NO load on a lift with loaded history is still grounded
   // (planUnset below): from the sessions under this prescription when there are any,
   // else the latest history, exactly as before the stamp existed.
-  const writtenAuthorship = slotAuthorship(plan?.prescribed_at ?? null, lastExposureOf(name, last), date);
   // Written after the last session — but did that session already DO it? A catch-up that
-  // lands the plan on the load the log just lifted is tested by that log
-  // (exposurePerformedPrescription), and its evidence starts with that session.
-  const authorship =
-    writtenAuthorship.untested &&
-    last?.date &&
-    exposurePerformedPrescription(latestWorkingSets(name), {
-      weight: planWeight,
-      rep_low: repLow,
-      sets: plan?.sets,
-    })
-      ? { ...writtenAuthorship, untested: false, since: String(last.date), since_at: null }
-      : writtenAuthorship;
+  // lands the plan on the load the log just lifted is tested by that log, and its
+  // evidence starts with that session (testedSlotAuthorship — the one reading).
+  const authorship = testedSlotAuthorship(
+    plan?.prescribed_at ?? null,
+    lastExposureOf(name, last),
+    { weight: planWeight, rep_low: repLow, sets: plan?.sets },
+    () => latestWorkingSets(name),
+    date
+  );
   const underPrescription = workingWeightUnderPrescription(name, authorship);
   const loggedWorking = planWeight == null ? (underPrescription ?? recentWorkingWeight(name)) : underPrescription;
   const recentWorking = unreachable(loggedWorking) ? achievable : loggedWorking;
@@ -2052,10 +1965,12 @@ function repsPrescription(
   // week runs as intensification unless the loaded-weeks evidence ALSO calls for the
   // deload. An EARNED easy week (an applied recovery week) still holds for everyone,
   // and a steady athlete keeps the block's scheduled week as written.
-  const scheduledDeloadRuns =
-    brakeCtx?.block?.scheduled_deload === true &&
-    (brakeCtx?.drive ?? "steady") === "push" &&
-    !(brakeCtx?.deloadEvidence?.() ?? false);
+  // ONE resolution, shared with every surface that names the week (block-phase.ts).
+  const scheduledDeloadRuns = scheduledDeloadSkipped(
+    brakeCtx?.block,
+    brakeCtx?.drive,
+    brakeCtx?.deloadEvidence ?? (() => false)
+  );
   const policy: PhaseProgressionPolicy | null =
     brakeCtx?.block && mainLift
       ? phaseProgressionPolicy(scheduledDeloadRuns ? "intensification" : brakeCtx.block.phase)
@@ -2121,6 +2036,12 @@ function repsPrescription(
   // the RIR wording is picked ONLY when an RIR was actually logged.
   const sayEffort = <T>(withRir: readonly T[], inReps: readonly T[], code: string): T =>
     say(rirLogged ? withRir : inReps, code);
+  // A sentence that CREDITS the work "at RIR 2+" names the rating the athlete gave.
+  // Reserve counted at the ceiling can reach two on a set logged at RIR 0 (ten reps on
+  // a 6–8 card), but the athlete said zero — so such a set is credited in reps.
+  const rirVouched = rirLogged && (lastRir as number) >= RIR_IN_RESERVE;
+  const sayCredit = <T>(withRir: readonly T[], inReps: readonly T[], code: string): T =>
+    say(rirVouched ? withRir : inReps, code);
   // The LOAD step is earned only when EVERY working set capped the range (double
   // progression). With no rep range, fall back to a strong top set (RIR 2+ / progressing).
   // An INTENSIFICATION phase buys the step with intensity instead of completeness: a
@@ -2417,7 +2338,7 @@ function repsPrescription(
     why =
       policy && policy.rep_saturation > 0
         ? say(voice.ACCUMULATION_REP_STAGE, "accumulation_rep_stage")(repCeiling as number)
-        : sayEffort(voice.REP_STAGE_OVERLOAD, voice.REP_STAGE_OVERLOAD_REPS, "rep_stage_overload")(
+        : sayCredit(voice.REP_STAGE_OVERLOAD, voice.REP_STAGE_OVERLOAD_REPS, "rep_stage_overload")(
             repHigh as number
           );
   } else if (
@@ -2475,15 +2396,15 @@ function repsPrescription(
                 // that, so the sentence says so rather than claiming every set capped.
                 // The bar it cleared is the CEILING (the range's top plus whatever the
                 // phase saturates on), never the plain rep_high.
-                sayEffort(voice.PUSH_TOP_SET_OVERLOAD, voice.PUSH_TOP_SET_OVERLOAD_REPS, "push_top_set_overload")(
+                sayCredit(voice.PUSH_TOP_SET_OVERLOAD, voice.PUSH_TOP_SET_OVERLOAD_REPS, "push_top_set_overload")(
                   repCeiling as number
                 )
             : hasRange
-              ? sayEffort(voice.EARNED_RANGE_OVERLOAD, voice.EARNED_RANGE_OVERLOAD_REPS, "earned_range_overload")(
+              ? sayCredit(voice.EARNED_RANGE_OVERLOAD, voice.EARNED_RANGE_OVERLOAD_REPS, "earned_range_overload")(
                   repHigh as number,
                   repLow as number
                 )
-              : sayEffort(voice.EARNED_OPEN_OVERLOAD, voice.EARNED_OPEN_OVERLOAD_REPS, "earned_open_overload");
+              : sayCredit(voice.EARNED_OPEN_OVERLOAD, voice.EARNED_OPEN_OVERLOAD_REPS, "earned_open_overload");
     }
   } else if (phaseHolds) {
     // The work earned something and the WEEK is the reason it waits.
@@ -2701,11 +2622,11 @@ function repsPrescription(
     else if (baseWeight < 0) nextWeight = assistStepNext(baseWeight, group, brakeCtx?.personalModifier, phaseStepScale);
     else nextWeight = loadStepFrom(baseWeight);
     why = hasRange
-      ? sayEffort(voice.EARNED_RANGE_OVERLOAD, voice.EARNED_RANGE_OVERLOAD_REPS, "earned_range_overload")(
+      ? sayCredit(voice.EARNED_RANGE_OVERLOAD, voice.EARNED_RANGE_OVERLOAD_REPS, "earned_range_overload")(
           repHigh as number,
           repLow as number
         )
-      : sayEffort(voice.EARNED_OPEN_OVERLOAD, voice.EARNED_OPEN_OVERLOAD_REPS, "earned_open_overload");
+      : sayCredit(voice.EARNED_OPEN_OVERLOAD, voice.EARNED_OPEN_OVERLOAD_REPS, "earned_open_overload");
   }
 
   // A LOAD STEP IS TAKEN FROM THE WEIGHT THAT WAS WORKED. When the latest session
@@ -3238,6 +3159,7 @@ export function planDayProgression(
   // a lift — read once and threaded in, so a day's pass never walks the program state
   // once per movement.
   const block = activeBlockContext(readDay);
+  const deloadEvidence = deloadEvidenceReader(readDay);
   const cut = cutPressureThunk(readDay);
   const atNearGoal = atOrNearGoal(readDay);
   // The calibration read is per-LIFT, not per-day, so the shared reader is a memo
@@ -3300,8 +3222,17 @@ export function planDayProgression(
         block,
         cut,
         liftState: liftStateFor(String(it.name), states),
+        blockPhase: () => resolvedPhaseOf(block, drive, deloadEvidence),
         restoreKeys: owedRestoreKeys,
-        since: slotAuthorship(slotStamps.get(Number(it.plan_item_id)) ?? null, null, readDay),
+        // The catch-up's window starts where the prescription's evidence does — the
+        // same tested-by-log reading nextPrescription uses.
+        since: testedSlotAuthorship(
+          slotStamps.get(Number(it.plan_item_id)) ?? null,
+          latestLiftExposure(String(it.name)),
+          { weight: p.current?.weight, rep_low: p.current?.rep_low, sets: p.current?.sets },
+          () => latestWorkingSets(String(it.name)),
+          readDay
+        ),
         lightWeek,
       });
       out.push({ ...stepped, plan_item_id: it.plan_item_id, day_number: dayNumber });
@@ -3410,6 +3341,9 @@ function setCatchUp(
     voiceDate: string; // keys the phrasing rotation only
     dayNumber: number;
     block: ActiveBlockContext | null;
+    // The phase the week actually runs as (block-phase.ts): a scheduled deload a push
+    // athlete runs as intensification is not a deload here either.
+    blockPhase?: () => string | null;
     cut: () => CutPressure;
     liftState: LiftState | null;
     restoreKeys: Set<string>;
@@ -3437,7 +3371,7 @@ function setCatchUp(
   if ((p.suggested?.weight ?? null) !== planWeight) return p;
   if (pre.autoregulated || pre.pain_protected || p.fuel_protected || p.pain_protected) return p;
   if (p.top_set || p.starting_idea || p.suggested?.sets !== planned) return p;
-  if (ctx.block?.phase === "deload") return p;
+  if ((ctx.blockPhase ? ctx.blockPhase() : (ctx.block?.phase ?? null)) === "deload") return p;
   if (ctx.restoreKeys.has(`${ctx.dayNumber}|${normalizeExerciseName(p.exercise)}`)) return p;
   let counts: number[];
   try {

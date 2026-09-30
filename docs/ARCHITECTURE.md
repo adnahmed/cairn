@@ -900,8 +900,11 @@ reads once, never per item. Consumers:
   does not call its old slide or stall this slot's trend. So a composition hold anchors on the plan
   load and the slot never hosts a reach (reach needs an overload/carry candidate). One session on or
   after `prescribed_at` and the ordinary ladder resumes. A slot whose latest exposure already did it
-  — two working sets AT the written load, the range's floor in reps (`exposurePerformedPrescription`)
-  — is tested by that session (a catch-up written onto the load just lifted); heavier logs never are.
+  — the card's FULL set count AT the written load, the range's floor in reps
+  (`exposurePerformedPrescription`) — is tested by that session (a catch-up written onto the load
+  just lifted); heavier logs never are, and a rewrite that raises the set count is tested only once
+  done. `testedSlotAuthorship` is that one reading — the prescription, the program-state trend and
+  the set catch-up's `since` all ask it.
 - **`fresh`** (within `PRESCRIPTION_SETTLE_DAYS`): no rotation for a plateau measured before it
   (the reps vary guards), and program state does not call it flat.
 - **`since`**: re-grounding reads only loaded sessions logged under the current prescription

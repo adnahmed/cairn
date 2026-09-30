@@ -2048,6 +2048,10 @@ export function snapshotDbTo(filePath: string): string {
 // and every "what is true now" caller (the REST route, the MCP tool, program-state,
 // muscle-trajectory, the exercise detail view) — the history stays unbounded, which
 // is what an all-time est-1RM and PR detection require.
+// Loaded sessions it takes before a lift's zero-load sets stop carrying a
+// bodyweight-scale est-1RM (getProgress).
+export const LOADED_HISTORY_MIN_SESSIONS = 2;
+
 export function getProgress(exerciseName: string, opts: { through?: string } = {}) {
   const ex = findExercise(exerciseName);
   if (!ex) return { exercise: exerciseName, found: false, points: [] };
@@ -2091,7 +2095,13 @@ export function getProgress(exerciseName: string, opts: { through?: string } = {
   // every loaded session after it as a slide — "sliding, deload" on a lift climbing
   // 60 → 70 → 90. Off a bodyweight ladder, once the lift has loaded history its zero
   // sets carry no est-1RM. A pure bodyweight lift (never loaded) keeps its read.
-  const loadedHistory = !ladder && rows.some((r) => r.weight != null && Number(r.weight) > 0);
+  // "Loaded history" is a PATTERN, not one set: a single loaded day (a lone weighted
+  // try, a typed slip) on a bodyweight lift must not strip every bodyweight set of its
+  // est-1RM. Two loaded sessions make the lift a loaded one.
+  const loadedDates = new Set(
+    rows.filter((r) => r.weight != null && Number(r.weight) > 0).map((r) => String(r.date))
+  );
+  const loadedHistory = !ladder && loadedDates.size >= LOADED_HISTORY_MIN_SESSIONS;
 
   // Per-date: track the best set by its effective 1RM (or by reps for assisted
   // sets where bodyweight is unknown). NEVER emit a negative best1rm.

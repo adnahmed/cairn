@@ -32,6 +32,8 @@
 import { db } from "../db.js";
 import { isoDate, isoDay } from "../lib/dates.js";
 import { daysBetweenISO, localDateISO } from "./shared.js";
+import { plausibleRir } from "../lib/numbers.js";
+import { progressionLineageIds } from "./exercise-canon.js";
 
 /** How long a freshly written prescription runs before a plateau read may judge it. */
 export const PRESCRIPTION_SETTLE_DAYS = 14;
@@ -327,25 +329,22 @@ export function stampsByPlanKey(): Record<string, string | null> {
 
 /**
  * Did the lift's latest logged exposure already perform this prescription? Pure. The
- * working sets are that session's sets at its top load (progression's
- * latestWorkingSets). Loaded or assisted targets only; a slot with no load has nothing
- * to have performed. At least two working sets — or the whole card when it asks for
- * one — AT the written load (a plan written under heavier logs is a deliberate choice,
- * never "already performed"), each reaching the range's floor.
+ * working sets are that session's sets at its top load (`latestWorkingSets`). Loaded or
+ * assisted targets only; a slot with no load has nothing to have performed. The WHOLE
+ * card's set count AT the written load (a plan written under heavier logs is a
+ * deliberate choice, never "already performed"), each reaching the range's floor — so
+ * a catch-up written onto the load he just did is tested by that session, while a
+ * deliberate rewrite that raises the set count is not tested until it is done.
  */
 export function exposurePerformedPrescription(
   workingSets: readonly { weight: number | null; reps: number | null }[],
-  prescription: {
-    weight: number | null | undefined;
-    rep_low: number | null | undefined;
-    sets: number | null | undefined;
-  }
+  prescription: PerformedPrescription
 ): boolean {
   const target = prescription.weight;
   const floor = prescription.rep_low;
   if (target == null || !Number.isFinite(Number(target)) || Number(target) === 0) return false;
   if (floor == null || !Number.isFinite(Number(floor))) return false;
-  const wanted = Math.max(1, Math.min(Number(prescription.sets) > 0 ? Number(prescription.sets) : 3, 2));
+  const wanted = Number(prescription.sets) > 0 ? Math.round(Number(prescription.sets)) : 3;
   const t = Number(target);
   const performed = workingSets.filter((set) => {
     const w = set.weight;
@@ -358,4 +357,126 @@ export function exposurePerformedPrescription(
     return Math.abs(Number(w) - t) <= 0.1 && set.reps != null && Number(set.reps) >= Number(floor);
   });
   return performed.length >= wanted;
+}
+
+export interface PerformedPrescription {
+  weight: number | null | undefined;
+  rep_low: number | null | undefined;
+  sets: number | null | undefined;
+}
+
+export type WorkingSet = { weight: number | null; reps: number | null; rir: number | null };
+
+/**
+ * The lift's latest logged session (its progression lineage) and that session's
+ * WORKING sets — the sets at its hardest signed weight. Bodyweight (null) is the zero
+ * of the signed scale: harder than any assist, easier than any added load — so
+ * bodyweight sets beside an assisted finisher ARE the working sets (the assisted set
+ * is the back-off), while bodyweight sets beside loaded ones are warm-ups. A session
+ * with nothing weighted is a bodyweight session and every logged set counts.
+ */
+export function latestWorkingSets(name: string): WorkingSet[] {
+  const ids = progressionLineageIds(name);
+  if (!ids.length) return [];
+  const inIds = ids.map(() => "?").join(",");
+  const latestSession = db
+    .prepare(
+      `SELECT s.id, s.date FROM logged_sets ls JOIN sessions s ON s.id = ls.session_id
+       WHERE ls.exercise_id IN (${inIds}) AND ls.reps IS NOT NULL
+       ORDER BY s.date DESC, s.id DESC LIMIT 1`
+    )
+    .get(...ids) as any;
+  if (!latestSession?.date || latestSession?.id == null) return [];
+  const rows = db
+    .prepare(
+      `SELECT ls.weight AS weight, ls.reps AS reps, ls.rir AS rir
+       FROM logged_sets ls
+      WHERE ls.exercise_id IN (${inIds}) AND ls.session_id = ? AND ls.reps IS NOT NULL`
+    )
+    .all(...ids, latestSession.id) as any[];
+  if (!rows.length) return [];
+  const signed = (r: any): number => (r.weight == null ? 0 : Number(r.weight));
+  let topW: number | null = null;
+  for (const r of rows) {
+    if (topW == null || signed(r) > topW) topW = signed(r);
+  }
+  return rows
+    .filter((r) => signed(r) === topW)
+    .map((r) => ({ weight: r.weight ?? null, reps: r.reps != null ? Number(r.reps) : null, rir: plausibleRir(r.rir) }));
+}
+
+/** The lift's latest logged exposure (its lineage): the session's day and first set's created_at. */
+export function latestLiftExposure(name: string): Exposure {
+  const ids = progressionLineageIds(name);
+  if (!ids.length) return null;
+  try {
+    const inIds = ids.map(() => "?").join(",");
+    const row = db
+      .prepare(
+        `SELECT s.id AS id, s.date AS date FROM logged_sets ls JOIN sessions s ON s.id = ls.session_id
+          WHERE ls.exercise_id IN (${inIds}) AND ls.reps IS NOT NULL
+          ORDER BY s.date DESC, s.id DESC LIMIT 1`
+      )
+      .get(...ids) as { id?: number; date?: string } | undefined;
+    if (!row?.date || row.id == null) return null;
+    return { date: row.date, first_at: sessionFirstSetAt(row.id, ids) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The slot's authorship AS THE LOG TESTS IT — the one reading every consumer uses
+ * (the prescription, the program-state plateau read, the set catch-up's window). A
+ * slot written after the lift's latest exposure is untested — unless that exposure
+ * already PERFORMED it (`exposurePerformedPrescription`: a catch-up written onto the
+ * load the log just lifted, at the full set count). Then it is tested by that session,
+ * and its evidence starts with it.
+ */
+export function testedSlotAuthorship(
+  prescribedAt: unknown,
+  lastExposure: Exposure,
+  prescription: PerformedPrescription,
+  workingSets: () => readonly { weight: number | null; reps: number | null }[],
+  date: string = localDateISO()
+): SlotAuthorship {
+  const written = slotAuthorship(prescribedAt, lastExposure, date);
+  if (!written.untested) return written;
+  const exposureDay =
+    lastExposure == null ? null : stampDay(typeof lastExposure === "object" ? lastExposure.date : lastExposure);
+  if (!exposureDay || !exposurePerformedPrescription(workingSets(), prescription)) return written;
+  return { ...written, untested: false, since: exposureDay, since_at: null };
+}
+
+/**
+ * exercise_id → the newest-stamped strength slot for that movement: its stamp and the
+ * prescription fields the log is tested against. The per-exercise twin of
+ * newestStampByExercise, for a consumer that also asks whether the slot was performed.
+ */
+export function newestSlotByExercise(): Map<number, PerformedPrescription & { prescribed_at: string }> {
+  const out = new Map<number, PerformedPrescription & { prescribed_at: string }>();
+  try {
+    const rows = db
+      .prepare(
+        `SELECT exercise_id, prescribed_at, target_weight, rep_low, sets FROM plan_items
+          WHERE exercise_id IS NOT NULL AND prescribed_at IS NOT NULL
+          ORDER BY prescribed_at DESC, id DESC`
+      )
+      .all() as Array<{
+      exercise_id: number;
+      prescribed_at: string | null;
+      target_weight: number | null;
+      rep_low: number | null;
+      sets: number | null;
+    }>;
+    for (const row of rows) {
+      const id = Number(row.exercise_id);
+      const at = normalizeStamp(row.prescribed_at);
+      if (!at || out.has(id)) continue;
+      out.set(id, { prescribed_at: at, weight: row.target_weight, rep_low: row.rep_low, sets: row.sets });
+    }
+  } catch {
+    /* pre-v111 schema */
+  }
+  return out;
 }

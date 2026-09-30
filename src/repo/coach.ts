@@ -17,7 +17,8 @@ import {
   invalidateDayRead,
   invalidateDayReadIfDecisionChanged,
 } from "./intelligence.js";
-import { blockForCoach, getActiveBlock } from "./program-blocks.js";
+import { getActiveBlock } from "./program-blocks.js";
+import { coachBlockSummary } from "./block-phase.js";
 import { getProgramState, type ProgramState } from "./program-state.js";
 import { getStrengthJourney } from "./strength-objectives.js";
 import { performanceStanding } from "./performance.js";
@@ -870,7 +871,7 @@ function buildTrainingSlice(
     // periodizes against the current mesocycle instead of progressing blindly.
     // Null when no block is running — then the deterministic mesocycle read in
     // program-state still gives deload timing. Additive, never a gate.
-    program_block: blockForCoach(today),
+    program_block: coachBlockSummary(today),
     // The elite program brain (deterministic floor): per-lift status/trend +
     // stall detection, volume bands, mesocycle position, endurance trends, and
     // the "what to evolve next" list — so EVERY plan-shaping prompt sees the
@@ -1648,7 +1649,7 @@ function getCoachContextFromSnapshot(): CoachContext {
         // "This block" carries its calendar ("week 3 of 5 — building volume").
         programBlock: (() => {
           try {
-            return blockForCoach(today);
+            return coachBlockSummary(today);
           } catch {
             return null;
           }

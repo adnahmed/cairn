@@ -2,7 +2,7 @@
 // the rule itself). Kept apart from the pure module so the plan compiler never
 // imports the progression engine: a caller that has a live athlete resolves this
 // once and hands it to validateTrainingPlan / the redraw precheck / the prompt.
-import { activeBlockContext, derivePhase, getActiveBlock } from "./program-blocks.js";
+import { nextWeekScheduledDeloadRuns, resolvedBlockPhase } from "./block-phase.js";
 import { getProgramState } from "./program-state.js";
 import { raceBuild } from "./race-build.js";
 import { enduranceCarriedGroups } from "./progression.js";
@@ -40,15 +40,14 @@ export function lightWeekExemption(today: string): VolumeFloorExemption | null {
     return "recovery_week";
   if (
     attempt(() => {
-      if (activeBlockContext(today)?.phase === "deload") return true;
+      // The week as it actually runs (block-phase.ts): a scheduled deload a push athlete
+      // runs as intensification is a building week, and exempts nothing.
+      if (resolvedBlockPhase(today) === "deload") return true;
       // The block's NEXT week is its deload by the block's own phase plan (derivePhase,
-      // the schedule advanceBlockWeek walks): the draft lands into it. A two-week block
-      // is never exempted whole — its first week is the only building week it has.
-      const block = getActiveBlock();
-      if (!block) return false;
-      const total = Number(block.total_weeks);
-      const week = Number(block.week_index);
-      return total > 2 && week < total && derivePhase(week + 1, total, block.focus) === "deload";
+      // the schedule advanceBlockWeek walks) and it will run as one: the draft lands into
+      // it. A two-week block is never exempted whole — its first week is the only
+      // building week it has.
+      return nextWeekScheduledDeloadRuns(today);
     })
   )
     return "deload_phase";

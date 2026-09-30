@@ -9,6 +9,8 @@ import { repo, resetTables } from "./_seed.js";
 import { raceStrengthLead, raceStrengthPrinciple } from "../dist/repo/race-strength.js";
 import { liftingLine, projectRaceBuildWeeks, raceBuild } from "../dist/repo/race-build.js";
 import { weeklySetTargets } from "../dist/repo/volume-floor.js";
+import { renderEnduranceGoal } from "../dist/prompt/shared.js";
+import { getEnduranceGoal } from "../dist/repo/profile.js";
 
 const SUPPORTING = {
   priorities: ["longevity", "muscle", "strength", "leanness", "endurance"],
@@ -210,4 +212,41 @@ test("the volume floor in a strength-led taper stands the legs aside and keeps t
     assert.ok(!trimmed.includes(g), g);
   }
   assert.deepEqual(weeklySetTargets({ ...ctx, exempt: "race_taper" }), [], "an endurance-led taper stays exempt whole");
+});
+
+// A Sunday race: the taper week is Oct 19–25 and race week Oct 26–Nov 1. `weeks_to_race`
+// is ceil(days/7), which on those Wednesdays reads 2 and 1 — one week late on both.
+test("the race build's strength principle follows the CALENDAR rung: taper week tapers, race week is race week", () => {
+  seedRace(SUPPORTING);
+  const taper = raceBuild("2026-10-21");
+  assert.equal(taper.weeks.find((w) => w.current)?.kind, "taper");
+  assert.match(taper.strength.principle, /^Taper week/);
+  const raceWeek = raceBuild("2026-10-28");
+  assert.equal(raceWeek.weeks.find((w) => w.current)?.kind, "race");
+  assert.match(raceWeek.strength.principle, /^Race week/, "a current race rung is never turned into a taper");
+});
+
+test("the prompt's LIFTING line reads the same calendar week the race build does", () => {
+  seedRace(SUPPORTING);
+  const line = (today, withBuild) => {
+    const ctx = {
+      today,
+      training_intent: SUPPORTING,
+      endurance_goal: getEnduranceGoal(today),
+      ...(withBuild ? { race_build: raceBuild(today) } : {}),
+    };
+    return renderEnduranceGoal(ctx, "training")
+      .split("\n")
+      .find((l) => l.includes("LIFTING toward this race"));
+  };
+  for (const withBuild of [true, false]) {
+    assert.match(line("2026-10-21", withBuild), /Taper week/, `taper week (race_build ${withBuild})`);
+    assert.match(line("2026-10-28", withBuild), /Race week/, `race week (race_build ${withBuild})`);
+    assert.match(line("2026-10-14", withBuild), /Keep progressing/, `a build week (race_build ${withBuild})`);
+  }
+  assert.equal(
+    line("2026-10-21", true).split(": ").slice(1).join(": "),
+    raceBuild("2026-10-21").strength.principle,
+    "one source: the race build's own principle"
+  );
 });
