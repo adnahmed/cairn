@@ -1072,7 +1072,10 @@ week-kind read (never a second race-phase read); `runPlacement` (now exported fr
 (which may name two long-run days). Rules, in precedence order — the first that applies is the only one
 that speaks:
 1. **Taper week** (`race_taper_legs`): every lower-body group on today's card is REDUCED (the existing
-   2-set cap, ×0.9 load) — upper body untouched.
+   2-set cap, ×0.9 load) — upper body untouched. These leg trims are the only lifting change a race
+   makes for a strength-led athlete (`race-strength.ts`): their block never becomes a race `peak`
+   (`chooseBlockFocus`), and the volume floor stands only the trimmed leg groups aside in taper/race
+   week (`race_trimmed`), never the whole week.
 2. **Race week** (`race_week_legs`): quads/hamstrings/glutes are EXCLUDED, calves/core REDUCED — upper
    body untouched.
 3. **The eve of a placed key run** (`key_run_eve`): today is the last lift day before a placed quality
@@ -4575,10 +4578,16 @@ new profile fields, and `{available:false, reason}` for everyone else. `raceBuil
 - **`leg_map`** — the seven-day ring (Mon–Sun plan template): the run per day, the strength day
   with `heavy_lower` from `lowerBodyPlanDayNumbers()`, and the habitual ride. A ring with nothing on
   it goes out empty, never as seven blank columns.
-- **`strength`** — the phase's heavy-lower principle (`STRENGTH_HINT`: heavy after the quality
-  run or the day after the long run in the build, maintenance loads sharpening, ~80% and the last
-  heavy lower ~10 days out in the taper) plus `weekLayoutRead`'s ONE collision sentence when the
-  lifting and running stack. The read never moves a plan day.
+- **`strength`** — the phase's strength principle, from ONE intent-aware source
+  (`raceStrengthPrinciple`, `src/repo/race-strength.ts`, which also writes each rung's
+  `strength_hint` and the race prompt's LIFTING line). A **strength-led** athlete
+  (`isStrengthLedIntent`: endurance supporting/none, or ranked below muscle and strength) keeps
+  PROGRESSING through base/build/sharpen/peak — full sets, ordinary load steps; the taper trims only
+  the legs (fewer sets, ~80–90%, last heavy lower ~7–10 days out) and race week sits heavy legs out,
+  the upper body progressing through both. An endurance-led athlete keeps the classic arc (heavy after
+  the quality run in the build, maintenance loads sharpening, ~80% in the taper, legs off in race week).
+  Plus `weekLayoutRead`'s ONE collision sentence when the lifting and running stack. The read never
+  moves a plan day.
 - **`ride`** — the weekly ride as a PATTERN read off the log (`recentEnduranceImpacts(42)`, labels
   matching ride/MTB/gravel, light-load rides excluded so commutes never outvote the weekend trail
   ride; three of six weeks makes a habit, fewer is an outing): modal weekday,

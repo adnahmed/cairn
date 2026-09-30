@@ -501,7 +501,9 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   duplicates and pair as antagonist supersets on today's card (`composition-pairing.ts`). Details in
   `docs/ARCHITECTURE.md` "Weekly dose ledger" and "Pairing and movement regions".
 - **A race build's taper/race week and the eve of a placed key run trim the legs through the ordinary
-  `reduced`/`excluded` muscle lists, never a second gate** (`stress-budget.ts`) — and a coarse-stepped
+  `reduced`/`excluded` muscle lists, never a second gate** (`stress-budget.ts`); for a strength-led
+  athlete that is the race's ONLY lifting change — everything else keeps progressing (one source,
+  `src/repo/race-strength.ts`) — and a coarse-stepped
   isolation grind (or an earned step past too big a jump) moves up a rep range at the held load
   exactly once, remembered on the applied-proposal ledger (`lift-response.ts`). Details in
   `docs/ARCHITECTURE.md` "Run/lift stress budget" and "Selection by response".
