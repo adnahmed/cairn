@@ -793,6 +793,32 @@ test("gather: a placed quality run already run early this week leaves Wednesday 
   assert.equal(after?.key_run, undefined, JSON.stringify(after));
 });
 
+test("gather: tomorrow's key run already run early does not end the look-ahead — the long run the day after still has its eve", () => {
+  seedAthlete();
+  // Quality on Saturday, long on Sunday; Friday is the last lift day before both.
+  repo.setProfile({
+    endurance_schedule: {
+      days: [
+        { dow: 2, kind: "easy" },
+        { dow: 6, kind: "quality" },
+        { dow: 0, kind: "long" },
+      ],
+    },
+  });
+  seedRuns("2026-10-02");
+  const ctx = { dayType: "training", planItems: PLAN[4].items, enduranceRole: "supporting" };
+  assert.deepEqual(stressBudgetSnapshot("2026-10-02", ctx)?.key_run, { kind: "quality", in_days: 1 });
+  // Saturday's quality session run on Wednesday instead.
+  const run = repo.addActivity({ type: "run", date: "2026-09-30", duration_min: 50, distance_km: 9.7 });
+  const source = db.prepare(`INSERT INTO garmin_sources (provider, label) VALUES ('garmin', 'early')`).run();
+  db.prepare(
+    `INSERT INTO garmin_activities (source_id, external_id, activity_id, date, type, te_label, aerobic_te)
+     VALUES (?, 'early-run', ?, ?, 'running', 'THRESHOLD', 3.6)`
+  ).run(source.lastInsertRowid, run.id, "2026-09-30");
+  const after = stressBudgetSnapshot("2026-10-02", ctx);
+  assert.deepEqual(after?.key_run, { kind: "long", in_days: 2 }, JSON.stringify(after));
+});
+
 test("gather: the race read is memoized, and a change to the stored race is read at once", () => {
   seedAthlete();
   seedRuns("2026-09-30");
