@@ -1976,8 +1976,8 @@ readiness blends factors, and its recovery-time factor is computed from the prev
 load (EPOC). On a night the watch records no valid sleep, a low wake-up score driven by that factor is
 the workout's load restated, not the body's answer to it — charging it as harm against that same
 workout is circular. `wakeReadingRestatesLoad` (`read-adherence.ts`) names the reading: the entry says
-`validSleep: false`, its `recoveryTimeFactorPercent` is the lowest of the factor percents it reports
-(`READINESS_FACTOR_PERCENT_KEYS`), and that factor's feedback is `POOR`/`VERY_POOR`
+`validSleep: false`, its `recoveryTimeFactorPercent` is the lowest of the factor percents it actually
+read (`READINESS_FACTOR_PERCENT_KEYS`; a factor with feedback `NONE` reports 0 and is skipped), and that factor's feedback is `POOR`/`VERY_POOR`
 (`RECOVERY_TIME_DRIVEN_FEEDBACK`). Below `SUPPORTIVE_READINESS` such a morning is ABSENT as evidence
 about the day before (`morningReadinessUncached`: every rung's copy of it, since a ledger read that
 morning saw the same penalised number) — never rest-grade harm, never the low morning that fails a

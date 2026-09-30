@@ -292,9 +292,15 @@ function wakeEntry(date, score, factors) {
   };
 }
 
+// The live shape: factors the watch could not read report 0 with feedback NONE.
 const NO_SLEEP_RECOVERY_DRIVEN = {
   validSleep: false,
-  sleepScoreFactorPercent: null,
+  sleepScoreFactorPercent: 0,
+  sleepScoreFactorFeedback: "NONE",
+  stressHistoryFactorPercent: 0,
+  stressHistoryFactorFeedback: "NONE",
+  acwrFactorFeedback: "GOOD",
+  hrvFactorFeedback: "MODERATE",
   recoveryTimeFactorPercent: 28,
   recoveryTimeFactorFeedback: "POOR",
   acwrFactorPercent: 82,
@@ -348,7 +354,12 @@ test("a wake-up score of 17 with a valid sleep still counts as harm, recovery ti
     training_readiness: 17,
     raw: {
       trainingReadiness: [
-        wakeEntry(morning, 17, { ...NO_SLEEP_RECOVERY_DRIVEN, validSleep: true, sleepScoreFactorPercent: 60 }),
+        wakeEntry(morning, 17, {
+          ...NO_SLEEP_RECOVERY_DRIVEN,
+          validSleep: true,
+          sleepScoreFactorPercent: 60,
+          sleepScoreFactorFeedback: "MODERATE",
+        }),
       ],
     },
   });

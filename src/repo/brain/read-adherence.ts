@@ -1487,8 +1487,9 @@ function firstTrainingInstantMs(date: string): number | null {
 // So a wake-up reading RESTATES LOAD when (`wakeReadingRestatesLoad`):
 //   • the watch says the night had no valid sleep (`validSleep === false`, stated, not
 //     inferred from absence), AND
-//   • its recovery-time factor is the lowest of the factors it reported
-//     (`READINESS_FACTOR_PERCENT_KEYS`), AND
+//   • its recovery-time factor is the lowest of the factors it actually read
+//     (`READINESS_FACTOR_PERCENT_KEYS`; a factor with feedback NONE reports 0 and is
+//     not a factor), AND
 //   • that factor's own feedback is POOR / VERY_POOR (`RECOVERY_TIME_DRIVEN_FEEDBACK`).
 // Such a reading below SUPPORTIVE_READINESS is ABSENT as evidence about the day before —
 // never rest-grade harm, never the low morning that keeps a hard day from being vouched
@@ -1513,6 +1514,10 @@ export function wakeReadingRestatesLoad(entry: any): boolean {
   if (recovery == null) return false;
   if (!RECOVERY_TIME_DRIVEN_FEEDBACK.has(String(entry?.recoveryTimeFactorFeedback ?? "").toUpperCase())) return false;
   for (const key of READINESS_FACTOR_PERCENT_KEYS) {
+    // A factor the watch could not read reports percent 0 with feedback NONE: not a
+    // factor at all (no sleep, no stress history), so it never outranks recovery time.
+    const feedback = String(entry?.[key.replace("Percent", "Feedback")] ?? "").toUpperCase();
+    if (!feedback || feedback === "NONE") continue;
     const value = readingNumber(entry?.[key]);
     if (value != null && value < recovery) return false;
   }
