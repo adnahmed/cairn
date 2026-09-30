@@ -6275,6 +6275,49 @@ declare global {
     /** The units the chart writes; the weeks' `km` stays kilometres. */
     units?: "km" | "mi";
   };
+  /** One calendar week's column in the terrain (terrainLayout), in viewBox units and run units. */
+  type ClientHorizonTerrainColumn = {
+    week_start: string;
+    logged: boolean;
+    current: boolean;
+    /** The ribbon's stage word ("Logged" on a logged week). */
+    stage: string;
+    /** The week's slot on the time axis (Monday to the next, or to race day). */
+    slot_x: number;
+    slot_w: number;
+    /** The column inside its slot. */
+    x: number;
+    width: number;
+    /** The week's figure (run units) and the y its top stands at. */
+    value: number;
+    top: number;
+    /** This week only: what the log holds (run units) and the fill's top. */
+    done: number | null;
+    done_top: number | null;
+    /** A ladder week's long run (run units) and its tick's y. */
+    long: number | null;
+    long_y: number | null;
+  };
+  type ClientHorizonTerrainLabel = { kind: "week" | "peak"; text: string; x: number; y: number; week_start: string };
+  type ClientHorizonTerrainLayout = {
+    units: "km" | "mi";
+    L: number;
+    R: number;
+    base: number;
+    ceil: number;
+    /** The axis top and its gridline step (run units); `max` the largest figure drawn. */
+    top: number;
+    step: number;
+    max: number;
+    grid: Array<{ value: number; y: number }>;
+    columns: ClientHorizonTerrainColumn[];
+    labels: ClientHorizonTerrainLabel[];
+    /** The week the wash stands on (this week unless another is picked; null for none). */
+    selected: string | null;
+    race_x: number;
+    race_day: string;
+    end_x: number;
+  };
   type ClientHorizonSeasonMark = { date: string; label: string; kind: string; side: "behind" | "ahead" };
   type ClientHorizonSeason = {
     points: Array<{ date: string; lb: number }>;
@@ -6322,6 +6365,10 @@ declare global {
     };
     CairnHorizonTerrain: {
       TERRAIN: { readonly W: number; readonly H: number };
+      terrainLayout(
+        terrain: ClientHorizonTerrain,
+        opts?: { selected?: string | null }
+      ): ClientHorizonTerrainLayout | null;
       terrainSvg(terrain: ClientHorizonTerrain, opts?: { selected?: string | null }): string;
       terrainKeyHtml(terrain: ClientHorizonTerrain | null | undefined): string;
       fx(n: number): string;

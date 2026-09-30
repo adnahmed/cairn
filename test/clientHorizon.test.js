@@ -463,7 +463,7 @@ test("each lane paints its words, the race lane the ladder, and every row a real
   // The race build as a glance: its serif line, the terrain with its key, this week, the fit.
   assert.equal(cards[0].querySelector(".horizon-lane-title").textContent, "Seven weeks of build, then the half.");
   assert.ok(cards[0].querySelector(".hz-terrain"));
-  assert.match(cards[0].querySelector(".horizon-chart-key").textContent, /Weekly km/);
+  assert.match(cards[0].querySelector(".horizon-chart-key").textContent, /Planned/);
   assert.equal(cards[0].querySelectorAll(".horizon-week").length, 0, "the ladder is the race page's");
   assert.equal(cards[0].querySelector(".horizon-tw-kicker").textContent, "This week · Build");
   assert.equal(cards[0].querySelector(".horizon-tw-num").textContent, "18 of 32 km");
@@ -781,7 +781,16 @@ test("terrain chart: a mid-week race ends the ground the day after it", () => {
   // Race day stands a day short of the plot's right edge, not a sixth of the width short.
   const race = Number(svg.match(/class="hz-race" x1="([\d.]+)"/)[1]);
   assert.ok(race > 300, `race line at ${race}`);
-  assert.match(svg, /class="hz-now"/);
+  // Race week's column stands inside its short slot, never past race day.
+  const layout = win.CairnHorizonTerrain.terrainLayout({
+    weeks,
+    race_date: "2026-09-30",
+    race_label: "10K",
+    as_of: TODAY,
+  });
+  const last = layout.columns[layout.columns.length - 1];
+  assert.ok(last.x + last.width <= race, `race week column ends at ${last.x + last.width}`);
+  assert.ok(last.slot_w < layout.columns[0].slot_w, "race week's slot is its days to race day");
   assert.equal(
     win.CairnHorizonChart.terrainSvg({ weeks: weeks.slice(0, 1), race_date: "", race_label: "", as_of: TODAY }),
     ""
@@ -947,10 +956,14 @@ test("terrain: the closed weeks the log holds lead the ridge, quieter; the stage
     ["2026-09-07", 28],
   ]);
   const svg = win.CairnHorizonChart.terrainSvg(lane.terrain);
-  assert.match(svg, /class="hz-terrain-line is-logged"/);
-  // Selective labels: this week's volume and the peak — never a number on every week.
+  // One column per calendar week: the log's in ink, the ladder's in the plan tone.
+  assert.equal((svg.match(/class="hz-col is-logged"/g) || []).length, 3);
+  assert.equal((svg.match(/class="hz-cap"/g) || []).length, WEEKS.slice(1).length);
+  // No curve between weeks: a weekly figure is a column, never a spline.
+  assert.doesNotMatch(svg, /hz-terrain-line|hz-terrain-fill|hz-contour| C[\d.]+,/);
+  // Selective labels: this week in the race page's words, and the peak — never a number on every week.
   const nums = [...svg.matchAll(/class="hz-num[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
-  assert.deepEqual(nums, ["32", "peak 40"]);
+  assert.deepEqual(nums, ["18 of 32 km", "peak 40"]);
   // The stage ribbon: one band per run of weeks, the current one deeper, named where it fits.
   assert.match(svg, /class="hz-stage is-current"/);
   assert.match(svg, /class="hz-stage is-logged"/);
@@ -958,20 +971,21 @@ test("terrain: the closed weeks the log holds lead the ridge, quieter; the stage
   // A long-run tick for every ladder week that has one, and hit targets that say the week.
   // (race week has none: race day is the long run)
   assert.equal((svg.match(/class="hz-long"/g) || []).length, WEEKS.slice(1).filter((w) => w.kind !== "race").length);
-  assert.match(svg, /<title>SEP 14 · Build · 32 km · long run 13 km · 18 km run so far<\/title>/);
-  // This week's run so far stands at the now line, under the planned ridge.
-  assert.match(svg, /class="hz-sofar"/);
+  assert.match(svg, /<title>SEP 14 · Build · 18 of 32 km · long run 13 km<\/title>/);
+  // This week's run so far is the filled part of its planned column.
+  assert.match(svg, /class="hz-col is-logged is-done"/);
   // Recessive grid: solid hairlines, never dashed.
   assert.doesNotMatch(svg, /stroke-dasharray/);
   assert.match(svg, /aria-label="Logged: AUG 24 22 km/);
   // The key names only what was drawn.
   const key = win.CairnHorizonChart.terrainKeyHtml(lane.terrain);
-  for (const word of ["Weekly km", "Long run", "Logged", "Run so far"]) assert.match(key, new RegExp(`>${word}<`));
+  for (const word of ["Planned", "Logged", "Long run"]) assert.match(key, new RegExp(`>${word}<`));
   const bare = win.CairnHorizonChart.terrainKeyHtml({
     ...lane.terrain,
     weeks: lane.terrain.weeks.filter((w) => !w.logged).map((w) => ({ ...w, long_km: null, logged_km: null })),
   });
-  assert.doesNotMatch(bare, /Long run|Logged|Run so far/);
+  assert.doesNotMatch(bare, /Long run|Logged/);
+  assert.match(bare, />Planned</);
   // The wash follows a picked week; "" washes none.
   const picked = win.CairnHorizonChart.terrainSvg(lane.terrain, { selected: "2026-10-12" });
   const none = win.CairnHorizonChart.terrainSvg(lane.terrain, { selected: "" });
@@ -1000,6 +1014,109 @@ test("terrain: with the log's weeks ahead of a full ladder, every stage band sti
   assert.ok(words.includes("TAPER") || words.includes("TPR"), words.join(" "));
   assert.ok(words.includes("RACE") || words.includes("R"), words.join(" "));
   assert.ok(words.includes("PEAK") || words.includes("PK"), words.join(" "));
+});
+
+test("terrain layout: one column per calendar week, every top a real week's figure, this week filled in", () => {
+  const win = load();
+  const review = {
+    weeks: [
+      { week_start: "2026-08-24", km: 22, runs: 3 },
+      { week_start: "2026-08-31", km: 26.4, runs: 3 },
+      { week_start: "2026-09-07", km: 28, runs: 3 },
+    ],
+    longest_recent_km: 12,
+    volume_word: "rising",
+  };
+  const lane = win.CairnHorizonModel.raceLane(build({ weeks: WEEKS.slice(1), review }));
+  const layout = plain(win.CairnHorizonTerrain.terrainLayout(lane.terrain));
+  const weeks = lane.terrain.weeks;
+  const data = weeks.map((w) => w.km);
+  const [lo, hi] = [Math.min(...data), Math.max(...data)];
+  const Y = (v) => layout.base - (v / layout.top) * (layout.base - layout.ceil);
+  // One column per week, in its own week's slot; the slots tile the time axis with no gap.
+  assert.equal(layout.columns.length, weeks.length);
+  layout.columns.forEach((c, i) => {
+    assert.equal(c.week_start, weeks[i].week_start);
+    assert.ok(c.x >= c.slot_x && c.x + c.width <= c.slot_x + c.slot_w + 1e-9, `${c.week_start} sits in its slot`);
+    assert.ok(c.width <= 22, "a thin mark");
+    if (i) {
+      const prev = layout.columns[i - 1];
+      assert.ok(Math.abs(prev.slot_x + prev.slot_w - c.slot_x) < 1e-6, "slots are contiguous calendar weeks");
+      assert.ok(c.x > prev.x + prev.width, "air between columns");
+    }
+  });
+  // Every column's top IS its week's figure: nothing above the largest week, nothing
+  // below the smallest, and no ramp up from zero before the first week.
+  for (const c of layout.columns) {
+    assert.ok(c.value >= lo && c.value <= hi, `${c.week_start} ${c.value} within [${lo}, ${hi}]`);
+    assert.ok(Math.abs(c.top - Y(c.value)) < 1e-6);
+    assert.ok(c.top >= Y(hi) - 1e-6 && c.top <= layout.base);
+  }
+  assert.equal(layout.columns[0].value, 22, "the first column stands at the first logged week");
+  assert.equal(layout.max, hi);
+  // The drawn marks carry no y above the tallest week and none below the ground.
+  const svg = win.CairnHorizonTerrain.terrainSvg(lane.terrain);
+  for (const [, d] of svg.matchAll(/class="hz-(?:col|cap)[^"]*" d="([^"]+)"/g)) {
+    // Every y the path visits: its move/arc end points and its vertical runs.
+    const ys = [
+      ...[...d.matchAll(/(?:M|0 0 1 )(-?[\d.]+),(-?[\d.]+)/g)].map((m) => Number(m[2])),
+      ...[...d.matchAll(/V(-?[\d.]+)/g)].map((m) => Number(m[1])),
+    ];
+    assert.ok(ys.length >= 2);
+    for (const y of ys) assert.ok(y >= Y(hi) - 0.06 && y <= layout.base + 0.06, `y ${y} in [${Y(hi)}, ${layout.base}]`);
+  }
+  // This week: the planned column, its logged part filled from the ground in proportion.
+  const now = layout.columns.find((c) => c.current);
+  assert.equal(now.value, 32);
+  assert.equal(now.done, 18);
+  assert.ok(now.done_top > now.top && now.done_top < layout.base);
+  assert.ok(Math.abs((layout.base - now.done_top) / (layout.base - now.top) - 18 / 32) < 1e-9);
+  assert.deepEqual(
+    layout.labels.map((l) => [l.kind, l.text]),
+    [
+      ["week", "18 of 32 km"],
+      ["peak", "peak 40"],
+    ]
+  );
+  for (const l of layout.labels) assert.ok(l.x >= layout.L && l.x <= layout.R);
+  // Long-run ticks sit on their own week's column, at the long run.
+  for (const c of layout.columns.filter((col) => col.long != null)) {
+    assert.ok(Math.abs(c.long_y - Y(c.long)) < 1e-6 && c.long <= c.value);
+  }
+  assert.ok(layout.columns.filter((c) => c.logged).every((c) => c.long == null && c.done == null));
+
+  // In miles the same columns, restated; the words match the race page's THIS WEEK.
+  const mi = plain(win.CairnHorizonTerrain.terrainLayout({ ...lane.terrain, units: "mi" }));
+  assert.equal(mi.labels[0].text, "11.2 of 19.9 mi");
+  const m = win.CairnRaceViewModel;
+  assert.equal(mi.labels[0].text, `${m.distNum(18, "mi")} of ${m.kmText(32, "mi")}`);
+  const miNow = mi.columns.find((c) => c.current);
+  const frac = (c, l) => (l.base - c.done_top) / (l.base - c.top);
+  assert.ok(Math.abs(frac(miNow, mi) - frac(now, layout)) < 1e-9, "units restate, never reshape");
+});
+
+test("terrain layout: nothing run yet says the week planned; a week run past its plan stands taller", () => {
+  const win = load();
+  const weeks = [
+    { week_start: "2026-09-14", km: 30, current: true, stage: "Build", long_km: 12, logged_km: 0 },
+    { week_start: "2026-09-21", km: 34, current: false, stage: "Peak", long_km: 14 },
+    { week_start: "2026-09-28", km: 21.1, current: false, stage: "Race" },
+  ];
+  const terrain = { weeks, race_date: "2026-10-04", race_label: "Half · Oct 4", as_of: TODAY };
+  const fresh = plain(win.CairnHorizonTerrain.terrainLayout(terrain));
+  assert.equal(fresh.labels[0].text, "30 km planned");
+  assert.equal(fresh.columns[0].done, null);
+  assert.doesNotMatch(win.CairnHorizonTerrain.terrainSvg(terrain), /is-done/);
+  const over = plain(
+    win.CairnHorizonTerrain.terrainLayout({ ...terrain, weeks: [{ ...weeks[0], logged_km: 36 }, ...weeks.slice(1)] })
+  );
+  const c = over.columns[0];
+  assert.equal(over.max, 36, "the axis holds the log's figure");
+  assert.ok(c.done_top < c.top, "the log outranks the plan");
+  assert.equal(over.labels[0].text, "36 of 30 km");
+  // The peak word yields or steps up rather than sitting on this week's words.
+  const [week, peak] = over.labels;
+  if (peak) assert.ok(Math.abs(week.y - peak.y) >= 12 || Math.abs(week.x - peak.x) > 40);
 });
 
 function planWeek() {

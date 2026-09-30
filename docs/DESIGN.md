@@ -167,8 +167,8 @@ Horizon's two views and Train's charts share one chart language (`horizon-chart-
 
 - **Drawn to scale, in SVG** where the markup is ours: a surface card (1px `--line`, 18px radius),
   mono axis words (Martian Mono ~8.5px, uppercase, `--muted`), dotted gridlines in `--line`.
-- **A line wears its stone's deep hue**: kilometres are endurance (`--d-endurance` ridge over a
-  `--s-endurance` fill with two quieter contours), bodyweight is body (`--d-body`), a lift's
+- **A mark wears its stone's deep hue**: kilometres are endurance (`--d-endurance` caps over
+  `--s-endurance` columns), bodyweightbodyweight is body (`--d-body`), a lift's
   estimate is strength (`--d-strength`). A canvas chart takes it from `--chart-line` on the canvas
   (`.pchart.is-strength` / `.is-body`). Tone never colors a line.
 - **Annotations are deep-colored words on the chart**, never a legend-only code: `now` (dawn line),
@@ -179,16 +179,23 @@ Horizon's two views and Train's charts share one chart language (`horizon-chart-
   diamonds: filled behind today, open ahead, the same diamonds their rows wear below; one far
   beyond the season's own span is pinned at the edge rather than squeezing the line. The key
   names only what was drawn.
-- **The terrain reads the whole build**, in the athlete's run units (km or mi, one axis): the
-  closed weeks the log holds lead it in a quieter ink ridge, then the ladder's weekly volume in
-  endurance over a quiet wash; a short ink dash per week at its long run; the dawn `now` line
-  whose solid foot is what the log already holds this week against the planned ridge above it;
-  and under the ground a stage ribbon (Base / Build / Sharpen / Peak / Down / Taper / Race), the
-  current band deeper, each named in mono where it fits. Labels are selective — this week's
-  volume and the peak, never a number on every week; every week answers a hover through its hit
-  target, the aria label lists them all, and the race page's ladder is the table view. Gridlines
-  are solid hairlines stepped by 5 / 10 / 20 so miles and kilometres both get three or four. Race
-  day wears the race's short name ("Half · Nov 1"); the key names only what was drawn.
+- **The terrain reads the whole build**, in the athlete's run units (km or mi, one axis), as **one
+  column per calendar week**: weekly volume is a per-week figure, so it is never a curve (a spline
+  overshoots the real peak and invents a ramp up from zero). The closed weeks the log holds are ink
+  columns; the ladder's weeks are lighter endurance columns with a deep cap; this week is its
+  planned column with the logged part filled from the ground in the logged ink and labelled in the
+  race page's THIS WEEK words ("7.4 of 17.8 km", "17.8 km planned"), and a week run past its plan
+  stands taller than its cap. Both fills are opaque `color-mix` steps off the surface, so a filled
+  part never blends into a third tone and still separates in dark. A ringed ink dash crosses each
+  ladder column at its long run; under the ground a stage ribbon (Base / Build / Sharpen / Peak /
+  Down / Taper / Race), the current band deeper, each named in mono where it fits. Labels are
+  selective — this week's words and the peak, placed clear of every column they span, never a
+  number on every week; every week answers a hover through its hit target, the aria label lists
+  them all, and the race page's ladder is the table view. The geometry is `terrainLayout()`
+  (`horizon-terrain-client.ts`), which the tests read. Gridlines are solid hairlines stepped by 5 /
+  10 / 20 so miles and kilometres both get three or four. Race day is the right edge, wearing the
+  race's short name ("Half · Nov 1"); the key (Planned / Logged / Long run) names only what was
+  drawn.
 - **Space is held** at the chart's own aspect ratio while its reads land, so nothing jumps.
 
 Horizon opens on **To the race** when a race is set and on **Season** when there is nothing to
