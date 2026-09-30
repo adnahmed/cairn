@@ -45,7 +45,8 @@ import { pickDayVariant } from "./brain/day-read-rules.js";
 // module by construction — it takes the run plan as an optional injected value rather
 // than importing the builder — so reaching up into domain/ from here adds no cycle.
 import { weekLayoutRead } from "../domain/training/week-layout.js";
-import { getActiveBlock } from "./program-blocks.js";
+import { blockEndsInDeload, getActiveBlock, previousCompletedBlock } from "./program-blocks.js";
+import { getSettings } from "./settings.js";
 import { completedRecoveryWeekLedger, type CompletedRecoveryWeekLedger } from "./recovery-week-ledger.js";
 import { getProgress } from "./sessions.js";
 import { comparableLiftDates, sessionCountsTowardLiftTrajectory } from "./lift-comparability.js";
@@ -1229,12 +1230,27 @@ function mesocycle(
   // deload-due; intensification / base-building / accumulation notes still run.
   const startedOn = String(block?.started_at ?? "").slice(0, 10);
   const startedAgeDays = /^\d{4}-\d{2}-\d{2}$/.test(startedOn) ? daysBetweenISO(date, startedOn) : null;
+  // …unless the loaded streak runs straight THROUGH the previous block's scheduled
+  // deload into this one: a push athlete runs that week as intensification
+  // (block-phase.ts), so no reset happened, and a fresh block must not hide the
+  // deload the loaded weeks now call for for two more weeks.
+  const carriedPastSkippedDeload = (): boolean => {
+    try {
+      if (!block || startedAgeDays == null || loadedStreak * 7 <= startedAgeDays) return false;
+      if (getSettings().training_drive !== "push") return false;
+      const previous = previousCompletedBlock(block);
+      return !!previous && blockEndsInDeload(previous);
+    } catch {
+      return false;
+    }
+  };
   const freshBlock =
     !!block &&
     Number(block.week_index) <= 2 &&
     startedAgeDays != null &&
     startedAgeDays >= 0 &&
-    startedAgeDays <= FRESH_BLOCK_MAX_AGE_DAYS;
+    startedAgeDays <= FRESH_BLOCK_MAX_AGE_DAYS &&
+    !carriedPastSkippedDeload();
   const blockPhase = String(block?.phase ?? "");
   const blockSuppressesDeloadDue = freshBlock || blockPhase === "deload" || blockPhase === "realization";
 

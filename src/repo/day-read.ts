@@ -55,6 +55,7 @@ import { getSettings } from "./settings.js";
 import { getPlan } from "./plan.js";
 import { planItemsOutOfOrder } from "../domain/training/plan-item-order.js";
 import { getActiveBlock } from "./program-blocks.js";
+import { resolvedBlockPhase } from "./block-phase.js";
 import { activeRecoveryWeekLedger, RECOVERY_WEEK_ACTIVE_DAYS } from "./recovery-week-ledger.js";
 import {
   nextCandidateAfter,
@@ -405,7 +406,9 @@ export function dayReadPeriodizationContext(date: string): DayReadPeriodizationC
             goal: String(block.goal).slice(0, 200),
             focus: block.focus,
             stored_phase: block.phase,
-            effective_phase: recovery ? "deload" : block.phase,
+            // The week as it actually runs (block-phase.ts): a scheduled deload a push
+            // athlete runs as intensification never reads "deload" here.
+            effective_phase: recovery ? "deload" : (resolvedBlockPhase(date) ?? block.phase),
             week_index: block.week_index,
             total_weeks: block.total_weeks,
             started_at: String(block.started_at).slice(0, 32),

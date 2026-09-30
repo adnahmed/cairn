@@ -28,7 +28,8 @@
  */
 
 import { computeGoalCheck, getEnduranceGoal, getProfile, projectGoalPace } from "./profile.js";
-import { blockForCoach, getActiveBlock } from "./program-blocks.js";
+import { getActiveBlock } from "./program-blocks.js";
+import { coachBlockSummary } from "./block-phase.js";
 import { getProgramState, type ProgramState } from "./program-state.js";
 // forwardLook may not exist on every build of intelligence.js (it landed in a
 // later round). Import the namespace and feature-detect so this module builds
@@ -176,7 +177,7 @@ export function getTrajectory(
 
   // ---- the active periodization block (top precedence for horizon + phase) ----
   const block = safe<any>(() => getActiveBlock(), null);
-  const blockSummary = safe<any>(() => blockForCoach(today), null);
+  const blockSummary = safe<any>(() => coachBlockSummary(today), null);
 
   // ---- the endurance race countdown ----
   const goal = safe<any>(() => getEnduranceGoal(today), null);

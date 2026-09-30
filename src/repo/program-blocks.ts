@@ -268,6 +268,25 @@ export function getActiveBlock(): ProgramBlock | null {
 }
 
 /**
+ * The block the athlete finished just before `block` (completed, not abandoned), or
+ * null. Read by the mesocycle to tell a fresh block that followed a real reset from
+ * one that followed a scheduled deload run as intensification.
+ */
+export function previousCompletedBlock(block: { id: number }): ProgramBlock | null {
+  return hydrateBlock(
+    db
+      .prepare("SELECT * FROM program_blocks WHERE status = 'completed' AND id < ? ORDER BY id DESC LIMIT 1")
+      .get(block.id)
+  );
+}
+
+/** The block's last week is its scheduled deload (by its stored phase or its phase plan). */
+export function blockEndsInDeload(block: ProgramBlock): boolean {
+  const total = Number(block.total_weeks);
+  return block.phase === "deload" || (total > 2 && derivePhase(total, total, block.focus) === "deload");
+}
+
+/**
  * The dated endurance objective `chooseBlockFocus` reads — a subset of
  * `getEnduranceGoal()` so the decision is fixture-testable without a profile.
  */

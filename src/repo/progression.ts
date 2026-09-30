@@ -102,6 +102,7 @@ import {
   type PhaseProgressionPolicy,
   phaseProgressionPolicy,
 } from "./program-blocks.js";
+import { deloadEvidenceReader, resolvedPhaseOf, scheduledDeloadSkipped } from "./block-phase.js";
 // THE THREE LEARNED SEAMS the decision consults but never obeys blindly: how much
 // this lift's est-1RM deserves to be trusted, what the ledger's own verdicts said
 // about it, and whether the movement itself has been flagged as one to be careful
@@ -1775,7 +1776,7 @@ export function nextPrescription(
     // here. Absent OR null means "whatever the athlete has standing" — there is no
     // meaningful third state to preserve, unlike the block/cut/estimate thunks.
     drive: opts?.drive ?? readTrainingDrive(),
-    deloadEvidence: deloadEvidenceThunk(date),
+    deloadEvidence: deloadEvidenceReader(date),
     // The band is a property of THIS movement on THIS day, so it is read per lift.
     // The read returns null before touching its heavier queries when nothing has
     // been stated about the movement, which is the ordinary case.
@@ -1793,22 +1794,6 @@ const CARRY_REPS_AS_SECONDS = 25;
 // name-level timed detector already calls a hold (plank, hang, wall sit).
 function holdLikeMovement(name: string, group: string | null): boolean {
   return classifyPattern(name, group ?? undefined) === "carry" || detectExerciseMode(name) === "timed";
-}
-
-// Whether the loaded-weeks evidence calls for a deload (program-state's mesocycle,
-// read past the block's own suppression). Lazy: only a scheduled deload week asks.
-function deloadEvidenceThunk(date: string): () => boolean {
-  let cached: boolean | null = null;
-  return () => {
-    if (cached == null) {
-      try {
-        cached = getProgramState(date).mesocycle?.deload_evidence === true;
-      } catch {
-        cached = false;
-      }
-    }
-    return cached;
-  };
 }
 
 interface PrescCtx {
@@ -2052,10 +2037,12 @@ function repsPrescription(
   // week runs as intensification unless the loaded-weeks evidence ALSO calls for the
   // deload. An EARNED easy week (an applied recovery week) still holds for everyone,
   // and a steady athlete keeps the block's scheduled week as written.
-  const scheduledDeloadRuns =
-    brakeCtx?.block?.scheduled_deload === true &&
-    (brakeCtx?.drive ?? "steady") === "push" &&
-    !(brakeCtx?.deloadEvidence?.() ?? false);
+  // ONE resolution, shared with every surface that names the week (block-phase.ts).
+  const scheduledDeloadRuns = scheduledDeloadSkipped(
+    brakeCtx?.block,
+    brakeCtx?.drive,
+    brakeCtx?.deloadEvidence ?? (() => false)
+  );
   const policy: PhaseProgressionPolicy | null =
     brakeCtx?.block && mainLift
       ? phaseProgressionPolicy(scheduledDeloadRuns ? "intensification" : brakeCtx.block.phase)
@@ -3238,6 +3225,7 @@ export function planDayProgression(
   // a lift — read once and threaded in, so a day's pass never walks the program state
   // once per movement.
   const block = activeBlockContext(readDay);
+  const deloadEvidence = deloadEvidenceReader(readDay);
   const cut = cutPressureThunk(readDay);
   const atNearGoal = atOrNearGoal(readDay);
   // The calibration read is per-LIFT, not per-day, so the shared reader is a memo
@@ -3410,6 +3398,9 @@ function setCatchUp(
     voiceDate: string; // keys the phrasing rotation only
     dayNumber: number;
     block: ActiveBlockContext | null;
+    // The phase the week actually runs as (block-phase.ts): a scheduled deload a push
+    // athlete runs as intensification is not a deload here either.
+    blockPhase?: () => string | null;
     cut: () => CutPressure;
     liftState: LiftState | null;
     restoreKeys: Set<string>;
@@ -3437,7 +3428,7 @@ function setCatchUp(
   if ((p.suggested?.weight ?? null) !== planWeight) return p;
   if (pre.autoregulated || pre.pain_protected || p.fuel_protected || p.pain_protected) return p;
   if (p.top_set || p.starting_idea || p.suggested?.sets !== planned) return p;
-  if (ctx.block?.phase === "deload") return p;
+  if ((ctx.blockPhase ? ctx.blockPhase() : (ctx.block?.phase ?? null)) === "deload") return p;
   if (ctx.restoreKeys.has(`${ctx.dayNumber}|${normalizeExerciseName(p.exercise)}`)) return p;
   let counts: number[];
   try {
