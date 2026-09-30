@@ -56,6 +56,10 @@ import type { EnduranceRole } from "./training-intent.js";
 //
 // The week-kind read is raceBuild's, never a second race-phase read. An athlete whose
 // endurance role is `none` gets nothing here, and so does anyone without a dated race.
+// These leg trims are the ONLY strength change a race build makes for a strength-led
+// athlete — the phase's strength principle itself (progression vs maintenance) has one
+// source, race-strength.ts, and for a strength-led athlete the upper body keeps
+// progressing through the taper and race week. The trims apply to both leads.
 //
 // Two halves, the same split as the rest of the daily decision:
 //   - `stressBudgetSnapshot` is the GATHER half. It may read the database (raceBuild,
