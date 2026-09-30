@@ -373,9 +373,11 @@ function chooseEndurancePrimaryBlock(goal: BlockFocusGoal | null | undefined): C
  * Strength-led only when intent is explicit (endurance_role none/supporting, or
  * endurance ranked below both muscle and strength): focus follows the higher of
  * muscle/strength (muscle before strength ⇒ hypertrophy, else strength), 6
- * weeks. A race only claims a peak when it is ≤ 3 weeks out or already in
- * taper/sharpen; otherwise it is named as supporting work on a
- * strength/hypertrophy block.
+ * weeks. A race NEVER claims the block here, however close: it is named as
+ * supporting work on a strength/hypertrophy block. A peak block's realization week
+ * holds load on every main lift, upper body included, and a strength-led athlete's
+ * lifting keeps progressing through the whole build (race-strength.ts) — only the
+ * legs are trimmed in taper and race week, by the stress budget.
  *
  * Derived intent (never-set priorities/role) and co_primary / primary keep the
  * endurance-led tree (build → endurance-base, target within 16 wk →
@@ -387,19 +389,7 @@ export function chooseBlockFocus(
 ): ChosenBlockFocus {
   if (!isStrengthLedIntent(intent)) return chooseEndurancePrimaryBlock(goal);
 
-  if (goal?.is_race) {
-    const phase = goal.phase ?? null;
-    const wk = goal.weeks_to_race ?? null;
-    const event = raceEventLabel(goal);
-    if (phase === "taper" || phase === "sharpen" || (wk != null && wk <= 3)) {
-      return {
-        focus: "peak",
-        total_weeks: peakSizing(wk),
-        goal: `Sharpen for ${event} — arrive fresh`,
-      };
-    }
-    return strengthOrHypertrophyBlock(intent, { event });
-  }
+  if (goal?.is_race) return strengthOrHypertrophyBlock(intent, { event: raceEventLabel(goal) });
   if (goal && !goal.is_race) {
     return strengthOrHypertrophyBlock(intent, { standingEndurance: true });
   }
@@ -413,9 +403,9 @@ export function chooseBlockFocus(
  * untouched if there is one (it never resets a block the athlete is mid-way
  * through). Does NOT auto-advance weeks (that stays manual / the scheduler's job).
  *
- * An explicit supporting/none endurance role never lets a race in the build
- * window take the block — strength or hypertrophy leads, and the race is named
- * as supporting work. Derived intent and co_primary / primary keep the
+ * An explicit supporting/none endurance role never lets a race take the block,
+ * however close — strength or hypertrophy leads, and the race is named as
+ * supporting work. Derived intent and co_primary / primary keep the
  * endurance-led tree:
  *  - a race in the BUILD window (~5–10 wk out) → an "endurance-base" block sized
  *    to the time-to-race so lifting stays supportive of the running build;
