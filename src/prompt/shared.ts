@@ -14,6 +14,7 @@ import { localDateISO } from "../repo/shared.js";
 import { pickDayVariant } from "../repo/brain/day-read-rules.js";
 import { coerceFinite } from "../lib/numbers.js";
 import { raceStrengthLead, raceStrengthPrinciple } from "../repo/race-strength.js";
+import { weeksToRaceWeek } from "../repo/run-ramp.js";
 
 const RACE_PHASES: ReadonlySet<string> = new Set(["base", "build", "sharpen", "taper"]);
 
@@ -325,6 +326,26 @@ and hard days as hard (polarized), and guard earned recovery after long or quali
 - Treat logged runs/rides as real training stress, scaled to endurance's stated role.\n`;
 }
 
+// The race build's lifting line, from ONE week count. The race build already read
+// this week's rung by CALENDAR week to race week (race week → taper → peak), so its
+// own principle is the answer; `weeks_to_race` is ceil(days/7), which reads the taper
+// week as "build" and race week as "taper" for a weekend race. Without a race build
+// in the context, the same calendar count is derived here from the race date.
+function raceLiftingPrinciple(ctx: any, g: any): string {
+  const build = ctx?.race_build;
+  if (build?.available && typeof build.strength?.principle === "string") return build.strength.principle;
+  const rung = build?.available && Array.isArray(build.weeks) ? build.weeks.find((w: any) => w?.current) : null;
+  const calendarWeeks = g?.date ? weeksToRaceWeek(String(ctx?.today || localDateISO()), String(g.date)) : null;
+  const kind: "build" | "down" | "peak" | "taper" | "race" =
+    rung?.kind ??
+    (calendarWeeks == null ? "build" : calendarWeeks <= 0 ? "race" : calendarWeeks === 1 ? "taper" : "build");
+  return raceStrengthPrinciple({
+    phase: RACE_PHASES.has(String(g?.phase)) ? (g.phase as "base" | "build" | "sharpen" | "taper") : "build",
+    kind,
+    lead: raceStrengthLead(ctx?.training_intent),
+  }).principle;
+}
+
 // The endurance OBJECTIVE (v37), rendered for a prompt. Orthogonal to discipline:
 // a RACE goal makes the coach periodize a conservative ramp + taper toward a date;
 // a STANDING goal makes it maintain readiness (no peak/taper). Both ask the coach to
@@ -359,11 +380,7 @@ export function renderEnduranceGoal(ctx: any, focus: "training" | "nutrition" | 
 ${enduranceLeads
   ? "- Endurance is lead-eligible for this athlete: protect the key runs and fit lifting around them without abandoning muscle, strength, or durability."
   : "- Endurance is supporting or event-only for this athlete: use the minimum effective run dose for the event and fit it around higher durable priorities. Do not automatically make running the headline or demote lifting."}
-- LIFTING toward this race (the race build's own rule, race-strength.ts): ${raceStrengthPrinciple({
-    phase: RACE_PHASES.has(String(g.phase)) ? (g.phase as "base" | "build" | "sharpen" | "taper") : "build",
-    kind: g.weeks_to_race != null && g.weeks_to_race <= 0 ? "race" : g.weeks_to_race === 1 ? "taper" : "build",
-    lead: raceStrengthLead(ctx?.training_intent),
-  }).principle}\n`;
+- LIFTING toward this race (the race build's own rule, race-strength.ts): ${raceLiftingPrinciple(ctx, g)}\n`;
   }
   // standing
   const head = `ENDURANCE GOAL — STANDING: stay ${g.label || (dist ? `${dist}-ready` : "race-ready")}.${g.weekly_km ? ` Aim ~${g.weekly_km} km/wk.` : ""}`;

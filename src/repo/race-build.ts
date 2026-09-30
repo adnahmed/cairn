@@ -1248,11 +1248,12 @@ export function raceBuild(
     // wherever the ring lands it, not its number. Unmapped (a day the week does not
     // reach) is left out rather than given a weekday it will not be trained on.
     heavy_lower_days: [...heavyLower].sort((a, b) => a - b).map(weekdayOfDayNumber),
-    // Race week by the race's own count; otherwise the current rung's kind (a taper
-    // week is the taper for a strength-led athlete; an endurance-led one reads by phase).
+    // The current rung's kind — calendar weeks to race week, the ladder's own count
+    // (a taper week is the taper for a strength-led athlete; an endurance-led one reads
+    // by phase). Only a build with no rung falls back to the race's day count.
     principle: raceStrengthPrinciple({
       phase,
-      kind: weeksToRace <= 0 ? "race" : currentRung && currentRung.kind !== "race" ? currentRung.kind : "taper",
+      kind: currentRung?.kind ?? (weeksToRace <= 0 ? "race" : "build"),
       lead: strengthLead,
     }).principle,
     layout: layout && !layout.clean ? layout.suggestion : null,

@@ -389,7 +389,7 @@ function weeksBetween(todayISO: string, raceISO: string): number | null {
  * race week itself took only the final-taper step. A half wants its peak ~3 weeks
  * before race day, a trimmed week, then race week.
  */
-function weeksToRaceWeek(todayISO: string, raceISO: string): number | null {
+export function weeksToRaceWeek(todayISO: string, raceISO: string): number | null {
   const monday = (iso: string): number => {
     const t = Date.parse(`${String(iso).slice(0, 10)}T00:00:00Z`);
     return t - ((new Date(t).getUTCDay() + 6) % 7) * 864e5;
