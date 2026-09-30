@@ -33,7 +33,16 @@ export interface VolumeFloorContext {
   endurance_carried: string[];
   /** A deliberate light window in force (or about to be); no floor applies while it is. */
   exempt: VolumeFloorExemption | null;
+  /**
+   * A strength-led athlete's race taper / race week: the leg groups the stress budget
+   * trims are exempt while every other group keeps its floor (race-strength.ts).
+   * Absent otherwise.
+   */
+  race_trimmed?: string[];
 }
+
+/** The groups a race taper / race week trims — the stress budget's lower-body list. */
+export const RACE_TRIMMED_GROUPS: readonly string[] = ["quads", "hamstrings", "glutes", "calves"];
 
 // Every deliberately light week the floor stands aside for, read off the live context
 // (volume-floor-context.ts). The athlete's own words are NOT an exemption: a request
@@ -116,7 +125,7 @@ export function volumeFloorApplies(ctx: VolumeFloorContext | null | undefined): 
  */
 export function weeklySetTargets(ctx: VolumeFloorContext | null | undefined): WeeklySetTarget[] {
   if (!volumeFloorApplies(ctx)) return [];
-  const carried = new Set(ctx.endurance_carried.map((g) => String(g).toLowerCase()));
+  const carried = new Set([...ctx.endurance_carried, ...(ctx.race_trimmed ?? [])].map((g) => String(g).toLowerCase()));
   const groups: string[] = [...MAJOR_GROUPS, ...(ctx.muscle_priority ? MUSCLE_ONLY_GROUPS : [])];
   const out: WeeklySetTarget[] = [];
   for (const group of groups) {

@@ -9,9 +9,15 @@ import { enduranceCarriedGroups } from "./progression.js";
 import { activeRecoveryWeek } from "./recovery-week.js";
 import { addDaysISO, localDateISO } from "./shared.js";
 import { getTrainingIntent } from "./training-intent.js";
+import { raceStrengthLead } from "./race-strength.js";
 import { getPlan } from "./plan.js";
 import { plannedWeeklyGroupSets, type PlanQualityDay } from "./plan-quality.js";
-import { type VolumeFloorContext, type VolumeFloorExemption, weeklySetTargets } from "./volume-floor.js";
+import {
+  RACE_TRIMMED_GROUPS,
+  type VolumeFloorContext,
+  type VolumeFloorExemption,
+  weeklySetTargets,
+} from "./volume-floor.js";
 
 // Is this week — or the next one, which is where a drafted week lands — deliberately
 // light? Each read is independent and fail-soft: an unreadable source is "not light",
@@ -71,7 +77,15 @@ export function readVolumeFloorContext(date = localDateISO()): VolumeFloorContex
     const intent = getTrainingIntent();
     const enduranceLed = intent.endurance_role === "primary";
     const priorities = Array.isArray(intent.priorities) ? intent.priorities : [];
-    const exempt = lightWeekExemption(today);
+    let exempt = lightWeekExemption(today);
+    // A strength-led athlete's lifting keeps progressing through the race taper and
+    // race week (race-strength.ts): only the legs the stress budget trims stand aside
+    // from the floor, never the whole week.
+    let raceTrimmed: string[] | undefined;
+    if (exempt === "race_taper" && raceStrengthLead(intent) === "strength_led") {
+      exempt = null;
+      raceTrimmed = [...RACE_TRIMMED_GROUPS];
+    }
     let carried: string[] = [];
     try {
       carried = enduranceCarriedGroups(2, today);
@@ -83,6 +97,7 @@ export function readVolumeFloorContext(date = localDateISO()): VolumeFloorContex
       muscle_priority: !enduranceLed && priorities.includes("muscle"),
       endurance_carried: carried,
       exempt,
+      ...(raceTrimmed ? { race_trimmed: raceTrimmed } : {}),
     };
   } catch {
     return null;
