@@ -352,7 +352,7 @@ test("taper week: the stress budget blocks a dose fill on the legs, and the ledg
 
 const RACE = "2026-11-01"; // a Sunday: taper week 10-19, race week 10-26
 
-function seedRaceAthlete() {
+function seedRaceAthlete(endurance_role = "supporting") {
   for (const [name, muscle_group] of [
     ["Barbell Bench Press", "chest"],
     ["Pendlay Row", "back"],
@@ -401,7 +401,7 @@ function seedRaceAthlete() {
     sex: "male",
     primary_discipline: "hybrid",
     endurance_sport: "running",
-    training_intent: { priorities: ["strength", "muscle", "endurance"], endurance_role: "supporting" },
+    training_intent: { priorities: ["strength", "muscle", "endurance"], endurance_role },
     strength_schedule: { days: [1, 2, 3, 4, 5].map((dow) => ({ dow })), source: "athlete" },
     endurance_schedule: {
       days: [
@@ -414,8 +414,8 @@ function seedRaceAthlete() {
   });
 }
 
-test("taper week, live: no dose at all; the upper day still pairs", () => {
-  seedRaceAthlete();
+test("taper week, live (endurance-led): no dose at all; the upper day still pairs", () => {
+  seedRaceAthlete("co_primary");
   const THU = "2026-10-22";
   assert.equal(readVolumeFloorContext(THU).exempt, "race_taper");
   const ledger = weeklyDoseLedger(THU);
@@ -438,6 +438,34 @@ test("taper week, live: no dose at all; the upper day still pairs", () => {
   assert.equal(pushdown.superset_group, curl.superset_group, "curl + pushdown");
   assert.notEqual(bench.superset_group, curl.superset_group);
   for (const it of card.items) assert.equal(it.sets, 3, `${it.exercise} keeps its sets`);
+});
+
+test("taper week, live (strength-led): only the legs stand aside from the floor; the upper day still pairs", () => {
+  // A supporting runner keeps progressing the upper body through the taper
+  // (race-strength.ts): the week is not light as a whole, only the legs are trimmed.
+  seedRaceAthlete("supporting");
+  const THU = "2026-10-22";
+  const floor = readVolumeFloorContext(THU);
+  assert.equal(floor.exempt, null);
+  assert.deepEqual(floor.race_trimmed, ["quads", "hamstrings", "glutes", "calves"]);
+  const ledger = weeklyDoseLedger(THU);
+  assert.equal(ledger.applies, true);
+  for (const g of ["quads", "hamstrings", "glutes", "calves"])
+    assert.equal(
+      ledger.groups.some((row) => row.group === g),
+      false,
+      `${g} is trimmed by the taper, never measured`
+    );
+
+  const snapshot = gatherDailyDecisionSnapshot(THU);
+  assert.equal(snapshot.plan.day_number, 4, "Upper & Arms");
+  const envelope = buildDailySessionDecision(snapshot, { now: `${THU}T09:00:00.000Z` });
+  const card = deterministicComposedSession(envelope);
+  const bench = byName(card, "Dumbbell Bench Press");
+  const row = byName(card, "Chest-Supported Row");
+  assert.ok(Number.isInteger(bench.superset_group));
+  assert.equal(row.superset_group, bench.superset_group, "press + row");
+  for (const it of card.items) assert.ok(it.sets >= 3, `${it.exercise} keeps its full sets`);
 });
 
 // ---------------------------------------------------------------------------

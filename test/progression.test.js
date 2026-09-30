@@ -224,15 +224,26 @@ test("double progression: top set caps but a WORKING set falls short → hold an
 test("overload step is CLAMPED — a giant history never yields a giant jump", () => {
   makeExercise("Back Squat", { muscle_group: "quads" });
   planWith(1, { exercise: "Back Squat", sets: 3, rep_low: 5, rep_high: 5, target_weight: 300, focus: "Legs" });
-  // Top set blew past the range at RIR 3 — the engine still caps the step.
+  // Top set blew past the range at RIR 3 — a demonstrated surplus buys a bigger step
+  // (surplusStep), but never past twice the proportional ceiling or the 10% fraction.
   logSet("Back Squat", isoDaysAgo(21), { weight: 285, reps: 5, rir: 3 });
   logSet("Back Squat", isoDaysAgo(7), { weight: 300, reps: 8, rir: 3 });
 
   const p = nextPrescription("Back Squat");
   assert.equal(p.action, "overload");
-  // 10% of 300 = 30, but the proportional compound ceiling caps it at 7.5 lb.
-  assert.equal(p.suggested.weight, 307.5);
-  assert.ok(p.suggested.weight - 300 <= 7.5, "step never exceeds the proportional compound cap");
+  // 10% of 300 = 30; the proportional compound ceiling is 7.5 lb, and a surplus of
+  // three reps past the top plus a rep of extra reserve earns at most two of them.
+  assert.equal(p.suggested.weight, 315);
+  assert.ok(p.suggested.weight - 300 <= 15, "step never exceeds twice the proportional compound cap");
+});
+
+test("a set that only capped the range takes the ordinary step — the surplus step needs a surplus", () => {
+  makeExercise("Back Squat", { muscle_group: "quads" });
+  planWith(1, { exercise: "Back Squat", sets: 3, rep_low: 5, rep_high: 5, target_weight: 300, focus: "Legs" });
+  for (const setNum of [1, 2, 3]) logSet("Back Squat", isoDaysAgo(3), { weight: 300, reps: 5, rir: 2, setNum });
+  const p = nextPrescription("Back Squat");
+  assert.equal(p.action, "overload");
+  assert.equal(p.suggested.weight, 307.5, "one proportional notch");
 });
 
 // The cap used to be a flat 5 lb for every compound, so a 300 lb squat and a 100 lb
@@ -2775,8 +2786,8 @@ test("a fresh slot below older, heavier logs holds at the plan — never pulled 
   freshSlot("Back Squat", { sets: 3, rep_low: 5, rep_high: 7, target_weight: 185 });
   // A heavier session three weeks ago, the latest one lighter — both before today's rewrite.
   for (let s = 1; s <= 3; s++) logSet("Back Squat", isoDaysAgo(23), { weight: 205, reps: 5, setNum: s });
-  logSet("Back Squat", isoDaysAgo(9), { weight: 185, reps: 7, setNum: 1 });
-  logSet("Back Squat", isoDaysAgo(9), { weight: 185, reps: 5, setNum: 2 });
+  logSet("Back Squat", isoDaysAgo(9), { weight: 180, reps: 7, setNum: 1 });
+  logSet("Back Squat", isoDaysAgo(9), { weight: 180, reps: 5, setNum: 2 });
   const p = nextPrescription("Back Squat");
   assert.equal(p.action, "hold");
   assert.equal(p.suggested.weight, 185, "the plan's own load stands");

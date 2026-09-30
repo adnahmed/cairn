@@ -42,6 +42,7 @@ import { recentEnduranceImpacts, type EnduranceImpact } from "./hybrid-load.js";
 import { heavyLowerWeekdaySlots, thisWeekPlanDayMap } from "./plan-selection.js";
 import { dowToDayNumber, getEnduranceGoal, isoDow, statedRunDows } from "./profile.js";
 import { strengthScheduleRead } from "./strength-schedule.js";
+import { weekLayoutClosed } from "./week-layout-closed.js";
 import { ENDURANCE_CHRONIC_FLOOR_KM } from "./program-state.js";
 import {
   acwrCeilingKm,
@@ -63,6 +64,8 @@ import type { HarmEvidenceKind } from "./brain/read-adherence.js";
 import { localDateISO } from "./shared.js";
 import { planDayStrengthGroups } from "./training-read.js";
 import { registerRaceLadderPeak } from "./race-ladder-hook.js";
+import { type RaceStrengthLead, raceStrengthLead, raceStrengthPrinciple } from "./race-strength.js";
+import { getTrainingIntent } from "./training-intent.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -396,14 +399,9 @@ const QUALITY_HINT: Record<RacePhase | "race_week" | "down", string> = {
   down: "A reset week — one light quality touch at most, the rest easy.",
 };
 
-const STRENGTH_HINT: Record<RacePhase | "race_week", string> = {
-  base: "Two lower sessions a week, building loads — the base is where legs get strong.",
-  build: "Heavy lower once a week, a lighter second; squats land after the quality run or the day after the long run.",
-  sharpen: "Maintenance loads (2–3 sets of 3–5, nothing new) — power without soreness.",
-  taper: "Light and fast: one short session, ~80% of working loads, last heavy lower ~10 days out.",
-  past: "",
-  race_week: "Legs off. A mobility session at most.",
-};
+// The phase's strength principle has ONE source (race-strength.ts): it depends on the
+// athlete's training intent, so a strength-led athlete keeps progressing through the
+// build while an endurance-led one keeps the classic maintenance-then-taper arc.
 
 // The week's ONE coaching sentence, the athlete's register. The kind speaks first (a
 // peak, a reset, the taper and race week are their own weeks); a build week speaks by
@@ -520,15 +518,26 @@ function weekdayList(days: readonly string[]): string {
  * legs sit against the key runs, and names the key-run eve trim only where the stress
  * budget applies it. "" when there is no lifting or no running to fit together.
  */
-export function liftingLine(week: Pick<RaceBuildWeek, "kind" | "phase">, legMap: readonly LegMapDay[]): string {
+export function liftingLine(
+  week: Pick<RaceBuildWeek, "kind" | "phase">,
+  legMap: readonly LegMapDay[],
+  lead: RaceStrengthLead = "endurance_led"
+): string {
   const lifts = legMap.filter((d) => d.strength);
   const runs = legMap.filter((d) => d.run);
   if (!lifts.length || !runs.length) return "";
+  // A strength-led athlete's upper body keeps taking its earned steps through the last
+  // two weeks (race-strength.ts); only the legs are trimmed.
+  const strengthLed = lead === "strength_led";
   if (week.kind === "race") {
-    return "Race week: heavy leg work sits out, calves and core stay light, and the upper-body days carry on.";
+    return strengthLed
+      ? "Race week: heavy leg work sits out, calves and core stay light, and the upper-body days keep progressing."
+      : "Race week: heavy leg work sits out, calves and core stay light, and the upper-body days carry on.";
   }
   if (week.kind === "taper") {
-    return "Taper week: leg work stays on the card with fewer sets at a lighter weight, and the upper-body days carry on as usual.";
+    return strengthLed
+      ? "Taper week: leg work stays on the card with fewer sets at a lighter weight, and the upper-body days keep progressing."
+      : "Taper week: leg work stays on the card with fewer sets at a lighter weight, and the upper-body days carry on as usual.";
   }
   const heavy = lifts.filter((d) => d.strength?.heavy_lower);
   // The long run first: it is the week's biggest leg demand.
@@ -618,6 +627,8 @@ export function projectRaceBuildWeeks(
     bestWeekKm?: number | null;
     /** This week's running already carries harm evidence: next week does not resume through it. */
     currentWeekHarmed?: boolean;
+    /** Whose goals the lifting serves (race-strength.ts); endurance-led when absent. */
+    strengthLead?: RaceStrengthLead;
   }
 ): RaceBuildWeek[] {
   const out: RaceBuildWeek[] = [];
@@ -717,7 +728,7 @@ export function projectRaceBuildWeeks(
       km,
       long_km: longKm,
       quality_hint: kind === "race" ? QUALITY_HINT.race_week : kind === "down" ? QUALITY_HINT.down : QUALITY_HINT[phase],
-      strength_hint: kind === "race" ? STRENGTH_HINT.race_week : STRENGTH_HINT[phase],
+      strength_hint: raceStrengthPrinciple({ phase, kind, lead: opts?.strengthLead ?? "endurance_led" }).principle,
       focus: weekFocus(kind, phase),
       focus_short: weekFocusShort(kind, phase),
       new_high: false,
@@ -1147,7 +1158,12 @@ export function raceBuild(
   const qualityPace = paces && qualityKey ? paces.bands.find((b) => b.key === qualityKey) ?? null : null;
 
   // ---- the ladder ----
-  const { weeks, review, shownCapacity } = raceLadderFor({ ...goal, date: goal.date, distance_km: distance }, asOf, plan, logRuns);
+  // Whose goals the lifting serves, read once: every rung's strength words and the
+  // build's principle speak from it (race-strength.ts).
+  const strengthLead: RaceStrengthLead = safe(() => raceStrengthLead(getTrainingIntent())) ?? "endurance_led";
+  const { weeks, review, shownCapacity } = raceLadderFor({ ...goal, date: goal.date, distance_km: distance }, asOf, plan, logRuns, {
+    strengthLead,
+  });
 
   // ---- the ring: runs, strength, ride ----
   // Runs are the engine's week (never plan rows); strength is the lifting week laid onto
@@ -1209,7 +1225,7 @@ export function raceBuild(
   // goes out empty rather than as seven blank columns.
   if (!leg_map.some((d) => d.run || d.strength || d.ride)) leg_map.length = 0;
   // Every rung speaks to the same ring: how lifting and running fit, week by week.
-  for (const week of weeks) week.with_lifting = liftingLine(week, leg_map);
+  for (const week of weeks) week.with_lifting = liftingLine(week, leg_map, strengthLead);
 
   // ---- strength placement ----
   const layout =
@@ -1222,6 +1238,8 @@ export function raceBuild(
             liftDaysSource: lifting.source,
             enduranceDows: statedRunDows(),
             weekdayMap,
+            // Only the days still ahead: never a move onto (or of) a day already trained.
+            closed: weekLayoutClosed(asOf, { runPlan: plan ?? null }),
           });
         })
       : opts.weekLayout;
@@ -1230,7 +1248,13 @@ export function raceBuild(
     // wherever the ring lands it, not its number. Unmapped (a day the week does not
     // reach) is left out rather than given a weekday it will not be trained on.
     heavy_lower_days: [...heavyLower].sort((a, b) => a - b).map(weekdayOfDayNumber),
-    principle: weeksToRace <= 0 ? STRENGTH_HINT.race_week : STRENGTH_HINT[phase],
+    // Race week by the race's own count; otherwise the current rung's kind (a taper
+    // week is the taper for a strength-led athlete; an endurance-led one reads by phase).
+    principle: raceStrengthPrinciple({
+      phase,
+      kind: weeksToRace <= 0 ? "race" : currentRung && currentRung.kind !== "race" ? currentRung.kind : "taper",
+      lead: strengthLead,
+    }).principle,
     layout: layout && !layout.clean ? layout.suggestion : null,
     clean: layout ? layout.clean : true,
   };
@@ -1290,7 +1314,8 @@ export function raceLadderFor(
   goal: RaceRampGoal & { date: string; distance_km: number },
   asOf: string,
   plan: Pick<WeeklyRunPlan, "available" | "runs" | "planned_runs" | "goal_feasibility"> | null,
-  logRuns: RunRow[] = recentRuns(asOf, 42)
+  logRuns: RunRow[] = recentRuns(asOf, 42),
+  ladderOpts?: { strengthLead?: RaceStrengthLead }
 ): { weeks: RaceBuildWeek[]; review: RaceBuild["review"]; shownCapacity: ReturnType<typeof demonstratedRunCapacity> | null } {
   const runs = plan?.available ? weekAsPlanned(plan) : [];
   const weekKm = round1(runs.reduce((s, r) => s + (r.target_distance_km != null ? Number(r.target_distance_km) : 0), 0));
@@ -1336,6 +1361,7 @@ export function raceLadderFor(
       demonstratedWeekKm: shownCapacity?.floor_km ?? null,
       bestWeekKm: shownCapacity?.best_week_km ?? null,
       currentWeekHarmed: safe(() => closedWeekRunHarm(asOf)) != null,
+      strengthLead: ladderOpts?.strengthLead,
       // The engine's own run week, when its run count is fixed — so a projected rung is
       // what the engine will prescribe in those runs, not a volume they cannot carry.
       capacity: plan?.goal_feasibility?.capacity

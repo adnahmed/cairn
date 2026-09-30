@@ -31,7 +31,7 @@ import {
   stressBudgetSnapshot,
   stressBudgetSuspendsWeeklyLower,
 } from "../dist/repo/stress-budget.js";
-import { repo, resetTables } from "./_seed.js";
+import { db, repo, resetTables } from "./_seed.js";
 
 const NOW = "2026-10-01T12:00:00.000Z";
 const RACE = "2026-11-01"; // a Sunday: taper week 10-19, race week 10-26
@@ -775,6 +775,22 @@ test("gather: the Wednesday before a placed quality run and the Friday before a 
     undefined,
     "Tuesday: Wednesday lifts before Thursday's quality run"
   );
+});
+
+test("gather: a placed quality run already run early this week leaves Wednesday no eve to protect", () => {
+  seedAthlete();
+  seedRuns("2026-09-30");
+  const ctx = { dayType: "training", planItems: PLAN[2].items, enduranceRole: "supporting" };
+  assert.deepEqual(stressBudgetSnapshot("2026-09-30", ctx)?.key_run, { kind: "quality", in_days: 1 });
+  // The live week: Thursday's threshold session run on Tuesday instead.
+  const run = repo.addActivity({ type: "run", date: "2026-09-29", duration_min: 50, distance_km: 9.7 });
+  const source = db.prepare(`INSERT INTO garmin_sources (provider, label) VALUES ('garmin', 'eve')`).run();
+  db.prepare(
+    `INSERT INTO garmin_activities (source_id, external_id, activity_id, date, type, te_label, aerobic_te)
+     VALUES (?, 'eve-run', ?, ?, 'running', 'THRESHOLD', 3.6)`
+  ).run(source.lastInsertRowid, run.id, "2026-09-29");
+  const after = stressBudgetSnapshot("2026-09-30", ctx);
+  assert.equal(after?.key_run, undefined, JSON.stringify(after));
 });
 
 test("gather: the race read is memoized, and a change to the stored race is read at once", () => {

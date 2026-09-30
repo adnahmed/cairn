@@ -946,12 +946,29 @@ test("a volume stretch owns the sentence even when the declaration bought the st
 test("the easy week is not something a declaration talks its way out of", () => {
   seedTopSetOnlyBench();
   repo.setSettings({ training_drive: "push" });
-  blocks.createBlock({ goal: "Ease", focus: "strength", total_weeks: 6, week_index: 6 });
-
-  const p = nextPrescription("Barbell Bench Press");
+  // An EARNED easy week (an applied recovery week reads as the deload phase, with no
+  // scheduled flag) holds however hard the athlete asked.
+  const p = nextPrescription("Barbell Bench Press", undefined, {
+    block: { phase: "deload", focus: "strength", week_index: 3, total_weeks: 6 },
+  });
   assert.equal(p.block_phase, "deload");
   assert.equal(p.action, "hold");
   assert.equal(p.suggested.weight, 185, "an easy week adds nothing, however hard you asked");
+});
+
+test("a block's SCHEDULED deload week is the calendar's: pushed, it runs unless the loaded weeks earn it", () => {
+  seedTopSetOnlyBench();
+  repo.setSettings({ training_drive: "push" });
+  blocks.createBlock({ goal: "Ease", focus: "strength", total_weeks: 6, week_index: 6 });
+  const pushed = nextPrescription("Barbell Bench Press");
+  assert.equal(pushed.block_phase, "intensification", "no loaded-weeks evidence: the scheduled week runs");
+  assert.equal(pushed.action, "overload", "the top set at the ceiling earns the step");
+
+  // A steady athlete keeps the block's scheduled week as written.
+  repo.setSettings({ training_drive: "steady" });
+  const steady = nextPrescription("Barbell Bench Press");
+  assert.equal(steady.block_phase, "deload");
+  assert.equal(steady.action, "hold");
 });
 
 test("push never reaches a safety floor — a smoked muscle still holds the step", () => {

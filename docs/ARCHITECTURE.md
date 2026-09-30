@@ -496,7 +496,12 @@ strength day the ring reaches twice in a five-day lifting week is heavy on both 
 (no lifting week known, or `program-state`, which cannot import plan-selection) it stays on the
 template ring. **Only a lift the day BEFORE a long/quality run collides.** Heavy legs the morning
 after is the stacking the race build's own strength hint prescribes, so the read no longer flags it
-(three hard days in a row is still a stack). Adjacency is judged on the heaviest lower day AND every
+(three hard days in a row is still a stack). **Only the days still ahead** (`closed`, derived once by `weekLayoutClosed`,
+`src/repo/week-layout-closed.ts`, for the strip, the race build and the coach context): on the calendar
+a suggestion never names a past weekday, or today once its lift is logged, a collision on one is
+history, and a key run already completed this week (on whatever day) is no collision. With no open
+slot left the read offers the run one day later, then a same-day trade with the quality day's upper
+session, before the go-lighter words. Adjacency is judged on the heaviest lower day AND every
 other lower day carrying squat/hinge work (an accessory-only leg day never collides). The runs come
 from the engine's week (`source:"run_plan"`), then the agenda — never from the plan, which holds no
 runs. The race ladder takes the
@@ -812,6 +817,14 @@ follows. A dose performed at full load drops `recovery_dose` and `travel` from t
 scoping) is unchanged — the write path and `repairOutcomeComparability()` both call the same function
 now, so there is one truth rather than two.
 
+**The challenge verdict and the load question.** `doseChallengeVerdict` (same module, pure) is the
+one met/exceeded/under rule: the write path stores it and `linkedDoseEligibility` (progression.ts)
+re-derives it off the stored `sets_detail`, so old rows follow the current rule. A set HEAVIER than
+the card whose Epley single matches the card's own floor meets it (185 × 7 against 164 × 8–10 is harder
+work, not a miss). And `cappedShortOfSets` answers the LOAD question apart from the set count: one set
+short, with every working set at the load capping the range and one going past it, is eligible
+(`capped_short_set`) — the missing set is volume's (ledger, set catch-up), never a veto on the step.
+
 The session-level `recovery` flag is now STRUCTURED, never a regex over stored decision prose.
 `structuredRecovery(date, composition)` is true only for an active/recheck `recovery_cycles` row at
 that date, a stored `recovery_cycle` on the decision `constraints`/`provenance`/`decision` node (or its
@@ -838,7 +851,14 @@ LOGGED RIR still speaks in both directions — RIR ≤1 was a grind and holds th
 independently reads `progressing`); RIR ≥2 counts even below the ceiling for the rep stage. Card copy
 must never tell an athlete who has never logged RIR to come back at "RIR 2+" — `progression-voice.ts`
 picks the RIR-flavored phrasing only when an RIR was actually logged for that exposure; an athlete who
-never rates gets the identical meaning spoken in reps instead.
+never rates gets the identical meaning spoken in reps instead. Reserve is read AT the ceiling: reps past
+the top count as reserve (10 at RIR 0 on a 6–8 card is RIR 2 at the eighth rep), so an overshoot is
+never a grind. And a surplus buys a bigger step (`surplusStep`): a top set two or more reps past the
+ceiling (or finished with reserve beyond two) may step to the load it supports at the ceiling, bounded
+by twice the per-session ceiling and the 10% fraction — never under a learned smaller-step response, a
+confounded dose or a deep cut. A block's SCHEDULED last-week deload, for a push-drive athlete, runs as
+intensification unless the loaded-weeks evidence (`mesocycle.deload_evidence`) also calls for it; an
+applied recovery week still holds everyone.
 
 ### Prescription authorship (`src/repo/prescription-authorship.ts`)
 
@@ -879,7 +899,9 @@ reads once, never per item. Consumers:
   loaded carry's load; `earnedLifts` (`daily-decision.ts`) earns no floor; the program-state read
   does not call its old slide or stall this slot's trend. So a composition hold anchors on the plan
   load and the slot never hosts a reach (reach needs an overload/carry candidate). One session on or
-  after `prescribed_at` and the ordinary ladder resumes.
+  after `prescribed_at` and the ordinary ladder resumes. A slot whose latest exposure already did it
+  — two working sets AT the written load, the range's floor in reps (`exposurePerformedPrescription`)
+  — is tested by that session (a catch-up written onto the load just lifted); heavier logs never are.
 - **`fresh`** (within `PRESCRIPTION_SETTLE_DAYS`): no rotation for a plateau measured before it
   (the reps vary guards), and program state does not call it flat.
 - **`since`**: re-grounding reads only loaded sessions logged under the current prescription
@@ -1055,7 +1077,10 @@ week-kind read (never a second race-phase read); `runPlacement` (now exported fr
 (which may name two long-run days). Rules, in precedence order — the first that applies is the only one
 that speaks:
 1. **Taper week** (`race_taper_legs`): every lower-body group on today's card is REDUCED (the existing
-   2-set cap, ×0.9 load) — upper body untouched.
+   2-set cap, ×0.9 load) — upper body untouched. These leg trims are the only lifting change a race
+   makes for a strength-led athlete (`race-strength.ts`): their block never becomes a race `peak`
+   (`chooseBlockFocus`), and the volume floor stands only the trimmed leg groups aside in taper/race
+   week (`race_trimmed`), never the whole week.
 2. **Race week** (`race_week_legs`): quads/hamstrings/glutes are EXCLUDED, calves/core REDUCED — upper
    body untouched.
 3. **The eve of a placed key run** (`key_run_eve`): today is the last lift day before a placed quality
@@ -4572,10 +4597,16 @@ new profile fields, and `{available:false, reason}` for everyone else. `raceBuil
 - **`leg_map`** — the seven-day ring (Mon–Sun plan template): the run per day, the strength day
   with `heavy_lower` from `lowerBodyPlanDayNumbers()`, and the habitual ride. A ring with nothing on
   it goes out empty, never as seven blank columns.
-- **`strength`** — the phase's heavy-lower principle (`STRENGTH_HINT`: heavy after the quality
-  run or the day after the long run in the build, maintenance loads sharpening, ~80% and the last
-  heavy lower ~10 days out in the taper) plus `weekLayoutRead`'s ONE collision sentence when the
-  lifting and running stack. The read never moves a plan day.
+- **`strength`** — the phase's strength principle, from ONE intent-aware source
+  (`raceStrengthPrinciple`, `src/repo/race-strength.ts`, which also writes each rung's
+  `strength_hint` and the race prompt's LIFTING line). A **strength-led** athlete
+  (`isStrengthLedIntent`: endurance supporting/none, or ranked below muscle and strength) keeps
+  PROGRESSING through base/build/sharpen/peak — full sets, ordinary load steps; the taper trims only
+  the legs (fewer sets, ~80–90%, last heavy lower ~7–10 days out) and race week sits heavy legs out,
+  the upper body progressing through both. An endurance-led athlete keeps the classic arc (heavy after
+  the quality run in the build, maintenance loads sharpening, ~80% in the taper, legs off in race week).
+  Plus `weekLayoutRead`'s ONE collision sentence when the lifting and running stack. The read never
+  moves a plan day.
 - **`ride`** — the weekly ride as a PATTERN read off the log (`recentEnduranceImpacts(42)`, labels
   matching ride/MTB/gravel, light-load rides excluded so commutes never outvote the weekend trail
   ride; three of six weeks makes a habit, fewer is an outing): modal weekday,

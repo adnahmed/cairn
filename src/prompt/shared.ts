@@ -13,6 +13,9 @@ import { RECOVERY_SAMPLE_FLOOR } from "../repo/recovery-trend.js";
 import { localDateISO } from "../repo/shared.js";
 import { pickDayVariant } from "../repo/brain/day-read-rules.js";
 import { coerceFinite } from "../lib/numbers.js";
+import { raceStrengthLead, raceStrengthPrinciple } from "../repo/race-strength.js";
+
+const RACE_PHASES: ReadonlySet<string> = new Set(["base", "build", "sharpen", "taper"]);
 
 // getCoachContext deliberately describes the host's current local day. Dated
 // prompts are historical/forward planning surfaces, so patch only their compact
@@ -355,7 +358,12 @@ export function renderEnduranceGoal(ctx: any, focus: "training" | "nutrition" | 
 - Prescribe THIS WEEK's runs concretely (easy / long / quality, each with a zone + a distance or duration).
 ${enduranceLeads
   ? "- Endurance is lead-eligible for this athlete: protect the key runs and fit lifting around them without abandoning muscle, strength, or durability."
-  : "- Endurance is supporting or event-only for this athlete: use the minimum effective run dose for the event and fit it around higher durable priorities. Do not automatically make running the headline or demote lifting."}\n`;
+  : "- Endurance is supporting or event-only for this athlete: use the minimum effective run dose for the event and fit it around higher durable priorities. Do not automatically make running the headline or demote lifting."}
+- LIFTING toward this race (the race build's own rule, race-strength.ts): ${raceStrengthPrinciple({
+    phase: RACE_PHASES.has(String(g.phase)) ? (g.phase as "base" | "build" | "sharpen" | "taper") : "build",
+    kind: g.weeks_to_race != null && g.weeks_to_race <= 0 ? "race" : g.weeks_to_race === 1 ? "taper" : "build",
+    lead: raceStrengthLead(ctx?.training_intent),
+  }).principle}\n`;
   }
   // standing
   const head = `ENDURANCE GOAL — STANDING: stay ${g.label || (dist ? `${dist}-ready` : "race-ready")}.${g.weekly_km ? ` Aim ~${g.weekly_km} km/wk.` : ""}`;

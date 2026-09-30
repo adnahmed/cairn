@@ -13,6 +13,7 @@ import {
 import { recentWorkingSeconds, recentWorkingWeight } from "./exercises.js";
 import { isLoadRelevantEnduranceImpact, recentEnduranceImpacts } from "./hybrid-load.js";
 import {
+  doseChallengeVerdict,
   doseComparability,
   evaluatePerformedAtFullLoad,
   ownDoseShortfall,
@@ -616,37 +617,13 @@ function fullLoadReferenceFor(
   };
 }
 
+// The verdict itself lives in outcome-comparability.ts (pure), so the progression read
+// re-derives the same answer off the stored numbers.
 function challengeVerdict(
   prescribed: MovementDoseEvidence["prescribed"],
   achieved: MovementDoseEvidence["achieved"]
 ): ChallengeVerdict {
-  if (achieved.sets <= 0) return "not_attempted";
-  const hasTarget =
-    prescribed.sets != null ||
-    prescribed.target_weight != null ||
-    prescribed.rep_low != null ||
-    prescribed.rep_high != null ||
-    prescribed.target_seconds != null;
-  if (!hasTarget) return "no_target";
-  if (prescribed.sets != null && achieved.sets < prescribed.sets) return "under_prescribed";
-  const qualifyingSets = achieved.sets_detail.filter(
-    (set) =>
-      (prescribed.target_weight == null || (set.weight != null && set.weight >= prescribed.target_weight)) &&
-      (prescribed.target_seconds == null ||
-        (set.duration_sec != null && set.duration_sec >= prescribed.target_seconds)) &&
-      (prescribed.rep_low == null || (set.reps != null && set.reps >= prescribed.rep_low))
-  ).length;
-  if (prescribed.sets != null && qualifyingSets < prescribed.sets) return "under_prescribed";
-  const exceeded =
-    (prescribed.sets != null && qualifyingSets > prescribed.sets) ||
-    (prescribed.target_weight != null &&
-      achieved.top_weight != null &&
-      achieved.top_weight > prescribed.target_weight) ||
-    (prescribed.target_seconds != null &&
-      achieved.top_seconds != null &&
-      achieved.top_seconds > prescribed.target_seconds) ||
-    (prescribed.rep_high != null && achieved.top_reps != null && achieved.top_reps > prescribed.rep_high);
-  return exceeded ? "exceeded" : "met";
+  return doseChallengeVerdict(prescribed, achieved);
 }
 
 // ---- comparability, per LIFT rather than per day ----------------------------

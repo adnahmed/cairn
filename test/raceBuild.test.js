@@ -536,3 +536,79 @@ test("the easy and long bands carry the ONE easy ceiling: Z2 top plus the noise 
     assert.equal(band.hr_ceiling_bpm, 150, `${key} pace band names the same 150, never the raw 148`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// the layout sentence speaks only about days still ahead (week-layout-closed.ts)
+// ---------------------------------------------------------------------------
+
+test("REGRESSION (live Tue 2026-09-29): the layout never names a day already trained, nor protects a run already run", () => {
+  const tuesday = "2026-09-29";
+  const monday = "2026-09-28";
+  seedRaceProfile("sub-2:00");
+  repo.setProfile({
+    strength_schedule: { days: [1, 2, 3, 4, 5].map((dow) => ({ dow })), source: "athlete", updated_at: monday },
+  });
+  const lower = (name) => [
+    { exercise: "Barbell Back Squat", sets: 3, rep_low: 5, rep_high: 7, target_weight: 185 },
+    { exercise: "Romanian Deadlift", sets: 2, rep_low: 8, rep_high: 10, target_weight: 205 },
+  ];
+  repo.replacePlan([
+    {
+      day_number: 1,
+      name: "Push",
+      items: [{ exercise: "Barbell Bench Press", sets: 3, rep_low: 5, rep_high: 7, target_weight: 135 }],
+    },
+    {
+      day_number: 2,
+      name: "Pull",
+      items: [{ exercise: "Pendlay Row", sets: 3, rep_low: 6, rep_high: 8, target_weight: 150 }],
+    },
+    { day_number: 3, name: "Lower A", items: lower("A") },
+    {
+      day_number: 4,
+      name: "Upper Body & Arms",
+      items: [{ exercise: "Barbell Curl", sets: 3, rep_low: 8, rep_high: 10, target_weight: 80 }],
+    },
+    {
+      day_number: 5,
+      name: "Lower B",
+      items: [{ exercise: "Barbell Deadlift", sets: 3, rep_low: 5, rep_high: 6, target_weight: 225 }],
+    },
+  ]);
+  // The engine's week: easy Tuesday, threshold Thursday, long Sunday.
+  const runPlan = {
+    available: true,
+    week_start: monday,
+    runs: [
+      { day_number: 2, label: "Easy run", kind_label: "easy", target_distance_km: 5, target_zone: "Z2" },
+      { day_number: 4, label: "Threshold intervals", kind_label: "quality", target_distance_km: 8, target_zone: "Z4" },
+      { day_number: 7, label: "Long run", kind_label: "long", target_distance_km: 12, target_zone: "Z2" },
+    ],
+    rationale: [],
+    quality_focus: "Threshold intervals",
+    mix_summary: "",
+    why: "",
+  };
+  // Monday's Push and Tuesday's Pull are logged.
+  repo.logSetByName({ date: monday, exercise: "Barbell Bench Press", weight: 135, reps: 7, day_number: 1 });
+  repo.logSetByName({ date: tuesday, exercise: "Pendlay Row", weight: 150, reps: 8, day_number: 2 });
+  const before = raceBuild(tuesday, { runPlan });
+  assert.equal(before.available, true, before.reason);
+  // Wednesday's legs still sit before Thursday's quality run, but the fix is among the
+  // days ahead (the trade with Thursday's upper session), never Monday or Tuesday.
+  assert.equal(before.strength.clean, false);
+  assert.match(String(before.strength.layout), /Thursday's Upper Body & Arms/);
+  assert.doesNotMatch(String(before.strength.layout ?? ""), /Monday|Tuesday/, before.strength.layout);
+
+  // …and once the quality run is run early, on Tuesday, Wednesday's legs no longer sit
+  // before anything: the read is clean.
+  const run = repo.addActivity({ type: "run", date: tuesday, duration_min: 50, distance_km: 9.7 });
+  const source = db.prepare(`INSERT INTO garmin_sources (provider, label) VALUES ('garmin', 'layout')`).run();
+  db.prepare(
+    `INSERT INTO garmin_activities (source_id, external_id, activity_id, date, type, te_label, aerobic_te)
+     VALUES (?, 'layout-run', ?, ?, 'running', 'THRESHOLD', 3.6)`
+  ).run(source.lastInsertRowid, run.id, tuesday);
+  const after = raceBuild(tuesday, { runPlan });
+  assert.equal(after.strength.clean, true, after.strength.layout);
+  assert.equal(after.strength.layout, null);
+});

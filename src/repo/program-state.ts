@@ -168,6 +168,14 @@ export interface MesocycleState {
   phase: MesoPhase;
   acute_chronic_ratio: number | null; // tonnage ACWR (acute 7d vs chronic 28d/wk)
   note: string;
+  /**
+   * The loaded-weeks evidence for a deload (a long loaded streak, or four loaded weeks
+   * plus log-confirmed fatigue plus physiology) holds, whatever the block says about
+   * reading it. `phase` never reads deload-due inside a block's own scheduled deload
+   * week; this is the evidence underneath, so the progression math can ask whether that
+   * scheduled week is also an EARNED one. Omit-when-false.
+   */
+  deload_evidence?: true;
 }
 
 export interface EnduranceState {
@@ -1287,7 +1295,13 @@ function mesocycle(
     }
   }
 
-  return { weeks_since_deload: weeksSince, phase, acute_chronic_ratio: acwr, note };
+  return {
+    weeks_since_deload: weeksSince,
+    phase,
+    acute_chronic_ratio: acwr,
+    note,
+    ...(fatigueDeload || deloadDueByStreak ? { deload_evidence: true as const } : {}),
+  };
 }
 
 // ---- endurance state ----

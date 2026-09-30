@@ -44,7 +44,13 @@ test("C3: advancing a block moves its phase across the weeks (accumulation → i
 test("C3: a PEAK block reaches 'realization' in its last week, making a test week due", () => {
   // Some benchmark history so testWeekDue has key lifts to name.
   [42, 35, 28, 21, 14, 7, 0].forEach((d, i) =>
-    repo.logSetByName({ exercise: "Back Squat", weight: 300 + i * 5, reps: 3, rir: 2, date: new Date(Date.now() - d * 864e5).toISOString().slice(0, 10) })
+    repo.logSetByName({
+      exercise: "Back Squat",
+      weight: 300 + i * 5,
+      reps: 3,
+      rir: 2,
+      date: new Date(Date.now() - d * 864e5).toISOString().slice(0, 10),
+    })
   );
   const peak = createBlock({ goal: "Peak for the meet", focus: "peak", total_weeks: 3, week_index: 2 });
   assert.notEqual(peak.phase, "realization", "not yet in the last week");
@@ -139,18 +145,34 @@ test("co_primary 9 weeks out ⇒ endurance-base", () => {
   assert.equal(block.focus, "endurance-base");
 });
 
-test("supporting race 2 weeks out ⇒ peak", () => {
-  const chosen = chooseBlockFocus(TAPER_RACE, MUSCLE_FIRST);
-  assert.equal(chosen.focus, "peak");
-  assert.ok(chosen.total_weeks >= 2 && chosen.total_weeks <= 4);
-  assert.match(chosen.goal, /sharpen/i);
+test("supporting race in the sharpen or taper window ⇒ still the lifting block, never a peak", () => {
+  // A peak block's realization week holds load on every main lift, upper body too; a
+  // strength-led athlete keeps progressing through the race build (race-strength.ts)
+  // and only the legs are trimmed, by the stress budget, in taper and race week.
+  const SHARPEN_RACE = { is_race: true, phase: "sharpen", weeks_to_race: 5, event: "Spring Half" };
+  for (const goal of [SHARPEN_RACE, TAPER_RACE]) {
+    const muscle = chooseBlockFocus(goal, MUSCLE_FIRST);
+    assert.equal(muscle.focus, "hypertrophy", goal.phase);
+    assert.match(muscle.goal, /spring half/i);
+    assert.match(muscle.goal, /supporting/i);
+    assert.doesNotMatch(muscle.goal, /sharpen|arrive fresh/i);
+    assert.equal(chooseBlockFocus(goal, STRENGTH_FIRST).focus, "strength", goal.phase);
+  }
 
   repo.setProfile({
     training_intent: MUSCLE_FIRST,
     endurance_goal: { mode: "race", event: "Spring Half", date: addDaysISO(localDateISO(), 14), distance_km: 21.1 },
   });
   const block = ensureActiveBlock();
-  assert.equal(block.focus, "peak");
+  assert.equal(block.focus, "hypertrophy");
+});
+
+test("endurance-led race 2 weeks out ⇒ peak (unchanged)", () => {
+  const chosen = chooseBlockFocus(TAPER_RACE, CO_PRIMARY);
+  assert.equal(chosen.focus, "peak");
+  assert.ok(chosen.total_weeks >= 2 && chosen.total_weeks <= 4);
+  assert.match(chosen.goal, /sharpen/i);
+  assert.equal(chooseBlockFocus(TAPER_RACE, DERIVED_STRENGTH).focus, "peak", "derived intent keeps the endurance tree");
 });
 
 test("derived intent + race 9 wk ⇒ endurance-base (old tree)", () => {

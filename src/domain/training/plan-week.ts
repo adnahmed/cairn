@@ -28,6 +28,7 @@ import { withoutShadowActivities } from "../../repo/activity-shadow.js";
 import { weekWins } from "../../repo/sessions.js";
 import { getPlanWithPurpose } from "../../repo/day-read.js";
 import { strengthScheduleRead } from "../../repo/strength-schedule.js";
+import { weekLayoutClosed } from "../../repo/week-layout-closed.js";
 import { localDateISO } from "../../repo/shared.js";
 import { deriveSessionTitle, planDayStrengthGroups } from "../../repo/training-read.js";
 import { todayStrengthLine, type TodayStrengthLine } from "../../repo/today-strength-line.js";
@@ -438,6 +439,8 @@ export function planWeek(date?: string): PlanWeek {
       liftDaysSource: lifting.source,
       enduranceDows: runDows,
       weekdayMap,
+      // The strip's own done cells: a suggestion only ever involves the days ahead.
+      closed: weekLayoutClosed(asOf, { agenda }),
     });
   } catch {
     layoutRead = null;
