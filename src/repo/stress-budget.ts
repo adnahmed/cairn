@@ -9,6 +9,7 @@ import { raceBuild } from "./race-build.js";
 import { runDaySteerKey } from "./run-day-steer.js";
 import { type WeeklyRunPlan, weeklyRunPlan } from "./run-progression.js";
 import { localDateISO } from "./shared.js";
+import { weekLayoutClosed } from "./week-layout-closed.js";
 import { coachContextBackstopSignature, registerTrainingCacheClear } from "./training-cache.js";
 import type { EnduranceRole } from "./training-intent.js";
 
@@ -37,8 +38,9 @@ import type { EnduranceRole } from "./training-intent.js";
 //      day in between — tomorrow's run, or the day after tomorrow's when tomorrow holds
 //      no lifting. "Placed" is the run engine's week (weeklyRunPlan read through
 //      week-layout's `runPlacement`), never the raw stated schedule, which may name two
-//      long-run days. It applies only while the race build is active (a build, reset or
-//      peak week outside the base phase). Every lower item on the card EXCEPT the
+//      long-run days — and a placed run already RUN this week has no eve left. It
+//      applies only while the race build is active (a build, reset or peak week
+//      outside the base phase). Every lower item on the card EXCEPT the
 //      day's anchor lift itself is trimmed — item-scoped, not group-scoped: on Lower A
 //      the squat stays as written while the RDL, leg extension, leg curl and calf raise
 //      take the trim, the leg extension included although it shares the squat's group.
@@ -184,17 +186,27 @@ function stressRaceRead(date: string, lowerOnCard: boolean): StressBudgetSnapsho
   if (!lowerOnCard || !EVE_WEEK_KINDS.has(week.kind) || !EVE_PHASES.has(week.phase)) return undefined;
   const planFor = (iso: string): WeeklyRunPlan | null =>
     mondayOf(iso) === mondayOf(date) ? weekPlan : safeRead(() => weeklyRunPlan(iso, { adjustToday: false }));
+  // A placed key run already RUN this week (a Thursday quality session done on Tuesday)
+  // has no eve left to protect — the same "what is behind the athlete" read the week
+  // layout uses (week-layout-closed.ts). A run in next week is never done yet.
+  let closed: ReturnType<typeof weekLayoutClosed> | null | undefined;
+  const alreadyRun = (iso: string, kind: "quality" | "long"): boolean => {
+    if (mondayOf(iso) !== mondayOf(date)) return false;
+    if (closed === undefined) closed = safeRead(() => weekLayoutClosed(date, { runPlan: weekPlan }));
+    return closed?.runs_done[kind] === true;
+  };
   const tomorrow = addDaysISO(date, 1);
   if (!tomorrow) return undefined;
   const tomorrowRun = placedKeyRunOn(tomorrow, planFor(tomorrow));
-  if (tomorrowRun) return { ...base, key_run: { kind: tomorrowRun, in_days: 1 } };
+  if (tomorrowRun && !alreadyRun(tomorrow, tomorrowRun)) return { ...base, key_run: { kind: tomorrowRun, in_days: 1 } };
+  if (tomorrowRun) return undefined;
   // The day after tomorrow counts only when tomorrow holds no lifting: today is then
   // the last lift day before the run.
   if (safeRead(() => strengthPlanDayOn(tomorrow)) != null) return undefined;
   const dayAfter = addDaysISO(date, 2);
   if (!dayAfter) return undefined;
   const laterRun = placedKeyRunOn(dayAfter, planFor(dayAfter));
-  return laterRun ? { ...base, key_run: { kind: laterRun, in_days: 2 } } : undefined;
+  return laterRun && !alreadyRun(dayAfter, laterRun) ? { ...base, key_run: { kind: laterRun, in_days: 2 } } : undefined;
 }
 
 /**
