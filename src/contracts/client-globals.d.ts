@@ -4183,6 +4183,8 @@ declare global {
 
     /** The Brief's v2 voice pieces (today-brief-voice-client.ts); absent under a partial boot. */
     CairnTodayBriefVoice?: TodayBriefVoiceApi;
+    CairnTodayBriefRunLeg?: { html(read: unknown, isToday: boolean): string };
+    CairnTodaySessionAskSheet?: { open(reveal: () => void): boolean };
 
     CairnChangesLine: {
       model(read: Partial<import("./brain-changes.js").ClientBrainChanges> | null | undefined): ClientChangesLineModel | null;
@@ -4930,6 +4932,7 @@ declare global {
       loadingHtml(): string;
       failureHtml(result?: unknown): string;
       composerHtml(vibes?: readonly string[]): string;
+      fillSlot(slot: Element, html: string, reducedMotion: boolean, block: ScrollLogicalPosition | null): void;
     };
 
     CairnTodaySessionSuggestController: {

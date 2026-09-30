@@ -26,6 +26,7 @@ import {
 import { morningReview, type MorningReview } from "../../repo/brain/morning-review.js";
 import { recordSuggestion } from "../../repo/memory.js";
 import { buildRecoveryMenu, type RecoveryMenu } from "../../repo/recovery-menu.js";
+import { buildRunLegChoice, type RunLegChoice } from "../../repo/run-leg-choice.js";
 import { weekWins } from "../../repo/sessions.js";
 import { todayStrengthLine, type TodayStrengthLine } from "../../repo/today-strength-line.js";
 import { getTrajectory } from "../../repo/trajectory.js";
@@ -75,6 +76,10 @@ export interface DayReadResult {
   // The one "today's lift" line every strength surface prints verbatim (see
   // repo/today-strength-line.ts). Derived fresh per response, never persisted.
   strength_line?: TodayStrengthLine | null;
+  // A run already in today and a leg day still to lift: upper instead / lighter
+  // legs / rest (repo/run-leg-choice.ts). Derived fresh, never persisted; absent
+  // whenever the offer does not apply.
+  run_leg_choice?: RunLegChoice | null;
   periodization_context: DayReadPeriodizationContext;
   // Which Today surface earns the position of prominence (see today-attention.ts).
   // Optional by contract: absent on any non-live date and on any failure, and the
@@ -240,6 +245,16 @@ export function attachDayReadContext(readDate: string, read: Record<string, unkn
     strengthLine = null;
   }
 
+  // Only on a day the athlete can still act on, same as the recovery menu.
+  let runLegChoice: RunLegChoice | null = null;
+  try {
+    if (readDate >= localToday()) {
+      runLegChoice = buildRunLegChoice(readDate, strengthLine, { override: (read as { override?: string | null }).override });
+    }
+  } catch {
+    runLegChoice = null;
+  }
+
   return {
     ...read,
     forward,
@@ -251,6 +266,7 @@ export function attachDayReadContext(readDate: string, read: Record<string, unkn
     ...(week ? { week } : {}),
     ...(lookBack ? { look_back: lookBack } : {}),
     ...(strengthLine ? { strength_line: strengthLine } : {}),
+    ...(runLegChoice ? { run_leg_choice: runLegChoice } : {}),
   } as DayReadResult;
 }
 

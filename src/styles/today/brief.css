@@ -83,7 +83,13 @@
 .brief-recovery-opt{display:flex;flex-direction:column;gap:1px;padding:1px 0 1px 11px;border:0;border-left:2px solid var(--sage);background:none;font:inherit;text-align:left;width:100%;cursor:pointer;border-radius:0 3px 3px 0;transition:background-color .16s ease,border-left-color .16s ease}
 .brief-recovery-opt:hover,.brief-recovery-opt:focus-visible{background:var(--sage-wash,rgba(122,139,110,.09));border-left-color:var(--ink-2)}
 .brief-recovery-opt[aria-busy="true"]{opacity:.6;cursor:default}
-@media (prefers-reduced-motion:reduce){.brief-recovery-opt{transition:none}}
+/* a one-tap row drafting its session: the tapped row carries the progress (spinner +
+   the job's rotating caption) with its spine warming to the accent; the rest step back */
+.brief-recovery-opt.is-working{opacity:1;cursor:progress;border-left-color:var(--accent);background:var(--sage-wash,rgba(122,139,110,.09));animation:recoveryOptWork 1.6s var(--ease) infinite}
+.brief-recovery-opt:disabled:not(.is-working){opacity:.42;cursor:default}
+.brief-recovery-opt-status{display:flex;align-items:center;gap:7px;margin-top:3px;font-size:.76rem;color:var(--accent);min-height:1.1em}
+@keyframes recoveryOptWork{0%,100%{border-left-color:var(--accent)}50%{border-left-color:var(--gold)}}
+@media (prefers-reduced-motion:reduce){.brief-recovery-opt{transition:none}.brief-recovery-opt.is-working{animation:none}}
 .brief-recovery-opt-label{font-family:var(--font-display);font-size:.88rem;font-weight:560;color:var(--ink)}
 .brief-recovery-opt-mins{font-family:var(--font-ui);font-weight:500;color:var(--muted);font-size:.72rem}
 .brief-recovery-opt-detail{font-size:.78rem;color:var(--muted);line-height:1.4}
@@ -248,6 +254,16 @@
 /* free-text session composer — "say what you want" */
 /* spined well → .well-accent; delta = padding only */
 .sug-composer{padding:14px;margin:0 0 14px}
+/* "Ask for a session" as a sheet (today-session-ask-sheet.ts): the suggestion slot
+   is borrowed into it, so the composer, the loader and the drafted card sit here
+   without their inline well chrome — the sheet is the surface. */
+.sug-sheet{position:relative}
+.sug-sheet-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.sug-sheet-title{font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 60;font-size:1.3rem;line-height:1.15;color:var(--ink);margin:0}
+.sug-sheet-x{font-size:1rem;padding:6px;margin:-6px -6px 0 0}
+.sug-sheet-lead{font-size:.86rem;color:var(--muted);line-height:1.45;margin:6px 0 14px}
+.sug-sheet .sug-composer,.sug-sheet .sug-card{margin:0;padding-left:0;padding-right:0;border:0;background:none;box-shadow:none}
+.sug-sheet .sug-prompt{font-size:1rem}
 .sug-prompt{
   width:100%;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
   border-radius:var(--radius-sm);padding:11px 13px;font-size:.92rem;font-family:inherit;

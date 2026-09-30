@@ -125,7 +125,7 @@ type SuggestedSessionLike = Partial<ClientSessionSuggestion> | null | undefined;
     return `<div class="sug-composer well-accent settle-in">
       <input class="sug-prompt" type="text" autocomplete="off" enterkeyhint="go"
         aria-label="Describe the session you want"
-        placeholder="say what you want — e.g. legs sore from yesterday's run, easier on the legs">
+        placeholder="e.g. legs sore, only 30 min">
       <div class="sug-composer-row">
         <div class="sug-vibes">${vibes.map((v) => `<button class="sug-vibe" type="button" data-vibe="${escAttr(v)}">${escHtml(v)}</button>`).join("")}</div>
         <div class="sug-composer-actions">
@@ -136,6 +136,14 @@ type SuggestedSessionLike = Partial<ClientSessionSuggestion> | null | undefined;
     </div>`;
   }
 
+  // The suggestion slot sits below the whole Brief, so whatever lands in it (the
+  // composer, a failure to read) is brought to the athlete. `block: null` paints in
+  // place: a one-tap ask from the Brief shows its progress on the tapped row instead.
+  function todaySuggestFillSlot(slot: Element, html: string, reducedMotion: boolean, block: ScrollLogicalPosition | null): void {
+    slot.innerHTML = html;
+    if (block) slot.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block });
+  }
+
   const CAIRN_TODAY_SESSION_SUGGEST = {
     SESSION_VIBES,
     itemHtml: todaySuggestItemHtml,
@@ -143,6 +151,7 @@ type SuggestedSessionLike = Partial<ClientSessionSuggestion> | null | undefined;
     loadingHtml: todaySuggestLoadingHtml,
     failureHtml: todaySuggestFailureHtml,
     composerHtml: todaySuggestComposerHtml,
+    fillSlot: todaySuggestFillSlot,
   };
 
   Object.assign(globalThis, { CairnTodaySessionSuggest: CAIRN_TODAY_SESSION_SUGGEST });

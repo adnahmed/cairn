@@ -32,6 +32,7 @@ function loadTodayBrief() {
     escAttr,
   };
   context.window = context;
+  vm.runInNewContext(readFileSync(join(root, "public/js/today-brief-run-leg-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/today-brief-client.js"), "utf8"), context);
   return context.CairnTodayBrief;
 }
@@ -125,4 +126,50 @@ test("todayBriefMateriallyDiffers is true when only the recovery menu changed", 
 
   assert.equal(brief.materiallyDiffers(a, a), false);
   assert.equal(brief.materiallyDiffers(a, b), true);
+});
+
+const RUN_LEG = {
+  line: "You've already run today, and Lower <A> is mostly legs. Want to shift it?",
+  options: [
+    { key: "upper", label: "Upper instead", focus: "upper body", constraints: "already ran today — spare the legs" },
+    { key: "lighter", label: "Lighter legs", focus: "Squat & quads", constraints: "already ran today — lighter leg session" },
+    { key: "rest", label: "Rest", focus: null, constraints: null },
+  ],
+};
+
+test("todayBriefMateriallyDiffers is true when only the run-before-leg-day choice changed", () => {
+  const brief = loadTodayBrief();
+  const base = { kind: "train", headline: "Today", why: "", signals: {} };
+  assert.equal(brief.materiallyDiffers(base, { ...base, run_leg_choice: RUN_LEG }), true);
+  assert.equal(brief.materiallyDiffers({ ...base, run_leg_choice: RUN_LEG }, { ...base, run_leg_choice: RUN_LEG }), false);
+});
+
+// A session accepted on another device changes only the lift line; a cached Brief
+// that ignored it kept printing the plan day over the choice.
+test("todayBriefMateriallyDiffers is true when only the strength line changed", () => {
+  const brief = loadTodayBrief();
+  const base = { kind: "train", headline: "Today", why: "", signals: {} };
+  const plan = { ...base, strength_line: { text: "Run in · Squat & quads still open" } };
+  const chosen = { ...base, strength_line: { text: "Run in · Upper Body & Core still open" } };
+  assert.equal(brief.materiallyDiffers(plan, chosen), true);
+  assert.equal(brief.materiallyDiffers(chosen, { ...chosen }), false);
+});
+
+test("Today Brief offers the run-before-leg-day choice today, escaped, on any read kind", () => {
+  const brief = loadTodayBrief();
+  for (const kind of ["train", "easy", "done"]) {
+    const html = brief.briefHtml({ kind, headline: "Today", why: "", signals: {}, run_leg_choice: RUN_LEG }, { isToday: true });
+    assert.match(html, /brief-runleg/, `kind=${kind}`);
+    assert.match(html, /Lower &lt;A&gt; is mostly legs/);
+    assert.match(html, /data-runleg="upper" data-runleg-focus="upper body" data-runleg-constraints="already ran today — spare the legs"/);
+    assert.match(html, /data-runleg="lighter" data-runleg-focus="Squat &amp; quads"/);
+    assert.match(html, /data-override="rest — already ran today, my legs need the recovery"/);
+  }
+});
+
+test("Today Brief hides the run-before-leg-day choice on another day or when the server sends none", () => {
+  const brief = loadTodayBrief();
+  const read = { kind: "train", headline: "Today", why: "", signals: {}, run_leg_choice: RUN_LEG };
+  assert.doesNotMatch(brief.briefHtml(read, { isToday: false }), /brief-runleg/);
+  assert.doesNotMatch(brief.briefHtml({ ...read, run_leg_choice: null }, { isToday: true }), /brief-runleg/);
 });

@@ -127,6 +127,7 @@ class FakeElement {
     if (selector.startsWith(".")) return this.classList.contains(selector.slice(1));
     if (selector === "[data-agentoffx]") return Object.hasOwn(this.dataset, "agentoffx");
     if (selector === "[data-override]") return Object.hasOwn(this.dataset, "override");
+    if (selector === "[data-runleg]") return Object.hasOwn(this.dataset, "runleg");
     if (selector === "[data-redirect]") return Object.hasOwn(this.dataset, "redirect");
     if (selector === "[data-steerreset]") return Object.hasOwn(this.dataset, "steerreset");
     if (selector === "[data-briefwhy]") return Object.hasOwn(this.dataset, "briefwhy");
@@ -211,6 +212,7 @@ function loadController(opts = {}) {
     },
   };
   if (opts.localStorage) context.localStorage = opts.localStorage;
+  if (opts.extraContext) Object.assign(context, opts.extraContext);
   context.window = context;
   context.globalThis = context;
   vm.runInNewContext(readFileSync(join(root, "public/js/today-brief-override-client.js"), "utf8"), context);
@@ -723,4 +725,75 @@ test("a repaint after a refused trade stops offering it for that date", async ()
   harness.deps.state.logDate = "2026-07-02";
   harness.controller.briefHtml(read, { isToday: true }, harness.deps);
   assert.equal(seen[2].tradeRefused, false);
+});
+
+test("run-before-leg-day rows ask for their own focus and caveat; Rest steers the read", () => {
+  const harness = loadController();
+  const brief = harness.rootEl.appendChild(new FakeElement("section", { className: "brief" }));
+  const upper = brief.appendChild(new FakeElement("button", {
+    dataset: { runleg: "upper", runlegFocus: "upper body", runlegConstraints: "already ran today — spare the legs" },
+  }));
+  const rest = brief.appendChild(new FakeElement("button", {
+    className: "brief-recovery-opt",
+    dataset: { override: "rest — already ran today, my legs need the recovery" },
+  }));
+
+  harness.controller.wireBrief({ kind: "train", headline: "Train", focus: "Squat & quads", signals: {} }, { isToday: true }, harness.deps);
+  upper.click();
+  rest.click();
+
+  assert.deepEqual(plain(harness.asks), [
+    { focus: "upper body", constraints: "already ran today — spare the legs", autoUse: true },
+  ]);
+  assert.equal(harness.runOps[0].kind, "day_read_override");
+  assert.equal(harness.runOps[0].body.override, "rest — already ran today, my legs need the recovery");
+});
+
+test("a one-tap menu row shows its own progress, holds the other rows, and ignores a second tap", async () => {
+  const observers = [];
+  const harness = loadController({
+    extraContext: {
+      MutationObserver: class {
+        constructor(cb) { this.cb = cb; this.on = false; observers.push(this); }
+        observe() { this.on = true; }
+        disconnect() { this.on = false; }
+      },
+    },
+  });
+  const slot = harness.rootEl.appendChild(new FakeElement("div", { id: "sugSlot" }));
+  harness.deps.askForSession = (opts) => {
+    harness.asks.push(opts);
+    slot.appendChild(new FakeElement("div", { className: "sug-loading" }));
+  };
+  const brief = harness.rootEl.appendChild(new FakeElement("section", { className: "brief" }));
+  const upper = brief.appendChild(new FakeElement("button", {
+    className: "brief-recovery-opt",
+    dataset: { runleg: "upper", runlegFocus: "upper body", runlegConstraints: "spare the legs" },
+  }));
+  const lighter = brief.appendChild(new FakeElement("button", {
+    className: "brief-recovery-opt",
+    dataset: { runleg: "lighter", runlegFocus: "Squat & quads", runlegConstraints: "lighter" },
+  }));
+
+  harness.controller.wireBrief({ kind: "train", headline: "Train", focus: null, signals: {} }, { isToday: true }, harness.deps);
+  upper.click();
+  await Promise.resolve();
+
+  assert.equal(harness.asks.length, 1);
+  assert.equal(upper.classList.contains("is-working"), true, "the tapped row carries the progress");
+  assert.equal(upper.getAttribute("aria-busy"), "true");
+  assert.equal(lighter.disabled, true, "the other rows step back");
+  assert.equal(upper.children.some((c) => c.className === "brief-recovery-opt-status"), true, "a status line rides on the row");
+
+  upper.click();
+  lighter.click();
+  assert.equal(harness.asks.length, 1, "a tap while one is drafting never asks again (no toast)");
+
+  // The slot stops loading (the drafted card or a failure landed): the row lets go.
+  slot.children = [];
+  observers[0].cb();
+  assert.equal(upper.classList.contains("is-working"), false);
+  assert.equal(upper.getAttribute("aria-busy"), null);
+  assert.equal(lighter.disabled, false);
+  assert.equal(observers[0].on, false, "the watcher is disconnected");
 });

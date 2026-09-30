@@ -202,6 +202,10 @@ function loadController({ reduced = false } = {}) {
       cardHtml: (session) =>
         `<section class="sug-card"><h3>${session?.name || "Session"}</h3><button data-sugaction="use">Use this session</button><button data-sugaction="dismiss"></button><div class="sug-save-status"></div></section>`,
       failureHtml: () => `<section class="sug-card"><button data-sugaction="retry"></button></section>`,
+      fillSlot: (slot, html, reducedMotion, block) => {
+        slot.innerHTML = html;
+        slot.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block });
+      },
     },
   };
   context.window = context;
@@ -261,6 +265,7 @@ test("Today session-suggest controller submits composer constraints and guards d
   harness.controller.revealSessionComposer(harness.deps);
   const input = harness.slot.querySelector(".sug-prompt");
   assert.equal(input.focusCount, 1);
+  assert.equal(harness.slot.scrolls[0]?.block, "center", "composer scrolls into view below the Brief");
   harness.slot.querySelector("[data-vibe]").click();
   assert.equal(input.value, "upper body");
 

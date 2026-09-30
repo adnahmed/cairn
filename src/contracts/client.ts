@@ -126,6 +126,12 @@ export interface ClientDayRead {
     line: string;
     options: Array<{ label: string; detail: string; minutes: number | null }>;
   } | null;
+  // A run already in today and a leg day still to lift (repo/run-leg-choice.ts):
+  // upper instead / lighter legs / rest. Absent whenever the offer does not apply.
+  run_leg_choice?: {
+    line: string;
+    options: Array<{ key: "upper" | "lighter" | "rest"; label: string; focus: string | null; constraints: string | null }>;
+  } | null;
   // The week-wins reassurance on a rest/easy read (mirrors the done card's week
   // footnote, today-session-status-client.ts doneWeekHtml). Absent on train/done
   // reads and on a zero-training week — absence is not failure.

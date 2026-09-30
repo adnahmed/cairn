@@ -380,7 +380,7 @@ type TodaySnapshotRecovery = {
   }
 
   function suggestSlot(deps: TodaySessionSuggestDeps): Element | null {
-    return deps.root.querySelector("#sugSlot");
+    return (typeof document === "undefined" ? null : document.querySelector(".sug-sheet #sugSlot")) ?? deps.root.querySelector("#sugSlot");
   }
 
   function recordValue(value: unknown): Record<string, unknown> {
@@ -468,7 +468,7 @@ type TodaySnapshotRecovery = {
         sessionSuggestInFlight = false;
         const slot = suggestSlot(deps);
         if (!slot) return;
-        slot.innerHTML = CairnTodaySessionSuggest.failureHtml(result);
+        CairnTodaySessionSuggest.fillSlot(slot, CairnTodaySessionSuggest.failureHtml(result), deps.reducedMotion(), "nearest");
         wireSuggestCard(slot, deps);
       },
     };
@@ -477,9 +477,9 @@ type TodaySnapshotRecovery = {
   function revealSessionComposer(deps: TodaySessionSuggestDeps): void {
     const slot = suggestSlot(deps);
     if (!slot || sessionSuggestInFlight) return;
-    slot.innerHTML = CairnTodaySessionSuggest.composerHtml();
+    CairnTodaySessionSuggest.fillSlot(slot, CairnTodaySessionSuggest.composerHtml(), deps.reducedMotion(), "center");
     const input = slot.querySelector<HTMLInputElement>(".sug-prompt");
-    if (input && !deps.reducedMotion()) setTimeout(() => input.focus(), 60);
+    if (input && !deps.reducedMotion()) setTimeout(() => input.focus({ preventScroll: true }), 60);
     const go = () => {
       const constraints = (input?.value || "").trim();
       void askForSession(constraints ? { constraints } : {}, deps);
@@ -511,7 +511,7 @@ type TodaySnapshotRecovery = {
     const slot = suggestSlot(deps);
     if (!slot) return;
     sessionSuggestInFlight = true;
-    slot.innerHTML = CairnTodaySessionSuggest.loadingHtml();
+    CairnTodaySessionSuggest.fillSlot(slot, CairnTodaySessionSuggest.loadingHtml(), deps.reducedMotion(), opts.autoUse === true ? null : "nearest");
     // Every caller of askForSession is the athlete explicitly asking for a session
     // (the composer's Build, Try again, a recovery-menu tap) — never a background
     // read. That ask is the training consent, so it rides with the job: on a train

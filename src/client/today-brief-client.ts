@@ -450,7 +450,7 @@ type TodayBriefHtmlOptions = {
     const headline = escHtml(read?.headline || meta.lead);
     const voice = (globalThis as { CairnTodayBriefVoice?: TodayBriefVoiceApi }).CairnTodayBriefVoice;
     const why = read?.why ? (voice ? voice.whyHtml(escHtml(read.why)) : escHtml(read.why)) : "";
-    const recovery = todayBriefRecoveryHtml(read, kind);
+    const recovery = todayBriefRecoveryHtml(read, kind) + ((globalThis as { CairnTodayBriefRunLeg?: Window["CairnTodayBriefRunLeg"] }).CairnTodayBriefRunLeg?.html(read, options.isToday === true) ?? "");
     const weekWins = todayBriefWeekHtml(read, kind);
     // The forward line rides on train days AND done days — after the work is in,
     // "Next: …" is the so-what that replaces the retired Start-session controls.
@@ -615,7 +615,7 @@ type TodayBriefHtmlOptions = {
     };
     if (mins(a.est_minutes) !== mins(b.est_minutes)) return true;
     if (todayBriefPeriodizationHtml(a) !== todayBriefPeriodizationHtml(b)) return true;
-    if (todayBriefRecoveryHtml(a, todayBriefKind(a)) !== todayBriefRecoveryHtml(b, todayBriefKind(b))) return true;
+    if (todayBriefRecoveryHtml(a, todayBriefKind(a)) !== todayBriefRecoveryHtml(b, todayBriefKind(b)) || JSON.stringify(a.run_leg_choice ?? null) !== JSON.stringify(b.run_leg_choice ?? null) || str(a.strength_line?.text) !== str(b.strength_line?.text)) return true;
     if (todayBriefWeekHtml(a, todayBriefKind(a)) !== todayBriefWeekHtml(b, todayBriefKind(b))) return true;
     // The freshness line's REASON is content and repaints; its clock is not. A
     // bare timestamp tick was rewriting the whole Brief (replaceWith + settle

@@ -18,9 +18,62 @@ type TodayBriefActionsDayRead = import("../contracts/client.js").ClientDayRead &
     return !!iso && tradeRefusedDate === iso;
   }
 
+  // A one-tap menu row (recovery menu, run-before-legs) asks for a session and puts
+  // it straight on today. The drafting is shown ON THE TAPPED ROW — a spinner and the
+  // job's own rotating caption, the other rows held, the Brief's thinking filament —
+  // because the suggestion slot it also paints sits far below the fold. The row lets
+  // go when that slot stops loading (a failure card lands there and is scrolled to)
+  // or when the accepted session repaints the Brief. A tap while one is working is a
+  // no-op, never a second request.
+  function oneTapSession(
+    brief: Element,
+    button: HTMLElement,
+    request: { focus?: string; minutes?: number; constraints?: string },
+    deps: ClientTodayBriefActionsDeps
+  ): void {
+    const rows = Array.from(brief.querySelectorAll<HTMLButtonElement>(".brief-recovery-opt"));
+    if (rows.some((row) => row.classList.contains("is-working"))) return;
+    rows.forEach((row) => { row.disabled = true; });
+    button.classList.add("is-working");
+    button.setAttribute("aria-busy", "true");
+    const status = document.createElement("span");
+    status.className = "brief-recovery-opt-status";
+    status.setAttribute("role", "status");
+    status.innerHTML = `<span class="aspin aspin-xs" aria-hidden="true"></span><span class="brief-recovery-opt-cap"></span>`;
+    button.appendChild(status);
+    const cap = status.querySelector(".brief-recovery-opt-cap");
+    const stopCaption = typeof thinkingCaption === "function" ? thinkingCaption(cap, "session_suggest") : () => {};
+    if (!deps.reducedMotion()) brief.classList.add("is-thinking");
+
+    const slot = deps.root.querySelector("#sugSlot");
+    let observer: MutationObserver | null = null;
+    const release = () => {
+      observer?.disconnect();
+      stopCaption();
+      if (!brief.isConnected) return;
+      status.remove();
+      button.classList.remove("is-working");
+      button.removeAttribute("aria-busy");
+      rows.forEach((row) => { row.disabled = false; });
+      brief.classList.remove("is-thinking");
+    };
+    if (slot && typeof MutationObserver === "function") {
+      observer = new MutationObserver(() => {
+        if (!brief.isConnected || !slot.querySelector(".sug-loading")) release();
+      });
+      observer.observe(slot, { childList: true, subtree: true });
+    }
+    void Promise.resolve(deps.askForSession({ ...request, autoUse: true })).then(() => {
+      // Nothing was queued (no slot, or a draft already in flight): let go at once.
+      if (!slot || !slot.querySelector(".sug-loading")) release();
+    }, release);
+  }
+
   function handleBriefRedirect(action: string | undefined, trigger: HTMLElement, deps: ClientTodayBriefActionsDeps): void {
     if (action === "ask-session") {
-      deps.revealSessionComposer();
+      // A sheet over the Brief (type, watch it draft, read the result in one place);
+      // the inline composer is the fallback when the sheet can't open.
+      if (!window.CairnTodaySessionAskSheet?.open(() => deps.revealSessionComposer())) deps.revealSessionComposer();
       return;
     }
     if (action === "view-week") {
@@ -164,22 +217,26 @@ type TodayBriefActionsDayRead = import("../contracts/client.js").ClientDayRead &
     // nothing here fires unless it is tapped.
     brief.querySelectorAll<HTMLElement>("[data-recovery-opt]").forEach((button) =>
       button.addEventListener("click", () => {
-        if (button.getAttribute("aria-busy") === "true") return;
-        const label = button.dataset.recoveryOpt || "";
-        const detail = button.dataset.recoveryDetail || "";
         const minutes = Number(button.dataset.recoveryMin);
-        button.setAttribute("aria-busy", "true");
-        void Promise.resolve(
-          deps.askForSession({
-            focus: label,
-            ...(Number.isFinite(minutes) && minutes > 0 ? { minutes } : {}),
-            // The detail is the coach's own caveat for this option ("nothing that
-            // asks anything of the …"). Passing it verbatim is what keeps a guarded
-            // menu guarded once it becomes a real session.
-            ...(detail ? { constraints: detail } : {}),
-            autoUse: true,
-          })
-        ).finally(() => button.removeAttribute("aria-busy"));
+        const detail = button.dataset.recoveryDetail || "";
+        oneTapSession(brief, button, {
+          focus: button.dataset.recoveryOpt || "",
+          ...(Number.isFinite(minutes) && minutes > 0 ? { minutes } : {}),
+          // The detail is the coach's own caveat for this option ("nothing that
+          // asks anything of the …"). Passing it verbatim is what keeps a guarded
+          // menu guarded once it becomes a real session.
+          ...(detail ? { constraints: detail } : {}),
+        }, deps);
+      })
+    );
+
+    // Run-before-leg-day: the same one tap as a recovery-menu row, asking for the
+    // server's own focus + caveat so what lands is the option the athlete read.
+    brief.querySelectorAll<HTMLElement>("[data-runleg]").forEach((button) =>
+      button.addEventListener("click", () => {
+        const focus = button.dataset.runlegFocus || "";
+        const constraints = button.dataset.runlegConstraints || "";
+        oneTapSession(brief, button, { ...(focus ? { focus } : {}), ...(constraints ? { constraints } : {}) }, deps);
       })
     );
 
