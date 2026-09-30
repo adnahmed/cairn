@@ -1971,6 +1971,23 @@ Tuesday whose Wednesday carried a 06:17 wake-up readiness of 64 stayed harm beca
 of that date was its midnight precompute. The HRV and resting-HR arms read the wearable row directly
 as they always have: both are overnight measurements and do not drift with the next day's work.
 
+**Evidence must be independent of the workout it judges (owner ruling, 2026-09-29).** Garmin's
+readiness blends factors, and its recovery-time factor is computed from the previous workout's own
+load (EPOC). On a night the watch records no valid sleep, a low wake-up score driven by that factor is
+the workout's load restated, not the body's answer to it — charging it as harm against that same
+workout is circular. `wakeReadingRestatesLoad` (`read-adherence.ts`) names the reading: the entry says
+`validSleep: false`, its `recoveryTimeFactorPercent` is the lowest of the factor percents it reports
+(`READINESS_FACTOR_PERCENT_KEYS`), and that factor's feedback is `POOR`/`VERY_POOR`
+(`RECOVERY_TIME_DRIVEN_FEEDBACK`). Below `SUPPORTIVE_READINESS` such a morning is ABSENT as evidence
+about the day before (`morningReadinessUncached`: every rung's copy of it, since a ledger read that
+morning saw the same penalised number) — never rest-grade harm, never the low morning that fails a
+hard-day vouch (absence still never vouches). At or above it, it vouches as usual: a good score despite
+a recovery-time penalty is conservative, genuine evidence. A no-sleep score driven by another factor
+(HRV status, stress history, load balance) and every reading with a valid sleep count as before, and the
+day's own plan still reads the plain score (`withMorningReadiness`) — recovery time is real advice about
+today. Live case: a 17.7 km long run, then a no-sleep wake-up of 17 whose lowest factor was recovery
+time (POOR) — it had set that long run and its week aside.
+
 `dayRead()` applies it as one rule-outcome step down, rest → easy, and only for the four
 accumulation-style rest codes in `SOFTENABLE_REST_CODES` (`accumulated_load_rest` /
 `low_readiness_rest` / `felt_run_down_rest` / `acute_signal_protection`) — never

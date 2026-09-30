@@ -359,7 +359,9 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   CLEARED when the next morning positively vouches (fresh readiness ≥ `SUPPORTIVE_READINESS`
   and no brake firing; absent data never vouches). "Morning readiness" comes from the ledger's own
   snapshot for that morning, else the watch's own wake-up reading (`watchWakeReadiness`: the raw
-  payload's `AFTER_WAKEUP_RESET` stamped before the first training), since the stored Garmin value is
+  payload's `AFTER_WAKEUP_RESET` stamped before the first training — but a no-sleep reading whose low
+  score is driven by the recovery-time factor restates the prior workout's load and is never harm
+  evidence against it, `wakeReadingRestatesLoad`; it may still vouch), since the stored Garmin value is
   the day's LAST sync and so is post-workout on any day the athlete trained — the run engine's
   default recovery read goes through the same `withMorningReadiness`; the morning read itself is the
   last predictive `brain_decisions` row before the first logged training of the date, never the

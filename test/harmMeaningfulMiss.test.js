@@ -276,3 +276,100 @@ test("the recompute after training reads the wake-up reading, not the afternoon'
   assert.equal(patched.recovery.training_readiness, 77);
   assert.notEqual(patched.recovery.readiness_band, "low");
 });
+
+// ── a wake-up reading that only restates the workout's load ─────────────────────
+// Garmin's recovery time is computed from the previous workout's own load; on a night
+// with no valid sleep a low score driven by it is that load restated, not the body's
+// answer — so it is never harm evidence against that workout (owner ruling 2026-09-29).
+
+function wakeEntry(date, score, factors) {
+  return {
+    calendarDate: date,
+    timestamp: `${date}T10:22:00.0`,
+    inputContext: "AFTER_WAKEUP_RESET",
+    score,
+    ...factors,
+  };
+}
+
+const NO_SLEEP_RECOVERY_DRIVEN = {
+  validSleep: false,
+  sleepScoreFactorPercent: null,
+  recoveryTimeFactorPercent: 28,
+  recoveryTimeFactorFeedback: "POOR",
+  acwrFactorPercent: 82,
+  hrvFactorPercent: 49,
+};
+
+test("a no-sleep wake-up score driven by recovery time is not harm: the long run counts as taken well", async () => {
+  const { demonstratedLongKm, runningHarmOnDay } = await import("../dist/repo/run-capacity.js");
+  const day = localDaysAgo(3);
+  const morning = localDaysAgo(2);
+  garminRunOn(day, "11:00", 17.7);
+  repo.upsertGarminDailyMetric({
+    date: morning,
+    training_readiness: 17,
+    raw: { trainingReadiness: [wakeEntry(morning, 17, NO_SLEEP_RECOVERY_DRIVEN)] },
+  });
+  assert.equal(watchWakeReadiness(morning), 17, "the plain score still reads for the day's own plan");
+  assert.equal(harmEvidenceOnDay(day), null);
+  assert.equal(runningHarmOnDay(day), null);
+  assert.equal(demonstratedLongKm(localDaysAgo(1), [{ date: day, km: 17.7 }]), 17.7);
+});
+
+test("a no-sleep wake-up score driven by HRV status still counts as harm", () => {
+  const day = localDaysAgo(3);
+  const morning = localDaysAgo(2);
+  garminRunOn(day, "11:00", 17.7);
+  repo.upsertGarminDailyMetric({
+    date: morning,
+    training_readiness: 17,
+    raw: {
+      trainingReadiness: [
+        wakeEntry(morning, 17, {
+          ...NO_SLEEP_RECOVERY_DRIVEN,
+          recoveryTimeFactorPercent: 70,
+          recoveryTimeFactorFeedback: "GOOD",
+          hrvFactorPercent: 12,
+          hrvFactorFeedback: "POOR",
+        }),
+      ],
+    },
+  });
+  assert.equal(harmEvidenceOnDay(day)?.kind, "readiness_rest_grade");
+});
+
+test("a wake-up score of 17 with a valid sleep still counts as harm, recovery time or not", () => {
+  const day = localDaysAgo(3);
+  const morning = localDaysAgo(2);
+  garminRunOn(day, "11:00", 17.7);
+  repo.upsertGarminDailyMetric({
+    date: morning,
+    training_readiness: 17,
+    raw: {
+      trainingReadiness: [
+        wakeEntry(morning, 17, { ...NO_SLEEP_RECOVERY_DRIVEN, validSleep: true, sleepScoreFactorPercent: 60 }),
+      ],
+    },
+  });
+  assert.equal(harmEvidenceOnDay(day)?.kind, "readiness_rest_grade");
+});
+
+test("a no-sleep wake-up score of 77 still vouches for a hard day; a restated 17 neither harms nor vouches", () => {
+  const day = localDaysAgo(3);
+  const morning = localDaysAgo(2);
+  garminRunOn(day, "11:00", 8);
+  db.prepare(`UPDATE garmin_activities SET aerobic_te = 4.2, te_label = 'threshold' WHERE date = ?`).run(day);
+  repo.upsertGarminDailyMetric({
+    date: morning,
+    raw: { trainingReadiness: [wakeEntry(morning, 77, NO_SLEEP_RECOVERY_DRIVEN)] },
+  });
+  assert.equal(harmEvidenceOnDay(day), null, "a good score despite the recovery-time penalty vouches");
+  db.prepare(`UPDATE garmin_daily_metrics SET raw_json = ? WHERE date = ?`).run(
+    JSON.stringify({ trainingReadiness: [wakeEntry(morning, 17, NO_SLEEP_RECOVERY_DRIVEN)] }),
+    morning
+  );
+  bumpTrainingDataVersion();
+  const harm = harmEvidenceOnDay(day);
+  assert.equal(harm?.kind, "hard_cardio", "absent never vouches, so the hard day stands on its own");
+});

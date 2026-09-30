@@ -1474,7 +1474,58 @@ function firstTrainingInstantMs(date: string): number | null {
   return first;
 }
 
-export function watchWakeReadiness(morning: string): number | null {
+// ---------- A READING THAT ONLY RESTATES THE WORKOUT IS NOT EVIDENCE ABOUT IT ----------
+// (owner ruling, 2026-09-29.) Garmin's readiness is a blend of factors, and one of them
+// — recovery time — is computed from the PREVIOUS workout's own load (its EPOC). On a
+// night the watch recorded no valid sleep, the wake-up score has little else to go on,
+// so a low score driven by that factor is the workout's load restated as a number: it
+// is not the body answering the workout, and charging it as harm against that same
+// workout is circular. Example case: a 17.7 km long run, then a no-sleep wake-up score
+// of 17 whose lowest factor was recovery time (50 h, POOR) — sleep absent, HRV
+// moderate, load balance good.
+//
+// So a wake-up reading RESTATES LOAD when (`wakeReadingRestatesLoad`):
+//   • the watch says the night had no valid sleep (`validSleep === false`, stated, not
+//     inferred from absence), AND
+//   • its recovery-time factor is the lowest of the factors it reported
+//     (`READINESS_FACTOR_PERCENT_KEYS`), AND
+//   • that factor's own feedback is POOR / VERY_POOR (`RECOVERY_TIME_DRIVEN_FEEDBACK`).
+// Such a reading below SUPPORTIVE_READINESS is ABSENT as evidence about the day before —
+// never rest-grade harm, never the low morning that keeps a hard day from being vouched
+// for (absence still never vouches). At or above it, it stays a genuine vouch: a good
+// score despite a recovery-time penalty is conservative evidence. A no-sleep reading
+// whose lowest factor is something else (HRV status, stress history, load balance), and
+// every reading with a valid sleep, count exactly as before. The day's OWN plan still
+// reads the plain score (withMorningReadiness): recovery time is real advice about today.
+export const RECOVERY_TIME_DRIVEN_FEEDBACK: ReadonlySet<string> = new Set(["POOR", "VERY_POOR"]);
+export const READINESS_FACTOR_PERCENT_KEYS = [
+  "sleepScoreFactorPercent",
+  "recoveryTimeFactorPercent",
+  "acwrFactorPercent",
+  "stressHistoryFactorPercent",
+  "hrvFactorPercent",
+  "sleepHistoryFactorPercent",
+] as const;
+
+export function wakeReadingRestatesLoad(entry: any): boolean {
+  if (entry?.validSleep !== false) return false;
+  const recovery = readingNumber(entry?.recoveryTimeFactorPercent);
+  if (recovery == null) return false;
+  if (!RECOVERY_TIME_DRIVEN_FEEDBACK.has(String(entry?.recoveryTimeFactorFeedback ?? "").toUpperCase())) return false;
+  for (const key of READINESS_FACTOR_PERCENT_KEYS) {
+    const value = readingNumber(entry?.[key]);
+    if (value != null && value < recovery) return false;
+  }
+  return true;
+}
+
+export interface WatchWakeReading {
+  score: number;
+  /** The low score restates the prior workout's load (see above). */
+  restates_load: boolean;
+}
+
+export function watchWakeReading(morning: string): WatchWakeReading | null {
   let rows: Array<{ raw_json: string | null }> = [];
   try {
     rows = db
@@ -1483,7 +1534,7 @@ export function watchWakeReadiness(morning: string): number | null {
   } catch {
     return null;
   }
-  const wakes: Array<{ at: number; score: number }> = [];
+  const wakes: Array<{ at: number; score: number; restates_load: boolean }> = [];
   for (const row of rows) {
     let raw: any = null;
     try {
@@ -1498,14 +1549,19 @@ export function watchWakeReadiness(morning: string): number | null {
       const at = parseUtcInstant(entry?.timestamp);
       const score = readingNumber(entry?.score);
       if (at == null || score == null || score < 0) continue;
-      wakes.push({ at, score });
+      wakes.push({ at, score, restates_load: wakeReadingRestatesLoad(entry) });
     }
   }
   if (!wakes.length) return null;
   const firstTraining = firstTrainingInstantMs(morning);
   if (firstTraining != null && Number.isNaN(firstTraining)) return null;
   const usable = wakes.filter((wake) => firstTraining == null || wake.at < firstTraining).sort((a, b) => a.at - b.at);
-  return usable.at(-1)?.score ?? null;
+  const latest = usable.at(-1);
+  return latest ? { score: latest.score, restates_load: latest.restates_load } : null;
+}
+
+export function watchWakeReadiness(morning: string): number | null {
+  return watchWakeReading(morning)?.score ?? null;
 }
 
 // The morning's readiness, in one ladder: Cairn's own read from before the first
@@ -1681,6 +1737,11 @@ function morningReadiness(morning: string): number | null {
 }
 
 function morningReadinessUncached(morning: string): number | null {
+  // As EVIDENCE about the day before, a low wake-up reading that only restates that
+  // day's load is absent — and so is every other rung's copy of the same morning (a
+  // ledger read that morning saw the same penalised number). See wakeReadingRestatesLoad.
+  const wake = watchWakeReading(morning);
+  if (wake?.restates_load && wake.score < SUPPORTIVE_READINESS) return null;
   const fromLadder = ladderMorningReadiness(morning);
   if (fromLadder != null) return fromLadder;
   if (trainedOnDate(morning)) return null;
