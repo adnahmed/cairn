@@ -215,3 +215,59 @@ test("a same-day foreground event repaints the active tab once the last paint is
   listeners.visibilitychange();
   assert.equal(context.activatedCount, 1);
 });
+
+// Today is where another device's change lands (a session accepted on the laptop,
+// the phone opened a minute later), so it goes stale after 30 s; the Session tab
+// keeps the long window so a phone locked between sets never rebuilds the log.
+test("Today repaints after a short absence; the Session tab waits the long window", () => {
+  const listeners = {};
+  let now = 1_800_000_000_000;
+  class FakeDate extends Date {
+    static now() {
+      return now;
+    }
+  }
+  const context = {
+    Date: FakeDate,
+    Math,
+    Object,
+    setTimeout: () => ({ unref() {} }),
+    clearTimeout: () => {},
+    document: {
+      visibilityState: "visible",
+      addEventListener: (name, fn) => {
+        listeners[name] = fn;
+      },
+    },
+    window: {
+      addEventListener: (name, fn) => {
+        listeners[name] = fn;
+      },
+    },
+    state: { tab: "today", logDate: "2026-07-10", day: 3, dayPicked: false, dayPickedOn: null },
+    localISO: () => "2026-07-10",
+    activateTab: (tab) => {
+      context.activated = [...(context.activated || []), tab];
+    },
+    syncRouteFromState: () => {},
+  };
+  vm.runInNewContext(readFileSync(join(root, "public/js/app-day-rollover.js"), "utf8"), context);
+  context.window.installDayRolloverWatcher();
+
+  now += 10 * 1000;
+  listeners.visibilitychange();
+  assert.equal(context.activated, undefined, "a glance away is not stale");
+
+  now += 40 * 1000;
+  listeners.visibilitychange();
+  assert.deepEqual(context.activated, ["today"]);
+
+  context.state.tab = "session";
+  now += 60 * 1000;
+  listeners.visibilitychange();
+  assert.deepEqual(context.activated, ["today"], "the Session tab holds a minute away");
+
+  now += 6 * 60 * 1000;
+  listeners.visibilitychange();
+  assert.deepEqual(context.activated, ["today", "session"]);
+});

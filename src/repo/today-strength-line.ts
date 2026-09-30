@@ -100,19 +100,29 @@ function runLoggedOn(date: string): { km: number | null } | null {
   }
 }
 
+// A session the athlete CHOSE for today instead of the plan day — a drafted
+// suggestion they accepted, or one they wrote themselves. It owns the day's title:
+// naming the plan day over it read as though the choice never landed, and the
+// Brief kept offering the swap they had already made.
+type ChosenSession = { sessionId: number | null; title: string; focus: string | null };
+
+type AcceptedComposition = { reshaped: boolean; decisionKind: string | null; chosen: ChosenSession | null };
+
+const NO_COMPOSITION: AcceptedComposition = { reshaped: false, decisionKind: null, chosen: null };
+
 // The accepted composition for today: whether most of its strength slots were moved
-// off the plan day (a substitution names the slot it replaced), and the decision kind
+// off the plan day (a substitution names the slot it replaced), the decision kind
 // it was composed under — the fallback suggestion when the read itself says nothing
-// about today's lift.
-function acceptedComposition(date: string): { reshaped: boolean; decisionKind: string | null } {
+// about today's lift — and, when it is not a plan day at all, the chosen session.
+function acceptedComposition(date: string): AcceptedComposition {
   try {
     const row = db
       .prepare(
-        `SELECT items_json, provenance_json FROM daily_session_compositions
+        `SELECT session_id, source, title, focus, items_json, provenance_json FROM daily_session_compositions
           WHERE date = ? AND status = 'active' ORDER BY version DESC LIMIT 1`
       )
       .get(date) as any;
-    if (!row) return { reshaped: false, decisionKind: null };
+    if (!row) return NO_COMPOSITION;
     let items: any[] = [];
     try {
       const parsed = JSON.parse(String(row.items_json ?? "[]"));
@@ -131,9 +141,19 @@ function acceptedComposition(date: string): { reshaped: boolean; decisionKind: s
     } catch {
       decisionKind = null;
     }
-    return { reshaped: items.length > 0 && substituted * 2 > items.length, decisionKind };
+    const source = String(row.source ?? "");
+    const title = String(row.title ?? "").trim();
+    const chosen =
+      (source === "agent_suggest" || source === "athlete_override") && title
+        ? {
+            sessionId: row.session_id == null ? null : Number(row.session_id),
+            title,
+            focus: String(row.focus ?? "").trim() || null,
+          }
+        : null;
+    return { reshaped: items.length > 0 && substituted * 2 > items.length, decisionKind, chosen };
   } catch {
-    return { reshaped: false, decisionKind: null };
+    return NO_COMPOSITION;
   }
 }
 
@@ -223,6 +243,32 @@ export function todayStrengthLine(date?: string): TodayStrengthLine {
       return null;
     }
   })();
+  const composition = acceptedComposition(d);
+  // A chosen session stands in for the plan day unless a different session was logged.
+  const chosen =
+    composition.chosen && (!session || composition.chosen.sessionId == null || composition.chosen.sessionId === session.id)
+      ? composition.chosen
+      : null;
+  if (chosen) {
+    const state: TodayStrengthState = session ? (session.finished ? "logged" : "in_progress") : "not_started";
+    const suggestion = state === "logged" ? null : suggestionFor(d, composition.decisionKind);
+    const run = runLoggedOn(d);
+    return {
+      date: d,
+      day_number: null,
+      title: chosen.title,
+      focus: chosen.focus,
+      role: "strength",
+      state,
+      suggestion,
+      suggestion_label: suggestion ? SUGGESTION_LABEL[suggestion] : null,
+      caveat: suggestion ? caveatFor(suggestion, chosen.title, d) : null,
+      run_in: run,
+      reshaped: false,
+      original: [],
+      text: lineText(chosen.title, state, !!run, chosen.title),
+    };
+  }
   // The logged session owns the day, the same way it owns its week-strip cell.
   let day: PlanDayCandidate | null = null;
   if (session) {
@@ -267,7 +313,6 @@ export function todayStrengthLine(date?: string): TodayStrengthLine {
   const calendarRole: WeekdayPlanDayRole | null =
     calendar?.kind === "run" && !readSaysRest ? "endurance" : calendar ? (calendar.kind === "lift" ? null : "rest") : null;
   const role = day ? planDayRole(day) : calendarRole;
-  const composition = acceptedComposition(d);
   const name = day ? planDayLabel(day) : null;
   // A run day is named for its run, the way the athlete stated it ("Long run").
   const runDayTitle =

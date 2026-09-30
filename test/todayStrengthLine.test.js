@@ -163,3 +163,42 @@ test("the forward line names the next plan day, and only once today's lift is in
   assert.match(String(fl.text), /^Next: Pull\b/);
   assert.equal(fl.next_focus, "Back, biceps & rear delts", "the prompt still reads the focus");
 });
+
+function chooseSession(date, source, sessionId) {
+  db.prepare(
+    `INSERT INTO daily_session_compositions
+       (version, session_id, date, source, status, plan_day_id, title, focus, items_json, request_fingerprint)
+     VALUES (1, ?, ?, ?, 'active', NULL, 'Upper Body & Core', 'Upper back, triceps & core', ?, 'fp')`
+  ).run(sessionId, date, source, JSON.stringify([{ kind: "strength", exercise: "Chest-Supported Row" }]));
+}
+
+test("a session the athlete chose owns the line instead of the plan day", () => {
+  repo.addActivity({ type: "run", date: TUE, duration_min: 40, distance_km: 6.6 });
+  chooseSession(TUE, "agent_suggest", Number(repo.getOrCreateSession(TUE).id));
+  const line = todayStrengthLine(TUE);
+  assert.equal(line.title, "Upper Body & Core");
+  assert.equal(line.focus, "Upper back, triceps & core");
+  assert.equal(line.day_number, null, "no plan day to offer or start over the choice");
+  assert.equal(line.state, "not_started");
+  assert.equal(line.text, "Run in · Upper Body & Core still open");
+});
+
+test("a chosen session logged reads as that session, not the plan day the ring lands on", () => {
+  repo.logSetByName({ date: TUE, exercise: "Chest-Supported Row", weight: 37.5, reps: 10 });
+  const session = db.prepare(`SELECT id FROM sessions WHERE date = ?`).get(TUE);
+  db.prepare(`UPDATE sessions SET finished_at = datetime('now') WHERE id = ?`).run(Number(session.id));
+  chooseSession(TUE, "athlete_override", Number(session.id));
+  const line = todayStrengthLine(TUE);
+  assert.equal(line.state, "logged");
+  assert.equal(line.text, "Upper Body & Core · logged");
+});
+
+test("a plan-sourced composition still goes by the plan day's name", () => {
+  const planDayId = db.prepare(`SELECT id FROM plan_days WHERE day_number = 2`).get().id;
+  db.prepare(
+    `INSERT INTO daily_session_compositions
+       (version, session_id, date, source, status, plan_day_id, title, focus, items_json, request_fingerprint)
+     VALUES (1, ?, ?, 'adaptive_plan', 'active', ?, 'Back, biceps & rear delts', NULL, '[]', 'fp')`
+  ).run(Number(repo.getOrCreateSession(TUE).id), TUE, planDayId);
+  assert.equal(todayStrengthLine(TUE).title, "Pull");
+});

@@ -67,12 +67,17 @@ function dayRolloverTarget(
   // snapshot immediately and revalidates quietly behind it, same as any other
   // tab entry.
   const STALE_PAINT_MS = 5 * 60 * 1000;
+  // Today is where another device's change shows up (a session accepted on the
+  // laptop, then the phone opened a minute later), and its repaint is the cheap
+  // cached-then-revalidated one — so it goes stale far sooner. Every other tab keeps
+  // the long window: a phone locked between sets must not rebuild the log under you.
+  const TODAY_STALE_PAINT_MS = 30 * 1000;
   let lastPaintAt = Date.now();
 
   function repaintStaleActiveTab(): void {
     const s = g.state;
     const now = Date.now();
-    const stale = now - lastPaintAt >= STALE_PAINT_MS;
+    const stale = now - lastPaintAt >= (s?.tab === "today" ? TODAY_STALE_PAINT_MS : STALE_PAINT_MS);
     lastPaintAt = now;
     if (!stale || !s || typeof g.activateTab !== "function") return;
     g.activateTab(s.tab, { syncRoute: false });
