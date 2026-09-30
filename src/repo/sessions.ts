@@ -2084,6 +2084,15 @@ export function getProgress(exerciseName: string, opts: { through?: string } = {
     )
     .all(...ids, ...(through ? [through] : [])) as any[];
 
+  // A zero-weight set on a LOADED lift (a Bulgarian split squat logged once with no
+  // dumbbells among months of 60–90 lb sets) is a different scale, not a bodyweight
+  // single: the loaded sets carry only the external load, so pricing the zero at the
+  // athlete's whole bodyweight read one bodyweight set as the lift's best ever, and
+  // every loaded session after it as a slide — "sliding, deload" on a lift climbing
+  // 60 → 70 → 90. Off a bodyweight ladder, once the lift has loaded history its zero
+  // sets carry no est-1RM. A pure bodyweight lift (never loaded) keeps its read.
+  const loadedHistory = !ladder && rows.some((r) => r.weight != null && Number(r.weight) > 0);
+
   // Per-date: track the best set by its effective 1RM (or by reps for assisted
   // sets where bodyweight is unknown). NEVER emit a negative best1rm.
   const byDate = new Map<string, { topWeight: number; topReps: number; best1rm: number | null }>();
@@ -2111,7 +2120,7 @@ export function getProgress(exerciseName: string, opts: { through?: string } = {
       // bodyweight is known — more reps at bodyweight is genuinely getting stronger.
       // Unknown bodyweight → null (can't compute a meaningful number). This stops a
       // pure-bodyweight lift from silently defaulting to "new"/null trend forever.
-      best1rm = bodyweightLb != null && bodyweightLb > 0 ? epley1RM(bodyweightLb, reps) : null;
+      best1rm = !loadedHistory && bodyweightLb != null && bodyweightLb > 0 ? epley1RM(bodyweightLb, reps) : null;
     }
 
     const cur = byDate.get(r.date);
