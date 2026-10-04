@@ -75,6 +75,8 @@ export const STYLE_PARTIALS = [
   "health/packet",
   "horizon/race",
   "today/pebbles",
+  "today/path",
+  "today/ahead",
   "today/day",
   "you/cairn",
   "shell/identity",

@@ -373,3 +373,13 @@ test("an image that fails while the device is offline is not remembered as a mis
   env.listeners.get("error")({ target: img });
   assert.match(env.context.artImg("exercise", "Leg Press", "a", "<svg></svg>"), /<img/);
 });
+
+test("food and activity URLs carry the server's v= too, so a re-pointed picture is a new cache-first URL", async () => {
+  const env = loadArtController({
+    versions: { versions: { "food|half a pear": 1790000000, "activity|running": 1780000000 } },
+  });
+  await env.context.primeArtManifest();
+  assert.match(env.context.artImg("food", "half a pear", "a", "<svg></svg>"), /q=half%20a%20pear&(amp;)?v=1790000000/);
+  assert.match(env.context.artImg("activity", "running", "a", "<svg></svg>"), /v=1780000000/);
+  assert.doesNotMatch(env.context.artImg("food", "unlisted meal", "a", "<svg></svg>"), /v=/, "no version, no v=");
+});

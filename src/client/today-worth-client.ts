@@ -15,14 +15,42 @@
   type Agenda = import("../contracts/client.js").ClientTodayAgenda;
   type Thread = { title?: unknown; summary?: unknown } | null | undefined;
 
+  // What the redesigned column already carries (the Today redesign): the team's
+  // changes and the one genuine ask live in the overnight digest, the week ahead and
+  // the next long run in Coming up, the week's sessions in This week, the connection
+  // insight as the one new-connection line. Those cards leave the rail; each read stays
+  // one tap away where it lives (Plan, Horizon, Ask › Changes).
+  const COLUMN_CARDS = ["program-adjustments", "week-ahead", "lately", "connection-insight"] as const;
+  const COLUMN_ACTIONS = new Set(["plan-endurance"]);
+
+  function columnIds(agenda: Partial<Agenda> | null | undefined): string[] {
+    const ids: string[] = [];
+    for (const card of [...(agenda?.primary || []), ...(agenda?.more || [])]) {
+      const id = String(card?.id || "");
+      if (!id) continue;
+      if (id === "draft-proposals" || id.startsWith("announced-decision-") || COLUMN_ACTIONS.has(String(card?.action?.kind || "")))
+        ids.push(id);
+    }
+    return ids;
+  }
+
   function railAgenda<T extends Partial<Agenda> | null | undefined>(
     agenda: T,
     opts: { fuelGlance: boolean; thread?: Thread }
   ): T {
     const text = opts.thread ? `${String(opts.thread.title ?? "")} ${String(opts.thread.summary ?? "")}` : "";
     const echoes = text.trim() ? CairnTodayAgenda.threadEchoIds(agenda, text) : [];
-    if (!opts.fuelGlance && !echoes.length) return agenda;
-    return CairnTodayAgenda.withoutCards(agenda, opts.fuelGlance ? ["fuel"] : [], echoes);
+    const cards: string[] = [...COLUMN_CARDS, ...(opts.fuelGlance ? ["fuel"] : [])];
+    return CairnTodayAgenda.withoutCards(agenda, cards, [...echoes, ...columnIds(agenda)]);
+  }
+
+  // The ONE genuine ask the agenda holds (a goal or clinical draft that waits on the
+  // athlete), for the digest's question card; null when there is none.
+  function askCandidate(agenda: Partial<Agenda> | null | undefined): Agenda["primary"][number] | null {
+    for (const card of [...(agenda?.primary || []), ...(agenda?.more || [])]) {
+      if (card?.id === "draft-proposals") return card;
+    }
+    return null;
   }
 
   // Mounted after the rail's outerHTML write, which would otherwise wipe it.
@@ -47,7 +75,7 @@
     } catch {}
   }
 
-  const CAIRN_TODAY_WORTH = { railAgenda, mountInstallRow };
+  const CAIRN_TODAY_WORTH = { railAgenda, askCandidate, mountInstallRow };
 
   Object.assign(globalThis, { CairnTodayWorth: CAIRN_TODAY_WORTH });
 }

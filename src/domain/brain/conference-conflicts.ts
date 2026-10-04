@@ -74,6 +74,31 @@ export function unresolvedConflictCeiling(
   return leadModelCeiling("ask", leadMode);
 }
 
+/**
+ * Whether an unresolved SAFETY conflict governs THIS revision — the same relevance
+ * rule the clinical floor follows (clinicalAutonomyFromRevision): a conference is a
+ * bundle, routed change by change. A food exclusion or a medication meeting a
+ * supplement is a question about what the athlete eats and takes, so it holds a
+ * nutrition change and never a squat or a Pallof press. Load on a part that hurts
+ * holds a training change — unless the change only EASES what the plan already holds
+ * (`easesLoad`, read by the caller against the plan): a protective reduction is the
+ * answer to that conflict, never a breach of it. Advice with no revision changes
+ * nothing, so it reads as governed (nothing executes either way).
+ */
+export function safetyConflictGovernsRevision(
+  key: ConferenceConflictKey,
+  revision: unknown,
+  options: { easesLoad?: boolean } = {}
+): boolean {
+  if (!conflictIsSafetyFloor(key)) return false;
+  if (record(revision) == null) return true;
+  const scope = revisionScope(revision);
+  if (!scope.domain) return true;
+  if (key === "allergy_meal" || key === "medication_supplement") return scope.domain === "nutrition";
+  if (key === "injury_load") return scope.domain === "training" && options.easesLoad !== true;
+  return true;
+}
+
 /** What one act-now finding governs: a domain the brain changes itself, and the
  * areas inside it the directive's own words name (empty = the whole domain). */
 export interface ClinicalLever {
@@ -314,6 +339,17 @@ function readStrengthEmphasis(context: Record<string, unknown>): Evidence {
 
 const INACTIVE_STATUS = /\b(discontinued|inactive|stopped|resolved|completed|historical|no longer|expired|held)\b/i;
 
+// A record that says there is NOTHING — "No known active allergies", "None", "NKDA",
+// "No current medications" — names no allergy and no medication. Live, the profile's
+// "No known active allergies" was read as an allergy, so every conference that also saw
+// a meal plan fired `allergy_meal` and held its training change at ask.
+const NOTHING_ON_RECORD =
+  /^(?:none(?:\s+(?:known|reported|listed))?|n\/?a|nil|nkda|nka|no\s+(?:(?:known|active|current|reported|drug|food|significant)\s+)*(?:allerg\w*|medications?|meds|drugs?)(?:\s+(?:known|reported|listed))?|denies\b.*)[.!\s]*$/i;
+
+function namesSomething(value: string): boolean {
+  return !!value && !NOTHING_ON_RECORD.test(value.trim());
+}
+
 function readClinicalFactNames(context: Record<string, unknown>, kind: string): string[] {
   const names: string[] = [];
   for (const doc of list(context.health)) {
@@ -322,7 +358,7 @@ function readClinicalFactNames(context: Record<string, unknown>, kind: string): 
       if (!row || text(row.kind) !== kind) continue;
       if (INACTIVE_STATUS.test(text(row.status))) continue;
       const name = text(row.name);
-      if (name) names.push(name);
+      if (namesSomething(name)) names.push(name);
     }
   }
   return [...new Set(names)];
@@ -338,10 +374,10 @@ function readSupplements(context: Record<string, unknown>): string[] {
 function readAllergies(context: Record<string, unknown>): string[] {
   const names: string[] = [];
   const own = text(record(context.profile)?.allergies);
-  if (own) names.push(own);
+  if (namesSomething(own)) names.push(own);
   for (const member of list(context.family)) {
     const allergy = text(record(member)?.allergies);
-    if (allergy) names.push(allergy);
+    if (namesSomething(allergy)) names.push(allergy);
   }
   names.push(...readClinicalFactNames(context, "allergy"));
   return [...new Set(names)];

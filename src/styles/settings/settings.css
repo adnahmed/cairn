@@ -1,32 +1,32 @@
 /* -------------------------------------------------------------------
    17 · Settings
    ------------------------------------------------------------------- */
-.toggle{display:flex;align-items:center;gap:10px;font-size:.9rem;color:var(--ink);cursor:pointer}
+.toggle{display:flex;align-items:center;gap:var(--space-5);font-size:var(--text-md);color:var(--ink);cursor:pointer}
 .toggle input{width:18px;height:18px;accent-color:var(--accent)}
 .selflex{flex:1;background:var(--card-2);border:1px solid var(--line);color:var(--ink);
-  border-radius:var(--radius-sm);padding:11px;font-size:.9rem;color-scheme:light}
+  border-radius:var(--radius-sm);padding:var(--space-6);font-size:var(--text-md);color-scheme:light}
 
 .agentmeta{flex:1;min-width:0}
-.agentname{font-family:var(--font-display);font-weight:400;
-  font-size:var(--text-lg);display:flex;align-items:center;gap:7px}
-.agentstatus{display:flex;align-items:center;gap:6px;font-size:.68rem;font-weight:600;
-  letter-spacing:.04em;color:var(--muted);margin-top:3px}
+.agentname{font-family:var(--font-display);font-weight:var(--weight-regular);
+  font-size:var(--text-lg);display:flex;align-items:center;gap:var(--space-4)}
+.agentstatus{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-xs);font-weight:var(--weight-semibold);
+  letter-spacing:var(--tracking-wider);color:var(--muted);margin-top:var(--space-2)}
 .agentdot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:var(--line-2)}
 .agentdot-ready{background:var(--sage)}
 .agentdot-absent{background:var(--gold)} /* calm, never alarming red */
-.agentdesc{font-size:.74rem;color:var(--muted);margin-top:3px;
+.agentdesc{font-size:var(--text-xs);color:var(--muted);margin-top:var(--space-2);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.agentctl{display:flex;align-items:center;gap:5px;flex:0 0 auto}
-.agent-update{margin-top:4px}
-.agent-update-status{color:var(--muted);margin-top:7px;min-height:18px;text-align:center}
-.agent-install-log{margin:8px 0 0;max-height:180px;overflow:auto;padding:12px 14px;border-radius:10px;
+.agentctl{display:flex;align-items:center;gap:var(--space-3);flex:0 0 auto}
+.agent-update{margin-top:var(--space-2)}
+.agent-update-status{color:var(--muted);margin-top:var(--space-4);min-height:18px;text-align:center}
+.agent-install-log{margin:var(--space-4) 0 0;max-height:180px;overflow:auto;padding:var(--space-6) var(--space-7);border-radius:var(--radius-xs);
   background:var(--stone-deep);color:#ece6da;text-align:left;white-space:pre-wrap;word-break:break-word;
   font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 
 /* where the agent layer stands NOW (Settings > Agents): one quiet line under the
    heading, a small dot in the state's tone. It moved here from the Brief. */
-.agent-state{display:flex;align-items:baseline;gap:8px;margin:0 0 var(--space-5);
-  font-size:var(--text-sm);line-height:1.45;color:var(--ink2)}
+.agent-state{display:flex;align-items:baseline;gap:var(--space-4);margin:0 0 var(--space-5);
+  font-size:var(--text-sm);line-height:var(--leading-normal);color:var(--ink2)}
 .agent-state-dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--sage);
   transform:translateY(-1px)}
 .agent-state.is-failing .agent-state-dot{background:var(--gold)}
@@ -34,31 +34,31 @@
 
 /* agent-health card — the coaching brain's quiet pulse (ok-rate + per-agent
    latency). Mirrors the art-spend card; ledger rows, no scores. */
-.agenthealth-rows{margin-top:9px;border-top:1px solid var(--line);padding-top:8px}
-.agenthealth-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-  padding:4px 0;font-size:.82rem}
-.agenthealth-name{font-family:var(--font-ui);font-weight:600;
+.agenthealth-rows{margin-top:var(--space-5);border-top:1px solid var(--line);padding-top:var(--space-4)}
+.agenthealth-row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-6);
+  padding:var(--space-2) 0;font-size:var(--text-sm)}
+.agenthealth-name{font-family:var(--font-ui);font-weight:var(--weight-semibold);
   color:var(--ink)}
 .agenthealth-stat{color:var(--muted);font-variant-numeric:lining-nums;text-align:right;
   flex:0 0 auto}
-.agentop-rows{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.agentop-rows{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-top:var(--space-5)}
 .agentop-pill{display:inline-flex;align-items:center;border:1px solid var(--line);
-  background:var(--card-2);color:var(--muted);border-radius:var(--radius-pill);padding:4px 8px;
-  font-size:.66rem;font-family:var(--font-ui);font-weight:650}
+  background:var(--card-2);color:var(--muted);border-radius:var(--radius-pill);padding:var(--badge-pad);
+  font-size:var(--badge-text);font-family:var(--font-ui);font-weight:var(--badge-weight)}
 
 /* "What Cairn did" — the quiet activity log of recent agent runs. Transparency, never
    a grade: each row reads op · agent · when · clean/needed-a-retry. Ledger-calm. */
-.actlog-rows{margin-top:9px;border-top:1px solid var(--line);padding-top:6px}
-.actlog-row{display:flex;align-items:baseline;gap:8px;padding:5px 0;font-size:.8rem;
+.actlog-rows{margin-top:var(--space-5);border-top:1px solid var(--line);padding-top:var(--space-3)}
+.actlog-row{display:flex;align-items:baseline;gap:var(--space-4);padding:var(--space-3) 0;font-size:var(--text-sm);
   border-bottom:1px solid var(--line)}
 .actlog-row:last-child{border-bottom:none}
 .actlog-op{flex:1 1 auto;min-width:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.actlog-meta{flex:0 0 auto;color:var(--muted);font-size:.72rem;display:flex;align-items:baseline;gap:5px}
+.actlog-meta{flex:0 0 auto;color:var(--muted);font-size:var(--text-xs);display:flex;align-items:baseline;gap:var(--space-3)}
 .actlog-agent{font-variant-numeric:lining-nums}
 .actlog-dot{opacity:.6}
 .actlog-when,.actlog-model,.actlog-tokens{font-variant-numeric:lining-nums}
-.actlog-flag{flex:0 0 auto;font-family:var(--font-ui);font-size:.56rem;font-weight:700;
-  letter-spacing:.1em;text-transform:uppercase;border-radius:var(--radius-pill);padding:2px 8px;white-space:nowrap}
+.actlog-flag{flex:0 0 auto;font-family:var(--font-ui);font-size:var(--text-2xs);font-weight:var(--weight-bold);
+  letter-spacing:var(--tracking-mono);text-transform:uppercase;border-radius:var(--radius-pill);padding:var(--space-1) var(--space-4);white-space:nowrap}
 .actlog-clean{color:var(--sage);background:var(--sage-bg)}
 .actlog-info{color:var(--ink-2);background:var(--card-2);border:1px solid var(--line)}
 .actlog-warning{color:var(--gold-deep);background:rgba(184,132,35,.12);border:1px solid rgba(184,132,35,.24)}
@@ -68,99 +68,99 @@
 .actlog-limit{color:var(--gold-deep);background:rgba(138,109,46,.11);border:1px solid rgba(138,109,46,.24)}
 .actlog-retry{color:var(--ink-2);background:var(--card-2);border:1px solid var(--line-2)}
 @media (max-width:440px){
-  .actlog-row{flex-wrap:wrap;gap:4px 8px}
+  .actlog-row{flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
   .actlog-op{flex:1 1 100%}
 }
 
 /* Settings → System health. Diagnostics are local, calm, and explicit about healthy
    zero vs an unavailable endpoint. Details stay bounded and thumb-friendly. */
-.sysdiag-card{margin-top:2px;padding:16px}
-.sysdiag-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
-.sysdiag-headline{display:flex;align-items:center;gap:7px;margin-top:7px;color:var(--ink)}
+.sysdiag-card{margin-top:var(--space-1);padding:var(--space-8)}
+.sysdiag-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-7)}
+.sysdiag-headline{display:flex;align-items:center;gap:var(--space-4);margin-top:var(--space-4);color:var(--ink)}
 .sysdiag-state-icon{display:inline-grid;place-items:center;width:21px;height:21px;border-radius:50%;
-  background:var(--sage-bg);color:var(--sage);font-family:var(--font-ui);font-weight:800;font-size:.72rem}
+  background:var(--sage-bg);color:var(--sage);font-family:var(--font-ui);font-weight:var(--weight-bold);font-size:var(--text-xs)}
 .sysdiag-tone-warning .sysdiag-state-icon,.sysdiag-unavailable .sysdiag-state-icon{
   background:rgba(184,132,35,.12);color:var(--gold-deep)}
 .sysdiag-tone-error .sysdiag-state-icon{background:rgba(161,67,52,.11);color:var(--warn)}
-.sysdiag-window{color:var(--muted);font-size:.7rem;white-space:nowrap;font-variant-numeric:lining-nums}
-.sysdiag-privacy{color:var(--muted);margin:9px 0 12px;line-height:1.45}
-.sysdiag-build-scope{display:flex;flex-direction:column;gap:3px;margin:0 0 11px;padding:9px 11px;
-  border-left:3px solid var(--line-2);background:var(--card-2);border-radius:0 8px 8px 0;font-size:.7rem}
+.sysdiag-window{color:var(--muted);font-size:var(--text-xs);white-space:nowrap;font-variant-numeric:lining-nums}
+.sysdiag-privacy{color:var(--muted);margin:var(--space-5) 0 var(--space-6);line-height:var(--leading-normal)}
+.sysdiag-build-scope{display:flex;flex-direction:column;gap:var(--space-2);margin:0 0 var(--space-6);padding:var(--space-5) var(--space-6);
+  border-left:3px solid var(--line-2);background:var(--card-2);border-radius:0 var(--radius-xs) var(--radius-xs) 0;font-size:var(--text-xs)}
 .sysdiag-build-scope b{color:var(--ink-2);overflow-wrap:anywhere}
-.sysdiag-build-scope span{color:var(--muted);line-height:1.45}
-.sysdiag-state{display:flex;align-items:flex-start;gap:11px;margin-top:13px;color:var(--ink-2)}
-.sysdiag-state p{margin:4px 0 10px;color:var(--muted);font-size:.8rem;line-height:1.45}
-.sysdiag-section-title{margin-top:15px;color:var(--muted);font-family:var(--font-ui);font-size:.62rem;
-  font-weight:700;letter-spacing:.1em;text-transform:uppercase}
-.sysdiag-readiness{margin-top:12px;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:var(--card-2)}
+.sysdiag-build-scope span{color:var(--muted);line-height:var(--leading-normal)}
+.sysdiag-state{display:flex;align-items:flex-start;gap:var(--space-6);margin-top:var(--space-7);color:var(--ink-2)}
+.sysdiag-state p{margin:var(--space-2) 0 var(--space-5);color:var(--muted);font-size:var(--text-sm);line-height:var(--leading-normal)}
+.sysdiag-section-title{margin-top:var(--space-8);color:var(--muted);font-family:var(--font-ui);font-size:var(--text-2xs);
+  font-weight:var(--weight-bold);letter-spacing:var(--tracking-mono);text-transform:uppercase}
+.sysdiag-readiness{margin-top:var(--space-6);padding:var(--space-6) var(--space-7);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--card-2)}
 .sysdiag-readiness .sysdiag-section-title{margin-top:0}
 .sysdiag-readiness-warning{border-color:rgba(184,132,35,.26);background:rgba(184,132,35,.06)}
 .sysdiag-readiness-error{border-color:rgba(161,67,52,.25);background:rgba(161,67,52,.05)}
-.sysdiag-runtime-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 16px;margin-top:10px}
-.sysdiag-runtime-stat{display:flex;flex-direction:column;min-width:0;gap:2px}
-.sysdiag-runtime-stat>span{color:var(--muted);font-size:.61rem;text-transform:uppercase;letter-spacing:.07em;font-weight:650}
-.sysdiag-runtime-stat>b{color:var(--ink-2);font-size:.76rem;line-height:1.35;overflow-wrap:anywhere}
-.sysdiag-runtime-stat>em{color:var(--gold-deep);font-size:.67rem;font-style:normal;font-weight:650}
-.sysdiag-runtime-stat small time{display:flex;flex-direction:column;color:var(--muted);font-size:.64rem}
-.sysdiag-warnings{margin:10px 0 0;padding:9px 10px 9px 26px;border-radius:9px;background:rgba(184,132,35,.1);
-  color:var(--ink-2);font-size:.72rem;line-height:1.5}
+.sysdiag-runtime-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5) var(--space-8);margin-top:var(--space-5)}
+.sysdiag-runtime-stat{display:flex;flex-direction:column;min-width:0;gap:var(--space-1)}
+.sysdiag-runtime-stat>span{color:var(--muted);font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-mono);font-weight:var(--weight-semibold)}
+.sysdiag-runtime-stat>b{color:var(--ink-2);font-size:var(--text-xs);line-height:var(--leading-snug);overflow-wrap:anywhere}
+.sysdiag-runtime-stat>em{color:var(--gold-deep);font-size:var(--text-2xs);font-style:normal;font-weight:var(--weight-semibold)}
+.sysdiag-runtime-stat small time{display:flex;flex-direction:column;color:var(--muted);font-size:var(--text-2xs)}
+.sysdiag-warnings{margin:var(--space-5) 0 0;padding:var(--space-5) var(--space-5) var(--space-5) var(--space-12);border-radius:var(--radius-xs);background:rgba(184,132,35,.1);
+  color:var(--ink-2);font-size:var(--text-xs);line-height:var(--leading)}
 .sysdiag-readiness-error .sysdiag-warnings{background:rgba(161,67,52,.08)}
-.sysdiag-ready-line{margin-top:9px;color:var(--sage);font-size:.72rem;font-weight:650}
-.sysdiag-diagnostics-title{margin:17px 2px 7px}
-.sysdiag-controls{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap;padding:11px 0;
+.sysdiag-ready-line{margin-top:var(--space-5);color:var(--sage);font-size:var(--text-xs);font-weight:var(--weight-semibold)}
+.sysdiag-diagnostics-title{margin:var(--space-9) var(--space-1) var(--space-4)}
+.sysdiag-controls{display:flex;align-items:flex-end;gap:var(--space-5);flex-wrap:wrap;padding:var(--space-6) 0;
   border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.sysdiag-window-buttons{display:flex;gap:5px;margin-right:auto}
+.sysdiag-window-buttons{display:flex;gap:var(--space-3);margin-right:auto}
 .sysdiag-window-buttons .btn-sm.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.sysdiag-controls label{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:.62rem;
-  font-family:var(--font-ui);font-weight:650;text-transform:uppercase;letter-spacing:.08em}
-.sysdiag-controls select{min-width:128px;max-width:190px;border:1px solid var(--line-2);border-radius:9px;
-  background:var(--card);color:var(--ink);padding:7px 28px 7px 9px;font:inherit;text-transform:none;letter-spacing:0}
-.sysdiag-section{margin-top:15px}
-.sysdiag-section h3{display:flex;align-items:baseline;gap:6px;margin:0 2px 7px;font-size:.76rem;color:var(--ink)}
-.sysdiag-section h3 span{color:var(--muted);font-size:.64rem;font-weight:500}
+.sysdiag-controls label{display:flex;flex-direction:column;gap:var(--space-2);color:var(--muted);font-size:var(--text-2xs);
+  font-family:var(--font-ui);font-weight:var(--weight-semibold);text-transform:uppercase;letter-spacing:var(--tracking-mono)}
+.sysdiag-controls select{min-width:128px;max-width:190px;border:1px solid var(--line-2);border-radius:var(--radius-xs);
+  background:var(--card);color:var(--ink);padding:var(--space-4) var(--space-12) var(--space-4) var(--space-5);font:inherit;text-transform:none;letter-spacing:0}
+.sysdiag-section{margin-top:var(--space-8)}
+.sysdiag-section h3{display:flex;align-items:baseline;gap:var(--space-3);margin:0 var(--space-1) var(--space-4);font-size:var(--text-xs);color:var(--ink)}
+.sysdiag-section h3 span{color:var(--muted);font-size:var(--text-2xs);font-weight:var(--weight-medium)}
 .sysdiag-list{border-top:1px solid var(--line)}
 .sysdiag-item{border-bottom:1px solid var(--line)}
-.sysdiag-item>summary{display:flex;align-items:center;gap:9px;min-height:44px;padding:5px 2px;cursor:pointer;
+.sysdiag-item>summary{display:flex;align-items:center;gap:var(--space-5);min-height:44px;padding:var(--space-3) var(--space-1);cursor:pointer;
   list-style:none;touch-action:manipulation}
 .sysdiag-item>summary::-webkit-details-marker{display:none}
-.sysdiag-item>summary::after{content:"›";color:var(--muted);font-size:.76rem;transition:transform var(--dur-1) var(--ease)}
+.sysdiag-item>summary::after{content:"›";color:var(--muted);font-size:var(--text-xs);transition:transform var(--dur-1) var(--ease)}
 .sysdiag-item[open]>summary::after{transform:rotate(90deg)}
-.sysdiag-summary-main{display:flex;flex:1 1 auto;min-width:0;flex-direction:column;gap:2px}
-.sysdiag-summary-main b{font-size:.78rem;color:var(--ink);font-weight:650}
-.sysdiag-summary-main span{font-size:.69rem;color:var(--muted);overflow-wrap:anywhere}
-.sysdiag-count,.sysdiag-duration{color:var(--ink-2);font-size:.7rem;white-space:nowrap;font-variant-numeric:lining-nums}
-.sysdiag-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px;margin:0 0 11px;
-  padding:11px 12px;background:var(--card-2);border-radius:10px}
+.sysdiag-summary-main{display:flex;flex:1 1 auto;min-width:0;flex-direction:column;gap:var(--space-1)}
+.sysdiag-summary-main b{font-size:var(--text-sm);color:var(--ink);font-weight:var(--weight-semibold)}
+.sysdiag-summary-main span{font-size:var(--text-xs);color:var(--muted);overflow-wrap:anywhere}
+.sysdiag-count,.sysdiag-duration{color:var(--ink-2);font-size:var(--text-xs);white-space:nowrap;font-variant-numeric:lining-nums}
+.sysdiag-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4) var(--space-8);margin:0 0 var(--space-6);
+  padding:var(--space-6) var(--space-6);background:var(--card-2);border-radius:var(--radius-xs)}
 .sysdiag-field{min-width:0}
-.sysdiag-field dt{color:var(--muted);font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-.sysdiag-field dd{margin:3px 0 0;color:var(--ink-2);font-size:.74rem;line-height:1.4}
+.sysdiag-field dt{color:var(--muted);font-size:var(--text-2xs);font-weight:var(--weight-bold);text-transform:uppercase;letter-spacing:var(--tracking-mono)}
+.sysdiag-field dd{margin:var(--space-2) 0 0;color:var(--ink-2);font-size:var(--text-xs);line-height:var(--leading-normal)}
 .sysdiag-field time{display:flex;flex-direction:column;gap:1px}
-.sysdiag-absolute{color:var(--muted);font-size:.66rem;font-variant-numeric:lining-nums}
+.sysdiag-absolute{color:var(--muted);font-size:var(--text-2xs);font-variant-numeric:lining-nums}
 .sysdiag-wide{grid-column:1/-1}
 .sysdiag-break dd,.sysdiag-break code{overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap}
-.sysdiag-copy{margin-left:8px;min-height:32px;vertical-align:middle}
-.sysdiag-pager{display:flex;justify-content:flex-end;align-items:center;gap:9px;margin-top:9px;color:var(--muted);font-size:.68rem}
-.sysdiag-empty{display:flex;flex-direction:column;gap:3px;margin-top:12px;padding:14px;border:1px dashed var(--line-2);
-  border-radius:10px;color:var(--muted);font-size:.78rem}
+.sysdiag-copy{margin-left:var(--space-4);min-height:32px;vertical-align:middle}
+.sysdiag-pager{display:flex;justify-content:flex-end;align-items:center;gap:var(--space-5);margin-top:var(--space-5);color:var(--muted);font-size:var(--text-xs)}
+.sysdiag-empty{display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-6);padding:var(--space-7);border:1px dashed var(--line-2);
+  border-radius:var(--radius-xs);color:var(--muted);font-size:var(--text-sm)}
 .sysdiag-healthy-empty b{color:var(--sage)}
-.sysdiag-operator{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
-.sysdiag-operator>summary{min-height:38px;display:flex;align-items:center;cursor:pointer;color:var(--ink-2);font-size:.74rem;font-weight:650}
-.sysdiag-operator-group{padding:10px 0;border-top:1px solid var(--line)}
-.sysdiag-operator-group h4{margin:0 0 7px;color:var(--muted);font-size:.6rem;text-transform:uppercase;letter-spacing:.08em}
-.sysdiag-build{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:.74rem}
-.sysdiag-build span{color:var(--muted);font-size:.66rem}
-.sysdiag-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
-.sysdiag-metrics span{display:flex;flex-direction:column;gap:2px;padding:8px;background:var(--card-2);border-radius:8px;
-  color:var(--muted);font-size:.61rem}
-.sysdiag-metrics b{color:var(--ink-2);font-size:.76rem;font-variant-numeric:lining-nums}
-.sysdiag-route-metrics{margin-top:8px;display:grid;gap:5px}
-.sysdiag-route-metrics>div{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;font-size:.66rem}
+.sysdiag-operator{margin-top:var(--space-7);border-top:1px solid var(--line);padding-top:var(--space-5)}
+.sysdiag-operator>summary{min-height:38px;display:flex;align-items:center;cursor:pointer;color:var(--ink-2);font-size:var(--text-xs);font-weight:var(--weight-semibold)}
+.sysdiag-operator-group{padding:var(--space-5) 0;border-top:1px solid var(--line)}
+.sysdiag-operator-group h4{margin:0 0 var(--space-4);color:var(--muted);font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-mono)}
+.sysdiag-build{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-5);font-size:var(--text-xs)}
+.sysdiag-build span{color:var(--muted);font-size:var(--text-2xs)}
+.sysdiag-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4)}
+.sysdiag-metrics span{display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-4);background:var(--card-2);border-radius:var(--radius-xs);
+  color:var(--muted);font-size:var(--text-2xs)}
+.sysdiag-metrics b{color:var(--ink-2);font-size:var(--text-xs);font-variant-numeric:lining-nums}
+.sysdiag-route-metrics{margin-top:var(--space-4);display:grid;gap:var(--space-3)}
+.sysdiag-route-metrics>div{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-6);font-size:var(--text-2xs)}
 .sysdiag-route-metrics code{color:var(--ink-2);overflow-wrap:anywhere;word-break:break-word}
 .sysdiag-route-metrics span{color:var(--muted);white-space:nowrap}
-.sysdiag-operator-group p{margin:4px 0;color:var(--muted);font-size:.69rem;line-height:1.4}
+.sysdiag-operator-group p{margin:var(--space-2) 0;color:var(--muted);font-size:var(--text-xs);line-height:var(--leading-normal)}
 @media (max-width:560px){
-  .sysdiag-card{padding:14px 12px}
-  .sysdiag-heading{gap:8px}
+  .sysdiag-card{padding:var(--space-7) var(--space-6)}
+  .sysdiag-heading{gap:var(--space-4)}
   .sysdiag-controls{align-items:stretch}
   .sysdiag-window-buttons{width:100%;margin-right:0}
   .sysdiag-window-buttons .btn-sm{flex:1;min-height:38px}
@@ -168,28 +168,28 @@
   .sysdiag-controls select{width:100%;max-width:none;min-height:40px}
   .sysdiag-fields{grid-template-columns:1fr}
   .sysdiag-wide{grid-column:auto}
-  .sysdiag-item>summary{align-items:flex-start;padding:8px 1px}
-  .sysdiag-item>summary .actlog-flag{margin-top:2px}
+  .sysdiag-item>summary{align-items:flex-start;padding:var(--space-4) 1px}
+  .sysdiag-item>summary .actlog-flag{margin-top:var(--space-1)}
   .sysdiag-pager{justify-content:space-between}
   .sysdiag-runtime-grid{grid-template-columns:1fr}
   .sysdiag-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .sysdiag-route-metrics>div{flex-direction:column;gap:2px}
+  .sysdiag-route-metrics>div{flex-direction:column;gap:var(--space-1)}
   .sysdiag-route-metrics span{white-space:normal}
 }
 /* "What Cairn has noticed" (F2) — gentle outcome-learning observations. A calm,
    editorial list; the sage dot keeps it quiet and un-alarming, never a metric. */
-.noticed-rows{margin-top:9px;border-top:1px solid var(--line);padding-top:8px;display:grid;gap:10px}
-.noticed-row{display:flex;align-items:baseline;gap:8px}
-.noticed-dot{flex:0 0 auto;color:var(--sage);font-weight:700;line-height:1.5}
+.noticed-rows{margin-top:var(--space-5);border-top:1px solid var(--line);padding-top:var(--space-4);display:grid;gap:var(--space-5)}
+.noticed-row{display:flex;align-items:baseline;gap:var(--space-4)}
+.noticed-dot{flex:0 0 auto;color:var(--sage);font-weight:var(--weight-bold);line-height:var(--leading)}
 .noticed-body{flex:1 1 auto;min-width:0}
-.noticed-text{color:var(--ink-2);font-size:.84rem;line-height:1.5}
-.noticed-when{display:block;margin-top:2px;color:var(--muted);font-size:.68rem;
+.noticed-text{color:var(--ink-2);font-size:var(--text-md);line-height:var(--leading)}
+.noticed-when{display:block;margin-top:var(--space-1);color:var(--muted);font-size:var(--text-xs);
   font-variant-numeric:lining-nums}
 .togglebtn{background:var(--card-2);border:1px solid var(--line);color:var(--muted);
   border-radius:var(--radius-pill);min-width:44px;height:30px;font-family:var(--font-ui);
-  font-size:.66rem;font-weight:700;letter-spacing:.1em}
+  font-size:var(--text-2xs);font-weight:var(--weight-bold);letter-spacing:var(--tracking-mono)}
 .togglebtn.on{background:var(--sage);color:var(--on-accent);border-color:var(--sage)}
-.warnpill{font-family:var(--font-ui);font-size:.56rem;font-weight:700;letter-spacing:.1em;
+.warnpill{font-family:var(--font-ui);font-size:var(--badge-text);font-weight:var(--badge-weight);letter-spacing:var(--tracking-mono);
   color:var(--warn);background:var(--warn-bg);border:none;border-radius:var(--radius-pill);
-  padding:2px 8px;text-transform:uppercase}
+  padding:var(--badge-pad);text-transform:uppercase}
 

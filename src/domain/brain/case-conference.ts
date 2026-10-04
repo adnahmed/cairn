@@ -31,6 +31,7 @@ import {
   conflictsFromInputs,
   deterministicConferenceConflicts,
   revisionHoldsClinicalFloor,
+  safetyConflictGovernsRevision,
   unresolvedConflictCeiling,
   type ConferenceConflictKey,
 } from "./conference-conflicts.js";
@@ -38,11 +39,12 @@ import { getCoachContext } from "../../repo/coach.js";
 import { projectCoachContext } from "../../prompt/context-projection.js";
 import { localDateISO } from "../../repo/shared.js";
 import { listTrainingSymptoms } from "../../repo/training-symptoms.js";
+import { recentlySettledPlaces } from "../../repo/injury-symptom-link.js";
 import { getSettings } from "../../repo/settings.js";
 import { patchBrainDecision, recordDecision } from "../../repo/brain-decisions.js";
 import { MAX_DEFERRED_EXPECTATIONS } from "../../repo/brain/change-expectations.js";
 import { createProposal } from "../../repo/proposals.js";
-import { changesReduceSets } from "../../repo/volume-guard.js";
+import { changesOnlyEaseLoad, changesReduceSets } from "../../repo/volume-guard.js";
 import { runChosen, runChosenWithCoachReads } from "../../runChosen.js";
 import { applyProposalWithAutonomy } from "./autonomy-service.js";
 import { conferenceClinicianNotes, recordConferenceClinicianNotes } from "./conference-clinician-notes.js";
@@ -81,6 +83,43 @@ function defaultActiveSymptomAreas(on: string): string[] | null {
   }
 }
 
+/** What hurts NOW and what has settled — the symptom lifecycle's own answer, said to
+ * every seat beside the context. A memory or an older note about a pain is words about
+ * an episode; this is the episode's state, so a settled place is never protected. */
+export interface ConferencePainState {
+  open: string[];
+  resolved: { area: string; resolved_on: string }[];
+}
+
+function defaultPainState(on: string): ConferencePainState | null {
+  const open = defaultActiveSymptomAreas(on);
+  if (open == null) return null;
+  try {
+    return {
+      open,
+      resolved: recentlySettledPlaces(on).map((place) => ({
+        area:
+          place.spoken_place && place.spoken_place !== place.area_text
+            ? `${place.spoken_place} (${place.area_text})`
+            : place.area_text,
+        resolved_on: place.resolved_on,
+      })),
+    };
+  } catch {
+    return { open, resolved: [] };
+  }
+}
+
+/** One short block for both prompts; empty when there is nothing to say either way. */
+function painStateLine(state: ConferencePainState | null | undefined): string {
+  if (!state || (!state.open.length && !state.resolved.length)) return "";
+  const open = state.open.length ? state.open.join("; ") : "none";
+  const resolved = state.resolved.length
+    ? state.resolved.map((place) => `${place.area} (settled ${place.resolved_on})`).join("; ")
+    : "none";
+  return ` PAIN STATE (the symptom lifecycle — it outranks memory and older notes): open now: ${open}. Resolved — history, not current: ${resolved}. A resolved pain never caps, holds or excludes a load and is never a reason to protect a place; only an open symptom or an open injury can.`;
+}
+
 export interface CaseConferenceResult {
   ok: boolean;
   snapshot_id: string;
@@ -117,6 +156,8 @@ export interface CaseConferenceDeps {
   chosen?: typeof runChosen;
   /** Active area-scoped symptom labels — evidence the coach context cannot carry. */
   symptomAreas?: (on: string) => string[] | null;
+  /** Open and recently settled pains, said to every seat (defaultPainState). */
+  painState?: (on: string) => ConferencePainState | null;
   now?: () => Date;
   /** Running durable job, excluded when counting prior daily attempts. */
   jobId?: number;
@@ -345,9 +386,10 @@ function specialistPrompt(
   domain: SpecialistDomain,
   question: string,
   snapshot: ImmutableBrainSnapshot,
-  conflicts: ConferenceConflictKey[]
+  conflicts: ConferenceConflictKey[],
+  painState: ConferencePainState | null = null
 ): string {
-  return `You are Cairn's ${domain} specialist in a multidisciplinary case conference — ${specialistCharter(domain)} Return ONLY a SpecialistOpinion JSON object; no hidden reasoning or transcript. The literal contract is ${SPECIALIST_PROMPT_SCHEMA}. domain MUST be exactly ${JSON.stringify(domain)}. Use evidence_keys for the facts that matter, name uncertainty, and never exceed clinical or safety boundaries. Snapshot id: ${snapshot.id}. Question: ${question}. Deterministic conflicts already detected: ${JSON.stringify(conflicts)}. Immutable bounded context: ${JSON.stringify(snapshot.context)}`;
+  return `You are Cairn's ${domain} specialist in a multidisciplinary case conference — ${specialistCharter(domain)} Return ONLY a SpecialistOpinion JSON object; no hidden reasoning or transcript. The literal contract is ${SPECIALIST_PROMPT_SCHEMA}. domain MUST be exactly ${JSON.stringify(domain)}. Use evidence_keys for the facts that matter, name uncertainty, and never exceed clinical or safety boundaries. Snapshot id: ${snapshot.id}. Question: ${question}. Deterministic conflicts already detected: ${JSON.stringify(conflicts)}.${painStateLine(painState)} Immutable bounded context: ${JSON.stringify(snapshot.context)}`;
 }
 
 const TRACK_WORDS: Record<PriorityTrack, string> = { muscle: "muscle & strength", race: "the race", cut: "the cut" };
@@ -357,7 +399,8 @@ function conductorPrompt(
   snapshot: ImmutableBrainSnapshot,
   opinions: SpecialistOpinion[],
   conflicts: ConferenceConflictKey[],
-  priority: readonly PriorityTrack[]
+  priority: readonly PriorityTrack[],
+  painState: ConferencePainState | null = null
 ): string {
   // Say honestly what makes a resolution VALID. The old line ("every conflict must
   // appear in resolved_conflicts or the server will demote") trained the model to
@@ -374,7 +417,7 @@ function conductorPrompt(
     priority.length
       ? `RECONCILE BY THE BLOCK'S PRIORITY ORDER: ${priority.map((track) => TRACK_WORDS[track]).join(" > ")}. When two opinions pull against each other, the earlier goal's next step wins and the later goal's step is protected or deferred, never silently dropped; name the deferral in deferred. `
       : ""
-  }Snapshot id: ${snapshot.id}. Question: ${question}. Conflicts: ${JSON.stringify(conflicts)}. Opinions: ${JSON.stringify(opinions)}`;
+  }${painStateLine(painState).trimStart()}${painStateLine(painState) ? " " : ""}Snapshot id: ${snapshot.id}. Question: ${question}. Conflicts: ${JSON.stringify(conflicts)}. Opinions: ${JSON.stringify(opinions)}`;
 }
 
 const TIER_ORDER = ["observe", "quiet_apply", "announce", "ask", "clinician"] as const;
@@ -540,7 +583,15 @@ export async function runCaseConference(
   // agent_jobs budget query, and every evening after UTC rolls over it names
   // tomorrow — which would resolve the lifecycle against a day that has not
   // happened here yet.
-  const activeSymptomAreas = (deps.symptomAreas ?? defaultActiveSymptomAreas)(localDateISO());
+  const conferenceDay = localDateISO();
+  const activeSymptomAreas = (deps.symptomAreas ?? defaultActiveSymptomAreas)(conferenceDay);
+  // The same lifecycle, said to the seats: what is open AND what has settled. When a
+  // caller injected only the open areas, the open half follows them.
+  const painState = deps.painState
+    ? deps.painState(conferenceDay)
+    : deps.symptomAreas
+      ? { open: activeSymptomAreas ?? [], resolved: [] }
+      : defaultPainState(conferenceDay);
   const conflictInputs = conferenceConflictInputs(fullContext, { activeSymptomAreas });
   const conflicts = conflictsFromInputs(conflictInputs);
   const perSpecialistCalls = Math.max(
@@ -579,7 +630,7 @@ export async function runCaseConference(
     domains.map(async (domain) => {
       const value = await specialistRun(
         agent,
-        specialistPrompt(domain, question, snapshot, conflicts),
+        specialistPrompt(domain, question, snapshot, conflicts, painState),
         domain,
         snapshot,
         perSpecialistCalls
@@ -626,7 +677,10 @@ export async function runCaseConference(
         return null;
       }
     });
-  const rawDecision = await conductorRun(agent, conductorPrompt(question, snapshot, opinions, conflicts, priority));
+  const rawDecision = await conductorRun(
+    agent,
+    conductorPrompt(question, snapshot, opinions, conflicts, priority, painState)
+  );
   assertActive();
   const normalizedDecision = normalizeStrictCaseConferenceDecision(rawDecision);
   const degraded = normalizedDecision == null;
@@ -702,8 +756,22 @@ export async function runCaseConference(
   // at ask in every mode; a coaching trade-off (deficit vs recovery, race vs strength) is
   // the team's call by the block's priority order, so under lead it is announced with the
   // reasoning, never parked.
-  const safetyUnresolved = unresolvedConflicts.some((conflict) => conflictIsSafetyFloor(conflict));
-  const conflictCeiling = unresolvedConflictCeiling(unresolvedConflicts, leadMode);
+  //
+  // A SAFETY CONFLICT HOLDS ONLY THE CHANGE IT GOVERNS (2026-10-02 ruling, the same
+  // relevance rule as the clinical floor). Live, an "allergy" (the profile's own "No
+  // known active allergies") beside a meal plan held a Pallof-press load cap at ask for
+  // the athlete: food questions hold food changes, a hurt part holds a change that loads
+  // it, and a protective reduction is the answer to that conflict, never a breach of it.
+  // A conflict that governs nothing here stays recorded (unresolved_conflicts) and moves
+  // no tier.
+  const revisionEasesLoad = decision.revision?.type === "plan_update" && changesOnlyEaseLoad(decision.revision.changes);
+  const governingConflicts = unresolvedConflicts.filter(
+    (conflict) =>
+      !conflictIsSafetyFloor(conflict) ||
+      safetyConflictGovernsRevision(conflict, decision.revision, { easesLoad: revisionEasesLoad })
+  );
+  const safetyUnresolved = governingConflicts.some((conflict) => conflictIsSafetyFloor(conflict));
+  const conflictCeiling = unresolvedConflictCeiling(governingConflicts, leadMode);
   if (conflictCeiling) specialistCeiling = moreRestrictiveTier(specialistCeiling, conflictCeiling);
   // A plan_update that LOWERS prescribed volume is not one bounded load step, and
   // it must not take the tier meant for one. Volume is the field nothing downstream

@@ -31,6 +31,7 @@ import {
   matchEnduranceModality,
   regionWeight,
 } from "./heavy-load.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 export interface RecentLoad {
   group: MuscleGroup;
@@ -214,6 +215,14 @@ function classifyImpactLoad(
 }
 
 export function recentEnduranceImpacts(days = 3, date = localDateISO()): EnduranceImpact[] {
+  return requestMemo(
+    `recent_endurance_impacts:${days}:${date}`,
+    () => recentEnduranceImpactsRead(days, date),
+    copyDeep
+  );
+}
+
+function recentEnduranceImpactsRead(days: number, date: string): EnduranceImpact[] {
   const today = String(date).slice(0, 10);
   const since = addDaysISO(today, -(Math.max(1, days) - 1)) ?? today;
   const dAgo = (iso: string): number => Math.max(0, daysBetweenISO(today, String(iso).slice(0, 10)) ?? 0);
@@ -224,6 +233,7 @@ export function recentEnduranceImpacts(days = 3, date = localDateISO()): Enduran
               a.source AS source, a.external_id AS external_id, a.rpe AS rpe,
               ga.avg_hr AS avg_hr, COALESCE(ga.moving_min, ga.duration_min, a.duration_min) AS hr_minutes,
               ga.name AS g_name, ga.hr_zones_json AS zones,
+              ga.structure_json AS structure, ga.laps_json AS laps,
               ga.te_label AS te_label, ga.aerobic_te AS ate, ga.anaerobic_te AS anate,
               ga.training_load AS training_load,
               ga.hr_zones_json AS hr_zones_json,
@@ -460,6 +470,10 @@ export function muscleResidual(
   days = RESIDUAL_LOOKBACK_DAYS,
   date = localDateISO()
 ): Map<MuscleGroup, MuscleResidual> {
+  return requestMemo(`muscle_residual:${days}:${date}`, () => muscleResidualRead(days, date), copyDeep);
+}
+
+function muscleResidualRead(days: number, date: string): Map<MuscleGroup, MuscleResidual> {
   const today = String(date).slice(0, 10);
   const lookback = Math.max(1, days);
   const since = addDaysISO(today, -(lookback - 1)) ?? today;

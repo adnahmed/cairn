@@ -137,6 +137,12 @@ silently dropped by constrained decoding, not preserved by `additionalProperties
 schema is inert while streaming or for `stub` — the prose `OUTPUT CONTRACT` stays the floor
 everywhere. Details: `docs/ARCHITECTURE.md`'s "Enforced structured output" section.
 
+**A request memo serves only while nothing was written.** `requestMemo` (`src/repo/request-memo.ts`)
+dedupes pure reads inside one request, invalidated by SQLite's `total_changes()` and any ROLLBACK
+(so every rollback must go through `db.exec`); `memoNeutralWrite`
+exempts two bookkeeping writes (a memory stamp, a queued week-ahead job). Never route a write a memoized read can see through it, and key a read
+that consults a re-entrancy guard by that guard. Details: `docs/ARCHITECTURE.md` "HTTP caching".
+
 **Tests wipe the DB before every single test.** `test/run.mjs` shards files across workers (each with
 its own throwaway temp `DATA_DIR`/`DB_PATH`) and injects `test/_isolate.mjs` via `--import` — a root
 `beforeEach` that wipes the whole DB. So correctness is independent of file order and shard count,
@@ -203,6 +209,9 @@ cannot self-attest INTO it either (`clinicianFloorHolds`, `src/brain/autonomy.ts
 tightens to an ask at most). An act-now health finding gates only a revision that acts on what it
 governs — same domain and named area, or the revision names the marker (`clinicalAutonomyFromRevision`,
 `src/domain/brain/conference-conflicts.ts`) — so a lipid finding never clinician-gates a squat hold.
+An unresolved SAFETY conflict is held to the same relevance (`safetyConflictGovernsRevision`): food and
+medication questions hold nutrition changes only, and a protective load reduction is never held by
+`injury_load`.
 See `docs/ELITE-BRAIN-IMPLEMENTATION.md`.
 
 **Agent selection.** Callers name an agent or pass `agent:"auto"` / omit it. Auto uses
@@ -241,7 +250,8 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
 - **Timed exercises** (`exercises.mode = 'timed'`): sets log `duration_sec` (reps null), plans
   prescribe `target_seconds`; a loaded carry/hold also carries a weight — seconds progress to a
   ceiling first, then one load step with the seconds reset, never both (`docs/ARCHITECTURE.md`
-  "Loaded timed work"). A timed item never takes reps.
+  "Loaded timed work"). A timed item never takes reps. A mobility item never carries a load target or
+  an RIR; what a log row asks for (and "/ side") is `exerciseInputFor()`, `src/repo/exercise-input.ts`.
 - Est-1RM is Epley on the best set per day.
 - **Sensor age and acute muscle fatigue each have exactly one source of truth**: `src/repo/sensor-freshness.ts`
   (a stale wearable reading behaves as absent, never as current) and `hybrid-load.ts`'s `acuteGate()`

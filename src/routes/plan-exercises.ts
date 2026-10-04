@@ -204,6 +204,8 @@ planExercisesRouter.put("/exercises/:id", (req, res) => {
     const updated = updateExercise(Number(req.params.id), {
       mode: b.mode, muscle_group: b.muscle_group, cues: b.cues, constraint_note: b.constraint_note,
       name: b.name, keep_name: b.keep_name === true,
+      input_profile: b.input_profile,
+      per_side: b.per_side === undefined ? undefined : b.per_side == null ? null : b.per_side === true,
     });
     if (!updated) return res.status(404).json({ error: "not found" });
     res.json(updated);

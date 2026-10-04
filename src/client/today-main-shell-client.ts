@@ -12,6 +12,19 @@ type TodayMainShellLeadOptions = {
 type TodayMainShellCompass = {
   weekRecap?: string | null;
   cellsHtml?: string;
+  planned?: number;
+  done?: number;
+  weekKm?: number;
+};
+type TodayMainShellWeekOptions = {
+  currentWeight?: unknown;
+  /** The weight trend, lb/wk (the weekly stats' own slope). */
+  trendLbWk?: unknown;
+  /** Today's lift name when it is still open ("Pull"), for the lifts tally. */
+  liftOpen?: unknown;
+  /** The athlete runs (a km tally rather than a cardio count). */
+  runs?: boolean;
+  weekCardio?: unknown;
 };
 type TodayMainShellDeps = {
   escapeHtml(value: unknown): string;
@@ -22,16 +35,14 @@ type TodayMainShellApi = {
   weekFoldHtml(
     compass: TodayMainShellCompass,
     deps: Pick<TodayMainShellDeps, "escapeHtml">,
-    options?: { currentWeight?: unknown }
+    options?: TodayMainShellWeekOptions
   ): string;
+  digestSlotHtml(): string;
+  aheadSlotsHtml(): string;
   wrapHtml(content: string, options: { railHtml: string }): string;
 };
 
 (() => {
-  function weightChipLabel(currentWeight: unknown, escapeHtml: (value: unknown) => string): string {
-    return currentWeight != null ? `${escapeHtml(currentWeight)}<span class="wt-mini-unit">lb</span>` : "weight";
-  }
-
   // The capture row now carries only the quiet context-tag chips (rendered when its
   // loader has something to show; `:empty{display:none}` until then). The bodyweight
   // chip moved onto the week row (weekFoldHtml): "This week" and the weigh-in are one
@@ -56,28 +67,68 @@ type TodayMainShellApi = {
     ${captureRowHtml(options.isToday)}`;
   }
 
-  // The week row: "This week" and its recap on the left, the weigh-in chip on the
-  // right, one line. The chip sits inside the summary but never toggles the fold
-  // (its click is kept from the summary below); the weight input opens under the row.
+  // THIS WEEK (the Today redesign): a seven-day strip of stones, three tallies (lifts
+  // done of planned, kilometres, the bodyweight with its trend and a sparkline), the
+  // recovery gauges, and the older detail (the compass tiles, the wearable strip)
+  // folded under "More about this week". What the frame knows at paint time (the
+  // weekly stats, today's lift line, the weight) is written now; the strip, the gauges,
+  // the block clock, the km plan and the sparkline are filled into their own slots by
+  // the today-ahead bundle (CairnTodayAhead). The bodyweight tile keeps the inline
+  // capture's id, so one tap still opens the weigh-in input under the section.
   function weekFoldHtml(
     compass: TodayMainShellCompass,
     deps: Pick<TodayMainShellDeps, "escapeHtml">,
-    options: { currentWeight?: unknown } = {}
+    options: TodayMainShellWeekOptions = {}
   ): string {
-    return `<div class="weekrow">
-    <details class="weekfold" id="weekFold">
-      <summary class="weekfold-sum"><span class="lbl">This week</span>${compass.weekRecap ? `<span class="weekfold-recap">${deps.escapeHtml(compass.weekRecap)}</span>` : ""}<button id="wtChipMini" class="wt-mini" type="button" title="Log bodyweight" data-keep-fold>${weightChipLabel(options.currentWeight, deps.escapeHtml)}<span class="stat-plus">+</span></button><span class="weekfold-chev" aria-hidden="true">▾</span></summary>
-      <div class="statstrip statstrip-compass">
-        ${compass.cellsHtml || ""}
-      </div>
-      <div id="wearStrip"></div>
-      <div id="wearBands"></div>
-    </details>
+    const esc = deps.escapeHtml;
+    const num = (value: unknown): number | null =>
+      value == null || value === "" || !Number.isFinite(Number(value)) ? null : Number(value);
+    const done = num(compass.done) ?? 0;
+    const planned = num(compass.planned);
+    const km = num(compass.weekKm) ?? 0;
+    const open = String(options.liftOpen ?? "").trim();
+    const lifts = `<div class="tweek-tally"><div class="tweek-n num"><span data-cu="${done}">0</span>${
+      planned ? `<span class="tweek-u">/${planned}</span>` : ""
+    }</div><small>lift${done === 1 && !planned ? "" : "s"}${open ? ` · ${esc(open)} open` : ""}</small></div>`;
+    const cardio = num(options.weekCardio) ?? 0;
+    const second =
+      km > 0 || options.runs
+        ? `<div class="tweek-tally"><div class="tweek-n num">${esc(String(Math.round(km * 10) / 10))}<span class="tweek-u">km</span></div><small id="tweekKmNote">this week</small></div>`
+        : `<div class="tweek-tally"><div class="tweek-n num"><span data-cu="${cardio}">0</span></div><small>cardio</small></div>`;
+    const weight = num(options.currentWeight);
+    const trend = num(options.trendLbWk);
+    const trendText = trend == null ? "log a weigh-in" : `${trend > 0 ? "+" : trend < 0 ? "−" : ""}${Math.abs(Math.round(trend * 10) / 10)}/wk`;
+    const wt = `<button id="wtChipMini" class="tweek-tally tweek-wt" type="button" title="Log bodyweight" data-keep-fold><span class="tweek-n num" data-wtval>${
+      weight != null ? `${esc(String(weight))}<span class="tweek-u">lb</span>` : "—"
+    }</span><small>${weight != null ? `lb · ${esc(trendText)}` : "weight · tap to log"}</small><span class="tweek-spark" id="tweekSpark" aria-hidden="true"></span></button>`;
+    return `<section class="tweek" id="todayWeek" aria-label="This week">
+    <div class="tweek-mast"><span class="lbl">This week</span><span class="tweek-block lbl" id="tweekBlock"></span></div>
+    <div id="tweekStrip" class="tweek-strip-slot"></div>
+    <div class="tweek-tallies">${lifts}${second}${wt}</div>
     <div class="wt-inline" id="wtInline" hidden>
       <input id="wtInlineInput" type="number" inputmode="decimal" step="0.1" placeholder="Weight (lb)" aria-label="Bodyweight in lb">
       <button id="wtInlineGo" class="logbtn" type="button" aria-label="Log bodyweight">+</button>
     </div>
-    </div>`;
+    <div id="tweekGauges" class="tweek-gauges-slot"></div>
+    <details class="weekfold tweek-more" id="weekFold">
+      <summary class="weekfold-sum"><span class="lbl">More about this week</span>${compass.weekRecap ? `<span class="weekfold-recap">${esc(compass.weekRecap)}</span>` : ""}<span class="weekfold-chev" aria-hidden="true">▾</span></summary>
+      <div class="statstrip statstrip-compass">
+        ${compass.cellsHtml || ""}
+      </div>
+      <div id="wearStrip"></div>
+    </details>
+    </section>`;
+  }
+
+  // The redesigned Today's async sections below the column's lead, each an empty slot
+  // the today-ahead bundle fills (an empty one collapses): the overnight digest sits
+  // before the week; Coming up and the one new connection follow it.
+  function digestSlotHtml(): string {
+    return `<div id="todayDigestSlot" class="tdg-slot"></div>`;
+  }
+
+  function aheadSlotsHtml(): string {
+    return `<div id="todayHorizonSlot" class="thz-slot"></div><div id="todayHeadingSlot" class="thd-slot"></div>`;
   }
 
   // A control inside the week row's summary acts on its own, never toggling the fold.
@@ -96,14 +147,21 @@ type TodayMainShellApi = {
   // fuel). An in-place Brief swap takes the painted node out of the old element and
   // stands it in the new one, where its own controller places it, so nothing
   // repaints or replays its entrance.
+  // The Path card's slot rides the same way: the painted node (its drawn trail, no
+  // replay) stands in for the fresh Brief's empty one.
   function carryBriefSlots(from: Element): (into: Element) => void {
     const fuel = from.querySelector("#todayFuelSlot");
+    const path = from.querySelector("#todayPathSlot");
     return (into) => {
       const g = globalThis as {
         CairnTodayFuelGlance?: { place?(brief: Element, slot: Element): void };
       };
       try {
         if (fuel) g.CairnTodayFuelGlance?.place?.(into, fuel);
+      } catch {}
+      try {
+        const home = into.querySelector("#todayPathSlot");
+        if (path && home && path.innerHTML) home.replaceWith(path);
       } catch {}
     };
   }
@@ -116,6 +174,8 @@ type TodayMainShellApi = {
     carryBriefSlots,
     leadHtml,
     weekFoldHtml,
+    digestSlotHtml,
+    aheadSlotsHtml,
     wrapHtml,
   };
 

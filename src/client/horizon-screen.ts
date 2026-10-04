@@ -5,8 +5,11 @@
 //                      line and labs and scans)
 //                      (horizon-model / -client / -controller), each lane tapping into
 //                      its depth view.
-//   /app/horizon/goal  the goal line in depth: the journey story and the road-ahead
-//                      timeline, the cards Train's overview used to fold away.
+//   /app/horizon/goal  the goal line in depth: All goals (every thread — race, weight,
+//                      each strength objective, the priority marker — start → now →
+//                      goal with its trend; Today's Path card links here), then the
+//                      journey story and the road-ahead timeline, the cards Train's
+//                      overview used to fold away.
 //   /app/horizon/race  is the Plan view's race section (plan-endurance-client.ts),
 //                      which wears "Race" and steps back here.
 //
@@ -89,15 +92,21 @@ function wireHorizonBack(root: ParentNode): void {
       horizonBackHtml() +
       `<div id="horizonGoalBody" class="horizon-goal">${loadingState("Reading the goal line…")}</div>`;
     wireHorizonBack(view);
-    const [journey, milestones, timeline] = await Promise.all([
+    const [journey, milestones, timeline, path] = await Promise.all([
       api("/journey").catch(() => null),
       api("/journey/milestones").catch(() => null),
       api("/journey/timeline").catch(() => null),
+      api(`/today-path?date=${encodeURIComponent(localISO())}`).catch(() => null),
     ]);
     const body = view.querySelector<HTMLElement>("#horizonGoalBody");
     if (token !== pollToken || !body) return;
     const read = journey && typeof journey === "object" && !Array.isArray(journey) ? journey : null;
+    const board =
+      path && typeof path === "object" && !Array.isArray(path)
+        ? CairnHorizon.goalsBoardHtml(path as import("../contracts/today-path.js").TodayPath)
+        : "";
     const cards =
+      board +
       (CairnProgressJourney?.journeyCardHtml?.(read, Array.isArray(milestones) ? milestones : [], { stagger }) || "") +
       (CairnJourneyTimeline?.timelineCardHtml?.(timeline, { stagger }) || "");
     body.innerHTML =

@@ -31,12 +31,23 @@ export function activeTimeZone(): string | undefined {
 // Validate an IANA zone WITHOUT trusting client input — Intl throws RangeError on
 // an unknown zone. Length-capped so a junk header can't be abused. Never used in
 // SQL or a shell, so validity is the only concern.
+// The answer for a given string never changes within a process (the zone data is
+// fixed), and the same zone is checked many times a request, so it is remembered.
+const ZONE_VALIDITY_CACHE_MAX = 64;
+const zoneValidity = new Map<string, boolean>();
+
 export function isValidTimeZone(tz: unknown): tz is string {
   if (typeof tz !== "string" || tz.length === 0 || tz.length > 64) return false;
+  const known = zoneValidity.get(tz);
+  if (known !== undefined) return known;
+  let valid: boolean;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
+    valid = true;
   } catch {
-    return false;
+    valid = false;
   }
+  if (zoneValidity.size >= ZONE_VALIDITY_CACHE_MAX) zoneValidity.clear();
+  zoneValidity.set(tz, valid);
+  return valid;
 }

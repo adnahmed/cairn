@@ -1529,6 +1529,7 @@ export const EXERCISE_ENRICH_SCHEMA: JsonSchema = {
     equipment: { type: ["string", "null"] },
     garmin_category: { type: ["string", "null"] },
     garmin_exercise: { type: ["string", "null"] },
+    per_side: { type: ["boolean", "null"] },
   },
 };
 

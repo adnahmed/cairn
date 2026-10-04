@@ -58,6 +58,7 @@ function mountCoachChanges(): void {
       markRefreshing,
       collapse: (el, done) => collapseEl(el, done),
       skeleton: () => skelLines(3),
+      talk: (text) => gotoChatWith(text),
       // Undo stays available at the affected item too; drop what those surfaces
       // cached so they read the server's restored state on their next paint.
       onReverted: () => {

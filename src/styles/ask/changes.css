@@ -4,7 +4,7 @@
 /* The screen shell (coach-meals-screen.ts renderCoach). Atelier v2: one short
    lede, the feed as hairline rows in one card, and the older histories folded
    away until asked for. */
-.changes-lede{color:var(--ink2);font-size:var(--text-sm);margin:var(--space-2) var(--space-1) var(--space-4);line-height:1.5}
+.changes-lede{color:var(--ink2);font-size:var(--text-sm);margin:var(--space-2) var(--space-1) var(--space-4);line-height:var(--leading)}
 .changes-h{margin:var(--space-9) 0 var(--space-4)}
 .changes-asks:empty,.changes-feed-slot:empty{display:none}
 .changes-fold,.changes-manual{margin-top:var(--space-2);border-top:1px solid var(--line)}
@@ -13,16 +13,16 @@
   cursor:pointer;list-style:none;color:var(--muted)}
 .changes-fold > summary::-webkit-details-marker,.changes-manual > summary::-webkit-details-marker{display:none}
 .changes-fold > summary::after,.changes-manual > summary::after{content:"›";margin-left:auto;font-family:var(--font-ui);
-  font-size:1rem;letter-spacing:0;transition:transform var(--dur-1) var(--ease)}
+  font-size:var(--text-lead);letter-spacing:0;transition:transform var(--dur-1) var(--ease)}
 .changes-fold[open] > summary::after,.changes-manual[open] > summary::after{transform:rotate(90deg)}
 .changes-fold[open]{padding-bottom:var(--space-6)}
 .changes-manual{border-bottom:1px solid var(--line)}
-.changes-manual-note{color:var(--muted);font-size:var(--text-sm);margin:var(--space-2) var(--space-1) var(--space-6);line-height:1.5}
+.changes-manual-note{color:var(--muted);font-size:var(--text-sm);margin:var(--space-2) var(--space-1) var(--space-6);line-height:var(--leading)}
 .changes-status{margin-top:var(--space-5);color:var(--muted);font-size:var(--text-sm)}
 /* the empty feed: a quiet line, not a hero */
 .chfeed-empty.empty-state{padding:var(--space-7) var(--space-8);background:var(--surface);border:1px solid var(--line);
   border-radius:var(--radius);text-align:left;box-shadow:none}
-.chfeed-empty .empty-state-line{font-family:var(--font-display);font-style:normal;font-weight:400;font-size:var(--text-lg);color:var(--ink);margin:0}
+.chfeed-empty .empty-state-line{font-family:var(--font-display);font-style:normal;font-weight:var(--weight-regular);font-size:var(--text-lg);color:var(--ink);margin:0}
 .chfeed-empty .hpic-hero-sub{font-size:var(--text-sm);margin:var(--space-2) 0 0;max-width:none;color:var(--ink2)}
 
 /* The feed: day groups, newest first; one hairline row per change, the stone's dot
@@ -40,17 +40,17 @@
 .chfeed-head{position:relative;display:flex;align-items:baseline;gap:var(--space-4)}
 .chfeed-dot{position:absolute;left:calc(-9px - var(--space-5));top:.42em}
 .chfeed-dot.is-team{background:var(--ink)}
-.chfeed-title{margin:0;flex:1;min-width:0;font-size:var(--text-md);font-weight:600;line-height:1.4;color:var(--ink)}
+.chfeed-title{margin:0;flex:1;min-width:0;font-size:var(--text-md);font-weight:var(--weight-semibold);line-height:var(--leading-normal);color:var(--ink)}
 .chfeed-new{flex:none;font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
-  text-transform:uppercase;color:var(--dawn-deep);background:var(--dawn-wash);border-radius:var(--radius-pill);padding:3px 7px}
-.chfeed-why{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink2)}
-.chfeed-outcome{margin:0;font-size:var(--text-sm);line-height:1.45}
+  text-transform:uppercase;color:var(--dawn-deep);background:var(--dawn-wash);border-radius:var(--radius-pill);padding:var(--space-2) var(--space-4)}
+.chfeed-why{margin:0;font-size:var(--text-sm);line-height:var(--leading);color:var(--ink2)}
+.chfeed-outcome{margin:0;font-size:var(--text-sm);line-height:var(--leading-normal)}
 .chfeed-outcome::first-letter{text-transform:uppercase}
 .chfeed-outcome-ok{color:var(--d-endurance)}
 .chfeed-outcome-watch{color:var(--dawn-deep)}
 .chfeed-outcome-quiet{color:var(--muted)}
 .chfeed-meta{margin:0;font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
-  text-transform:uppercase;color:var(--muted);line-height:1.6}
+  text-transform:uppercase;color:var(--muted);line-height:var(--leading)}
 .chfeed-conf-k{letter-spacing:inherit}
 .chfeed-undo{align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;
   margin:calc(var(--space-4) * -1) 0 calc(var(--space-5) * -1);font-size:var(--text-sm)}
@@ -67,8 +67,23 @@
 /* Ask cards: what is left to ask — calm, collapsed behind a quiet count. */
 .askcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
   padding:var(--space-5) var(--space-7);display:flex;flex-direction:column;gap:var(--space-2)}
-.askcard-line{margin:0;font-size:var(--text-md);line-height:1.45;color:var(--ink)}
-.askcard-why{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--muted)}
+.askcard-line{margin:0;font-size:var(--text-md);line-height:var(--leading-normal);color:var(--ink)}
+.askcard-why{margin:0;font-size:var(--text-sm);line-height:var(--leading);color:var(--muted)}
 .askcard-talk{align-self:flex-start;min-height:44px;display:inline-flex;align-items:center;
   margin-bottom:calc(var(--space-4) * -1);font-size:var(--text-sm)}
 
+
+/* the Today redesign's row grammar: the digest's arrow leads the title, a long why
+   folds to three lines behind "Read all", and "Talk it through" sits beside Undo */
+.chfeed-arrow{flex:none;align-self:center;width:20px;height:20px}
+.chfeed-why.is-folded{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.chfeed-more{margin-top:var(--space-2);font-size:var(--text-xs)}
+.chfeed-acts{display:flex;flex-wrap:wrap;gap:var(--space-6);align-items:baseline;margin-top:var(--space-3)}
+.chfeed-acts:empty{display:none}
+/* Set aside — the quiet group that closes the feed: drafts a newer review replaced,
+   one plain line each, no Undo (nothing was applied) */
+.chfeed-aside{display:flex;flex-direction:column;gap:var(--space-4)}
+.chfeed-aside-rows{list-style:none;margin:0;padding:0 var(--space-7);display:flex;flex-direction:column;gap:var(--space-5)}
+.chfeed-aside-row{display:flex;flex-direction:column;gap:var(--space-1)}
+.chfeed-aside .chfeed-why{color:var(--muted)}
+.chfeed-empty + .chfeed{margin-top:var(--space-8)}

@@ -58,6 +58,7 @@ import {
   recentCardioLoadMedian,
   type TrainingLoad,
 } from "../training-read.js";
+import { copyDeep, copyFlat, requestMemo } from "../request-memo.js";
 
 export const DAY_READ_ADHERENCE_METRIC = "day_read_adherence";
 export const DAY_READ_ADHERENCE_EVALUATOR_VERSION = "day-read-adherence-v1";
@@ -1422,6 +1423,10 @@ function parseUtcInstant(value: unknown): number | null {
 // The first instant anything was trained on `date`, UTC ms: `null` when nothing was,
 // `NaN` when something was but its start cannot be placed.
 function firstTrainingInstantMs(date: string): number | null {
+  return requestMemo(`first_training_instant:${date}`, () => firstTrainingInstantMsRead(date), copyFlat);
+}
+
+function firstTrainingInstantMsRead(date: string): number | null {
   let first: number | null = null;
   const take = (ms: number | null) => {
     if (ms != null && (first == null || ms < first)) first = ms;
@@ -1531,6 +1536,10 @@ export interface WatchWakeReading {
 }
 
 export function watchWakeReading(morning: string): WatchWakeReading | null {
+  return requestMemo(`watch_wake_reading:${morning}`, () => watchWakeReadingRead(morning), copyFlat);
+}
+
+function watchWakeReadingRead(morning: string): WatchWakeReading | null {
   let rows: Array<{ raw_json: string | null }> = [];
   try {
     rows = db
@@ -2090,6 +2099,14 @@ export interface HarmEvidenceOptions {
 
 export function harmEvidenceOnDay(date: string, opts: HarmEvidenceOptions = {}): HarmEvidence | null {
   const running = opts.domain === "running";
+  return requestMemo(
+    `harm_evidence:${date}:${running ? "running" : ""}`,
+    () => harmEvidenceOnDayRead(date, running),
+    copyDeep
+  );
+}
+
+function harmEvidenceOnDayRead(date: string, running: boolean): HarmEvidence | null {
   if (!running) {
     try {
       const row = db

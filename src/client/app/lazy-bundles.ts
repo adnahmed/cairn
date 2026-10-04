@@ -31,6 +31,9 @@ type CairnLazyBundleName = ClientLazyBundleName;
     "settings": "/js/bundle-11-settings.js",
     "day": "/js/bundle-12-day.js",
     "meals": "/js/bundle-13-meals.js",
+    // Today's below-the-Brief sections (the digest, the week, Coming up, Where you're
+    // heading): Today mounts them through withBundle once its frame is painted.
+    "today-ahead": "/js/bundle-14-today-ahead.js",
   };
 
   // What else a bundle calls into at render time. Health reuses the body-metrics
@@ -44,10 +47,12 @@ type CairnLazyBundleName = ClientLazyBundleName;
     "settings": [],
     day: [],
     meals: [],
+    "today-ahead": [],
   };
 
   // Warm order after first paint: the homes a tap away first, Settings last.
-  const PREFETCH_ORDER: readonly CairnLazyBundleName[] = ["train", "ask", "horizon", "day", "me-health", "meals", "settings"];
+  // Today's own lower half leads: it is the home every open lands on.
+  const PREFETCH_ORDER: readonly CairnLazyBundleName[] = ["today-ahead", "train", "ask", "horizon", "day", "me-health", "meals", "settings"];
 
   const inflight = new Map<CairnLazyBundleName, Promise<void>>();
   const executed = new Set<CairnLazyBundleName>();

@@ -15,6 +15,7 @@ import { readsRestGradeReadiness } from "./readiness-bands.js";
 import { sensorIsCurrent } from "./sensor-freshness.js";
 import { localDateISO } from "./shared.js";
 import { finite as num } from "../lib/numbers.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 export type HrZoneKey = "z1" | "z2" | "z3" | "z4" | "z5";
 
@@ -363,7 +364,7 @@ function readPersisted(asOf: string): HrModel | null {
  */
 export function getHrModel(dateISO?: string): HrModel {
   const asOf = String(dateISO || localDateISO()).slice(0, 10);
-  return readPersisted(asOf) ?? computeHrModel(asOf);
+  return requestMemo(`hr_model:${asOf}`, () => readPersisted(asOf) ?? computeHrModel(asOf), copyDeep);
 }
 
 /** Recompute from raw data + calibration events and persist as the current model. */

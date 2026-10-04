@@ -5,7 +5,7 @@
    keyframe (the global reduced-motion reset zeroes it) and steps aside while
    Today's pinned header is condensed.
    ===================================================================== */
-.moved-note{display:block;margin:var(--space-3) 0 0;font-size:var(--text-xs);line-height:1.5;color:var(--muted);
+.moved-note{display:block;margin:var(--space-3) 0 0;font-size:var(--text-xs);line-height:var(--leading);color:var(--muted);
   animation:settlein var(--dur-2) var(--ease) both}
 .moved-note[hidden]{display:none}
 .moved-note-text{margin-right:var(--space-4)}
@@ -23,7 +23,7 @@ header:has(> .hdr-chat-actions) > #header-title{grid-column:1;grid-row:1;min-wid
 header:has(> .hdr-chat-actions) > .hdr-chat-actions{position:static;grid-column:2;grid-row:1}
 header:has(> .hdr-chat-actions) > .moved-note{grid-column:1 / -1;grid-row:2}
 /* The You landing's groups, under the cairn-stack. */
-.you-group{margin-top:var(--space-10)}
+.you-group{margin-top:var(--space-11)}
 .you-group:first-child{margin-top:0}
 .you-group-h{margin:0 0 var(--space-5)}
 

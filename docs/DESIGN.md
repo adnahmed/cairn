@@ -47,8 +47,23 @@ word). A stone's hue is its identity and never changes with its state.
 
 Stone drawing tokens: `--shadow` (the contact shadow), `--sheen-hi` / `--sheen-lo`, `--stone-rim`,
 `--on-stone`. Radii: `--radius-lg` 22, `--radius` 18, `--radius-md` 14, `--radius-sm` 12,
-`--radius-xs` 10, `--radius-pill` 999. Shadows (`--shadow-sm/md/lg`) exist for floating things
+`--radius-xs` 10, `--radius-2xs` 6 (tags, small marks), `--radius-3xs` 2 (bars, tracks),
+`--radius-pill` 999. Shadows (`--shadow-sm/md/lg`) exist for floating things
 (sheets, menus, toasts); cards do not use them. The page gutter is `--gutter` (16px).
+
+**Spacing** (`--space-*`) is ONE ladder for every margin, padding and gap: 2px steps from
+`--space-1` 2 to `--space-10` 20, then the rhythm steps `--space-11` 24 (a section break: Today's
+`--today-gap`), `-12` 28, `-13` 32, `-14` 40, `-15` 48. Sibling cards sit `--space-card` (10) apart.
+A row's padding and the gap between sections are different steps on purpose: a section break must
+read as one at a glance, never as just another row.
+
+**The scales are enforced.** `scripts/check-design-tokens.mjs` (in `npm run verify`) ratchets, per
+partial, every spacing, font-size, font-weight, radius, letter-spacing and line-height value that
+is not a token against `scripts/design-token-baseline.json` — the count may fall, never rise. Its
+`--fix` snaps a literal onto the nearest step; `--report` lists what remains. Literal by design:
+`0`, sub-2px hairline offsets, negative pulls, geometry inside `calc()`/`min()`/`max()`/`clamp()`/
+`env()`, `em` font sizes (relative to the parent), SVG text in px, and the 16px input size iOS
+needs to not zoom. `test/designTokens.test.js` keeps the script's scales equal to `tokens.css`.
 
 **Dark.** The dark palette is defined twice, identically: under
 `@media (prefers-color-scheme: dark)` guarded by `:root:not([data-theme="light"])`, and under
@@ -70,8 +85,15 @@ for a move that ships with new icon bytes, since its version bump asks iOS insta
 - **Martian Mono** (`--font-mono`, 400 / 500): eyebrows, labels, dates — small, uppercase,
   `letter-spacing:var(--tracking-mono)` (.09em). Classes: `.lbl` (v1 name) and `.eyebrow`.
 - **Scale** (`--text-*`): `2xs` .62rem (mono labels) · `xs` .74 · `sm` .8 · `md` .88 · `base`
-  .94 (≈15px) · `lg` 1.15 · `xl` 1.4 · `2xl` 1.72 (h1, `.voice`) · `3xl` 2.4. Secondary copy lives in
-  `xs`–`md`. Inputs on touch devices stay at 16px so iOS never zooms.
+  .94 (≈15px) · `lead` 1.05 · `lg` 1.15 · `xl` 1.4 · `2xl` 1.72 (h1, `.voice`) · `3xl` 2.4. Secondary
+  copy lives in `xs`–`md`. Inputs on touch devices stay at 16px so iOS never zooms. On Today the
+  Brief headline is the ONE display-size line; everything below it speaks at `lg` or smaller.
+- **Weight** (`--weight-*`): `regular` 400 · `medium` 500 · `semibold` 600 · `bold` 700 — four, no
+  in-betweens (a 540 beside a 560 reads as a mistake, never as hierarchy).
+- **Leading:** `--leading-none` 1 · `-tight` 1.15 (display, numerals) · `-snug` 1.3 (titles,
+  chips) · `-normal` 1.45 (UI copy) · `--leading` 1.5 (running copy). **Tracking:** `--tracking-tight`
+  -.015em (display serif, numerals) · `-wide` .02em · `-wider` .05em (small sans caps) · `-mono`
+  .09em · `-widest` .14em.
 - The faces are **self-hosted**: latin-subset woff2 under `public/fonts/` (from the `@fontsource`
   tarballs, OFL texts beside them), declared in `src/styles/foundation/fonts.css` with
   `font-display:swap`, precached in `public/sw.js` `CORE_ASSETS`, and `index.html` preloads only
@@ -113,11 +135,24 @@ and `CairnStone` (`src/client/ui-stone.ts`, SVG strings), CSS in `src/styles/fou
   optional `.chev`, rows divided by a 1px `--line`, the first undivided.
 - **Marks:** `.dot` (9px, `--c`), `.pill` (fully rounded, tinted by `--c`), `.ping` (the live dawn
   dot), `.num` (tabular figures).
-- **Buttons:** small, rounded 999, `.84rem`. `.btn` (surface + line), `.btn-solid` (ink with ground
+- **Buttons:** rounded 999. `.btn` (surface + line), `.btn-solid` (ink with ground
   text — the solid one is ink), `.btn-dawn`. The v1 families keep their names and take the v2 look:
   `.logbtn` (the primary solid), `.pillbtn` (+ `.pill-accent` solid ink, `.pill-warn`, `.pill-sm`),
   `.ghostbtn` (outline), `.draftbtn` (full-width call to action; `.applied` is sage and inert),
-  `.iconbtn` / `.delbtn` / `.ordbtn`.
+  `.iconbtn` / `.delbtn` / `.ordbtn`. A text pill button takes its shape from ONE of two sizes —
+  `--btn-pad/-text/-weight` (8×14, `md`, medium) or `--btn-sm-*` (6×12, `xs`, semibold) — and a
+  surface's own button (`.hstand-refbtn`, `.meal-swapbtn`, `.rest-btn` …) points at those tokens
+  rather than restating a padding. Icon, stepper, toggle and segmented buttons keep their geometry.
+- **Chips and badges** are the two small rounded shapes. A **chip** is a tappable choice (a tag, a
+  starter prompt, an option): `--chip-pad/-text/-weight` (6×12, `sm`, medium). A **badge** is a
+  status word riding a row ("New", "fresh", a level): `--badge-*` (2×8, `2xs`, semibold). Every
+  `*-chip` / `*-pill` rule takes those three values from the tokens, so two chips side by side
+  never disagree; only colour and border are the surface's own. Value pills tinted by `--c`
+  (`.pill`, `.horizon-pill`) are neither.
+- **Text actions** (`.linkbtn` accent, `.linkbtn-quiet` muted) are standalone controls, never
+  prose: `.linkbtn-quiet` carries `--text-sm`, so "Restore previous targets" and "Talk it through"
+  side by side match. Every text action's underline sits `--link-offset` (3px) below, in
+  `--line-strong`.
 - **Segments:** `.seg` is a surface pill track; the selected `.segbtn` (or the sliding
   `.seg-thumb`) is ink with ground text. A rail that scrolls (`.seg-scroll`) fades the edge that
   still has more behind it (`.seg-fade-l` / `.seg-fade-r`, set by `fitSeg`), so it never looks clipped.
@@ -280,7 +315,8 @@ Brief's voice is the page's one focal point; it pins to the top of the scroll an
 condenses to a slim blurred band — see `body[data-tab="today"] header.condensed`).
 
 **Today (Atelier v2).** One focal point, then show-when-needed, in this order: the Brief's voice →
-NOW → Fuel today → around today → "Worth a look". The six stones no longer print on Today: they
+the Path → NOW → Fuel today → the overnight digest → This week → Coming up → the new connection
+(see "Today, the road ahead" below, which supersedes the Around today / Worth a look parts here). The six stones no longer print on Today: they
 live on You (the cairn-stack) and each stone's own detail page. The Brief (`.brief`) is the
 page's voice, not a card: it sits on the ground with a mono kicker, the Young Serif
 `.brief-headline`, and the ink2 `.brief-why`. In the why, the first word naming each stone (at most
@@ -331,13 +367,91 @@ itself after the next good run. Today-only components whose base rules still
 live in older partials (the block thread, agenda cards, the run line, the context tags) take the v2
 look in `today/pebbles.css`, scoped to `.today-wrap`.
 
+**Today, the road ahead (the Today redesign).** Today reads in four layers: the day and the road
+it is on, what to do now, what the team did, and what is coming. Top to bottom:
+
+- **The Brief** keeps its kicker, serif headline and why (the agent credits work already logged today
+  and points forward once, from `DATA.today_path`). "Around today" left today's own Brief (another
+  date's Brief keeps the fold): the road ahead is Coming up, the block clock rides This week's mast.
+- **The Path card** (`.tpath`, `today-path-client.ts` + `today-path-controller.ts`, eager; GET
+  `/api/today-path`) sits in `#todayPathSlot` under the why, before NOW, and rides the Brief's in-place
+  upgrade like the fuel slot (`carryBriefSlots`). A mono kicker ("Your path · 30 days to <race>"), an
+  SVG trail drawn to scale in time from `trail_start` through today to the furthest of peak week, the
+  race and the goal date (dotted `.tpath-trail`; the walked part `.tpath-walked` in dawn draws in ONCE
+  over 1.6s on the house curve by `stroke-dashoffset` from `--len`; the "now" dot `.tpath-now` breathes
+  on `--dur-ping` via `.tpath-pulse`; marks take their stone's deep hue: race endurance, goal body,
+  peak the endurance fill), then three threads (`.tpath-thread`: a stone-hue dot, the name with ONE
+  muted trend line, the real number in its unit — race clock, lb, est. 1RM lb), then the week's ONE
+  lever (`.tpath-lever`, a dawn diamond), and a quiet "All goals" link (`.tpath-all`,
+  `/app/horizon/goal`) — the card shows three threads, Horizon holds every goal. A repaint never replays the walk (`.tpath-quiet`,
+  `.today-soft`, a held slot), and reduced motion stills the walk and the breath. No score: the race
+  against its target is the build's fit word.
+- **NOW** (the lift card) keeps Start / Ask / "Not quite right?". Its meta line carries the anchor (or
+  first) lift's prescription ("Assisted Pull-Up · 30 lb assist · 3 × 6–8",
+  `CairnTodayBrief.prescriptionLine`); the engine's guardrail and anchor lines moved behind "tap to
+  see why" (`.brief-caveats[data-brief-caveats]`, revealed with the why panel).
+- **"Something going on today? Tell the team"** (`.ctxline` in `#tagsSlot`) replaces the tag-chip
+  row: one quiet line (or what is already noted) opening a `CairnUiSheet` (`.ctxsheet`) that lists the
+  tags, each with the server's plain sentence of what it changes (`effect`, GET
+  `/api/context-tags/vocab`); a row is the same `.tag-chip[data-tag]` toggle as before.
+- **The overnight digest** (`.tdg` in `#todayDigestSlot`; GET `/api/today-digest`) replaces the
+  "Worth a look / Needs your decision / What changed" stack: a mast ("Overnight · 3 lifts
+  moved", "All changes" to the Changes view), at most ONE plain question card (`.tdg-ask`, the
+  agenda's goal/clinical draft answered inline: "Yes, make the change" / "Keep my plan" / "Talk it
+  through"), then at most THREE one-line rows (`.tdg-row`: an arrow in a small circle — dawn wash for
+  up/added — the lift, the before struck through `.tdg-from` and the after `.tdg-to`; only the first
+  row carries its muted reason), the rest counted on the mast link ("+2 more in Changes"), with the
+  decision's server-labelled Undo (on the row for a one-lift change, one `.tdg-undo-row` for a
+  multi-lift change). Drafts a newer review set aside never print on Today; they close the Changes
+  feed. Omitted when empty.
+- **This week** (`.tweek`): a mast with the block clock (`#tweekBlock`: "Sharpen · Wk 5 of 6", or the
+  running recovery week), the Mon–Sun strip (`.twk-day`, one `.twk-st` stone per session in the
+  strength/endurance hue — filled done, outlined planned, dashed `is-open` for today's open session,
+  faint `is-past` for one not logged; today in dawn with a dot; stones settle in once), three tallies
+  (`.tweek-tally`: lifts done of planned with today's open lift, km run with "of ~33 incl. Sun long",
+  and the bodyweight tile `#wtChipMini` — number, trend per week and a `.tspark` sparkline over a dotted
+  goal line — whose tap opens the inline weigh-in), the recovery gauges (`.tgauge`: Resting HR, HRV,
+  Sleep; the reading and its unit, the athlete's band `.tgauge-band` with the pin, and a mono line
+  "Wed night · usual 41–52" — only the read day's own row is last night, an older one is named by its
+  night, a stale one draws no pin), then the older detail folded under "More about this week" (the
+  compass tiles and the wearable strip).
+- **Coming up** (`.thz`) replaces "Around today": a mast carrying the season's focus ("Coming up ·
+  focus: lipids & recomposition") over a dated rail (`.thz-row`: a mono date or window, a stone-hue
+  dot on a hairline rail, a title, one sentence) — next long run, peak week, the strength checkpoint,
+  the race (with "The race build →"), the goal date, and the checkup week ("See what to ask for →"
+  opens Health › Next checkup).
+- **The new connection** (`.thd-connection` in `#todayHeadingSlot`): ONE `.thd-insight` sentence,
+  only when a new connection exists. The goals board that once sat here ("Where you're heading")
+  repeated the Path card three screens down; it is **All goals** on Horizon's goal line now
+  (`CairnHorizon.goalsBoardHtml`, styled in `horizon/horizon.css`): one row per thread (race, weight,
+  each strength objective, the priority marker), "start → **now** · goal" in real units over a track
+  (`.thd-track`: start and goal marks, `.thd-fill` growing to `--w` once over 1.1s; a marker row shows
+  its direction word instead of a track), most movement this month first.
+- What is left of "Worth a look" (`.today-rail`) holds only what has no other home: the weekly read,
+  a Garmin merge's Undo, the install note and health reads (`CairnTodayWorth.railAgenda`).
+
+The digest, the week's strip/gauges/sparkline, Coming up and the new-connection line live in the lazy, route-less
+`today-ahead` bundle (`bundle-14-today-ahead.js`: `today-digest-client`, `today-week-client`,
+`today-horizon-client`, `today-ahead-controller`), mounted by the screen through
+`withBundle("today-ahead", …)` after the frame paints and warmed first on idle; their slots collapse
+when empty and are held across a quiet repaint (`today-slot-hold.ts`). CSS: `today/path.css`,
+`today/ahead.css`. The Changes view (`changes-feed-client.ts`) takes the same row grammar: the
+arrow leads the title, a long why folds to three lines behind "Read all", and "Talk it through"
+sits beside Undo. A quiet "Set aside" group (`.chfeed-aside`) closes the feed: one plain server
+sentence per draft a newer review replaced ("An older draft for Back Squat was set aside: a newer
+review replaced it."), no Undo, never counted as new.
+
 **Session (Atelier v2).** `.ex` is a compact hairline card: the name in the UI face, the dose muted
 on the right, `.ex-prog` in mono. The first lift still open (`:nth-child(1 of .ex:not(.ex-complete))`)
 and the card being typed into wear the dawn ring and the dawn `Log`; every other card keeps its log
 row (any order is fine) but folds its coaching prose and shows `Log` in ink on surface2. Logged
 sets are hairline rows (`.logged .chip`, mono `#n`), captions over the wells are mono
 (`.logcaps`), and `.sess-dots` are one slim bar per lift. The Finish row is `.finish-row` with the
-solid ink `.finish-btn`.
+solid ink `.finish-btn`. The log row asks only for what the movement takes (`item.input`, from
+`src/repo/exercise-input.ts`): **loaded** weight · reps · RIR (or weight · time); **bodyweight** reps ·
+RIR (or time); **mobility** reps or time, never an RIR. A bodyweight or mobility row keeps its load
+box hidden behind a dashed `.ex-addload` pill ("+ Add load"); a planned or prefilled load, an assist
+included, shows it. A one-sided drill reads "/ side" on its dose and its last-time line.
 Tab bar `.tabbar` / `.tab` / `.tab.active`: surface blur bar, muted icons, ink label + dawn icon when active, with a
 small dot indicator; desktop ≥960px → left sidebar with the brand block leading. Five buttons, one
 per HOME, in this order: Today (calendar-check), Train (trend line), Horizon (a half-sun rising over
@@ -791,12 +905,13 @@ plan, falls back to the newest draft):
 
 ## Today trajectory and bodyweight capture
 
-The collapsed `This week` fold owns the `.statstrip`: discipline-aware training volume,
-weight pace, and its bodyweight tile. Pace is trajectory here, never a standalone warning
-or prewritten coach ask. A second small `#wtChipMini` bodyweight quick action stays above
-the fold beside its hidden inline input/save row, so one-tap weight capture is always
-reachable; saving updates both visible weight controls. Typed capture lives in Chat rather
-than as a separate Today control. Stat numerals count up via `data-cu`.
+This week (above) owns the trajectory: lifts and km against the week's plan, and the bodyweight
+tile with its trend and sparkline. Pace is trajectory here, never a standalone warning or
+prewritten coach ask. The tile keeps the `#wtChipMini` id, so one tap opens the inline
+`#wtInline` input under the tallies; a save rewrites only the tile's `[data-wtval]` number (the
+sparkline stays). The compass tiles (`.statstrip`) remain one tap deeper under "More about this
+week". Typed capture lives in Chat rather than as a separate Today control. Stat numerals count up
+via `data-cu`.
 
 Below the bodyweight chip, the capture row carries two quiet, optional surfaces fed by
 their own loaders and empty by default (`:empty{display:none}`, so neither draws anything
@@ -1061,10 +1176,10 @@ the new JSON: a budget diff is a review signal. `--report` lists each bundle's l
 - **Inline `style=""` carries data only:** custom properties (`--i`, `--frac`, `--segi`, `--segn`)
   and data geometry (`left`/`width` percentages). About 527 inline styles in 80 files do more than
   that today (98 of them in `body-metrics-client.ts`).
-- **Scales that are still missing:** spacing (only `--space-card` exists), type (about 70 distinct
-  `rem` sizes), z-index (about 15 raw values between 1 and 90), and a pill radius (`999px` appears
-  127 times). The v2 foundation adds `--space-*`, a short `--text-*` scale, named `--z-*` layers and
-  `--radius-pill`, and new CSS uses only those.
+- **Every scale exists and is held:** spacing, type, weight, leading, tracking and radius (see
+  **Tokens** above), named `--z-*` layers and `--radius-pill`. The partials were snapped onto them
+  in one pass (from ~5,000 literals to a short baseline of deliberate exceptions), and
+  `scripts/check-design-tokens.mjs` keeps a new literal from landing.
 - **New component CSS** goes in the partial of the surface that owns it (**Stylesheet ownership**),
   under the component's prefix; a new partial is added to `STYLE_PARTIALS` in
   `scripts/build-styles.mjs` at the point in the cascade where it belongs.

@@ -1,5 +1,6 @@
 import { db } from "../db.js";
 import { addDaysISO, approxTimeForMealLabel, localDateISO, normalizeWallClock } from "./shared.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 export type IntakeDayCoverage = "complete" | "partial" | "none";
 
@@ -198,6 +199,18 @@ export function completedIntakeRange(
   through: string,
   closedThrough = addDaysISO(localDateISO(), -1) ?? localDateISO()
 ): CompletedIntakeWindow {
+  // Request-memoized: the expenditure, fuel and trajectory reads each parse the same
+  // food-note window. Keyed by all three bounds; anything but strings computes.
+  if (typeof since === "string" && typeof through === "string" && typeof closedThrough === "string")
+    return requestMemo(
+      `completed_intake_range:${since}|${through}|${closedThrough}`,
+      () => completedIntakeRangeRead(since, through, closedThrough),
+      copyDeep
+    );
+  return completedIntakeRangeRead(since, through, closedThrough);
+}
+
+function completedIntakeRangeRead(since: string, through: string, closedThrough: string): CompletedIntakeWindow {
   const effectiveThrough = through < closedThrough ? through : closedThrough;
   const days = calendarDays(since, effectiveThrough);
   if (!days) {

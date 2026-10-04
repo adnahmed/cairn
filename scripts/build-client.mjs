@@ -135,6 +135,13 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/today-screen-runtime-deps.ts", output: "public/js/today-screen-runtime-deps.js" },
   { source: "src/client/today-screen-runtime.ts", output: "public/js/today-screen-runtime.js" },
   { source: "src/client/session-snapshot-client.ts", output: "public/js/session-snapshot-client.js" },
+  { source: "src/client/today-path-client.ts", output: "public/js/today-path-client.js" },
+  { source: "src/client/today-path-controller.ts", output: "public/js/today-path-controller.js" },
+  { source: "src/client/today-ahead-mount.ts", output: "public/js/today-ahead-mount.js" },
+  { source: "src/client/today-digest-client.ts", output: "public/js/today-digest-client.js" },
+  { source: "src/client/today-week-client.ts", output: "public/js/today-week-client.js" },
+  { source: "src/client/today-horizon-client.ts", output: "public/js/today-horizon-client.js" },
+  { source: "src/client/today-ahead-controller.ts", output: "public/js/today-ahead-controller.js" },
   { source: "src/client/today-screen.ts", output: "public/js/03-today.js" },
   { source: "src/client/progress-data-client.ts", output: "public/js/progress-data-client.js" },
   { source: "src/client/progress-endurance-client.ts", output: "public/js/progress-endurance-client.js" },
@@ -473,6 +480,9 @@ export const BUNDLES = [
       "public/js/ui-stone.js",
       "public/js/today-fuel-glance-client.js",
       "public/js/today-worth-client.js",
+      "public/js/today-path-client.js",
+      "public/js/today-path-controller.js",
+      "public/js/today-ahead-mount.js",
       "public/js/today-rail-controller.js",
       "public/js/today-plan-selection-client.js",
       "public/js/today-training-client.js",
@@ -871,6 +881,22 @@ export const BUNDLES = [
       "public/js/meal-planner-actions-controller.js",
       "public/js/meal-planner-controller.js",
       "public/js/meal-journal-client.js",
+    ],
+  },
+  {
+    output: "public/js/bundle-14-today-ahead.js",
+    label: "Today below the Brief (the overnight digest, the week, Coming up, the new connection)",
+    // LAZY: the redesigned Today's async lower half. today-screen (eager) paints the
+    // frame and its empty slots, then mounts these through withBundle("today-ahead");
+    // warmed first on idle, precached. Route-less: it renders inside Today's own view.
+    lazy: "today-ahead",
+    views: [],
+    routeless: true,
+    inputs: [
+      "public/js/today-digest-client.js",
+      "public/js/today-week-client.js",
+      "public/js/today-horizon-client.js",
+      "public/js/today-ahead-controller.js",
     ],
   },
 ];

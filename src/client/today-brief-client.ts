@@ -41,8 +41,9 @@ type TodayBriefSessionFold = {
   progress: string;
   minutes: number | null;
   count?: number | null; // lifts in the session: the NOW card's idle bars (absent → none)
-  // Guardrails and the anchor line, when the card would have printed them.
+  // Guardrails and the anchor line: behind "tap to see why", never on the card's face.
   lines: string[];
+  rx?: string | null; // the anchor (or first) lift's prescription, on the meta line until started
   // The exact preview the card would have bound its start to.
   preview?: unknown;
   live?: TodayBriefLive | null; // where a started session stands (the live card)
@@ -373,25 +374,33 @@ type TodayBriefHtmlOptions = {
     return reason ? `<p class="brief-reason">${escHtml(reason)}</p>` : "";
   }
 
-  // The launch card's facts inside the NOW card: "1 of 5 logged · ~60 min", then
-  // guardrails / the anchor line; a line the Brief already shows is dropped.
+  // The launch card's facts inside the NOW card ("5 movements · ~60 min · Row · 150 lb · 3 × 6–8");
+  // the engine's guardrail/anchor reasons wait behind "tap to see why" (todayBriefCaveatLines).
   function todayBriefSessionFoldHtml(
     fold: TodayBriefSessionFold | null | undefined,
     shown: { estMinutes: number | null; lines: unknown[]; linesOnly?: boolean }
   ): string {
     if (!fold || typeof fold !== "object") return "";
     const minutes = fold.minutes != null && Number(fold.minutes) > 0 ? Math.round(Number(fold.minutes)) : null;
-    // Under the live card only the progress/minutes meta steps aside; the guardrail and journey lines stay.
-    const meta = shown.linesOnly ? "" : [String(fold.progress || "").trim(), minutes != null && minutes !== shown.estMinutes ? `~${minutes} min` : ""].filter(Boolean).join(" · ");
-    const extra: string[] = [];
+    // Under the live card the progress/minutes meta steps aside (the live card says it).
+    const rx = !fold.started && fold.rx ? String(fold.rx).trim() : "";
+    const meta = shown.linesOnly
+      ? ""
+      : [String(fold.progress || "").trim(), minutes != null && minutes !== shown.estMinutes ? `~${minutes} min` : "", rx]
+          .filter(Boolean)
+          .join(" · ");
+    return meta ? `<div class="brief-session"><div class="brief-session-meta">${escHtml(meta)}</div></div>` : "";
+  }
+
+  // The fold's guardrail/anchor lines, each said once, for the hidden "tap to see why" disclosure.
+  function todayBriefCaveatLines(fold: TodayBriefSessionFold | null | undefined, shown: unknown[]): string[] {
+    if (!fold || typeof fold !== "object") return [];
+    const out: string[] = [];
     for (const line of Array.isArray(fold.lines) ? fold.lines : []) {
-      const text = todayBriefDistinctLine(line, ...shown.lines, meta, ...extra);
-      if (text) extra.push(text);
+      const text = todayBriefDistinctLine(line, ...shown, ...out);
+      if (text) out.push(text);
     }
-    if (!meta && !extra.length) return "";
-    return `<div class="brief-session">${meta ? `<div class="brief-session-meta">${escHtml(meta)}</div>` : ""}${extra
-      .map((text) => `<div class="brief-session-line">${escHtml(text)}</div>`)
-      .join("")}</div>`;
+    return out;
   }
 
   // The morning check-in's mount point, and the ONLY place it is allowed to appear:
@@ -471,6 +480,8 @@ type TodayBriefHtmlOptions = {
       todayBriefDistinctLine(read?.focus, read?.headline || meta.lead, strengthLine ? line?.text : "")
     );
     const updated = todayBriefUpdatedHtml(read, kind, options.isToday !== false);
+    // The Path card's slot (today only, under the voice, before NOW); aria-live off, like fuel.
+    const pathSlot = options.isToday === true ? `<div id="todayPathSlot" class="tpath-slot" aria-live="off"></div>` : "";
     const reason = todayBriefReasonHtml(read, kind);
     const lookBack = todayBriefLookBackHtml(read, options.isToday !== false);
 
@@ -487,6 +498,7 @@ type TodayBriefHtmlOptions = {
     const foldMinutes = fold && Number(fold.minutes) > 0 ? Math.round(Number(fold.minutes)) : null;
     const actions: string[] = [];
     let sessionFold = "";
+    let caveats: string[] = [];
     // The live card is TODAY's alone: a past date's train read never shows a session as under way.
     const live = kind === "train" && options.isToday === true && options.session?.started && voice ? voice.liveHtml(options.session.live) : "";
     if (kind === "train" && !options.nothingToStart) {
@@ -500,6 +512,7 @@ type TodayBriefHtmlOptions = {
         lines: [read?.headline, read?.focus, read?.why, strengthLine ? line?.text : ""],
         linesOnly: !!live,
       });
+      caveats = todayBriefCaveatLines(options.session, [read?.headline, read?.focus, read?.why, strengthLine ? line?.text : ""]);
     } else if (kind === "done") {
       // A logged activity alone (no session row) can flip the read to "done"
       // with neither the finished-session card nor a revealed plan below —
@@ -576,7 +589,16 @@ type TodayBriefHtmlOptions = {
     const now = nowCard
       ? voice!.nowHtml({ line: todayBriefStrengthLineHtml(read, kind, ""), focus, title: line?.title, live, fold: sessionFold, idle: fold && !fold.started && !live ? Number(fold.count) || 0 : 0, launch })
       : `<div class="brief-now">${strengthLine}${live}${sessionFold}${launch}</div>`;
-    const context = voice ? voice.aroundHtml({ forward: forwardHtml, periodization, arc: arcHtml, provenance, isToday: options.isToday !== false }) : `${forwardHtml}${periodization}${arcHtml}${provenance}`;
+    // Today's own Brief has no "Around today" (Coming up and This week carry it now).
+    const context =
+      options.isToday === true
+        ? provenance
+        : voice
+          ? voice.aroundHtml({ forward: forwardHtml, periodization, arc: arcHtml, provenance, isToday: options.isToday !== false })
+          : `${forwardHtml}${periodization}${arcHtml}${provenance}`;
+    const caveatHtml = caveats.length
+      ? `<div class="brief-caveats" data-brief-caveats hidden>${caveats.map((text) => `<div class="brief-caveat">${escHtml(text)}</div>`).join("")}</div>`
+      : "";
     return `<section class="brief brief-${kind}${morph}${enter}${thinking}${quiet}" style="--i:0" aria-live="polite"${busy}${band}>
       ${lookBack}
       <div class="brief-kicker lbl"><span class="brief-glyph" aria-hidden="true">${meta.glyph}</span> ${escHtml(meta.kicker ? meta.kicker.toUpperCase() : `${meta.word.toUpperCase()} DAY`)}${est && foldMinutes == null ? ` · ${escHtml(est)}` : ""}</div>
@@ -584,9 +606,11 @@ type TodayBriefHtmlOptions = {
       ${focus && kind === "train" && !nowCard ? `<div class="brief-focus">${focus}</div>` : ""}
       ${why ? `<p class="brief-why">${why}</p>` : ""}
       ${updated}
+      ${caveatHtml}
       <button class="brief-why-more" data-briefwhy hidden>tap to see why</button>
       ${reason}
       ${checkinSlot}
+      ${pathSlot}
       ${weekWins}
       ${recovery}
       ${now}
@@ -764,6 +788,7 @@ type TodayBriefHtmlOptions = {
     updatedInnerHtml: todayBriefUpdatedInnerHtml,
     reasonHtml: todayBriefReasonHtml,
     sessionFoldHtml: todayBriefSessionFoldHtml,
+    caveatLines: todayBriefCaveatLines,
     distinctLine: todayBriefDistinctLine,
     checkinSlotHtml: todayBriefCheckinSlotHtml,
     overriddenMornings: todayBriefOverriddenMornings,

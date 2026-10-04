@@ -14,10 +14,12 @@ import { dailySiteSeries } from "./measurement-series.js";
 import { serializeTrainingIntent } from "./training-intent.js";
 import { normalizeLocationText } from "./location-context.js";
 import { parseMovementConsiderations, serializeMovementConsiderations } from "./movement-considerations.js";
+import { copyDeep, copyFlat, requestMemo } from "./request-memo.js";
 
 // ---------- profile ----------
 export function getProfile(): any {
-  return db.prepare(`SELECT * FROM profile WHERE id = 1`).get() || null;
+  // Read thousands of times by one Today open; one row read per request (request-memo.ts).
+  return requestMemo("profile", () => db.prepare(`SELECT * FROM profile WHERE id = 1`).get() || null, copyFlat);
 }
 
 // The athlete's primary training discipline, normalized (default 'strength').
@@ -484,13 +486,18 @@ export function getEnduranceGoal(today?: string):
       phase?: "base" | "build" | "sharpen" | "taper" | "past" | null;
     })
   | null {
+  const asOf = today || localDateISO();
+  return requestMemo(`endurance_goal:${asOf}`, () => enduranceGoalRead(asOf), copyDeep);
+}
+
+function enduranceGoalRead(asOf: string): ReturnType<typeof getEnduranceGoal> {
   const p = getProfile();
   const g = normalizeEnduranceGoal(p?.endurance_goal_json);
   if (!g) return null;
   if (g.mode !== "race" || !g.date) return { ...g, is_race: false };
   // Days from today TO the race. NaN (not null) on an unusable date, because the
   // next line is a Number.isFinite gate that already answers "no race timing".
-  const days = daysBetweenISO(g.date, today || localDateISO()) ?? Number.NaN;
+  const days = daysBetweenISO(g.date, asOf) ?? Number.NaN;
   if (!Number.isFinite(days)) return { ...g, is_race: true, days_to_race: null, weeks_to_race: null, phase: null };
   const weeks = Math.ceil(days / 7);
   // Coarse phase hint from time-to-race (the coach refines against actual base).
@@ -610,8 +617,11 @@ function serializeEnduranceSchedule(input: any, sourceDefault: EnduranceSchedule
 }
 
 export function getEnduranceSchedule(): EnduranceSchedule | null {
-  const p = getProfile();
-  return normalizeEnduranceSchedule(p?.endurance_schedule_json);
+  return requestMemo(
+    "endurance_schedule",
+    () => normalizeEnduranceSchedule(getProfile()?.endurance_schedule_json),
+    copyDeep
+  );
 }
 
 /** null when no schedule is set; otherwise whether `dateISO`'s weekday is one of the stated run days. */

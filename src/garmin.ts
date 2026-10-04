@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { emitBrainEvent } from "./brainEvents.js";
-import { flushGarminSyncDeferral, garminSourceLabel, getGarminCoachSummary, isStrengthGarminType, newGarminSyncDeferral, normalizeGarminHrvStatus, reconcileGarminStrength, upsertGarminActivity, upsertGarminDailyMetrics, upsertGarminSource } from "./repo/activities.js";
+import { flushGarminSyncDeferral, garminLapsStored, garminSourceLabel, getGarminCoachSummary, isStrengthGarminType, newGarminSyncDeferral, normalizeGarminHrvStatus, reconcileGarminStrength, upsertGarminActivity, upsertGarminDailyMetrics, upsertGarminSource } from "./repo/activities.js";
 import { runWithBrainSnapshot } from "./brain/snapshot.js";
 import type { GarminActivityInput, GarminDailyMetricInput } from "./repo/activities.js";
 import { detectRunCalibration } from "./repo/calibration.js";
@@ -16,6 +16,7 @@ import { sessionsEligibleForGarminExport } from "./repo/garmin-strength-export.j
 import { deriveHrModel } from "./repo/hr-model.js";
 import { deriveWearableDirectives } from "./repo/propagation.js";
 import { getGarminCredentials, getSettings, setGarminSyncStatus } from "./repo/settings.js";
+import { normalizeGarminLaps, normalizeSplitSummaries } from "./repo/run-structure.js";
 import { localDateISO } from "./repo/shared.js";
 import { log } from "./log.js";
 import { round1 } from "./lib/numbers.js";
@@ -37,6 +38,11 @@ const STRENGTH_LIMIT = Math.max(0, Math.min(60, Number(process.env.GARMIN_STRENG
 // extra call each) for training load + running dynamics (ground contact, vertical
 // oscillation/ratio). Bounded like the others.
 const DETAIL_LIMIT = Math.max(0, Math.min(60, Number(process.env.GARMIN_DETAIL_LIMIT ?? 20)));
+
+// How many recent endurance activities WITH laps to pull the per-lap list for (one
+// extra call each). A run whose laps are already stored is skipped — laps never
+// change after the watch saves — so a routine re-sync pays only for new runs.
+const LAPS_LIMIT = Math.max(0, Math.min(60, Number(process.env.GARMIN_LAPS_LIMIT ?? 20)));
 
 export function garminSkinTempEnabled(value = process.env.GARMIN_SKIN_TEMP_ENABLED): boolean {
   return /^(1|true|yes)$/i.test(String(value ?? "").trim());
@@ -313,7 +319,7 @@ export function extractGarminActivityTemp(activity: any): number | null {
   return lo != null && hi != null ? round1((lo + hi) / 2) : null;
 }
 
-function activityToInput(a: any): GarminActivityInput {
+export function garminActivityInput(a: any): GarminActivityInput {
   // A STRENGTH activity (and anything Cairn authored) is timed by its ELAPSED span,
   // never by `movingDuration`: there the "moving" figure is the summed length of the
   // ACTIVE set slots, so a 34-minute lift with rest between sets reads back as six.
@@ -365,6 +371,16 @@ function activityToInput(a: any): GarminActivityInput {
     min_elevation_m: pickNum(a, ["minElevation"]),
     max_elevation_m: pickNum(a, ["maxElevation"]),
     lap_count: pickNum(a, ["lapCount"]),
+    // Running dynamics ride in the LIST payload already (avgGroundContactTime etc.);
+    // the detail call below only fills what this left empty.
+    avg_ground_contact_ms: pickNum(a, ["avgGroundContactTime", "averageGroundContactTime"]),
+    avg_vertical_osc_cm: pickNum(a, ["avgVerticalOscillation", "averageVerticalOscillation"]),
+    avg_vertical_ratio: pickNum(a, ["avgVerticalRatio", "averageVerticalRatio"]),
+    gap_speed: pickNum(a, ["avgGradeAdjustedSpeed", "averageGradeAdjustedSpeed"]),
+    body_battery_delta: pickNum(a, ["differenceBodyBattery"]),
+    // The run's shape (warm-up / work bouts / recoveries / walking), from the same
+    // payload — see repo/run-structure.ts.
+    structure: normalizeSplitSummaries(a?.splitSummaries),
     raw: a,
   };
 }
@@ -544,9 +560,10 @@ async function fetchActivityDetail(
   if (!s) return null;
   return {
     training_load: pickNum(s, ["activityTrainingLoad", "trainingLoad"]),
-    avg_ground_contact_ms: pickNum(s, ["avgGroundContactTime", "averageGroundContactTime"]),
-    avg_vertical_osc_cm: pickNum(s, ["avgVerticalOscillation", "averageVerticalOscillation"]),
-    avg_vertical_ratio: pickNum(s, ["avgVerticalRatio", "averageVerticalRatio"]),
+    // summaryDTO names these without the avg prefix.
+    avg_ground_contact_ms: pickNum(s, ["avgGroundContactTime", "averageGroundContactTime", "groundContactTime"]),
+    avg_vertical_osc_cm: pickNum(s, ["avgVerticalOscillation", "averageVerticalOscillation", "verticalOscillation"]),
+    avg_vertical_ratio: pickNum(s, ["avgVerticalRatio", "averageVerticalRatio", "verticalRatio"]),
   };
 }
 
@@ -924,6 +941,17 @@ async function fetchHrZones(client: any, activityId: string | number): Promise<a
     .filter((z) => z.zone != null);
 }
 
+// The per-lap list for one activity (bounded by LAPS_LIMIT): each lap's time,
+// distance, heart rate, pace, grade-adjusted pace, climb and cadence. The TYPED list
+// first — it labels warm-up / work / recovery; the plain list labels every workout lap
+// "INTERVAL" (verified live), so it is the fallback for a run the typed list has no
+// lap entries for.
+async function fetchLaps(client: any, activityId: string | number) {
+  const typed = normalizeGarminLaps(await rawGet(client, `/activity-service/activity/${activityId}/typedsplits`));
+  if (typed) return typed;
+  return normalizeGarminLaps(await rawGet(client, `/activity-service/activity/${activityId}/splits`));
+}
+
 // Detected strength exercise sets for one activity (one call each, bounded by
 // STRENGTH_LIMIT). Garmin records each set as ACTIVE/REST with a detected
 // exercise category (e.g. "BENCH_PRESS"), rep count, weight (grams) and duration.
@@ -990,6 +1018,7 @@ async function syncGarminPass(options: GarminSyncOptions = {}) {
     let zoneFetches = 0;
     let strengthFetches = 0;
     let detailFetches = 0;
+    let lapFetches = 0;
     const strengthIds: number[] = [];
     // Runs landed by THIS sync — the calibration reader below looks only at them,
     // so a 200-activity backfill doesn't re-read the whole history every pass.
@@ -1002,7 +1031,7 @@ async function syncGarminPass(options: GarminSyncOptions = {}) {
     // reconcile, so the surviving compare reads the pass's FINAL state.
     const defer = newGarminSyncDeferral();
     for (const row of rows || []) {
-      const input = activityToInput(row);
+      const input = garminActivityInput(row);
       if (input.date && input.date < since) continue;
       const strength = isStrengthGarminType(sourceType(row));
       // Per-activity detail (bounded): training load + running dynamics. The list
@@ -1010,10 +1039,13 @@ async function syncGarminPass(options: GarminSyncOptions = {}) {
       if (detailFetches < DETAIL_LIMIT) {
         const detail = await fetchActivityDetail(client, input.external_id);
         if (detail) {
+          // Fill, never blank: the detail's summaryDTO answered null for running
+          // dynamics the list payload carried, and that null used to be the only
+          // value ever written — so ground contact read empty on every run.
           if (detail.training_load != null) input.training_load = detail.training_load;
-          input.avg_ground_contact_ms = detail.avg_ground_contact_ms;
-          input.avg_vertical_osc_cm = detail.avg_vertical_osc_cm;
-          input.avg_vertical_ratio = detail.avg_vertical_ratio;
+          input.avg_ground_contact_ms ??= detail.avg_ground_contact_ms;
+          input.avg_vertical_osc_cm ??= detail.avg_vertical_osc_cm;
+          input.avg_vertical_ratio ??= detail.avg_vertical_ratio;
         }
         detailFetches++;
       }
@@ -1022,6 +1054,14 @@ async function syncGarminPass(options: GarminSyncOptions = {}) {
         const zones = await fetchHrZones(client, input.external_id);
         if (zones) input.hr_zones = zones;
         zoneFetches++;
+      }
+      // Per-lap detail for recent endurance activities that HAVE laps (bounded,
+      // and skipped once stored — a saved activity's laps never change).
+      const wantsLaps = !strength && Number(input.lap_count ?? 0) > 1;
+      if (wantsLaps && lapFetches < LAPS_LIMIT && !garminLapsStored(input.external_id)) {
+        const laps = await fetchLaps(client, input.external_id);
+        if (laps) input.laps = laps;
+        lapFetches++;
       }
       // Pull detected exercise sets for recent strength activities (bounded calls).
       if (strength && strengthFetches < STRENGTH_LIMIT) {

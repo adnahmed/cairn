@@ -1,16 +1,16 @@
 /* -------------------------------------------------------------------
    15 · Meal plans (Coach tab)
    ------------------------------------------------------------------- */
-.mp-card{border-radius:var(--radius);padding:16px 17px;margin-bottom:14px}
-.mp-hero{display:block;padding-bottom:12px}
-.mp-hero-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
-.mp-hero-nums{display:flex;align-items:flex-end;gap:28px}
-.mp-hero-kcal .lbl,.mp-hero-protein .lbl{display:block;margin-top:3px}
-.mp-hero>.sess-line{margin-top:10px}
+.mp-card{border-radius:var(--radius);padding:var(--space-8) var(--space-9);margin-bottom:var(--space-7)}
+.mp-hero{display:block;padding-bottom:var(--space-6)}
+.mp-hero-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);margin-bottom:var(--space-6)}
+.mp-hero-nums{display:flex;align-items:flex-end;gap:var(--space-12)}
+.mp-hero-kcal .lbl,.mp-hero-protein .lbl{display:block;margin-top:var(--space-2)}
+.mp-hero>.sess-line{margin-top:var(--space-5)}
 
 .mp-badge{
-  font-family:var(--font-ui);font-size:.58rem;font-weight:700;letter-spacing:.14em;
-  text-transform:uppercase;border-radius:var(--radius-pill);padding:3px 9px;
+  font-family:var(--font-ui);font-size:var(--text-2xs);font-weight:var(--weight-bold);letter-spacing:var(--tracking-widest);
+  text-transform:uppercase;border-radius:var(--radius-pill);padding:var(--space-2) var(--space-5);
 }
 .mp-badge.draft{color:var(--ink-2);border:1px solid var(--line-2);background:var(--card-2)}
 .mp-badge.ok{color:var(--sage);background:var(--sage-bg);border:1px solid transparent}
@@ -25,108 +25,108 @@
 /* Just-applied confirmation line on a proposal card — calm, sage, unmistakable so */
 /* "it landed" is never in doubt (the prior subtle status flip alone read as a no-op). */
 .apply-done{
-  display:flex;align-items:center;gap:7px;margin-top:10px;
-  font-family:var(--font-ui);font-size:.82rem;font-weight:600;color:var(--sage);
+  display:flex;align-items:center;gap:var(--space-4);margin-top:var(--space-5);
+  font-family:var(--font-ui);font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--sage);
 }
 .apply-done-mark{
   display:inline-flex;align-items:center;justify-content:center;
   width:18px;height:18px;border-radius:var(--radius-pill);background:var(--sage-bg);
-  font-size:.7rem;flex:0 0 auto;
+  font-size:var(--text-xs);flex:0 0 auto;
 }
 
 /* Collapsed history of earlier proposals / meal plans — quiet by default, the active */
 /* work sits above it. Mirrors the calm "Show earlier" affordance used in Chat. */
-.hist-fold{margin-top:14px}
+.hist-fold{margin-top:var(--space-7)}
 .hist-fold>summary{
-  list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
-  font-family:var(--font-ui);font-size:.74rem;font-weight:600;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--muted);padding:6px 2px;
+  list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:var(--space-3);
+  font-family:var(--font-ui);font-size:var(--text-xs);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-wider);
+  text-transform:uppercase;color:var(--muted);padding:var(--space-3) var(--space-1);
 }
 .hist-fold>summary::-webkit-details-marker{display:none}
-.hist-fold>summary::before{content:"▸";font-size:.7rem;transition:transform .15s ease}
+.hist-fold>summary::before{content:"▸";font-size:var(--text-xs);transition:transform .15s ease}
 .hist-fold[open]>summary::before{transform:rotate(90deg)}
 .hist-fold>summary:hover{color:var(--ink-2)}
-.hist-fold-body{margin-top:10px;display:flex;flex-direction:column;gap:14px}
+.hist-fold-body{margin-top:var(--space-5);display:flex;flex-direction:column;gap:var(--space-7)}
 
 /* A prescribed run on a proposal card — a small sage pin so the week's runs read */
 /* distinctly from the strength target tweaks above them. */
-.run-pin{color:var(--sage);font-size:.7rem;margin-right:5px}
+.run-pin{color:var(--sage);font-size:var(--text-xs);margin-right:var(--space-3)}
 
 /* Running-goal editor (Profile): the shared distance/weekly-km fields sit two-up */
 /* where there's room, stacking on narrow screens. */
-.eg-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.eg-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--space-6)}
 @media (max-width:430px){.eg-grid{grid-template-columns:1fr}}
 
 /* Trust transparency — the calm "adjusted to a safe step" note shown when a code
    guardrail clamped an applied value. A hairline, never an alarm: a quiet gold edge,
    plain words, the requested→applied move and the reason. */
-.clampnote{margin-top:12px;padding:10px 12px;border-left:2px solid var(--gold);
+.clampnote{margin-top:var(--space-6);padding:var(--space-5) var(--space-6);border-left:2px solid var(--gold);
   border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:color-mix(in srgb,var(--gold) 7%,transparent)}
-.clampnote-lbl{display:flex;align-items:center;gap:6px;color:var(--ink-2);margin-bottom:6px}
-.clampnote-glyph{color:var(--gold);font-size:.78rem}
-.clampnote-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;
-  font-size:.8rem;color:var(--ink-2);line-height:1.5;padding:2px 0}
-.clampnote-what{font-weight:600;color:var(--ink)}
+.clampnote-lbl{display:flex;align-items:center;gap:var(--space-3);color:var(--ink-2);margin-bottom:var(--space-3)}
+.clampnote-glyph{color:var(--gold);font-size:var(--text-sm)}
+.clampnote-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-3);
+  font-size:var(--text-sm);color:var(--ink-2);line-height:var(--leading);padding:var(--space-1) 0}
+.clampnote-what{font-weight:var(--weight-semibold);color:var(--ink)}
 .clampnote-move{font-variant-numeric:lining-nums;color:var(--ink-2)}
-.clampnote-move b{color:var(--ink);font-weight:600}
+.clampnote-move b{color:var(--ink);font-weight:var(--weight-semibold)}
 .clampnote-why{color:var(--muted)}
 
 /* Trust transparency — the quiet "checked against your floors" badge on a verified
    meal plan / suggested session. Sage, reassuring, with the named adjustments tucked
    behind a disclosure when present. Trust through honesty, not a boast. */
-.verified-badge{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:11px;
-  font-family:var(--font-ui);font-size:.74rem;font-weight:600;color:var(--sage)}
+.verified-badge{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-6);
+  font-family:var(--font-ui);font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--sage)}
 .verified-mark{display:inline-flex;align-items:center;justify-content:center;
-  width:18px;height:18px;border-radius:50%;background:var(--sage-bg);color:var(--sage);font-size:.7rem;flex:0 0 auto}
-.verified-text{letter-spacing:.01em}
-.verified-detail{flex:1 1 100%;margin-top:2px}
-.verified-detail summary{color:var(--muted);font-weight:600;font-size:.7rem;cursor:pointer;
-  letter-spacing:.02em;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-2);list-style:none}
+  width:18px;height:18px;border-radius:50%;background:var(--sage-bg);color:var(--sage);font-size:var(--text-xs);flex:0 0 auto}
+.verified-text{letter-spacing:var(--tracking-wide)}
+.verified-detail{flex:1 1 100%;margin-top:var(--space-1)}
+.verified-detail summary{color:var(--muted);font-weight:var(--weight-semibold);font-size:var(--text-xs);cursor:pointer;
+  letter-spacing:var(--tracking-wide);text-decoration:underline;text-underline-offset:var(--link-offset);text-decoration-color:var(--line-2);list-style:none}
 .verified-detail summary::-webkit-details-marker{display:none}
 .verified-detail summary:hover{color:var(--ink-2)}
-.verified-list{margin:7px 0 0;padding-left:18px;color:var(--ink-2);font-weight:400;font-size:.78rem;line-height:1.5}
-.verified-list li{margin:2px 0}
+.verified-list{margin:var(--space-4) 0 0;padding-left:var(--space-9);color:var(--ink-2);font-weight:var(--weight-regular);font-size:var(--text-sm);line-height:var(--leading)}
+.verified-list li{margin:var(--space-1) 0}
 /* The OPEN state — the server's own arithmetic still reads a floor as over, either
    because the repair pass could not clear it or because the pass never finished.
    Gold, not warn red: this is "worth your eye", not an alarm, and the draft is
    still the athlete's to use. The list is visible, never tucked behind a summary. */
 .verified-badge.is-open{color:var(--gold-deep)}
 .verified-mark.is-open{background:color-mix(in srgb,var(--gold) 16%,transparent);color:var(--gold-deep)}
-.verified-badge.is-open .verified-list{flex:1 1 100%;margin-top:5px}
+.verified-badge.is-open .verified-list{flex:1 1 100%;margin-top:var(--space-3)}
 
-.mp-day{border-top:1px solid var(--line);margin-top:11px;padding-top:10px}
+.mp-day{border-top:1px solid var(--line);margin-top:var(--space-6);padding-top:var(--space-5)}
 .mp-dayname{
-  font-family:var(--font-display);font-style:italic;font-weight:520;
-  font-variation-settings:"opsz" 50;font-size:1.08rem;letter-spacing:0;
-  text-transform:none;color:var(--ink);margin-bottom:5px;
+  font-family:var(--font-display);font-style:italic;font-weight:var(--weight-medium);
+  font-variation-settings:"opsz" 50;font-size:var(--text-lead);letter-spacing:0;
+  text-transform:none;color:var(--ink);margin-bottom:var(--space-3);
 }
-.mp-meal{font-size:.84rem;color:var(--ink-2);margin-top:4px}
-.mp-meal b{font-weight:600;color:var(--ink)}
-.mp-macros{color:var(--muted);font-size:.74rem}
+.mp-meal{font-size:var(--text-md);color:var(--ink-2);margin-top:var(--space-2)}
+.mp-meal b{font-weight:var(--weight-semibold);color:var(--ink)}
+.mp-macros{color:var(--muted);font-size:var(--text-xs)}
 
 /* meal rows: art | name+items | macros */
 .meal-row{
-  display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:center;
-  padding:10px 0;border-top:1px solid var(--line);
+  display:grid;grid-template-columns:auto 1fr auto;gap:var(--space-7);align-items:center;
+  padding:var(--space-5) 0;border-top:1px solid var(--line);
 }
 .meal-row:first-child{border-top:none}
 .meal-main{min-width:0}
-.meal-name{font-size:.92rem;font-weight:600;color:var(--ink)}
-.meal-items{font-size:.8rem;color:var(--muted);margin-top:1px}
+.meal-name{font-size:var(--text-base);font-weight:var(--weight-semibold);color:var(--ink)}
+.meal-items{font-size:var(--text-sm);color:var(--muted);margin-top:1px}
 .meal-macros{text-align:right;white-space:nowrap}
 .meal-kcal{
-  font-family:var(--font-display);font-weight:580;font-variation-settings:"opsz" 144;
-  font-size:1.1rem;color:var(--ink);font-variant-numeric:lining-nums;
+  font-family:var(--font-display);font-weight:var(--weight-semibold);font-variation-settings:"opsz" 144;
+  font-size:var(--text-lg);color:var(--ink);font-variant-numeric:lining-nums;
 }
-.meal-macros .lbl{display:block;letter-spacing:.12em;margin-top:2px}
+.meal-macros .lbl{display:block;letter-spacing:var(--tracking-widest);margin-top:var(--space-1)}
 
 /* macro bars — hairline track, ink fill, label left + value right */
-.macrobar{margin-bottom:11px}
+.macrobar{margin-bottom:var(--space-6)}
 .macrobar:last-child{margin-bottom:0}
-.macrobar-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:5px}
+.macrobar-top{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-5);margin-bottom:var(--space-3)}
 .macrobar-val{
-  font-family:var(--font-display);font-weight:560;font-variation-settings:"opsz" 60;
-  font-size:.88rem;color:var(--ink);font-variant-numeric:lining-nums;
+  font-family:var(--font-display);font-weight:var(--weight-semibold);font-variation-settings:"opsz" 60;
+  font-size:var(--text-md);color:var(--ink);font-variant-numeric:lining-nums;
 }
 .macrobar-track{height:5px;background:var(--line);border-radius:var(--radius-pill);overflow:hidden}
 .macrobar-fill{height:100%;background:var(--ink);border-radius:var(--radius-pill);

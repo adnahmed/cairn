@@ -8,9 +8,9 @@
    the stone. No number anywhere. One entrance: the rows settle in order, then a
    single ring spreads from each dot that moves. Reduced motion paints it still.
    ===================================================================== */
-.hdr-changes{height:34px;padding:0 13px;display:flex;align-items:center;
+.hdr-changes{height:34px;padding:0 var(--space-7);display:flex;align-items:center;
   background:var(--surface);border:1px solid var(--line);color:var(--ink2);border-radius:var(--radius-pill);
-  font-family:var(--font-ui);font-size:var(--text-sm);font-weight:500;white-space:nowrap;
+  font-family:var(--font-ui);font-size:var(--text-sm);font-weight:var(--weight-medium);white-space:nowrap;
   transition:color var(--dur-1) var(--ease),border-color var(--dur-1) var(--ease)}
 .hdr-changes:active{transform:var(--press-sm)}
 @media (hover:hover){ .hdr-changes:hover{color:var(--ink);border-color:var(--line-strong)} }
@@ -22,13 +22,13 @@
 
 /* the athlete's side: the question as their own ink bubble */
 .ripple-me{align-self:flex-end;max-width:86%;background:var(--ink);color:var(--on-ink);
-  border-radius:17px;border-bottom-right-radius:5px;padding:9px 13px;display:flex;flex-direction:column;gap:var(--space-1)}
+  border-radius:var(--radius);border-bottom-right-radius:var(--radius-2xs);padding:var(--space-5) var(--space-7);display:flex;flex-direction:column;gap:var(--space-1)}
 .ripple-me .ripple-kicker{color:color-mix(in srgb,var(--on-ink) 62%,var(--ink))}
-.ripple-question{margin:0;font-size:var(--text-md);line-height:1.5;color:inherit}
+.ripple-question{margin:0;font-size:var(--text-md);line-height:var(--leading);color:inherit}
 
 /* the team's side: a wide surface bubble, led by the speaker */
 .ripple-team{align-self:stretch;background:var(--surface);border:1px solid var(--line);
-  border-radius:17px;border-bottom-left-radius:5px;padding:var(--space-5) var(--space-7) var(--space-6);
+  border-radius:var(--radius);border-bottom-left-radius:var(--radius-2xs);padding:var(--space-5) var(--space-7) var(--space-6);
   display:flex;flex-direction:column;gap:var(--space-3)}
 .ripple-who{display:flex;align-items:center;gap:var(--space-3);color:var(--muted)}
 .ripple-who .dot{width:7px;height:7px}
@@ -36,17 +36,17 @@
 
 /* step one: the question, typed in its own quiet box (nothing is sent until asked) */
 .ripple-card[data-ripple-state="ask"]{background:var(--surface);border:1px dashed var(--line-strong);
-  border-radius:17px;padding:var(--space-6) var(--space-7)}
+  border-radius:var(--radius);padding:var(--space-6) var(--space-7)}
 .ripple-ask{display:flex;flex-direction:column;gap:var(--space-3);margin:0}
 .ripple-input{width:100%;min-height:52px;resize:vertical;font-family:var(--font-ui);font-size:var(--text-md);
-  line-height:1.45;padding:var(--space-4) var(--space-5);border:1px solid var(--line);border-radius:var(--radius-sm);
+  line-height:var(--leading-normal);padding:var(--space-4) var(--space-5);border:1px solid var(--line);border-radius:var(--radius-sm);
   background:var(--ground);color:var(--ink)}
 .ripple-input:focus{outline:none;border-color:var(--dawn)}
-.ripple-hint,.ripple-caption,.ripple-still,.ripple-note{margin:0;font-size:var(--text-xs);line-height:1.5;color:var(--muted)}
+.ripple-hint,.ripple-caption,.ripple-still,.ripple-note{margin:0;font-size:var(--text-xs);line-height:var(--leading);color:var(--muted)}
 .ripple-caption{font-size:var(--text-sm)}
-.ripple-change{margin:0;font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.3;color:var(--ink);text-wrap:pretty}
+.ripple-change{margin:0;font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-lg);line-height:var(--leading-snug);color:var(--ink);text-wrap:pretty}
 .ripple-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-6);margin-top:var(--space-2)}
-.ripple-actions .pillbtn{min-height:44px;padding:7px 15px}
+.ripple-actions .pillbtn{min-height:44px;padding:var(--space-4) var(--space-8)}
 .ripple-actions .linkbtn-quiet,.ripple-changes{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
 .ripple-do{background:var(--dawn);border-color:var(--dawn);color:var(--on-accent)}
 .ripple-do:hover{background:var(--dawn-deep);border-color:var(--dawn-deep);color:var(--on-accent)}
@@ -57,13 +57,13 @@
 .ripple-stones{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .ripple-stone{position:relative;min-width:0;display:grid;grid-template-columns:9px minmax(0,1fr) auto;
   gap:var(--space-1) var(--space-5);align-items:baseline;padding:var(--space-4) 0;border-top:1px solid var(--line);
-  font-size:var(--text-sm);line-height:1.45}
+  font-size:var(--text-sm);line-height:var(--leading-normal)}
 .ripple-stone:first-child{border-top:0}
 .ripple-stone-mark{position:relative;display:block;width:8px;height:8px;border-radius:50%;
   background:var(--c,var(--stone-taupe));align-self:center}
 .ripple-stone.is-moved .ripple-stone-mark{align-self:start;margin-top:.42em}
 .ripple-stone-head{min-width:0;color:var(--ink2)}
-.ripple-stone-label{font-weight:600;color:var(--ink)}
+.ripple-stone-label{font-weight:var(--weight-semibold);color:var(--ink)}
 .ripple-stone-word{text-align:right;white-space:nowrap;color:var(--ink2)}
 .ripple-stone-was{color:var(--muted)}
 .ripple-stone-to{color:var(--muted)}
@@ -74,7 +74,7 @@
 .ripple-stone.is-moved:has(.ripple-stone-was) .ripple-stone-word::before{content:""}
 /* a stone that holds: one quiet line */
 .ripple-stone:not(.is-moved){padding:var(--space-2) 0;font-size:var(--text-xs)}
-.ripple-stone:not(.is-moved) .ripple-stone-label{font-weight:500;color:var(--ink2)}
+.ripple-stone:not(.is-moved) .ripple-stone-label{font-weight:var(--weight-medium);color:var(--ink2)}
 .ripple-stone:not(.is-moved) .ripple-stone-mark{width:6px;height:6px;opacity:.8}
 .ripple-stone:not(.is-moved) .ripple-stone-now{color:var(--muted)}
 /* the tone colours the word only: the stone's own deep hue when it reads fine, dawn
@@ -82,7 +82,7 @@
 .ripple-ok .ripple-stone-now{color:var(--cd,var(--ink))}
 .ripple-watch .ripple-stone-now{color:var(--dawn-deep)}
 .ripple-quiet .ripple-stone-now{color:var(--muted)}
-.ripple-stone.is-moved .ripple-stone-now{font-weight:600}
+.ripple-stone.is-moved .ripple-stone-now{font-weight:var(--weight-semibold)}
 .ripple-stones-skel .ripple-stone{grid-template-columns:9px minmax(0,1fr);border-top:0}
 .ripple-stones-skel .ripple-stone-mark.hshimmer{width:8px;height:8px;margin:0}
 .ripple-stones-skel .ripple-stone-ghost{margin:0;width:78%;height:var(--space-4)}
@@ -91,7 +91,7 @@
 
 /* the why, inline in its row */
 .ripple-why{color:var(--ink2)}
-.ripple-why-k{font-weight:600;color:var(--ink)}
+.ripple-why-k{font-weight:var(--weight-semibold);color:var(--ink)}
 .ripple-why-conf{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);
   text-transform:uppercase;color:var(--muted);white-space:nowrap}
 
@@ -110,7 +110,7 @@
   border-top:1px solid var(--line);padding-top:var(--space-4);margin-top:var(--space-2)}
 .ripple-handed .chfeed-rows{align-self:stretch;border:0;padding:0;background:transparent}
 .ripple-handed .chfeed-row{padding:0;border:0}
-.ripple-handed-line{margin:0;font-size:var(--text-sm);line-height:1.5;color:var(--ink2)}
+.ripple-handed-line{margin:0;font-size:var(--text-sm);line-height:var(--leading);color:var(--ink2)}
 @media (prefers-reduced-motion:reduce){
   .ripple-slot{animation:none}
   .ripple-wave.is-entering .ripple-stone,.ripple-wave.is-entering .is-moved .ripple-stone-mark::after{animation:none}

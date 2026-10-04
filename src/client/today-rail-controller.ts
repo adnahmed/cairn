@@ -75,14 +75,14 @@ type TodayRailDeps = {
     return CairnTodayAgenda.railHtml(agenda, genericPending);
   }
 
+  // With no agenda (an older server, offline) the rail keeps only what the redesigned
+  // column has no home for: the weekly read and a Garmin merge's Undo. The week ahead,
+  // the program adjustments, the connection insight and "lately" live in Coming up, the
+  // overnight digest, the new-connection line and This week (CairnTodayWorth.railAgenda).
   function fallbackRailHtml(isToday: boolean): string {
     return `<aside class="today-rail">
-    ${isToday ? `<div id="weekAheadSlot" class="weekahead-slot"></div>` : ""}
-    ${isToday ? `<div id="adjustSlot" class="adjust-slot"></div>` : ""}
     <div id="weeklySlot" class="weekly-slot"></div>
-    <div id="insightSlot" class="insight-slot"></div>
     ${isToday ? `<div id="garminReconcileSlot" class="garmin-reconcile-slot"></div>` : ""}
-    <div id="qlRecent" class="ql-recent lately-slot"></div>
   </aside>`;
   }
 
@@ -123,9 +123,7 @@ type TodayRailDeps = {
   }
 
   function fallbackLoaderKeys(isToday: boolean): TodayRailLoaderKey[] {
-    return isToday
-      ? ["lately", "weekly-read", "connection-insight", "garmin-reconcile", "week-ahead", "program-adjustments"]
-      : ["lately"];
+    return isToday ? ["weekly-read", "garmin-reconcile"] : [];
   }
 
   // Start the rail's reads as soon as the agenda is known — before the first paint
@@ -146,14 +144,11 @@ type TodayRailDeps = {
   }
 
   function runFallbackRail(isToday: boolean, deps: TodayRailDeps): void {
-    railLoaders().loadRecentActivities(deps);
     if (!isToday) return;
     try {
       deps.loadTodayReads();
     } catch {}
     railLoaders().loadGarminReconcile(deps);
-    railLoaders().loadWeekAhead(deps);
-    railLoaders().loadProgramAdjustmentsBanner(deps);
   }
 
   // ---- the lead arbitration, applied to the rendered surface --------------

@@ -6,8 +6,8 @@
    fetching/thinking (chat log hydrating, history overlay). See DESIGN.md.
    ------------------------------------------------------------------- */
 .loadstate{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:13px;padding:42px 16px;text-align:center;animation:settlein var(--dur-3) var(--ease) both}
-.loadstate-label{font-family:var(--font-display);font-size:1.05rem;color:var(--ink-2);line-height:1.3}
+  gap:var(--space-7);padding:42px var(--space-8);text-align:center;animation:settlein var(--dur-3) var(--ease) both}
+.loadstate-label{font-family:var(--font-display);font-size:var(--text-lead);color:var(--ink-2);line-height:var(--leading-snug)}
 
 /* -------------------------------------------------------------------
    05 · Cards & illustration tiles
@@ -57,12 +57,12 @@
   position:fixed;z-index:var(--z-detail);min-width:11rem;
   background:var(--card);color:var(--ink);border:1px solid var(--line);
   border-radius:var(--radius-sm);box-shadow:var(--shadow-md);
-  padding:6px;font-family:var(--font-ui);
+  padding:var(--space-3);font-family:var(--font-ui);
 }
 .art-redraw-btn{
   appearance:none;display:block;width:100%;margin:0;border:0;background:transparent;
-  color:var(--ink);font:inherit;font-size:.86rem;font-weight:560;text-align:left;
-  padding:8px 10px;border-radius:10px;cursor:pointer;
+  color:var(--ink);font:inherit;font-size:var(--text-md);font-weight:var(--weight-semibold);text-align:left;
+  padding:var(--space-4) var(--space-5);border-radius:var(--radius-xs);cursor:pointer;
 }
 .art-redraw-btn:hover,.art-redraw-btn:focus-visible{background:var(--accent-wash);outline:none}
 .artile.art-redrawing .artimg-photo{opacity:.45}

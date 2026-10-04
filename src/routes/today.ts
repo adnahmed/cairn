@@ -16,6 +16,7 @@ import {
   dayRecord,
   dayRecordDate,
   markTodayAgendaSeen,
+  overnightDigest,
   todayAggregate,
   todayDateParam,
   todayStones,
@@ -24,6 +25,7 @@ import { ensureWeekAheadJob } from "../agentJobs.js";
 import { memoizedRead, memoizedValue } from "./response-memo.js";
 import { publicTodayPlanDay, sessionSurfaceResponses, todaySurfaceResponses } from "./today-responses.js";
 import { recordDismissal } from "../repo/surface-dismissals.js";
+import { todayPath } from "../repo/today-path.js";
 
 export const todayRouter = Router();
 
@@ -106,6 +108,21 @@ todayRouter.get("/today-plan-day", (req, res) => {
 // verbatim; the Brief and the aggregate carry the same object.
 todayRouter.get("/today-strength-line", (req, res) => {
   res.json(todayStrengthLine(todayDateParam(req.query.date)));
+});
+
+// The path under the Brief: the race estimate, the weight and the anchor lift with
+// their trends, the dated milestones ahead, the ONE lever for this week, and the
+// progress board (src/repo/today-path.ts). Real measures in real units, no score. A
+// pure read; ?date=YYYY-MM-DD defaults to today.
+todayRouter.get("/today-path", (req, res) => {
+  res.json(todayPath(todayDateParam(req.query.date)));
+});
+
+// What the team changed lately, one lift per row with before -> after and the
+// decision's server-owned Undo (src/domain/today/today-digest.ts). A projection over
+// the Changes feed; pure read. Set-aside drafts live in the feed, not here.
+todayRouter.get("/today-digest", (req, res) => {
+  res.json(overnightDigest(todayDateParam(req.query.date)));
 });
 
 // The six stones (v2 wave 4): Strength, Endurance, Fuel, Recovery, Body, Heart — one

@@ -13,7 +13,7 @@
 .app-id-card{margin-top:var(--space-6)}
 .app-id-rows{margin:0;display:grid;gap:var(--space-4)}
 .app-id-row{display:grid;gap:var(--space-1)}
-.app-id-row dt{font-size:var(--text-2xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.app-id-row dt{font-size:var(--text-2xs);font-weight:var(--weight-semibold);letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted)}
 .app-id-row dd{margin:0;display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:baseline;font-size:var(--text-sm)}
 .app-id-code{font-size:var(--text-xs);overflow-wrap:anywhere;word-break:break-word}
 .app-id-shell-line{color:var(--muted)}

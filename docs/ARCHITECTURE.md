@@ -518,7 +518,13 @@ the athlete's order, and there is deliberately no equipment tie-break (name-infe
 dumbbell and let a machine row overtake a dumbbell bench on a real plan). Agentic restructures **and
 today's daily composition** persist that order; the gallery offers `POST /api/plan/:day/order-for-effect` when a TIER is out of place;
 editor ↑↓ is never silently rewritten on GET. Stretching / activation is not a loaded lift
-(`isPrepMovement` in `src/repo/exercise-canon.ts`): it does not pick up progressive overload, and
+(`isPrepMovement` in `src/repo/exercise-canon.ts`): it does not pick up progressive overload, an
+agent's `target_weight`/`top_set` on a mobility item is dropped at composition, the primer never
+flags it "fresh on your plan", and what its log row asks for is ONE answer, `exerciseInputFor()`
+(`src/repo/exercise-input.ts`: profile loaded / bodyweight / mobility × mode, plus `per_side` —
+derived from group, name, guide category and logged history, overridable by the v119
+`exercises.input_profile` / `per_side` columns; a "bodyweight" movement ever logged with a load is
+loaded), and
 decision-level rationale stays on the session (`brain_change_summary`) rather than repeating on every
 card (`src/domain/training/exercise-notes.ts`).
 
@@ -1904,7 +1910,10 @@ agenda's cardio-conflict dates and hybrid-load's per-muscle `classifyImpactLoad`
 intensity bars: it is hard when `classifyRunEffort` reads it quality against his own
 zones, when he NAMED it quality (`namesQualityRun`, `src/repo/stated-effort.ts` — "Hills",
 "5k+sprints", "5K Fast", "LT HR Test"; a lone place-name "hill" never counts; the title is his input,
-the `te_label` is not), or when `HARD_CARDIO_Z4_SEC` sat in heart-rate bins lying wholly above his
+the `te_label` is not), when he RAN it as a structured interval workout (`intervalSessionEvidence`,
+`src/repo/run-structure.ts` — ≥3 work bouts, ≥2 recoveries, ≥6 min of work, off the watch's own segment
+summary; the workout he executed is input of the same standing as his title, and his work laps read
+against his easy line can still say the bouts were all easy), or when `HARD_CARDIO_Z4_SEC` sat in heart-rate bins lying wholly above his
 threshold band (bin floor > `z4_top` — Garmin's bins are drawn on Garmin's zones, so a bin straddling
 his line proves nothing). Training effect, `te_label`, Garmin-zone Z4 minutes and the load-vs-median
 bar no longer speak for such a run: training load is Garmin's EPOC estimate, the quantity training
@@ -2708,6 +2717,69 @@ never a bare month-year.
 
 ---
 
+## The Today path, the overnight digest and the tag effects (the Today redesign)
+
+**`todayPath(date)` (`src/repo/today-path.ts`, `GET /api/today-path`, `get_today_path`, contract
+`src/contracts/today-path.ts`)** is the ONE deterministic forward read under the Brief. It composes —
+never re-derives — the reads that own each fact: `raceBuild(date, {describeRunning})` (the race, its
+estimate, target, fit and trend; the ladder's peak week; this week's km), `goalPace` (current weight,
+goal, trend and needed slopes, the last six weeks of weigh-ins), `getStrengthJourneys` (the anchor is
+the active objective with the strongest positive est-1RM slope), `nextCheckupRead` (its additive
+`visit` window when present, else the earliest `due_now` item; `follow_through` for the priority
+marker), `flexibleTrainingAgenda` (the next open long run) and the attention schedule's
+`training:strength:test-week`. It returns `race`, `weight`, `anchor`, dated ascending `milestones`
+(long run, peak week, checkpoint, race, goal date, checkup), `lever`, `focus` (the season in a few
+words, from the priority marker family, the cut and the race), the progress `board` (race, weight,
+each objective, the marker: start/now/goal text, a 0..1 `progress`, sorted by this month's
+`movement`, which is never shown) and `week` (km planned/logged, long km, the build's phase word).
+Every part sits in its own try/catch, so no race and no goal is a path of nulls and an empty board.
+
+The **lever** is ONE sentence from a small ranked rule set over real signals, each phrasing a
+`pickDayVariant` set: a cut (or gain) running behind the line the goal date asks for (≥ 14 days
+out) → hold the cut steady (through peak week when one is ahead) rather than chase the date; ≥ 2 of
+the last 3 nights under the athlete's own p25 sleep, with the newest within
+`SENSOR_MAX_AGE_DAYS.sleep` (a WINDOW claim, never "last night") → a couple of earlier nights; a race
+read as `stretch` within ten weeks with a long run inside seven days → keep that long run easy. No
+gate language, no score. (A protein-on-lift-days rule was not added: it needs the intake
+completeness law per day and a lift-day join, left for a later pass.)
+
+**The Brief's prompt** gets a compact view (`todayPathPromptView`: the three threads, the next four
+milestones, the lever) as `today_path`, registered on the `day_read` promptData site ONLY and added by
+`buildDayReadPrompt` itself (`withTodayPath`) — `getCoachContext` never computes it, so no other
+prompt or route pays for it. A "THE ROAD AHEAD" line tells the agent to credit today's logged work in
+specific words and point forward once.
+
+**`overnightDigest(date)` (`src/domain/today/today-digest.ts`, `GET /api/today-digest`,
+`get_today_digest`)** projects the Changes feed (`brainChangesRead`, the authority on which rows are
+the team's changes, their titles, timing, newness and Undo) into one row per lift: direction and the
+prescription before → after, read off the change's recorded `action.changes[].before` (an announced
+change reads the live plan as its before). The client shows at most three lift rows, one line
+each with the explanation under the first only, and counts the rest on its Changes link ("+2 more in
+Changes"); every row shown keeps its Undo. A held draft the team SET ASIDE (a superseded
+`thaw_receipt` decision) is housekeeping, not news for the day: it is never on Today. The Changes
+feed carries it instead as `set_aside` (`brainChangesRead`, `src/domain/brain/changes-feed.ts`): one
+quiet line per draft inside the feed's window, worded from what the draft touched and the receipt's
+machine `action.outcome` / `review_reason_code` ("An older draft for Back Squat was set aside: a newer
+review replaced it.") — never the draft's own agent summary, an ISO date or a threshold; never counted
+in `since_seen`, no Undo. The one genuine ask (the agenda's `draft-proposals`
+candidate, which now carries `{proposal_id, count}` in its action payload) is answered inline on the
+client through the existing `/proposals/:id/apply|discard` routes.
+
+**Context tag effects (`src/repo/context-tag-effects.ts`)**: `GET /api/context-tags/vocab` now returns
+each tag with an `effect` sentence worded from what the server actually does — the active-context
+engine's flags for a tag on that day (`activeContextEffect`; today only `travel` sets one, fueling
+disrupted) plus the always-true clause (the coach sees it, and a change evaluated across that day
+counts it as a confounder). The vocabulary itself stays in `src/contextTags.ts`.
+
+The `/today?surface=today` fan-in carries `/today-path`, `/today-digest`, `/plan/week` and
+`/recovery/baseline`. On the client, the Path card is eager; the digest, the week strip and gauges,
+Coming up and the new-connection line are the lazy, route-less `today-ahead` bundle (`routeless: true` in
+`BUNDLES`, so the deep-link preload table skips it), mounted through `withBundle` after the frame
+paints. The progress `board` is NOT on Today (it echoed the Path card): Horizon's goal line
+(`/app/horizon/goal`, `renderHorizonGoal` → `CairnHorizon.goalsBoardHtml`) lays every thread out
+under "All goals", and the Path card's quiet "All goals" link opens it (`openGoals`, a real href for a
+modified click). Visual contract: docs/DESIGN.md "Today, the road ahead".
+
 ## The Today lead arbitration (`src/domain/brain/today-attention.ts`)
 
 Cairn already arbitrates the Today **rail** (`repo/today-agenda.ts`). What nothing arbitrated was the
@@ -3496,6 +3568,19 @@ Gemini text to canonicalize or "semantically match". It reuses an existing asset
 it never rewrites the prompt away from the athlete's exercise name. Food and activity keep the
 cheap Gemini-text canonicalize path (`GEMINI_TEXT_MODEL`, default `gemini-3.6-flash`).
 
+**A "no match" is never a match, and an old wrong alias heals.** The text matcher's answer goes
+through `parseMatchIndex` (`src/art.ts`): only an in-range integer is a match — `{"match": null}`
+once coerced to index 0 (`Number(null)`), which aliased hundreds of meals onto one picture and seven
+unrelated lifts onto a plank. `cachedArtPath` serves an exercise alias only while
+`exerciseAliasTrusted` holds (same or linked movement), so a distrusted one reads as a miss and a
+pose-aware figure is drawn; a name only ever served through such an alias starts at `v=2`
+(`exerciseTargetVersion`) so a phone's cache-first copy of the wrong picture is never reused. A
+one-time boot repair (recorded in `app_state`) drops the wrong exercise aliases and the index-0
+food/activity aliases (`listIndexZeroReuseAliases`, `src/repo/art-ledger.ts`) — it deletes no
+image; the queries re-resolve. Food and activity URLs carry `v=<asset created_at>` too. The
+exercise pose text comes from the coach's how-to, else the imported library guide's first steps
+(`exercisePoseFor`).
+
 **Cache-busting end to end.** The serve route keeps `Cache-Control: public, max-age=31536000,
 immutable` (the URL now versions) and sets `ETag` to the asset key. `public/sw.js` `artCacheFirst`
 is still cache-first, keyed by the full URL including `v`. On a 200 for `v=N` it evicts older `v<N`
@@ -3783,9 +3868,11 @@ header. `streamGuideImage()` sets the image headers only once the read stream ha
 setting them up-front and then 204-ing on a read error would emit an empty body carrying
 `immutable, max-age=1y`, which a browser caches for a year. Guide ids are validated as strict slugs
 (`[A-Za-z0-9_-]{1,120}`) on the way in and out, and a downloaded body must carry JPEG magic bytes
-before it reaches disk. In the PWA the layer is a COLLAPSED `<details class="exguide">` inside the
-detail overlay — pull, never push: one quiet "How to" row, opened on tap, absent entirely when no
-guide matched. The human door lives there too, and only there: a candidate renders as one calm line
+before it reaches disk. In the PWA the layer is a `<section class="exguide">` inside the detail
+overlay: the start/finish photo pair sits OPEN (a single clay figure says what kind of movement it
+is, the pair says how it moves), and the library's steps fold under a quiet "How to" row
+(`<details class="exguide-more">`), since the coach's own "How to do it" reads above — absent
+entirely when no guide matched. The human door lives there too, and only there: a candidate renders as one calm line
 ("Looks like … — use its guide?") with a quiet yes/no, and a linked guide carries a quiet
 "Not this movement" *inside* the opened section, so an athlete who never opens "How to" is never
 offered an undo. Both answer through `POST /api/exercise-guides/attach` / `…/detach`, mirrored by
@@ -4156,7 +4243,12 @@ told (announce = apply-and-tell with one-tap Undo). Concretely:
   conductor's requested `ask` into `announce` under lead. An unresolved coaching TRADE-OFF
   (`deficit_recovery`, `race_strength`) announces; an unresolved SAFETY conflict (`injury_load`,
   `allergy_meal`, `medication_supplement` — `conflictIsSafetyFloor`) holds as `safety_floor`, which no
-  sweep re-offers. Advisory conferences never park under lead.
+  sweep re-offers — but only over the change it GOVERNS (`safetyConflictGovernsRevision`, 2026-10-02):
+  a food or medication question holds a nutrition change, never a training one, and `injury_load`
+  holds a training change unless it only eases what the plan holds (`changesOnlyEaseLoad`,
+  `volume-guard.ts` — a protective reduction answers the conflict). A record that says there is
+  nothing ("No known active allergies", "None", "NKDA") names no allergy or medication. Advisory
+  conferences never park under lead.
 - **The thaw clears what older rules parked.** Under lead it re-files a parked advisory conference as
   `observed` ahead of the floor/stamp skips; re-reads a conference-marked clinician hold once against
   today's findings (`floor_reread`, versioned) and lifts the marks when the change is not clinical;
@@ -4172,7 +4264,9 @@ told (announce = apply-and-tell with one-tap Undo). Concretely:
   `autonomy-service.ts` keeps the loops and re-exports the public names.
 - **The waiting surface splits.** `awaitingBrainDecisions()` marks `for_clinician` on a clinician-floor
   hold and lists recent (21-day) clinician notes; the Plan note and Changes screen render them under
-  "For you and your doctor", never "Waiting on you".
+  "For you and your doctor", never "Waiting on you". That list holds HEALTH: a training-domain hold
+  (`training`/`recovery` domain, or a training kind) is never `for_clinician`, even on the floor — it
+  still waits, as a change to the athlete's week.
 
 **Every non-applying ending names itself.** `failed` is one bucket holding six very different endings,
 so the pass also returns `failed_outcomes` — one `{id, class, calm}` per failed id, classed
@@ -4235,6 +4329,15 @@ resolves a target (exact normalized name, canonical key, movement key), and only
 the payload is such a premise change (a mixed draft with a live half is never thrown away for its dead
 half). An empty plan is never evidence of removal. This runs regardless of `lead_mode`: closing a dead
 question is not the same act as adopting a live one, so the `review_everything` floor doesn't gate it.
+Three more dead premises ride the same pass (`draftRetirement`, 2026-10-02), each conservative:
+a draft whose EVERY change's `reason` protects a place whose same-episode symptom has resolved, with
+nothing open naming it (`settledPainPlaceReader`, `injury-symptom-link.ts`; written up to 14 days after
+the resolution) retires as `premise_gone` ("Your right flank settled on Sep 28, so this protective
+change has nothing left to protect."); a weekly team review (`TEAM_REVIEW_QUESTION_LEAD`) retires once
+the week after it was written has passed; and a case-conference draft retires as `source_superseded`
+("A newer team review replaced this one.") when a newer conference draft over the same scope
+(training vs nutrition) exists, whatever its status. Other drafts name template day numbers, never
+dates, so nothing else is aged out by date.
 Separately, `holdProposalForReview()` now looks up a draft's existing review holds by proposal id
 (`listReviewDecisionsForProposal`, `src/repo/brain-decisions.ts` — queried directly against SQLite,
 not filtered out of the newest 100 `review` rows the way `listBrainDecisions` reads) and refreshes the
@@ -4323,7 +4426,7 @@ the maintenance those two imply (`estimateExpenditure`) — or, when logging is 
 a plain statement of how much evidence there is and that confidence stays lower. Adherence-neutral by
 construction: thin logging loosens the estimate, never assigns blame.
 
-Depth on demand: nine read-only capabilities (`src/brain/read-tools.ts`) behind the server-owned
+Depth on demand: ten read-only capabilities (`src/brain/read-tools.ts`) behind the server-owned
 bounded query loop in `src/runChosen.ts`. The whole-person trajectory
 (`src/repo/whole-person-trajectory.ts`) drives revision conferences from the scheduler. Nutrition
 safety floors are code clamps on every write path (`src/repo/nutrition-safety.ts` — lean-safe
@@ -4768,6 +4871,21 @@ that panel too. The item's `label` names only what is open at its date — every
 due by the read, or due with the soonest row — while `markers`/`sources` keep the whole panel; a
 review-only item joins its distinct open wordings.
 
+**Derived markers count as checked.** A draw that prints a derivable marker's components is a check of
+the marker itself: non-HDL-C = Total Cholesterol − HDL (`DERIVABLE_MARKERS`,
+`src/repo/doctor-loop-derived.ts`). `withDerivedReadings()` extends a *reported* series with the newest
+same-date component draw when it is strictly newer (no lab flag, no printed range, `kind:"derived"`),
+and `refreshDoctorLoopAttention`, `spokenLoopReason` and `nextCheckupRead` all read through it — one
+"last checked" everywhere. A derivable marker the labs never printed never grows a recheck row.
+
+**Rechecks fold into one visit.** `nextCheckupRead().visit` (`composeVisit`, `src/repo/next-checkup.ts`)
+picks the earliest 5-day window on/after the LATEST opening among lab rechecks opening within 70 days
+(never before today), moved to race + 14 days when a dated endurance-goal race falls before or inside
+it (a race transiently raises hs-CRP and lowers testosterone). Already-open rechecks fold in as
+`past_window` instead of reading overdue; `opens_in_window` opens by the visit's end. A due DEXA
+re-scan joins (it never pushes the labs later), with the weight change since the last scan; `add` is
+only the warranted add-ons. Informational and deterministic; null when nothing is due or opening.
+
 The refresh pass keeps the rows themselves honest: review follow-ups are EPISODES, so only the latest
 review's stay filed and one a newer reading already answered is retired; a Dismiss on a recheck
 directive cancels the follow-up an earlier Done filed (`cancelDirectiveRecheck`, and healed on
@@ -4892,6 +5010,16 @@ fingerprint, the coach agent's `read_life_context_window`) goes through `injuryC
 `withSymptomClosures`, which fill in the symptom's resolution date as the event's effective
 `resolved_at`; the Life timeline reads the server's `resolved_by_symptom`. A new raw-SQL injury reader
 must do the same.
+
+**A pain memory follows its symptom (2026-10-02).** The same tie, read the other way:
+`settledPainPlaceReader` answers whether pain talk about a place is HISTORY — its same-episode area
+symptom stands resolved (no open recurrence descendant) and nothing open (an active symptom, legacy
+rows included, or an injury event the tie leaves open) names the place; structural injuries never
+settle. `memoryForCoach` (and the consolidation ledger) mark such a memory `[History, not current: …]`
+with `pain_history`; the stored row is untouched, so a recurrence makes it current again with no
+migration. The case conference also hears the lifecycle directly — `PAIN STATE` (open now, and
+`recentlySettledPlaces` as history) with the rule that a resolved pain never caps, holds or excludes
+a load.
 
 **Freshness has two ladders, and picking the wrong one is a shipped bug.** `finishSession` runs
 `inferTrainingSymptomExposures()`, which records a quiet `pain_free`/`inferred` exposure for each
@@ -5153,6 +5281,19 @@ other way writes the wrong day into the athlete's log.
   computing; the ETag is the body digest. A body is stored only when the key read before
   the compute equals the key read after it, so a read with side effects never stores its
   first answer. A new input a memoized read depends on belongs in that key.
+- **Request memo** (`src/repo/request-memo.ts`, `requestMemo(key, compute, copy)`): INSIDE one
+  request's brain snapshot (`src/brain/snapshot.ts`), a pure read recomputed many times with the same
+  inputs (`getProfile` ran 3,824× per Today open; harm evidence, the HR model, the run plan, program
+  state …) is computed once. An entry serves only while the connection's `total_changes()` has not
+  moved (one synchronous SQLite connection: unmoved means not one row written) AND no `ROLLBACK`
+  has run since (`sqliteRollbackCount()`, counted by the `db.exec` wrapper in `src/db.ts` — the
+  counter never goes back down when a rollback undoes rows), in the same device
+  zone, under 60 s, and every caller gets a deep copy. A value that consulted a re-entrancy guard
+  (the race ladder's `walking`, run compliance's `composing`) is keyed by that guard's state. Outside
+  a snapshot (scheduler, tests, scripts) it computes every time. `memoNeutralWrite` keeps TWO
+  bookkeeping writes off the counter (`memory.last_referenced_at`, and the week-ahead card's queued
+  `agent_jobs` row, a table no memoized read consults) — a write any memoized read can see must never
+  go through it.
 - **Fan-ins** (`src/routes/today-responses.ts`, `src/routes/screen-responses.ts`):
   `/today?surface=today` carries `responses` — the exact body of every other GET a Today
   open makes, keyed by path — and `/today?surface=session` (Session), `/horizon-race?dates=`

@@ -18,7 +18,7 @@
    surface mid-generation (ideally overflow-clipped) */
 .is-thinking{position:relative}
 .is-thinking::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;z-index:4;
-  pointer-events:none;border-radius:2px;
+  pointer-events:none;border-radius:var(--radius-3xs);
   background:linear-gradient(90deg,transparent 0,var(--accent) 42%,var(--gold) 58%,transparent 100%);
   background-size:42% 100%;background-repeat:no-repeat;
   filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 22%,transparent));
@@ -49,10 +49,10 @@ body.swr-busy::after{
 /* a button mid-request: btnBusy() swaps the label for a ring + working text and
    pins min-width so the footprint never jumps */
 .btn-busy{cursor:progress!important}
-.btn-working{display:inline-flex;align-items:center;justify-content:center;gap:8px;line-height:1}
+.btn-working{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-4);line-height:1}
 
 /* chat "thinking" — three dots breathing in sequence */
-.typing{display:inline-flex;align-items:center;gap:5px;padding:3px 1px}
+.typing{display:inline-flex;align-items:center;gap:var(--space-3);padding:var(--space-2) 1px}
 .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;
   animation:typingdot 1.3s var(--ease) infinite}
 .typing i:nth-child(2){animation-delay:.16s}
@@ -60,6 +60,6 @@ body.swr-busy::after{
 @keyframes typingdot{0%,62%,100%{opacity:.3;transform:translateY(0)}31%{opacity:.85;transform:translateY(-3px)}}
 
 /* a quiet inline status line under a thinking surface (Brief reshape etc.) */
-.athinking-note{display:flex;align-items:center;gap:9px;margin-top:11px;
-  font-size:.84rem;color:var(--ink-2);letter-spacing:.01em}
+.athinking-note{display:flex;align-items:center;gap:var(--space-5);margin-top:var(--space-6);
+  font-size:var(--text-md);color:var(--ink-2);letter-spacing:var(--tracking-wide)}
 

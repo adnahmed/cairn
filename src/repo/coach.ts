@@ -134,6 +134,7 @@ import { intakeBand } from "./intake-band.js";
 import { getTrainingIntent } from "./training-intent.js";
 import { getEnduranceCapacity } from "./endurance-capacity.js";
 import { round1 } from "../lib/numbers.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 // ---------- coach context (shared by prompts) ----------
 // Compact view of a health doc for coaching: kind, date, summary, key markers
@@ -2072,6 +2073,15 @@ export function getDailyMetrics(source?: string | null, days = 30) {
 export { readinessBand };
 
 export function getRecoverySummary(days = 14, garminSummary?: any, asOfDate = localDateISO()) {
+  if (garminSummary != null) return getRecoverySummaryRead(days, garminSummary, asOfDate);
+  return requestMemo(
+    `recovery_summary:${days}:${asOfDate}`,
+    () => getRecoverySummaryRead(days, garminSummary, asOfDate),
+    copyDeep
+  );
+}
+
+function getRecoverySummaryRead(days: number, garminSummary: any, asOfDate: string) {
   const windowDays = recoveryWindowDays(days, 14);
   const requestedAsOf = String(asOfDate || localDateISO());
   const parsedAsOf = /^\d{4}-\d{2}-\d{2}$/.test(requestedAsOf) ? new Date(`${requestedAsOf}T00:00:00Z`) : null;

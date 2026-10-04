@@ -124,20 +124,26 @@ type ExerciseGuidePayload = {
     return `<button type="button" class="exguide-unlink" data-exguide-unlink="${escAttr(guideId)}">Not this movement</button>`;
   }
 
-  /** The collapsed "How to" section, or "" when there is no confident guide to show. */
+  /**
+   * The "How to" section, or "" when there is no confident guide to show. The start and
+   * finish photos sit OPEN above the fold — a single clay figure says what kind of
+   * movement it is, the pair says how it moves — while the library's steps stay folded,
+   * since the coach's own "How to do it" already reads above.
+   */
   function exerciseGuideSectionHtml(guide: unknown): string {
     if (!guide || typeof guide !== "object") return "";
     const payload = guide as ExerciseGuidePayload;
     const steps = stepsHtml(payload);
     if (!steps) return "";
     const context = contextLine(payload);
-    return `<details class="detail-section exguide" data-exguide="1">
+    return `<section class="detail-section exguide" data-exguide="1">
+      ${photosHtml(payload)}
+      <details class="exguide-more">
         <summary class="exguide-summary">
           <span class="lbl">How to</span>
           ${context ? `<span class="exguide-ctx">${escHtml(context)}</span>` : ""}
         </summary>
         <div class="exguide-body">
-          ${photosHtml(payload)}
           ${steps}
           ${alsoWorksHtml(payload)}
           <div class="exguide-foot">
@@ -145,7 +151,8 @@ type ExerciseGuidePayload = {
             ${unlinkHtml(payload)}
           </div>
         </div>
-      </details>`;
+      </details>
+    </section>`;
   }
 
   /**

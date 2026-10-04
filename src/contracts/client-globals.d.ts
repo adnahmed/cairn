@@ -409,7 +409,11 @@ declare global {
     invalidateSetTruth(deps: ClientTodaySessionControllerDeps): void;
     logPayloadFromRow(row: HTMLElement, deps: ClientTodaySessionControllerDeps): ClientTodaySessionSetPayloadResult;
     lastSetScore(weight: unknown, reps: unknown, durationSec: unknown): number;
-    lastSetLineText(lastSet: unknown, deps: { fmtDur(seconds: number): string }): string;
+    lastSetLineText(
+      lastSet: unknown,
+      deps: { fmtDur(seconds: number): string },
+      opts?: { perSide?: boolean }
+    ): string;
     currentSetScoreFromRow(row: HTMLElement, deps: Pick<ClientTodaySessionControllerDeps, "parseDur">): number | null;
     wireLastSetLine(
       row: Element | null | undefined,
@@ -2098,7 +2102,7 @@ declare global {
   declare function primeArtManifest(): Promise<void>;
   declare function jobReconnect(opts?: { reuseWithinMs?: number }): Promise<void>;
   /** Names of the bundles index.html does NOT load eagerly (see build-client's BUNDLES). */
-  declare type ClientLazyBundleName = "me-health" | "train" | "horizon" | "ask" | "settings" | "day" | "meals";
+  declare type ClientLazyBundleName = "me-health" | "train" | "horizon" | "ask" | "settings" | "day" | "meals" | "today-ahead";
   /** Inject a lazily-loaded app-shell bundle (and its dependencies) once; resolves after they have executed. */
   declare function ensureBundle(name: ClientLazyBundleName): Promise<void>;
   declare function bundleLoaded(name: ClientLazyBundleName): boolean;
@@ -4420,7 +4424,114 @@ declare global {
         agenda: T,
         opts: { fuelGlance: boolean; thread?: { title?: unknown; summary?: unknown } | null }
       ): T;
+      askCandidate(agenda: Partial<ClientTodayAgenda> | null | undefined): ClientTodayAgendaCandidate | null;
       mountInstallRow(root: ParentNode): void;
+    };
+
+    CairnTodayPath: {
+      cardHtml(path: import("./today-path.js").TodayPath | null | undefined): string;
+      trailSvg(path: import("./today-path.js").TodayPath): string;
+      shortDate(iso: unknown): string;
+      clock(sec: unknown): string;
+      signed(n: number, digits?: number): string;
+      /** Where the card's "All goals" link lands (Horizon's goal line). */
+      goalsHref(): string;
+    };
+
+    CairnTodayPathController: {
+      key(date: string): string;
+      path(date: string): string;
+      mount(
+        host: Element,
+        deps: {
+          date: string;
+          peek(key: string): { data: import("./today-path.js").TodayPath; fresh: boolean } | null;
+          load(path: string, options: { key: string }): Promise<import("./today-path.js").TodayPath>;
+          /** Open Horizon's goal line (the card's "All goals" link). */
+          openGoals?(): void;
+        }
+      ): () => void;
+    };
+
+    CairnTodayAheadMount: {
+      mount(
+        view: Element,
+        opts: {
+          date: string;
+          read: unknown;
+          agenda: Promise<unknown>;
+          isCurrent(): boolean;
+          rail: {
+            state: { planJump?: string | null; standSeg?: string | null };
+            api(path: string, opts?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+            activateTab(tab: string): unknown;
+            gotoChatWith(text: string): unknown;
+            toast(message: string): void;
+            invalidate(key: string): void;
+            refreshToday(options: { soft: boolean }): unknown;
+          };
+        }
+      ): void;
+    };
+
+    /** Lazy (today-ahead bundle): reached only through withBundle("today-ahead", …). */
+    CairnTodayDigest: {
+      html(digest: import("./today-digest.js").TodayDigest | null | undefined, ask?: ClientTodayAgendaCandidate | null): string;
+      askHtml(ask: ClientTodayAgendaCandidate | null | undefined): string;
+      changeHtml(
+        change: import("./today-digest.js").TodayDigestChange,
+        opts?: { limit?: number; explain?: boolean }
+      ): string;
+      ARROW: Record<string, { glyph: string; cls: string; word: string }>;
+      /** The most lift rows Today shows; the rest are counted on the "All changes" link. */
+      MAX_ROWS: number;
+    };
+
+    /** Lazy (today-ahead bundle). */
+    CairnTodayWeek: {
+      stripHtml(week: import("./client-api.js").ClientPlanWeek | null | undefined, today: string): string;
+      gaugesHtml(baseline: import("./client-api.js").ClientRecoveryBaselineRead | null | undefined, today: string): string;
+      sparkSvg(points: Array<{ date: string; weight_lb: number }> | null | undefined, goal: number | null | undefined): string;
+      kmNote(planned: number | null | undefined, longDate: string | null | undefined): string;
+      blockLine(phase: string | null | undefined, block: { week_index?: unknown; total_weeks?: unknown } | null | undefined): string;
+      nightWord(band: import("./client-api.js").ClientRecoveryBaselineDimension, today: string): string;
+    };
+
+    /** Lazy (today-ahead bundle). */
+    CairnTodayHorizon: {
+      horizonHtml(path: import("./today-path.js").TodayPath | null | undefined): string;
+      /** The one new-connection line at Today's foot; "" without a new insight. */
+      connectionHtml(insight?: { id?: unknown; text?: unknown; kind?: unknown; status?: unknown } | null): string;
+      insightSentence(insight: { id?: unknown; text?: unknown; kind?: unknown; status?: unknown } | null | undefined): string;
+    };
+
+    /** Lazy (today-ahead bundle). */
+    CairnTodayAhead: {
+      slots: Record<string, string>;
+      mount(
+        root: Element,
+        deps: {
+          date: string;
+          read: {
+      periodization_context?: {
+        program_block?: { week_index?: unknown; total_weeks?: unknown } | null;
+        recovery_overlay?: { day_index?: unknown; total_days?: unknown } | null;
+      } | null;
+    } | null;
+          agenda(): Promise<unknown>;
+          peek(key: string): { data: unknown; fresh: boolean } | null;
+          load(path: string, options: { key: string }): Promise<unknown>;
+          api(path: string, init?: RequestInit & { headers?: Record<string, string> }): Promise<unknown>;
+          toast(message: string, options?: { action?: string; onAction?: () => void }): void;
+          gotoChatWith(text: string): void;
+          openChanges(): void;
+          openCheckup(): void;
+          openRace(): void;
+          openPlanCoach(): void;
+          refreshToday(): unknown;
+          invalidate(key: string): void;
+        }
+      ): () => void;
     };
 
     CairnTodayFuelGlance: {
@@ -4450,10 +4561,18 @@ declare global {
         }
       ): string;
       weekFoldHtml(
-        compass: { weekRecap?: string | null; cellsHtml?: string },
+        compass: { weekRecap?: string | null; cellsHtml?: string; planned?: number; done?: number; weekKm?: number },
         deps: { escapeHtml(value: unknown): string },
-        options?: { currentWeight?: unknown }
+        options?: {
+          currentWeight?: unknown;
+          trendLbWk?: unknown;
+          liftOpen?: unknown;
+          runs?: boolean;
+          weekCardio?: unknown;
+        }
       ): string;
+      digestSlotHtml(): string;
+      aheadSlotsHtml(): string;
       wrapHtml(content: string, options: { railHtml: string }): string;
     };
 
@@ -4747,9 +4866,12 @@ declare global {
         options?: {
           day?: unknown;
           exModes?: Record<string, unknown> | null;
+          exInputs?: Record<string, unknown> | null;
         },
         lastSet?: unknown
       ): string;
+      revealLoad(scope: Element | null | undefined, opts?: { focus?: boolean }): void;
+      revealLoadForLastSet(scope: Element | null | undefined, lastSet: Record<string, unknown>): void;
     };
 
     CairnTodayLately: {
@@ -5134,6 +5256,8 @@ declare global {
         data: import("./brain-changes.js").ClientBrainChanges | null | undefined,
         options?: { reveal?: boolean; enter?: boolean }
       ): string;
+      /** The quiet "Set aside" lines under the changes; "" with none. */
+      setAsideHtml(data: import("./brain-changes.js").ClientBrainChanges | null | undefined): string;
       rowHtml(
         change: import("./brain-changes.js").ClientBrainChange,
         options?: { index?: number | null; enter?: boolean; settled?: boolean }
@@ -5402,6 +5526,13 @@ declare global {
   declare const CairnTodayMainShell: Window["CairnTodayMainShell"];
   declare const CairnTodayFuelGlance: Window["CairnTodayFuelGlance"];
   declare const CairnTodayWorth: Window["CairnTodayWorth"];
+  declare const CairnTodayPath: Window["CairnTodayPath"];
+  declare const CairnTodayPathController: Window["CairnTodayPathController"];
+  declare const CairnTodayAheadMount: Window["CairnTodayAheadMount"];
+  declare const CairnTodayDigest: Window["CairnTodayDigest"];
+  declare const CairnTodayWeek: Window["CairnTodayWeek"];
+  declare const CairnTodayHorizon: Window["CairnTodayHorizon"];
+  declare const CairnTodayAhead: Window["CairnTodayAhead"];
   declare const CairnTodayPlanSurface: Window["CairnTodayPlanSurface"];
   declare const CairnTodayPlanSurfaceRenderer: Window["CairnTodayPlanSurfaceRenderer"];
   declare const CairnTodayPostRenderWiring: Window["CairnTodayPostRenderWiring"];
@@ -5445,6 +5576,8 @@ declare global {
     collapse?(el: Element, done: () => void): void;
     skeleton?(): string;
     onReverted?(change: import("./brain-changes.js").ClientBrainChange | null): unknown;
+    /** "Talk it through": hand the change to chat, pre-filled. */
+    talk?(text: string): void;
   };
 
   // ---- v2 wave 2 · meal card (meal-card-model.ts, meal-card-client.ts, meal-card-controller.ts) ----
@@ -6404,6 +6537,8 @@ declare global {
       weekSkeletonHtml(): string;
       /** `race: false` leaves the race view out (a lifting-only athlete). */
       shellHtml(active?: ClientHorizonView, opts?: { race?: boolean; raceLabel?: string }): string;
+      /** All goals (the goal line's depth view): every progress-board thread; "" with none. */
+      goalsBoardHtml(path: import("./today-path.js").TodayPath | null | undefined): string;
     };
     CairnHorizonController: {
       mount(host: Element, deps: ClientHorizonDeps): () => void;

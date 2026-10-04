@@ -16,9 +16,12 @@
 // number and label never ride here — the owner law retired them as a verdict on a
 // run (run-intensity.ts), and a stated effort outranks the model's read.
 //
-// It carries what Cairn stores and nothing more: summary metrics. There are no HR
-// streams or splits in the database, so nothing here may be narrated as "not pulled
-// through yet" — the prompt blocks built on this say so.
+// It carries the summary plus the run's SHAPE when the watch recorded one — the work
+// bouts and recoveries of an interval session, walking, grade-adjusted pace on a hilly
+// run, each work rep's time, pace and heart rate (run-structure.ts). Every lap is one
+// coach read away (`read_activity_detail`). There are no second-by-second HR streams
+// or GPS tracks in the database, so nothing may be narrated as "not pulled through
+// yet" — the prompt blocks built on this say so.
 import { db } from "../db.js";
 import { addDaysISO } from "../lib/dates.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
@@ -29,6 +32,7 @@ import { personalRunReadForRow, usablePersonalHrModel } from "./run-intensity.js
 import { getSettings } from "./settings.js";
 import { clipText, clockLabel, localDateISO } from "./shared.js";
 import { isStatedEasyRpe } from "./stated-effort.js";
+import { structureNote } from "./run-structure.js";
 
 export const RECENT_CARDIO_DAYS = 7;
 const RECENT_CARDIO_MAX_ROWS = 14;
@@ -63,6 +67,10 @@ export interface RecentCardioRow {
   personal_effort: "easy" | "steady" | "quality" | null;
   /** A hand log's own words (a synced row's auto-summary is not carried). */
   note: string | null;
+  /** The run's shape off the watch — work bouts, recoveries, walking, grade-adjusted
+   * pace on a hilly run, each work rep (run-structure.ts `structureNote`). Null on a
+   * plain run with nothing beyond its summary. */
+  structure: string | null;
   source: string | null;
 }
 
@@ -126,7 +134,8 @@ export function recentCardioRead(asOf: string = localDateISO(), days: number = R
               a.source, a.external_id,
               g.start_time AS g_start, g.name AS g_name, g.avg_hr, g.max_hr,
               COALESCE(g.moving_min, g.duration_min, a.duration_min) AS hr_minutes,
-              g.hr_zones_json AS zones
+              g.hr_zones_json AS zones, g.structure_json AS structure, g.laps_json AS laps,
+              g.gap_speed AS gap_speed, g.ascent_m AS g_ascent
          FROM activities a
          LEFT JOIN garmin_activities g ON g.activity_id = a.id
         WHERE a.date BETWEEN ? AND ?
@@ -182,6 +191,7 @@ export function recentCardioRead(asOf: string = localDateISO(), days: number = R
       // training effect is never a verdict on a run. A hand log's notes are the
       // athlete's words and ride along.
       note: !synced && r.notes ? clipText(r.notes, 160) : null,
+      structure: structureNote(r.structure, r.laps, units, { gap_speed: num(r.gap_speed), ascent_m: num(r.g_ascent) }),
       source: r.source ?? null,
     });
     if (rows.length >= RECENT_CARDIO_MAX_ROWS) break;

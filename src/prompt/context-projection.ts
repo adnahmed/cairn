@@ -338,6 +338,12 @@ export const PROMPT_CONTEXT_SITES = {
       // than each deciding for itself what counts as tomorrow being spoken for. Null on
       // an ordinary morning, so the payload is unchanged when nothing is on.
       "tomorrow_holds",
+      // The road this day sits on (src/repo/today-path.ts, compacted): the race
+      // estimate, the weight and the anchor lift with their trends, the next few
+      // milestones and the week's one lever — so the Brief can credit what is done and
+      // point forward once. The Brief is the ONE site: only it reads a single day
+      // against the road. Added by buildDayReadPrompt itself, never by getCoachContext.
+      "today_path",
       // The advisory session constraints. The Brief does not prescribe the session,
       // but it DOES say what shape today has — and a caveat about easing off the
       // exposed work has to match the constraint the session prompt will be handed,

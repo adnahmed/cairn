@@ -323,8 +323,7 @@ type TodayAddExerciseDeps = {
   }
 
   function fillInput(el: HTMLInputElement | null | undefined, value: unknown): void {
-    if (!el || value == null) return;
-    if (el.dataset.dirty === "1") return;
+    if (!el || value == null || el.hidden || el.dataset.dirty === "1") return; // a hidden well is never filled unseen
     if (typeof document !== "undefined" && document.activeElement === el) return;
     const next = String(value);
     if (el.value === next) return;
@@ -332,6 +331,7 @@ type TodayAddExerciseDeps = {
   }
 
   function applyPrefill(logRow: HTMLElement, lastSet: Record<string, unknown>, deps: TodayAddExerciseDeps): void {
+    if (typeof CairnTodayCards !== "undefined") CairnTodayCards.revealLoadForLastSet(logRow, lastSet);
     if (logRow.dataset.mode === "timed") {
       const seconds = Number(lastSet.duration_sec);
       const text =
@@ -353,9 +353,9 @@ type TodayAddExerciseDeps = {
     // RIR opens blank: it is the athlete's read of the set they are about to do.
   }
 
-  function lastSetLineText(lastSet: Record<string, unknown>, deps: TodayAddExerciseDeps): string {
+  function lastSetLineText(lastSet: Record<string, unknown>, deps: TodayAddExerciseDeps, opts = {}): string {
     try {
-      return CairnTodaySessionSetModel.lastSetLineText(lastSet, deps as never) || "";
+      return CairnTodaySessionSetModel.lastSetLineText(lastSet, deps as never, opts) || "";
     } catch {
       return "";
     }
@@ -377,7 +377,7 @@ type TodayAddExerciseDeps = {
     const logRow = cardEl.querySelector<HTMLElement>(".logrow");
     if (!logRow) return;
     applyPrefill(logRow, lastSet, deps);
-    const text = lastSetLineText(lastSet, deps);
+    const text = lastSetLineText(lastSet, deps, { perSide: logRow.dataset.perSide === "1" });
     const existing = cardEl.querySelector<HTMLElement>(".ex-lastset");
     if (!text) {
       existing?.remove();

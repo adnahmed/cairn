@@ -1,6 +1,7 @@
 import { db } from "../db.js";
 import { exerciseIdentityKey } from "./exercise-canon.js";
 import { readStoredDose } from "./outcome-comparability.js";
+import { copyDeep, memoKey, requestMemo } from "./request-memo.js";
 
 export type ChallengeVerdict = "not_attempted" | "under_prescribed" | "met" | "exceeded" | "no_target";
 
@@ -31,6 +32,15 @@ function movementIdentity(exercise: string): string {
 export function recentMovementResponse(
   movement: string,
   opts: { intent_key?: string; limit?: number } = {}
+): RecentMovementResponse {
+  const key = memoKey([movement, opts]);
+  if (key == null) return recentMovementResponseRead(movement, opts);
+  return requestMemo(`recent_movement_response:${key}`, () => recentMovementResponseRead(movement, opts), copyDeep);
+}
+
+function recentMovementResponseRead(
+  movement: string,
+  opts: { intent_key?: string; limit?: number }
 ): RecentMovementResponse {
   const requested = String(movement ?? "").trim();
   const requestedKey =

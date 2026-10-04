@@ -8,6 +8,7 @@ const initialJobs = [
   { name: "schema two-step", steps: [["npm", "run", "schema:check"]] },
   { name: "lint", steps: [["npm", "run", "lint"]] },
   { name: "client style ratchet", steps: [["node", "scripts/check-client-style.mjs"]] },
+  { name: "design token ratchet", steps: [["node", "scripts/check-design-tokens.mjs"]] },
   { name: "stylesheet partials", steps: [["node", "scripts/build-styles.mjs", "--check"]] },
 ];
 

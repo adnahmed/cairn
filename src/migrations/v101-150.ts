@@ -14,6 +14,7 @@ import { addColumn, hasTable, type Migration } from "./helpers.js";
 import { repairExerciseIdentity } from "./frozen/v103-exercise-identity-repair.js";
 import { repairStrengthObjectiveIdentity } from "./frozen/v108-strength-objective-identity.js";
 import { repairCairnShellEnergy } from "./frozen/v113-cairn-shell-energy.js";
+import { backfillGarminRunStructure } from "./frozen/v117-garmin-run-structure.js";
 import {
   GARMIN_HRV_STATUSES,
   elapsedMinutesFromRaw,
@@ -549,5 +550,59 @@ export const MIGRATIONS_101_150: Migration[] = [
     // refuses a note that carries it. NULL keeps every existing note enrichable
     // exactly as before. Two-step: the column also lives in db.ts's create block.
     up: (db) => addColumn(db, "food_notes", "person_edited_at TEXT"),
+  },
+  {
+    version: 117,
+    name: "garmin-run-structure",
+    // A run's shape, not just its summary. Six hill repeats with walked recoveries
+    // average to an easy-looking heart rate; the watch's own segment summary
+    // (`splitSummaries`: warm-up, work bouts, recoveries, walking) says what the run
+    // was. That, the grade-adjusted speed, the Body Battery change and the per-lap list
+    // now have columns (repo/run-structure.ts). Two-step: the four columns also live in
+    // db.ts's create block. The backfill reads the list payload already stored in
+    // `raw_json` — and fills the running dynamics the sync never managed to write — via
+    // the frozen backfillGarminRunStructure; it writes only NULL columns, so a re-run
+    // touches nothing. Laps need a network call, so they arrive with the next sync.
+    up: (db) => {
+      addColumn(db, "garmin_activities", "gap_speed REAL");
+      addColumn(db, "garmin_activities", "body_battery_delta REAL");
+      addColumn(db, "garmin_activities", "structure_json TEXT");
+      addColumn(db, "garmin_activities", "laps_json TEXT");
+      if (!hasTable(db, "garmin_activities")) return;
+      const touched = backfillGarminRunStructure(db);
+      if (touched) {
+        log.info(`[migrate] v117: read the stored shape of ${touched} Garmin activit${touched === 1 ? "y" : "ies"}.`);
+      }
+    },
+  },
+  {
+    version: 118,
+    name: "garmin-laps-relabel",
+    // Pure data repair — no schema change. The first lap fetch read the plain lap list,
+    // which labels every lap of a watch workout "INTERVAL" (warm-up and recoveries
+    // included), and stored them all as work. Laps are now read from the typed list.
+    // Clearing the stored laps lets the next sync fetch them again, labelled; the sync
+    // skips only activities whose laps are already stored.
+    up: (db) => {
+      if (!hasTable(db, "garmin_activities")) return;
+      try {
+        db.exec(`UPDATE garmin_activities SET laps_json = NULL WHERE laps_json IS NOT NULL`);
+      } catch {
+        /* a DB without laps_json has nothing to clear */
+      }
+    },
+  },
+  {
+    version: 119,
+    name: "exercise-input-profile",
+    // What a movement's log row asks for (repo/exercise-input.ts). A stretch takes no
+    // load and no RIR, and a one-sided drill is dosed per side — neither was
+    // expressible. Both columns are OVERRIDES: NULL keeps every existing exercise on
+    // the derived read (mobility group / prep name / bodyweight movement without a
+    // loaded log), so no backfill. Two-step: both also live in db.ts's create block.
+    up: (db) => {
+      addColumn(db, "exercises", "input_profile TEXT");
+      addColumn(db, "exercises", "per_side INTEGER");
+    },
   },
 ];

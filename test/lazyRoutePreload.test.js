@@ -109,7 +109,9 @@ test("a preload names the exact url ensureBundle injects, and the worker precach
   // Every lazy bundle a canonical route needs is preloadable. The meals bundle (the
   // meal-plan journal) has no canonical route of its own: /app/plan/meals is a legacy
   // link that lands on Fuel, which reaches it through withBundle when its fold opens.
-  const ROUTELESS = new Set([LAZY_BUNDLE_SRC.meals]);
+  // Today's lower half (today-ahead) renders inside the eager Today view, so it has no
+  // route either; it is still precached and warmed first on idle.
+  const ROUTELESS = new Set([LAZY_BUNDLE_SRC.meals, LAZY_BUNDLE_SRC["today-ahead"]]);
   assert.deepEqual(
     [...table.b].sort(),
     Object.values(LAZY_BUNDLE_SRC)

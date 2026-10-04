@@ -206,25 +206,21 @@ test("Today rail controller dedupes shared agenda loaders and owns rail slot loa
 test("Today rail controller fallback rail omits fuel and runs non-fuel fallback loaders", async () => {
   const controller = loadController();
   const html = controller.fallbackRailHtml(true);
-  assert.match(html, /weekAheadSlot/);
-  assert.match(html, /adjustSlot/);
-  assert.doesNotMatch(html, /fuelSlot/);
+  // The redesigned column carries the week ahead (Coming up), the program
+  // adjustments (the overnight digest), the insight and "lately" (This week): the
+  // fallback rail keeps only the weekly read and a Garmin merge's Undo.
+  assert.match(html, /weeklySlot/);
+  assert.match(html, /garminReconcileSlot/);
+  assert.doesNotMatch(html, /fuelSlot|weekAheadSlot|adjustSlot|insightSlot|qlRecent/);
 
   const rootEl = new FakeElement("section");
-  rootEl.appendChild(new FakeElement("div", { attributes: { id: "weekAheadSlot" } }));
-  rootEl.appendChild(new FakeElement("div", { attributes: { id: "adjustSlot" } }));
-  rootEl.appendChild(new FakeElement("div", { attributes: { id: "qlRecent" } }));
+  rootEl.appendChild(new FakeElement("div", { attributes: { id: "weeklySlot" } }));
   const { deps, calls } = makeDeps(rootEl);
 
   controller.runFallbackRail(true, deps);
   await flushRailLoaders();
 
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
-    ["api", "/recent-training?limit=6"],
-    ["reads"],
-    ["api", "/week-ahead"],
-    ["api", "/program/adjustments"],
-  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [["reads"]]);
 });
 
 test("Today rail controller wires generic agenda navigation and dismiss controls", () => {

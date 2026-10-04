@@ -117,6 +117,7 @@ import { cutQualityRead } from "./cut-quality.js";
 import { atOrNearGoal } from "./goal-proximity.js";
 import type { CoachPersonalModifier, CoachWhatWorksForYou } from "../brain/coach-context-contract.js";
 import { applyPersonalResponseModifier, liftLedgerRead, whatWorksForYou } from "./reaction-model.js";
+import { copyDeep, memoKey, requestMemo } from "./request-memo.js";
 // createProposal + the auto-progression dedup live in profile.js; imported here (as
 // run-progression.ts does for buildRunPlanProposal) so REST + MCP share ONE proposal
 // builder instead of duplicating the change-shaping logic (and drifting).
@@ -3112,6 +3113,26 @@ function ex_name(name: string): string {
 // row carries its plan_item_id so a "apply these" build can route through
 // propose→apply by day_number.
 export function planDayProgression(
+  dayNumber: number,
+  opts: { forNextSession?: boolean; fuelRead?: UnderfuelingRead; readDate?: string } = {}
+): Prescription[] {
+  // Request-memoized (request-memo.ts): Today's agenda, the coach context and the
+  // adjustments card each walk every plan day through this pass. Keyed by every input:
+  // the day number AS GIVEN (it is echoed into each row, so a "1" is not a 1), whether
+  // the pass is for the next session, the day the read is for, and the local date the
+  // pass's undated reads (autoregulation, acute gates, the personal-response model)
+  // default to. An injected fuel read is an object the key cannot name, so that pass
+  // always computes.
+  if (opts.fuelRead == null) {
+    const readDay = /^\d{4}-\d{2}-\d{2}$/.test(String(opts.readDate ?? "")) ? String(opts.readDate) : null;
+    const key = memoKey([dayNumber, opts.forNextSession ? 1 : 0, readDay, localDateISO()]);
+    if (key != null)
+      return requestMemo(`plan_day_progression:${key}`, () => planDayProgressionRead(dayNumber, opts), copyDeep);
+  }
+  return planDayProgressionRead(dayNumber, opts);
+}
+
+function planDayProgressionRead(
   dayNumber: number,
   // `fuelRead` overrides ONLY the fuel/protection read for this pass — the seam that
   // lets a fixture state "a `reduce` reached this day" without staging the whole

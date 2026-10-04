@@ -83,10 +83,14 @@
   --radius-md: 14px;  /* inset cards, photo tiles */
   --radius-sm: 12px;  /* notes, wells */
   --radius-xs: 10px;  /* inputs, small tiles */
+  --radius-2xs: 6px;  /* tags, small marks, inline badges */
+  --radius-3xs: 2px;  /* bars, tracks, hairline marks */
   --radius-pill: 999px; /* fully rounded ends — chips, pills, buttons, segments, tracks */
   --space-card: 10px; /* one vertical rhythm between sibling cards */
-  /* spacing — a 2px-step ladder for gaps, padding and margins, drawn from the
-     values the sheet already leans on. New CSS picks from here. */
+  /* spacing — ONE ladder for gaps, padding and margins: 2px steps up to 20, then
+     the larger rhythm steps. Every margin/padding/gap in the partials picks from
+     here; only 0, 1px hairline offsets, negatives and geometry inside calc() stay
+     literal. scripts/check-design-tokens.mjs holds the line (and --fix snaps). */
   --space-1: 2px;
   --space-2: 4px;
   --space-3: 6px;
@@ -96,24 +100,73 @@
   --space-7: 14px;
   --space-8: 16px;
   --space-9: 18px;
+  --space-10: 20px;
+  --space-11: 24px;   /* a section break (Today's --today-gap) */
+  --space-12: 28px;
+  --space-13: 32px;
+  --space-14: 40px;
+  --space-15: 48px;
   --gutter: 16px;     /* page gutter: phone-first, 16px each side */
-  --space-10: 24px;
 
   /* type — a tight, phone-first scale. The UI body is 15px (--text-base);
      secondary copy runs --text-xs…--text-md; mono labels sit on --text-2xs.
-     The sheet still carries one-off rem sizes; new CSS uses only these. */
+     Every font-size in the partials is one of these (em sizes, relative to their
+     parent, and SVG text geometry in px are the only literals). */
   --text-body: 15px;   /* body copy size (px, so it never compounds) */
   --text-2xs: .62rem;  /* mono eyebrows, tracked labels (.lbl, .eyebrow) */
   --text-xs:  .74rem;  /* meta lines, chips, footnotes */
   --text-sm:  .8rem;   /* secondary UI copy, small buttons */
   --text-md:  .88rem;  /* list titles, card body copy */
   --text-base: .94rem; /* body, inputs (≈15px) */
+  --text-lead: 1.05rem; /* a row's lead line, a large button, a small numeral */
   --text-lg:  1.15rem; /* card titles, serif leads */
   --text-xl:  1.4rem;  /* .numeral-lg, the small voice line */
   --text-2xl: 1.72rem; /* h1, the voice line */
   --text-3xl: 2.4rem;  /* .numeral-xl, a race-day number */
-  --leading: 1.5;
-  --tracking-mono: .09em; /* Martian Mono labels, uppercase */
+
+  /* weight — four. Hanken Grotesk is variable, but in-between weights (540, 560,
+     650 …) read as a mistake beside their neighbours, never as hierarchy. */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* leading — five, from a numeral's 1 to running copy */
+  --leading-none: 1;
+  --leading-tight: 1.15;  /* display lines, numerals, titles */
+  --leading-snug: 1.3;    /* two-line titles, chips, compact rows */
+  --leading-normal: 1.45; /* UI copy, row bodies */
+  --leading: 1.5;         /* running copy, chat */
+
+  /* tracking — five */
+  --tracking-tight: -.015em; /* display serif and large numerals */
+  --tracking-wide: .02em;    /* small UI caps, buttons */
+  --tracking-wider: .05em;   /* small sans uppercase */
+  --tracking-mono: .09em;    /* Martian Mono labels, uppercase */
+  --tracking-widest: .14em;  /* the rare spaced-out eyebrow */
+
+  /* a text action's underline: one offset everywhere, drawn in --line-strong */
+  --link-offset: 3px;
+
+  /* the two small rounded shapes. A CHIP is a tappable choice (a tag, a starter
+     prompt, an option); a BADGE is a status word riding a row ("New", "fresh",
+     a level). Every *-chip / *-pill rule takes its padding, size and weight here,
+     so two chips side by side can never disagree. */
+  --chip-pad: var(--space-3) var(--space-6);
+  --chip-text: var(--text-sm);
+  --chip-weight: var(--weight-medium);
+  --badge-pad: var(--space-1) var(--space-4);
+  --badge-text: var(--text-2xs);
+  --badge-weight: var(--weight-semibold);
+
+  /* the text pill button in its two sizes (icon, stepper, toggle and segmented
+     buttons keep their own geometry) */
+  --btn-pad: var(--space-4) var(--space-7);
+  --btn-text: var(--text-md);
+  --btn-weight: var(--weight-medium);
+  --btn-sm-pad: var(--space-3) var(--space-6);
+  --btn-sm-text: var(--text-xs);
+  --btn-sm-weight: var(--weight-semibold);
 
   /* z layers — named app-level stacking, low to high. Stacking local to one
      component (-1…4 inside its own positioned box) stays a raw number. */

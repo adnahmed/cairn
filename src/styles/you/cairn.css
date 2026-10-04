@@ -11,12 +11,12 @@
    stones then drift; reduced motion shows them standing still.
    ===================================================================== */
 /* ---- the landing's lead: one voice line, then the way into every record ---- */
-.you-landing{padding-bottom:var(--space-10)}
+.you-landing{padding-bottom:var(--space-11)}
 .you-lede{display:flex;flex-direction:column;gap:var(--space-6);margin:0 0 var(--space-4)}
 .you-voice{margin:0;max-width:18ch}
 .you-search{display:flex;align-items:center;gap:var(--space-4);width:100%;text-align:left;
   border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-pill);
-  padding:10px 16px;color:var(--muted);font:inherit;font-size:var(--text-md);
+  padding:var(--space-5) var(--space-8);color:var(--muted);font:inherit;font-size:var(--text-md);
   transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
 .you-search:hover{border-color:var(--line-strong)}
 .you-search:active{transform:var(--press)}
@@ -30,7 +30,7 @@
 .cairn-stack-pile{position:relative;margin:var(--space-2) 0 var(--space-8)}
 .cairn-stack-pile .stone-cairn{display:block;width:100%;height:auto;max-width:420px}
 .stack-pile-leader{fill:none;stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
-.stack-pile-name{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;fill:var(--muted)}
+.stack-pile-name{font-family:var(--font-mono);font-size:9.5px;letter-spacing:var(--tracking-mono);fill:var(--muted)}
 .stack-pile-flag{fill:var(--dawn);font-size:7px}
 .stack-pile-word{font-family:var(--font-display);font-size:16.5px;fill:var(--ink)}
 .cairn-stack-rock{-webkit-tap-highlight-color:transparent}
@@ -39,42 +39,42 @@
 .cairn-stack-skel .stone-cairn{animation:stone-breathe 2.4s ease-in-out infinite}
 
 /* ---- one row per stone, hairline-divided inside one card ---- */
-.cairn-stack-list{list-style:none;margin:0;padding:2px 14px;display:flex;flex-direction:column;
+.cairn-stack-list{list-style:none;margin:0;padding:var(--space-1) var(--space-7);display:flex;flex-direction:column;
   background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 .cairn-stack-item{display:flex;min-width:0;border-top:1px solid var(--line)}
 .cairn-stack-item:first-child{border-top:0}
 .cairn-stack-row{flex:1;min-width:0;min-height:48px;display:grid;grid-template-columns:9px minmax(0,1fr) auto;
-  align-items:center;gap:var(--space-6);padding:11px 0;color:inherit;text-decoration:none;
+  align-items:center;gap:var(--space-6);padding:var(--space-6) 0;color:inherit;text-decoration:none;
   -webkit-tap-highlight-color:transparent;transition:transform var(--dur-1) var(--ease)}
 a.cairn-stack-row:active{transform:var(--press-lg)}
-.cairn-stack-mark{width:9px;height:9px;border-radius:50%;background:var(--c,var(--well));align-self:start;margin-top:6px}
+.cairn-stack-mark{width:9px;height:9px;border-radius:50%;background:var(--c,var(--well));align-self:start;margin-top:var(--space-3)}
 /* "worth a look": a dawn ring around the stone's own dot — the dot keeps its hue */
 .cairn-stack-watch .cairn-stack-mark{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--dawn)}
-.cairn-stack-text{min-width:0;display:flex;flex-direction:column;gap:2px}
-.cairn-stack-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:0 6px;line-height:1.35}
-.cairn-stack-label{font-weight:600;font-size:var(--text-base);color:var(--ink)}
+.cairn-stack-text{min-width:0;display:flex;flex-direction:column;gap:var(--space-1)}
+.cairn-stack-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:0 var(--space-3);line-height:var(--leading-snug)}
+.cairn-stack-label{font-weight:var(--weight-semibold);font-size:var(--text-base);color:var(--ink)}
 .cairn-stack-sep{color:var(--muted)}
 .cairn-stack-word{font-size:var(--text-base);color:var(--cd,var(--ink2));overflow-wrap:anywhere}
-.cairn-stack-line{font-size:var(--text-sm);line-height:1.45;color:var(--muted);max-width:60ch}
-.cairn-stack-arw{color:var(--muted);font-size:1rem;align-self:center}
+.cairn-stack-line{font-size:var(--text-sm);line-height:var(--leading-normal);color:var(--muted);max-width:60ch}
+.cairn-stack-arw{color:var(--muted);font-size:var(--text-lead);align-self:center}
 .cairn-stack-ghost{display:block;width:60%;height:var(--space-4);margin:var(--space-1) 0}
 
 /* ---- the quiet groups under the cairn: an eyebrow, then one card of rows ---- */
 .you-group{margin-top:var(--space-9)}
-.you-group-h{margin:0 0 var(--space-3) 2px}
-.set-you.you-list{display:flex;flex-direction:column;gap:0;padding:2px 14px;background:var(--surface);
+.you-group-h{margin:0 0 var(--space-3) var(--space-1)}
+.set-you.you-list{display:flex;flex-direction:column;gap:0;padding:var(--space-1) var(--space-7);background:var(--surface);
   border:1px solid var(--line);border-radius:var(--radius)}
 .set-you-card.you-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-6);
   position:static;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);
-  border-radius:0;padding:11px 0;box-shadow:none;color:inherit;font:inherit;
+  border-radius:0;padding:var(--space-6) 0;box-shadow:none;color:inherit;font:inherit;
   transition:transform var(--dur-1) var(--ease)}
 .set-you-card.you-row:first-child{border-top:0}
 @media (hover:hover){.set-you-card.you-row:hover{border-color:var(--line)}.set-you-card.you-row:hover .set-you-t{color:var(--dawn-deep)}}
 .set-you-card.you-row:active{transform:var(--press-lg)}
-.you-row-text{min-width:0;display:flex;flex-direction:column;gap:2px}
-.you-row .set-you-t{font-weight:600;font-size:var(--text-base);transition:color var(--dur-1) var(--ease)}
+.you-row-text{min-width:0;display:flex;flex-direction:column;gap:var(--space-1)}
+.you-row .set-you-t{font-weight:var(--weight-semibold);font-size:var(--text-base);transition:color var(--dur-1) var(--ease)}
 .you-row .set-you-s{font-size:var(--text-sm)}
-.you-row .set-you-arw{position:static;transform:none;color:var(--muted);font-size:1rem}
+.you-row .set-you-arw{position:static;transform:none;color:var(--muted);font-size:var(--text-lead)}
 
 @keyframes cairn-stack-settle{
   0%{opacity:0;translate:0 -12px;rotate:-4deg}
@@ -93,50 +93,50 @@ a.cairn-stack-row:active{transform:var(--press-lg)}
   animation-delay:calc(min(var(--i,0),12) * 40ms + 200ms)}
 
 /* ---- the stone detail: switcher, a head washed in the stone's hue, then its places ---- */
-.stone-detail{padding-bottom:var(--space-10)}
+.stone-detail{padding-bottom:var(--space-11)}
 /* the switcher is a .rail.rail-bleed (components.css): one row to the screen edges,
    fading where more stones wait. 8px of vertical padding (taken back by the margins)
    holds each chip's 44px hit overlay (a11y.css) inside the scroller. */
 .stone-detail-chips{position:relative;gap:var(--space-3);
-  margin-top:calc(var(--space-2) - 6px);margin-bottom:-6px;padding-block:8px}
-.stone-detail-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:var(--text-sm);
-  padding:5px 12px;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--surface);color:var(--ink2);
-  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
+  margin-top:calc(var(--space-2) - 6px);margin-bottom:-6px;padding-block:var(--space-4)}
+.stone-detail-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:var(--space-3);font:inherit;font-size:var(--chip-text);
+  padding:var(--chip-pad);border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--surface);color:var(--ink2);
+  transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease);font-weight:var(--chip-weight)}
 .stone-detail-chip:active{transform:var(--press)}
-.stone-detail-chip[aria-current="page"]{border-color:var(--ink);color:var(--ink);font-weight:600}
+.stone-detail-chip[aria-current="page"]{border-color:var(--ink);color:var(--ink);font-weight:var(--weight-semibold)}
 .stone-detail-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--space-6);
-  margin:var(--space-7) 0 0;padding:16px 16px 18px;border-radius:var(--radius-lg);
+  margin:var(--space-7) 0 0;padding:var(--space-8) var(--space-8) var(--space-9);border-radius:var(--radius-lg);
   background:color-mix(in srgb,var(--c,var(--well)) 26%,var(--surface))}
 .stone-detail-read{min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
 /* The stone's name is the page header's one serif title; the hero's own name stays
    for assistive tech (it labels the article) as .sr-only, not printed twice. */
-.stone-detail-word{margin:0;font-family:var(--font-display);font-weight:400;font-size:2rem;line-height:1.05;
-  letter-spacing:-.01em;color:var(--ink);text-wrap:balance}
-.stone-detail-line{margin:var(--space-3) 0 0;font-size:var(--text-base);line-height:1.5;color:var(--ink2);max-width:52ch}
-.stone-detail-rock{display:block;width:72px;height:46px;margin-top:2px}
+.stone-detail-word{margin:0;font-family:var(--font-display);font-weight:var(--weight-regular);font-size:2rem;line-height:1;
+  letter-spacing:var(--tracking-tight);color:var(--ink);text-wrap:balance}
+.stone-detail-line{margin:var(--space-3) 0 0;font-size:var(--text-base);line-height:var(--leading);color:var(--ink2);max-width:52ch}
+.stone-detail-rock{display:block;width:72px;height:46px;margin-top:var(--space-1)}
 .stone-detail-rock .stone-svg{width:100%;height:100%}
 .stone-detail-ghost{display:inline-block;width:140px;height:26px;border-radius:var(--radius-xs)}
 .stone-detail-sec{margin-top:var(--space-9)}
-.stone-detail-sub{margin:0 0 var(--space-3) 2px}
-.set-you.stone-detail-links,.stone-detail-peers{display:flex;flex-direction:column;gap:0;padding:2px 14px;
+.stone-detail-sub{margin:0 0 var(--space-3) var(--space-1)}
+.set-you.stone-detail-links,.stone-detail-peers{display:flex;flex-direction:column;gap:0;padding:var(--space-1) var(--space-7);
   background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 .set-you-card.stone-detail-link{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-6);
-  position:static;background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:11px 0;
+  position:static;background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:var(--space-6) 0;
   color:inherit;text-decoration:none;box-shadow:none;transition:transform var(--dur-1) var(--ease)}
 .set-you-card.stone-detail-link:first-child{border-top:0}
 .set-you-card.stone-detail-link:active{transform:var(--press-lg)}
-.stone-detail-ltext{min-width:0;display:flex;flex-direction:column;gap:2px}
-.stone-detail-link .set-you-t{font-weight:600;font-size:var(--text-base)}
+.stone-detail-ltext{min-width:0;display:flex;flex-direction:column;gap:var(--space-1)}
+.stone-detail-link .set-you-t{font-weight:var(--weight-semibold);font-size:var(--text-base)}
 .stone-detail-link .set-you-s{font-size:var(--text-sm)}
-.stone-detail-link .set-you-arw{position:static;transform:none;color:var(--muted);font-size:1rem}
+.stone-detail-link .set-you-arw{position:static;transform:none;color:var(--muted);font-size:var(--text-lead)}
 .stone-detail-peer{display:grid;grid-template-columns:9px minmax(0,1fr) auto;align-items:center;gap:var(--space-6);
   width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-top:1px solid var(--line);
-  padding:11px 0;transition:transform var(--dur-1) var(--ease)}
+  padding:var(--space-6) 0;transition:transform var(--dur-1) var(--ease)}
 .stone-detail-peer:first-child{border-top:0}
 .stone-detail-peer:active{transform:var(--press-lg)}
-.stone-detail-ptext{min-width:0;display:flex;align-items:baseline;flex-wrap:wrap;gap:0 6px;font-size:var(--text-base)}
-.stone-detail-ptext b{font-weight:600;color:var(--ink)}
-.stone-detail-pword::before{content:"·";content:"·" / "";color:var(--muted);margin-right:6px}
+.stone-detail-ptext{min-width:0;display:flex;align-items:baseline;flex-wrap:wrap;gap:0 var(--space-3);font-size:var(--text-base)}
+.stone-detail-ptext b{font-weight:var(--weight-semibold);color:var(--ink)}
+.stone-detail-pword::before{content:"·";content:"·" / "";color:var(--muted);margin-right:var(--space-3)}
 a.stone-detail-link{color:inherit;text-decoration:none}
 .stone-detail.is-entering .stone-detail-rock{animation:cairn-stack-settle var(--dur-3) var(--ease) both}
 @media (prefers-reduced-motion:reduce){

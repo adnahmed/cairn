@@ -872,6 +872,39 @@ test("the goal line's held slot takes the season line, or goes when there is non
 
 // ---------- the screen ----------
 
+// The /today-path read's progress board, as Horizon's goal line shows it in full.
+const GOALS_PATH = {
+  as_of: TODAY,
+  board: [
+    {
+      key: "strength",
+      id: "strength:deadlift",
+      label: "Deadlift, est. 1RM",
+      start_text: "245 lb",
+      now_text: "285 lb",
+      goal_text: "340 lb",
+      progress: 0.42,
+      reached: false,
+      note: "+4.2 lb/wk",
+      direction: null,
+      movement: 0.2,
+    },
+    {
+      key: "marker",
+      id: "marker:apob",
+      label: "ApoB",
+      start_text: null,
+      now_text: "134 mg/dL",
+      goal_text: null,
+      progress: null,
+      reached: false,
+      note: "Falling · Recheck opens Nov 16",
+      direction: "toward",
+      movement: 0,
+    },
+  ],
+};
+
 test("Horizon's landing is the timeline; its goal section is the journey story with a back link to the timeline", async () => {
   const document = (await import("./_dom.mjs")).createDocument();
   const view = createHost(document);
@@ -897,7 +930,7 @@ test("Horizon's landing is the timeline; its goal section is the journey story w
         return route.tab;
       },
       routeApi: () => null,
-      api: (path) => reads().load(path),
+      api: (path) => reads({ extra: { [`/today-path?date=${TODAY}`]: GOALS_PATH } }).load(path),
     },
   });
   win.renderHorizon();
@@ -907,6 +940,17 @@ test("Horizon's landing is the timeline; its goal section is the journey story w
   state.horizonSeg = "goal";
   await win.renderHorizon();
   assert.equal(headerTitle.textContent, "Goal line");
+  // All goals leads the goal line: every thread Today's Path card links here for.
+  const goals = view.querySelector("#horizonGoalBody .horizon-goals");
+  assert.ok(goals, "All goals is on Horizon's goal line");
+  assert.equal(view.querySelector("#horizonGoalBody").firstElementChild, goals);
+  assert.deepEqual(
+    goals.querySelectorAll(".thd-row").map((row) => row.getAttribute("data-thd-row")),
+    ["strength:deadlift", "marker:apob"]
+  );
+  assert.match(goals.textContent, /Deadlift, est\. 1RM245 lb → 285 lb · goal 340 lb/);
+  assert.match(goals.textContent, /\+4\.2 lb\/wk/);
+  assert.match(goals.textContent, /ApoB134 mg\/dL/);
   assert.ok(view.querySelector(".jprog-card"));
   assert.ok(view.querySelector(".ftl-card"));
   await view.querySelector("[data-home-back]").click();

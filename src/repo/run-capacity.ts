@@ -45,6 +45,7 @@ import { activitySportWhere, RUN_SPORT_PATTERNS } from "./endurance-sports.js";
 import { getEnduranceSchedule, isoDow } from "./profile.js";
 import { DEMONSTRATED_CAPACITY_WEEKS } from "./run-ramp.js";
 import { tripCoversDay } from "./underfueling.js";
+import { copyDeep, memoKey, requestMemo } from "./request-memo.js";
 
 export interface DemonstratedRunCapacity {
   /** The closed-week anchor the read is taken at (the Sunday a week closed on). */
@@ -161,6 +162,16 @@ export function weekRunHarm(runDates: readonly string[]): {
   confounded: boolean;
   absorbed: { harm: HarmEvidence; by: string }[];
 } {
+  const key = memoKey(runDates);
+  if (key == null) return weekRunHarmRead(runDates);
+  return requestMemo(`week_run_harm:${key}`, () => weekRunHarmRead(runDates), copyDeep);
+}
+
+function weekRunHarmRead(runDates: readonly string[]): {
+  harm: HarmEvidence | null;
+  confounded: boolean;
+  absorbed: { harm: HarmEvidence; by: string }[];
+} {
   let confounded = false;
   const absorbed: { harm: HarmEvidence; by: string }[] = [];
   const dates = [...new Set(runDates)].sort();
@@ -242,6 +253,10 @@ export function demonstratedLongKm(asOf: string, runs: { date: string; km: numbe
  */
 export function demonstratedRunCapacity(anchorISO: string): DemonstratedRunCapacity {
   const anchor = String(anchorISO).slice(0, 10);
+  return requestMemo(`demonstrated_run_capacity:${anchor}`, () => demonstratedRunCapacityRead(anchor), copyDeep);
+}
+
+function demonstratedRunCapacityRead(anchor: string): DemonstratedRunCapacity {
   const lastMonday = mondayOf(anchor);
   // A week counts only once it has closed at the anchor.
   const lastClosedMonday =

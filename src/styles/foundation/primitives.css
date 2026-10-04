@@ -21,16 +21,18 @@
                         a framed variant just adds bg/border on top
    ------------------------------------------------------------------- */
 .linkbtn{background:none;border:none;padding:0;font:inherit;color:var(--accent-deep);
-  font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;
+  font-weight:var(--weight-semibold);cursor:pointer;text-decoration:underline;text-underline-offset:var(--link-offset);
   text-decoration-color:var(--line-2);
   transition:color var(--dur-1) var(--ease),text-decoration-color var(--dur-1) var(--ease)}
 .linkbtn:hover{text-decoration-color:var(--accent)}
 .linkbtn:active{transform:var(--press-sm)}
-.linkbtn-sm{font-size:.76rem}
+.linkbtn-sm{font-size:var(--text-xs)}
 .linkbtn-plain{color:var(--accent);text-decoration:none}
 .linkbtn-plain:hover{color:var(--accent-deep)}
-.linkbtn-quiet{background:none;border:none;padding:0;font:inherit;cursor:pointer;
-  color:var(--muted);font-weight:600;text-decoration:underline;text-underline-offset:3px;
+/* the calm action is a standalone control, never prose: it carries its own size, so
+   two text actions side by side ("Restore…" · "Talk it through") always match */
+.linkbtn-quiet{background:none;border:none;padding:0;font:inherit;font-size:var(--text-sm);cursor:pointer;
+  color:var(--muted);font-weight:var(--weight-semibold);text-decoration:underline;text-underline-offset:var(--link-offset);
   text-decoration-color:var(--line-2);
   transition:color var(--dur-1) var(--ease),text-decoration-color var(--dur-1) var(--ease)}
 .linkbtn-quiet:hover{color:var(--ink-2)}
@@ -74,47 +76,47 @@
      .strength-line   today's lift in the server's one line + optional caveat
                       and folded original list (.strength-line-orig).
    ------------------------------------------------------------------- */
-.read-band{display:flex;flex-direction:column;gap:6px}
+.read-band{display:flex;flex-direction:column;gap:var(--space-3)}
 .read-band-label{display:block}
-.read-band-track{position:relative;height:8px;border-radius:99px;background:var(--card-2)}
-.read-band-range{position:absolute;top:0;bottom:0;border-radius:99px;background:var(--sage-bg);
+.read-band-track{position:relative;height:8px;border-radius:var(--radius-pill);background:var(--card-2)}
+.read-band-range{position:absolute;top:0;bottom:0;border-radius:var(--radius-pill);background:var(--sage-bg);
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sage) 22%,transparent)}
 .read-band-dot{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;
   background:var(--ink);border:2.5px solid var(--card);transform:translate(-50%,-50%);
   box-shadow:var(--shadow-sm)}
 .read-band.hot .read-band-dot{background:var(--accent)}
-.read-band-phrase{font-size:.85rem;line-height:1.45;color:var(--ink-2)}
+.read-band-phrase{font-size:var(--text-md);line-height:var(--leading-normal);color:var(--ink-2)}
 /* compact one-row layout for tight inline placements */
-.read-band-inline{flex-direction:row;align-items:center;gap:10px}
+.read-band-inline{flex-direction:row;align-items:center;gap:var(--space-5)}
 .read-band-inline .read-band-track{flex:1;min-width:0}
 .read-band-inline .read-band-label,.read-band-inline .read-band-phrase{flex:0 0 auto}
 
-.read-contribs{display:flex;flex-direction:column;gap:9px}
-.read-contrib{display:flex;align-items:baseline;gap:9px}
+.read-contribs{display:flex;flex-direction:column;gap:var(--space-5)}
+.read-contrib{display:flex;align-items:baseline;gap:var(--space-5)}
 .read-contrib-pip{flex:0 0 auto;width:9px;height:9px;border-radius:50%;
   transform:translateY(1px);background:var(--stone-taupe)}
 .read-contrib-pip.ok{background:var(--sage)}
 .read-contrib-pip.watch{background:var(--accent)}
 .read-contrib-pip.quiet{background:transparent;box-shadow:inset 0 0 0 1.5px var(--line-2)}
-.read-contrib-label{flex:0 0 auto;font-weight:600;color:var(--ink);font-size:.85rem}
-.read-contrib-state{min-width:0;color:var(--ink-2);font-size:.85rem;line-height:1.45}
+.read-contrib-label{flex:0 0 auto;font-weight:var(--weight-semibold);color:var(--ink);font-size:var(--text-md)}
+.read-contrib-state{min-width:0;color:var(--ink-2);font-size:var(--text-md);line-height:var(--leading-normal)}
 
-.level-chip{display:inline-flex;align-items:baseline;gap:6px;font-size:.74rem;font-weight:700;
-  text-transform:capitalize;letter-spacing:.02em;padding:2px 10px;border-radius:var(--radius-pill);
+.level-chip{display:inline-flex;align-items:baseline;gap:var(--space-3);font-size:var(--badge-text);font-weight:var(--badge-weight);
+  text-transform:capitalize;letter-spacing:var(--tracking-wide);padding:var(--badge-pad);border-radius:var(--radius-pill);
   background:var(--sage-bg);color:var(--sage-text)}
-.level-chip-detail{font-weight:600;font-size:.68rem;text-transform:none;letter-spacing:0;
+.level-chip-detail{font-weight:var(--weight-semibold);font-size:var(--text-xs);text-transform:none;letter-spacing:0;
   color:var(--muted)}
 
 /* the attributed specialist voice on a Learned outcome ("Lab reader: …") — a
    level chip for the specialist, the recommendation in quiet plain words. */
-.learned-voice{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin-top:6px}
-.learned-voice-name{font-family:var(--font-ui);font-size:.72rem;font-weight:700;letter-spacing:.04em;color:var(--muted)}
-.learned-voice-text{font-size:.86rem;color:var(--ink-2);line-height:1.45}
+.learned-voice{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-3)}
+.learned-voice-name{font-family:var(--font-ui);font-size:var(--text-xs);font-weight:var(--weight-bold);letter-spacing:var(--tracking-wider);color:var(--muted)}
+.learned-voice-text{font-size:var(--text-md);color:var(--ink-2);line-height:var(--leading-normal)}
 
-.trend-lead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.trend-lead-name{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:560;
-  font-size:1.05rem;color:var(--ink);line-height:1.25}
-.trend-lead-phrase{font-size:.85rem;font-weight:600;color:var(--muted)}
+.trend-lead{display:flex;align-items:baseline;gap:var(--space-5);flex-wrap:wrap}
+.trend-lead-name{font-family:var(--font-display);font-variation-settings:"opsz" 40;font-weight:var(--weight-semibold);
+  font-size:var(--text-lead);color:var(--ink);line-height:var(--leading-snug)}
+.trend-lead-phrase{font-size:var(--text-md);font-weight:var(--weight-semibold);color:var(--muted)}
 .trend-lead-phrase.toward{color:var(--sage-text)}
 .trend-lead-phrase.away{color:var(--accent-deep)}
 .trend-lead-phrase.stable{color:var(--muted)}
@@ -122,13 +124,13 @@
 /* today's lift — the ONE server line (plan day name · state off the log) every
    strength surface prints verbatim; a rest/easy read is a quiet caveat under it,
    never a replacement title. A reshaped day folds the plan's own list away. */
-.strength-line{display:flex;flex-direction:column;gap:3px;min-width:0}
+.strength-line{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
 .strength-line-k{display:block}
-.strength-line-t{font-weight:650;font-size:.9rem;color:var(--ink);line-height:1.35}
+.strength-line-t{font-weight:var(--weight-semibold);font-size:var(--text-md);color:var(--ink);line-height:var(--leading-snug)}
 .strength-line[data-strength-state="logged"] .strength-line-t{color:var(--sage-text)}
-.strength-line-caveat{font-size:.82rem;color:var(--ink-2);line-height:1.45}
-.strength-line-orig{font-size:.8rem;color:var(--muted);line-height:1.45}
+.strength-line-caveat{font-size:var(--text-sm);color:var(--ink-2);line-height:var(--leading-normal)}
+.strength-line-orig{font-size:var(--text-sm);color:var(--muted);line-height:var(--leading-normal)}
 .strength-line-orig summary{cursor:pointer;color:var(--muted);width:max-content}
 .strength-line-orig summary:hover{color:var(--ink-2)}
-.strength-line-orig span{display:block;margin-top:3px;color:var(--ink-2)}
+.strength-line-orig span{display:block;margin-top:var(--space-2);color:var(--ink-2)}
 

@@ -94,10 +94,51 @@ export function isoDaysAgo(dateISO: string, days: number): string {
  * call site, so the choice to erase the sign is visible where it is made.
  */
 export function daysBetweenISO(laterISO: string, earlierISO: string): number | null {
+  // Hot (whole-history loops call it per row per morning): a well-formed real day key
+  // is counted in integer days directly, with no string building or Date parsing.
+  const laterDay = typeof laterISO === "string" ? civilDayNumber(laterISO) : null;
+  const earlierDay = laterDay != null && typeof earlierISO === "string" ? civilDayNumber(earlierISO) : null;
+  if (laterDay != null && earlierDay != null) return laterDay - earlierDay;
   const later = Date.parse(`${String(laterISO).slice(0, 10)}T00:00:00Z`);
   const earlier = Date.parse(`${String(earlierISO).slice(0, 10)}T00:00:00Z`);
   if (!Number.isFinite(later) || !Number.isFinite(earlier)) return null;
   return Math.round((later - earlier) / DAY_MS);
+}
+
+/**
+ * Days since 1970-01-01 of the `YYYY-MM-DD` that leads `value` — exactly
+ * `Date.parse(\`${value.slice(0, 10)}T00:00:00Z\`) / DAY_MS` — or null for anything
+ * that is not a real date in that exact shape (the caller then takes the Date.parse
+ * path, so an unusual input answers exactly as it always did).
+ */
+function civilDayNumber(value: string): number | null {
+  if (value.length < 10 || value.charCodeAt(4) !== 45 || value.charCodeAt(7) !== 45) return null;
+  let y = 0;
+  for (let i = 0; i < 4; i++) {
+    const digit = value.charCodeAt(i) - 48;
+    if (digit < 0 || digit > 9) return null;
+    y = y * 10 + digit;
+  }
+  const m0 = value.charCodeAt(5) - 48;
+  const m1 = value.charCodeAt(6) - 48;
+  const d0 = value.charCodeAt(8) - 48;
+  const d1 = value.charCodeAt(9) - 48;
+  if (m0 < 0 || m0 > 9 || m1 < 0 || m1 > 9 || d0 < 0 || d0 > 9 || d1 < 0 || d1 > 9) return null;
+  const m = m0 * 10 + m1;
+  const d = d0 * 10 + d1;
+  if (m < 1 || m > 12 || d < 1) return null;
+  if (d > 28) {
+    const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    const monthDays = m === 2 ? (leap ? 29 : 28) : m === 4 || m === 6 || m === 9 || m === 11 ? 30 : 31;
+    if (d > monthDays) return null;
+  }
+  // Howard Hinnant's days_from_civil (proleptic Gregorian, the calendar Date uses).
+  const yy = m <= 2 ? y - 1 : y;
+  const era = ((yy >= 0 ? yy : yy - 399) / 400) | 0;
+  const yoe = yy - era * 400;
+  const doy = (((153 * (m > 2 ? m - 3 : m + 9) + 2) / 5) | 0) + d - 1;
+  const doe = yoe * 365 + ((yoe / 4) | 0) - ((yoe / 100) | 0) + doy;
+  return era * 146097 + doe - 719468;
 }
 
 /**

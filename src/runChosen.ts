@@ -121,6 +121,7 @@ const COACH_READ_ARGS_CONTRACT: Readonly<Record<CoachReadToolName, string>> = Ob
   read_decision_history:
     '{"kind":"day_read|session_suggestion|training_target|training_structure|exercise_rotation|nutrition_target|meal_plan|recovery_adjustment|health_directive|lifestyle_adjustment|goal_change|case_conference|null","subject_key":"specific subject|null","limit":"1..50"} (kind or subject_key required)',
   read_current_plan_detail: '{"scope":"training","day_number":"1..14"} OR {"scope":"meal","day":"day name"}',
+  read_activity_detail: '{"activity_id":"integer activity_id from the RECENT RUNS lines or read_training_window"}',
 });
 
 export type CoachReadMode = "ordinary" | "conference";

@@ -6,6 +6,7 @@ import type {
   ClientCoachingFocus,
   ClientDayIntake,
   ClientDayRead,
+  ClientExerciseInput,
   ClientExpenditureEstimate,
   ClientNextStep,
   ClientNutritionProgress,
@@ -807,6 +808,10 @@ export interface ClientExercise {
   constraint_note?: string | null;
   /** The last date this lift was logged, or null when it never was. */
   last_logged?: string | null;
+  /** What this movement's log row asks for (server-derived unless stated). */
+  input?: ClientExerciseInput | null;
+  input_profile?: string | null; // stated override: loaded | bodyweight | mobility
+  per_side?: number | null;
 }
 
 export interface ClientExerciseDetail extends ClientExercise {
@@ -3063,6 +3068,8 @@ export interface ClientContextEvent {
 export interface ClientContextTagDef {
   key: string;
   label: string;
+  /** What tapping the tag changes today, in one plain sentence (src/repo/context-tag-effects.ts). */
+  effect?: string;
 }
 
 export interface ClientContextTag {
@@ -3258,12 +3265,34 @@ export interface ClientCheckupPrep {
   bring: string[];
   questions: string[];
 }
+export interface ClientCheckupVisitLab {
+  label: string;
+  last_date: string | null;
+  state: "past_window" | "opens_in_window";
+}
+export interface ClientCheckupVisitDexa {
+  last_date: string | null;
+  last_weight_lb: number | null;
+  current_weight_lb: number | null;
+  why: string;
+}
+export interface ClientCheckupVisit {
+  window_start: string;
+  window_end: string;
+  why: string;
+  labs: ClientCheckupVisitLab[];
+  add: Array<{ label: string; why: string }>;
+  dexa: ClientCheckupVisitDexa | null;
+  prep: string[];
+}
 export interface ClientNextCheckup {
   lede: string;
   due_now: ClientCheckupItem[];
   upcoming: ClientCheckupItem[];
   follow_through: ClientFollowThroughItem[];
   prep: ClientCheckupPrep;
+  // Optional for older cached payloads; the server always sends it (null when nothing is due).
+  visit?: ClientCheckupVisit | null;
   has_content: boolean;
   frame: string;
 }
@@ -3624,6 +3653,8 @@ export interface ClientApiResponses {
   "/api/today-agenda/ack": ClientTodayAgendaAckResponse;
   "/api/today-agenda/dismiss": ClientTodayAgendaDismissResponse;
   "/api/today/stones": TodayStonesRead;
+  "/api/today-path": import("./today-path.js").TodayPath;
+  "/api/today-digest": import("./today-digest.js").TodayDigest;
   "/api/day-record": DayRecord;
   "/api/what-if": ClientWhatIfQueuedResponse;
   "/api/what-if/do": ClientWhatIfDoResponse;

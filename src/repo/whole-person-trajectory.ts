@@ -2,6 +2,7 @@ import { db } from "../db.js";
 import { effectiveGoalMode, getEnduranceGoal, getPrimaryDiscipline, getProfile } from "./profile.js";
 import { getActiveBlock } from "./program-blocks.js";
 import { addDaysISO, daysBetweenISO, joinList, localDateISO } from "./shared.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 import { withSymptomClosures } from "./injury-symptom-link.js";
 import { getMarkerHistory, lsqSlopePerDay } from "./health.js";
 import { completedIntakeRange } from "./intake-window.js";
@@ -1003,6 +1004,17 @@ function recoveryRead(start: string, end: string, parked: boolean): WholePersonD
 export function wholePersonTrajectory(opts: { end?: string; days?: number } = {}): WholePersonTrajectory {
   const end = /^\d{4}-\d{2}-\d{2}$/.test(String(opts.end || "")) ? String(opts.end) : localDateISO();
   const days = Math.max(28, Math.min(120, Math.trunc(Number(opts.days) || 56)));
+  // Request-memoized: the fuel read and the coach each ask for the same window. The
+  // read depends on its arguments only through the resolved window, and on the local
+  // date (open symptoms are closed as of today), so those are the key.
+  return requestMemo(
+    `whole_person_trajectory:${end}:${days}:${localDateISO()}`,
+    () => wholePersonTrajectoryRead(end, days),
+    copyDeep
+  );
+}
+
+function wholePersonTrajectoryRead(end: string, days: number): WholePersonTrajectory {
   const start = addDaysISO(end, -(days - 1)) ?? end;
   const block = (() => {
     try {

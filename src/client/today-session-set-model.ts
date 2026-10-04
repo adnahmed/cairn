@@ -39,7 +39,11 @@ type TodaySessionSetModelApi = {
   invalidateSetTruth(deps: ClientTodaySessionControllerDeps): void;
   logPayloadFromRow(row: HTMLElement, deps: ClientTodaySessionControllerDeps): TodaySessionSetPayloadResult;
   lastSetScore(weight: unknown, reps: unknown, durationSec: unknown): number;
-  lastSetLineText(lastSet: TodayLastSetData, deps: ClientTodaySessionControllerDeps): string;
+  lastSetLineText(
+    lastSet: TodayLastSetData,
+    deps: ClientTodaySessionControllerDeps,
+    opts?: { perSide?: boolean },
+  ): string;
   currentSetScoreFromRow(row: HTMLElement, deps: ClientTodaySessionControllerDeps): number | null;
   wireLastSetLine(row: Element | null | undefined, lastSet: TodayLastSetData, deps: ClientTodaySessionControllerDeps): void;
 };
@@ -198,7 +202,11 @@ type TodaySessionSetModelApi = {
     return w > 0 && r ? w * (1 + r / 30) : r || 0;
   }
 
-  function lastSetLineText(lastSet: TodayLastSetData, deps: ClientTodaySessionControllerDeps): string {
+  function lastSetLineText(
+    lastSet: TodayLastSetData,
+    deps: ClientTodaySessionControllerDeps,
+    opts: { perSide?: boolean } = {},
+  ): string {
     const data = responseRecord(lastSet);
     let base = "";
     if (data.duration_sec != null) {
@@ -220,6 +228,8 @@ type TodaySessionSetModelApi = {
     } else {
       return "";
     }
+    // A per-side drill's count is each side's — say so, or "10 reps" reads as the total.
+    if (opts?.perSide) base = `${base} / side`;
     const dateIso = typeof data.date === "string" ? data.date : "";
     return dateIso ? `${base} · ${humanDate(dateIso)}` : base;
   }

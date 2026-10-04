@@ -78,7 +78,7 @@ export function registerConnectedBrainTools(server: McpToolRegistrar) {
 
   server.tool(
     "get_brain_changes",
-    "The Changes feed (mirrors GET /api/brain/changes): the coaching changes the team decided — announced, in effect, put back, or held — grouped by day, newest first. Each row carries a finished title, why in plain words, one of four fixed outcome phrases, a confidence word (tentative/observed/strong), and Undo {available, label} with the server-owned label; undo goes through revert_brain_decision with the row id. since_seen counts the team's changes since the athlete last opened the feed. No scores.",
+    "The Changes feed (mirrors GET /api/brain/changes): the coaching changes the team decided — announced, in effect, put back, or held — grouped by day, newest first. Each row carries a finished title, why in plain words, one of four fixed outcome phrases, a confidence word (tentative/observed/strong), and Undo {available, label} with the server-owned label; undo goes through revert_brain_decision with the row id. since_seen counts the team's changes since the athlete last opened the feed. set_aside lists held drafts the team set aside instead of applying (nothing moved) as {id, day, label, line}, one plain sentence each; never counted as news. No scores.",
     {
       days: z.number().int().min(1).max(90).optional().describe("how many days back to read (default 14)"),
       limit: z.number().int().min(1).max(200).optional().describe("max rows (default 40)"),
@@ -134,7 +134,7 @@ export function registerConnectedBrainTools(server: McpToolRegistrar) {
 
   server.tool(
     "get_next_checkup",
-    "Next-checkup read: the athlete-facing view of the recheck-cadence engine. Returns { lede, due_now[], upcoming[], follow_through[], prep, has_content, frame }: rechecks whose window is open (due_now) or opening (upcoming) plus worth-adding workups, visible follow-through on active supplements & directives (each target marker's latest value, trend words, recheck state, and a plain status — moving your way / not yet / awaiting first recheck), and a deterministic prep list (ordered labs from your last visit/review, what to bring, what to ask).",
+    "Next-checkup read: the athlete-facing view of the recheck-cadence engine. Returns { lede, due_now[], upcoming[], follow_through[], prep, visit, has_content, frame }: rechecks whose window is open (due_now) or opening (upcoming) plus worth-adding workups, visible follow-through on active supplements & directives (each target marker's latest value, trend words, recheck state, and a plain status — moving your way / not yet / awaiting first recheck), a deterministic prep list (ordered labs from your last visit/review, what to bring, what to ask), and visit: the one ~5-day window the open and opening rechecks fold into ({ window_start, window_end, why, labs[{label, last_date, state: past_window|opens_in_window}], add[], dexa|null, prep[] }, kept two weeks clear of a dated race; null when nothing is due).",
     { as_of: z.string().optional().describe("YYYY-MM-DD for due/upcoming checks; defaults to today.") },
     async ({ as_of }) => asText(nextCheckupRead({ refresh: true, asOf: as_of }))
   );

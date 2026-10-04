@@ -33,6 +33,7 @@ type TodayState = Omit<typeof state, "brief" | "_briefInflight" | "exModes" | "p
   day: number | null;
   plan: TodayScreenPlanDay[];
   exModes: Record<string, string>;
+  exInputs?: Record<string, unknown>;
   brief?: { date: string; override: string; read: TodayScreenDayRead } | null;
   _briefInflight?: { date: string; override: string; promise: Promise<TodayScreenDayRead> } | null;
   _briefMorph?: boolean;
@@ -380,6 +381,7 @@ async function renderToday(opts: any = {}) {
   } // keep the emphasis globals warm for Progress/Today/Plan
   // exercise → mode map ('reps'|'timed'), used by exCard + the add-exercise flow
   todayState.exModes = Object.fromEntries((exercises || []).map((e: any) => [e.name, e.mode || "reps"]));
+  todayState.exInputs = Object.fromEntries((exercises || []).filter((e: any) => e?.input).map((e: any) => [e.name, e.input]));
   const curW = stats.weight_lb ?? (profile && profile.weight_lb != null ? profile.weight_lb : null);
   // Compass strip: adherence to this week's plan + weight-trend pace vs the goal.
   // It is trajectory only and stays inside the collapsed "This week" fold.
@@ -510,6 +512,7 @@ async function renderToday(opts: any = {}) {
         minutes: folded.minutes,
         count: folded.count,
         lines: [folded.guardrails, folded.journey].filter(Boolean),
+        rx: window.CairnTodayBriefVoice?.prescriptionLine(prep.dailySession?.items?.length ? prep.dailySession.items : activeItems, strengthJourney?.available ? strengthJourney.objective?.exercise : null) ?? null,
         preview: sessionPreview,
         live: folded.started ? window.CairnTodayBriefVoice?.liveFacts({ name: folded.name, done: exDone, total: exTotal, items: activeItems, logged: loggedByEx }) : null,
       }
@@ -572,7 +575,8 @@ async function renderToday(opts: any = {}) {
   }
 
   // ---- Trajectory tier (this week), quiet, below the fold ----
-  html += todayMainShell.weekFoldHtml(todayCompass, todayMainShellDeps(), { currentWeight: curW });
+  // ---- The digest, this week, then the road ahead (slots the today-ahead bundle fills) ----
+  html += todayMainShell.digestSlotHtml() + todayMainShell.weekFoldHtml(todayCompass, todayMainShellDeps(), { currentWeight: curW, trendLbWk: stats?.trend_lb_wk, liftOpen: read?.strength_line?.state === "not_started" ? read.strength_line.title : "", runs: isEndurance() || isHybrid() || todayCompass.weekKm > 0, weekCardio: stats?.week_cardio }) + todayMainShell.aheadSlotsHtml();
 
   // The primary column (.today-main) holds the Brief, capture, and logging surface;
   // the rail (.today-rail) sits beside it on wide screens and stacks under it on
@@ -651,8 +655,9 @@ async function renderToday(opts: any = {}) {
     })
   );
   wireExerciseDecisionUndo(todayView, () => renderToday({ soft: true }));
-  if (isToday) CairnTodayRailController.mountChangesLine(todayView, todayRailDeps()); // "2 changes overnight"
   if (isToday) CairnTodayFuelGlance.mountToday(todayView, { ...todayRailDeps(), date: todayState.logDate }); // under NOW
+  // The Path card, then the lower half (digest, week, Coming up, the board): today-ahead-mount.ts.
+  if (isToday) CairnTodayAheadMount.mount(todayView, { date: renderedDate, read, agenda: agendaPromise, isCurrent: () => todayState.tab === "today" && todayState.logDate === renderedDate && pollToken === railToken, rail: todayRailDeps() });
   wireGuides(view);
 
   CairnTodaySessionController.wireSessionSurface({ session, hasLoggedSets, lastSets }, todaySessionDeps());
@@ -689,9 +694,7 @@ async function renderToday(opts: any = {}) {
     cfocusSlot.innerHTML = conductorHtml;
     cfocusSlot.classList.toggle("cfocus-thread-slot", conductorLeads);
   }
-  // The standalone health lever was held in phase one; load it only when the conductor
-  // isn't already carrying the one highest-leverage line.
-  if (!conductorLeads) loadHealthFocusBanner();
+  // (The standalone health lever line left Today: the focus heads Coming up.)
 
   // Rail: render the agenda-driven structure (or the calm fallback) into the reserved
   // .today-rail slot, then run its loaders. railHtml() fills agendaGeneric in place,
@@ -1435,6 +1438,7 @@ async function renderSession(opts: any = {}): Promise<void> {
     setEnduranceGoalSet(!!profile.endurance_goal_json);
   }
   todayState.exModes = Object.fromEntries(exercises.map((e: any) => [e.name, e.mode || "reps"]));
+  todayState.exInputs = Object.fromEntries(exercises.filter((e: any) => e?.input).map((e: any) => [e.name, e.input]));
 
   const day = prep.day;
   const dailySession = prep.dailySession as import("../contracts/client-api.js").ClientDailySessionComposition | null;

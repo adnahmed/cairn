@@ -572,7 +572,9 @@ function planDraftCandidate(): TodayAgendaCandidate | null {
     kicker: "NEEDS YOUR DECISION",
     title: drafts.length > 1 ? `${drafts.length} plan changes are waiting` : "A plan change is waiting",
     body: clipAgenda(summary || raw || "This one needs your decision before anything changes."),
-    action: { label: "Review", kind: "plan-coach" },
+    // The draft's id rides along so Today can answer the ONE question inline (apply or
+    // keep the plan) instead of sending the athlete to a review list.
+    action: { label: "Review", kind: "plan-coach", payload: { proposal_id: Number(drafts[0]?.id) || null, count: drafts.length } },
   };
 }
 

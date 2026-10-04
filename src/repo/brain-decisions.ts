@@ -17,6 +17,7 @@ import { withSqliteSavepoint } from "./sqlite-savepoint.js";
 import { clinicianFloorHolds } from "../brain/autonomy.js";
 import { clinicianAskVoice } from "./brain/clinician-ask.js";
 import { retireSupersededExpectations } from "./brain/expectation-arbitration.js";
+import { copyDeep, memoKey, requestMemo } from "./request-memo.js";
 
 function json(value: unknown): string | null {
   return value == null ? null : JSON.stringify(value);
@@ -80,6 +81,14 @@ function hydrateExpectation(row: any): BrainExpectation | null {
 }
 
 export function getBrainDecision(id: number): BrainDecision | null {
+  // Request-memoized: the changes feed and the ledger readers look the same decisions
+  // up by id many times per open.
+  if (typeof id === "number")
+    return requestMemo(
+      `brain_decision:${id}`,
+      () => hydrateDecision(db.prepare(`SELECT * FROM brain_decisions WHERE id = ?`).get(id)),
+      copyDeep
+    );
   return hydrateDecision(db.prepare(`SELECT * FROM brain_decisions WHERE id = ?`).get(id));
 }
 
@@ -113,6 +122,17 @@ export function findBrainDecisionByFingerprint(fingerprint: string): BrainDecisi
 export function listBrainDecisions(
   opts: { status?: BrainDecisionStatus; domain?: string; kind?: string; limit?: number } = {}
 ): BrainDecision[] {
+  const key = memoKey(opts);
+  if (key == null) return listBrainDecisionsRead(opts);
+  return requestMemo(`list_brain_decisions:${key}`, () => listBrainDecisionsRead(opts), copyDeep);
+}
+
+function listBrainDecisionsRead(opts: {
+  status?: BrainDecisionStatus;
+  domain?: string;
+  kind?: string;
+  limit?: number;
+}): BrainDecision[] {
   const where: string[] = [];
   const args: any[] = [];
   if (opts.status) {
@@ -314,6 +334,19 @@ function awaitingEntry(
   return { ...entry, summary: voice.line, explanation: voice.explanation, clinician_question: voice.question };
 }
 
+// THE DOCTOR LIST HOLDS HEALTH (2026-10-02 ruling): labs, scans and clinical findings.
+// A training plan draft never lands there, even one the clinician floor holds — it is a
+// change to the athlete's week, asked as one ("Waiting on you"), and a doctor is not
+// who answers a squat prescription. The floor itself is untouched: the hold still waits,
+// and still cannot land without a person.
+const TRAINING_PLAN_DOMAINS = new Set(["training", "recovery"]);
+const TRAINING_PLAN_KINDS = new Set(["training_target", "exercise_rotation", "training_structure"]);
+
+function forTheDoctor(d: BrainDecision): boolean {
+  if (TRAINING_PLAN_DOMAINS.has(String(d.domain)) || TRAINING_PLAN_KINDS.has(String(d.kind))) return false;
+  return clinicianFloorHolds(d);
+}
+
 export function awaitingBrainDecisions(limit = 20): AwaitingBrainDecision[] {
   const out: AwaitingBrainDecision[] = [];
   // `review` only. An `observed` row is an advisory the brain noted and chose not to
@@ -336,7 +369,7 @@ export function awaitingBrainDecisions(limit = 20): AwaitingBrainDecision[] {
     }
     const decided = String(d.effective_date ?? "").slice(0, 10) || stampDay(d.created_at);
     if (!decided) continue;
-    out.push(awaitingEntry(d, id, explanation, String(d.effective_date ?? decided), decided, clinicianFloorHolds(d)));
+    out.push(awaitingEntry(d, id, explanation, String(d.effective_date ?? decided), decided, forTheDoctor(d)));
   }
   const noteFloor = addDaysISO(localDateISO(), -CLINICIAN_NOTE_WINDOW_DAYS) ?? "";
   const seenNotes = new Set<string>();

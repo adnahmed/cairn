@@ -97,6 +97,7 @@ export const MECHANICS_ENCODING = `- Assisted movements use NEGATIVE weight (tar
 // session stories stay off exercise cards; day's items are ordered for effect).
 export const MOVEMENT_NOTES_CONTRACT = `MOVEMENTS AND NOTES:
 - Mobility / stretching / activation (Ankle Rocker, 90/90, World's Greatest Stretch, foam roll) is PREP, not a lift. No load, no progressive overload, no "you already lifted this". It warms the compound that follows.
+- Prescribe mobility as the athlete does it: target_weight null and no top_set (the server drops either). A HOLD (couch stretch, pigeon, deep-squat sit, a decompression hang) is mode "timed" with target_seconds (about 20-60 s); a controlled-rep drill (CARs, ankle rockers, World's Greatest Stretch, 90/90 hip switches) is reps, usually 5-10. A one-sided drill (World's Greatest Stretch, couch stretch, Cossack, 90/90 hip switch, ankle rocker, single-arm/leg work) is dosed PER SIDE: rep_low/rep_high or target_seconds are each side's count, so 2 sets of 6 means 6 each side (the card prints "/ side"). Never an RIR on mobility.
 - Assemble each day in effect order: prep → compounds → accessories/isolation → core → cardio. The server will also order this; still write it that way.
 - ONE loaded movement per press angle per session: flat barbell bench OR flat DB bench, not both. Flat + incline (or a horizontal + a vertical press) can still be deliberate. Never mash two plan days onto one card.
 - summary / rationale / notes = the WEEK or SESSION story (why the split looks like this, fueling, the day's read). Never copy that onto one exercise.
@@ -1385,14 +1386,16 @@ export function renderRecentCardio(ctx: PartialCoachContext, focus: "chat" | "we
     if (r.stated_rpe != null) facts.push(`their stated effort rpe ${r.stated_rpe}${r.stated_easy ? " (easy, in their words)" : ""}`);
     if (r.personal_effort) facts.push(`their own HR model reads it ${r.personal_effort}`);
     if (r.note) facts.push(`note: ${r.note}`);
+    if (r.structure) facts.push(`shape: ${r.structure}`);
     return `- ${when} — ${what}: ${facts.join(" · ") || "no metrics recorded"}`;
   });
   const head = `\nRECENT RUNS & CARDIO (last ${days} days, newest first; what they logged or their watch synced; distance and pace in ${read.units === "mi" ? "miles" : "km"}):\n${lines.join("\n")}\n`;
   if (focus === "weekly") {
-    return `${head}- This is the week's running as it happened. Speak to it in plain words; their stated effort outranks the watch, and their own HR model's read is context — never Garmin's training-effect label.\n`;
+    return `${head}- This is the week's running as it happened. Speak to it in plain words; their stated effort outranks the watch, and their own HR model's read is context — never Garmin's training-effect label. An interval day's average heart rate includes its recoveries; its shape says what the work was.\n`;
   }
   return `${head}- THIS IS THE RUN DATA. When they ask about a run, answer from its line: distance, time, pace, heart rate, and how they said it felt. Never say a run listed here is missing, "not visible", or "hasn't synced / pulled through".
-- Cairn keeps these SUMMARY metrics — not a heart-rate graph, per-mile splits or a GPS track. Don't claim those are pending or ask them to wait for them; read the run from what is here.
+- A run's "shape" is what the watch recorded of its structure: warm-up, work bouts and recoveries, walking, grade-adjusted pace on a hilly run, and each work rep. An interval session's average heart rate includes its recoveries — read the work from the shape, never from the average.
+- Every lap of a synced run (time, distance, pace, grade-adjusted pace, heart rate, climb, cadence) and its running form are one read away: read_activity_detail with its activity_id. Use it when a question turns on how the run went inside, not for every run. Cairn keeps no second-by-second heart-rate graph or GPS track — don't claim those are pending or ask them to wait for them.
 - Their stated effort outranks the watch and the model: if they called it conversational, it was — the model's read is context, never an argument. Never grade a run by Garmin's training-effect label.
 - A run they describe that is NOT listed: say what IS listed (the latest effort and its day) — the watch may not have synced yet — and take their description as the account meanwhile.
 `;

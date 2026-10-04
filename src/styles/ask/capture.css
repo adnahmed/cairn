@@ -28,63 +28,62 @@
 
 /* frequents — the foods most logged around this time of day, offered as
    PREFILL drafts above the Chat composer (never a one-tap re-log) */
-.chat-freq-slot{padding:0 2px}
+.chat-freq-slot{padding:0 var(--space-1)}
 .chat-freq-slot[hidden]{display:none}
 /* the scroller + edge fade come from .rail (foundation/components.css) */
-.chat-freq{align-items:center;gap:10px;padding:2px 0 8px}
+.chat-freq{align-items:center;gap:var(--space-5);padding:var(--space-1) 0 var(--space-4)}
 .freq-head{flex:0 0 auto;color:var(--muted)}
-.freq-chips{display:flex;flex-wrap:nowrap;gap:7px}
+.freq-chips{display:flex;flex-wrap:nowrap;gap:var(--space-4)}
 .freq-chip{
-  display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;
+  display:inline-flex;align-items:center;gap:var(--space-4);flex:0 0 auto;
   background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-pill);
-  padding:5px 12px;cursor:pointer;color:var(--ink);
+  padding:var(--chip-pad);cursor:pointer;color:var(--ink);
   animation:chipin .22s var(--ease);
   transition:border-color var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease),
-    transform var(--dur-1) var(--ease);
-}
+    transform var(--dur-1) var(--ease);font-size:var(--chip-text);font-weight:var(--chip-weight)}
 .freq-chip:hover{border-color:var(--line-2);box-shadow:var(--shadow-sm)}
 .freq-chip:active{transform:var(--press)}
-.freq-chip-name{font-size:.84rem;font-weight:500;white-space:nowrap;
+.freq-chip-name{font-size:var(--text-md);font-weight:var(--weight-medium);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;max-width:22ch}
 .freq-chip-kcal{font-family:var(--font-display);font-variation-settings:"opsz" 40;
-  font-weight:560;font-size:.84rem;color:var(--accent);font-variant-numeric:lining-nums}
+  font-weight:var(--weight-semibold);font-size:var(--text-md);color:var(--accent);font-variant-numeric:lining-nums}
 
 /* optional how-you-feel — offered, never required */
-.checkin-slot{margin:2px 0 4px}
+.checkin-slot{margin:var(--space-1) 0 var(--space-2)}
 .checkin-slot:empty{display:none}
 .checkin-open{
-  display:inline-flex;align-items:center;gap:8px;background:transparent;border:none;
-  padding:4px 2px;cursor:pointer;color:var(--muted);
-  font-family:var(--font-ui);font-size:.8rem;font-style:italic;
+  display:inline-flex;align-items:center;gap:var(--space-4);background:transparent;border:none;
+  padding:var(--space-2) var(--space-1);cursor:pointer;color:var(--muted);
+  font-family:var(--font-ui);font-size:var(--text-sm);font-style:italic;
   transition:color var(--dur-1) var(--ease);
 }
 .checkin-open:hover{color:var(--ink-2)}
 .checkin-open-dot{width:7px;height:7px;border-radius:50%;background:var(--sage);flex:0 0 auto;opacity:.7}
 .checkin-form{
-  display:flex;flex-wrap:wrap;align-items:center;gap:14px;
+  display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-7);
   background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-sm);
-  padding:10px 13px;position:relative;
+  padding:var(--space-5) var(--space-7);position:relative;
 }
 /* the rotating question above the three scales — same quiet register as .checkin-open */
 .checkin-lead{
   flex:1 0 100%;color:var(--muted);font-family:var(--font-ui);
-  font-size:.8rem;font-style:italic;line-height:1.4;
+  font-size:var(--text-sm);font-style:italic;line-height:var(--leading-normal);
 }
 /* mounted inside the Brief now (under the `why`), not in the capture-row footer */
-.brief-checkin{margin:13px 0 0}
-.feel-row{display:flex;align-items:center;gap:9px}
+.brief-checkin{margin:var(--space-7) 0 0}
+.feel-row{display:flex;align-items:center;gap:var(--space-5)}
 .feel-lbl{color:var(--muted)}
 /* one label column, so the three scales' dots line up under each other */
 .checkin-form .feel-lbl{min-width:6.5em}
-.feel-dots{display:inline-flex;gap:3px}
+.feel-dots{display:inline-flex;gap:var(--space-2)}
 .feel-scale{display:inline-flex;flex-direction:column;gap:var(--space-1)}
-.feel-ends{display:flex;justify-content:space-between;gap:var(--space-4);font-size:var(--text-2xs);color:var(--muted);line-height:1.2}
+.feel-ends{display:flex;justify-content:space-between;gap:var(--space-4);font-size:var(--text-2xs);color:var(--muted);line-height:var(--leading-tight)}
 /* the word an answered scale says back, next to its dots */
-.feel-said{color:var(--muted);font-size:.78rem;margin-left:2px}
+.feel-said{color:var(--muted);font-size:var(--text-sm);margin-left:var(--space-1)}
 .feel-said:empty{display:none}
 .feel-dot{
   width:24px;height:24px;border-radius:50%;border:1px solid var(--line-2);
-  background:var(--card);color:var(--muted);font-size:.7rem;line-height:1;cursor:pointer;
+  background:var(--card);color:var(--muted);font-size:var(--text-xs);line-height:1;cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center;
   transition:background var(--dur-1) var(--ease),color var(--dur-1) var(--ease),
     border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease);
@@ -93,27 +92,26 @@
 .feel-dot-on{background:var(--sage);border-color:var(--sage);color:var(--on-accent)}
 .checkin-dismiss{
   margin-left:auto;background:none;border:none;color:var(--muted);
-  font-size:.95rem;line-height:1;cursor:pointer;padding:2px 4px;
+  font-size:var(--text-base);line-height:1;cursor:pointer;padding:var(--space-1) var(--space-2);
   transition:color var(--dur-1) var(--ease);
 }
 .checkin-dismiss:hover{color:var(--ink-2)}
-.checkin-done{display:inline-flex;align-items:center;gap:7px;color:var(--muted);
-  font-size:.8rem;font-style:italic;padding:4px 2px}
+.checkin-done{display:inline-flex;align-items:center;gap:var(--space-4);color:var(--muted);
+  font-size:var(--text-sm);font-style:italic;padding:var(--space-2) var(--space-1)}
 .checkin-done-mark{color:var(--sage);font-style:normal}
 
 /* context tags — cheap, one-tap life context (travel/drinks/rough sleep/work crunch/
    feeling off). Quiet by default; a tap toggles on/off. No streaks, no history guilt —
    evidence for the insight generator, never advice. */
-.tags-slot{margin:2px 0 4px}
+.tags-slot{margin:var(--space-1) 0 var(--space-2)}
 .tags-slot:empty{display:none}
-.tags-chips{display:flex;flex-wrap:wrap;gap:7px}
+.tags-chips{display:flex;flex-wrap:wrap;gap:var(--space-4)}
 .tag-chip{
   display:inline-flex;align-items:center;background:transparent;
   border:1px solid var(--line);border-radius:var(--radius-pill);
-  padding:5px 11px;min-height:32px;cursor:pointer;color:var(--ink2);font-size:var(--text-xs);
+  padding:var(--chip-pad);min-height:32px;cursor:pointer;color:var(--ink2);font-size:var(--chip-text);
   transition:border-color var(--dur-1) var(--ease),color var(--dur-1) var(--ease),
-    background var(--dur-1) var(--ease),transform var(--dur-1) var(--ease);
-}
+    background var(--dur-1) var(--ease),transform var(--dur-1) var(--ease);font-weight:var(--chip-weight)}
 .tag-chip:hover{border-color:var(--line-2);color:var(--ink-2)}
 .tag-chip:active{transform:var(--press-xs)}
 .tag-chip-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
@@ -123,14 +121,14 @@
 .fueling-slot:empty{display:none}
 .fueling-card{
   background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius-sm);
-  border-left:3px solid var(--sage);padding:13px 15px;margin:0 0 14px;position:relative;
+  border-left:3px solid var(--sage);padding:var(--space-7) var(--space-8);margin:0 0 var(--space-7);position:relative;
 }
-.fueling-kicker{display:block;color:var(--sage-text);margin-bottom:2px}
-.fueling-copy{font-size:.96rem;color:var(--ink);margin-bottom:10px;padding-right:18px}
-.fueling-opts{display:flex;flex-wrap:wrap;gap:7px}
+.fueling-kicker{display:block;color:var(--sage-text);margin-bottom:var(--space-1)}
+.fueling-copy{font-size:var(--text-base);color:var(--ink);margin-bottom:var(--space-5);padding-right:var(--space-9)}
+.fueling-opts{display:flex;flex-wrap:wrap;gap:var(--space-4)}
 .fueling-opt{
   background:var(--card-2);border:1px solid var(--line);border-radius:var(--radius-pill);
-  padding:6px 14px;cursor:pointer;color:var(--ink);font-size:.84rem;font-weight:500;
+  padding:var(--space-3) var(--space-7);cursor:pointer;color:var(--ink);font-size:var(--text-md);font-weight:var(--weight-medium);
   transition:border-color var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease),
     transform var(--dur-1) var(--ease);
 }
@@ -141,12 +139,12 @@
 .fueling-opt.is-picked,.fueling-opt.is-picked:disabled{background:var(--ink);border-color:var(--ink);color:var(--on-ink);opacity:1}
 .fueling-skip{
   position:absolute;top:9px;right:10px;background:none;border:none;color:var(--muted);
-  font-size:.95rem;line-height:1;cursor:pointer;padding:2px 4px;
+  font-size:var(--text-base);line-height:1;cursor:pointer;padding:var(--space-1) var(--space-2);
   transition:color var(--dur-1) var(--ease);
 }
 .fueling-skip:hover{color:var(--ink-2)}
-.fueling-done{display:inline-flex;align-items:center;gap:7px;color:var(--muted);
-  font-size:.8rem;font-style:italic;padding:4px 2px}
+.fueling-done{display:inline-flex;align-items:center;gap:var(--space-4);color:var(--muted);
+  font-size:var(--text-sm);font-style:italic;padding:var(--space-2) var(--space-1)}
 .fueling-done-mark{color:var(--sage);font-style:normal}
 
 /* the quiet insight card — one connection, pull never push */
@@ -154,36 +152,36 @@
 .insight-slot:empty{display:none}
 .insight-card{
   background:var(--card);box-shadow:var(--shadow-sm);border-radius:var(--radius-sm);
-  padding:16px 18px 13px;margin:0 0 14px;border-left:3px solid var(--gold);
+  padding:var(--space-8) var(--space-9) var(--space-7);margin:0 0 var(--space-7);border-left:3px solid var(--gold);
   position:relative;overflow:hidden;
 }
 .insight-card::before{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb,var(--gold) 8%,transparent), transparent 62%)}
-.insight-kicker{display:flex;align-items:center;gap:7px;color:var(--muted);margin-bottom:8px;position:relative}
-.insight-glyph{color:var(--gold);font-size:.78rem;line-height:1}
-.insight-text{font-family:var(--font-display);font-weight:480;font-variation-settings:"opsz" 40;
-  font-size:1.06rem;line-height:1.4;color:var(--ink);margin:0;max-width:62ch;position:relative}
+.insight-kicker{display:flex;align-items:center;gap:var(--space-4);color:var(--muted);margin-bottom:var(--space-4);position:relative}
+.insight-glyph{color:var(--gold);font-size:var(--text-sm);line-height:1}
+.insight-text{font-family:var(--font-display);font-weight:var(--weight-medium);font-variation-settings:"opsz" 40;
+  font-size:var(--text-lead);line-height:var(--leading-normal);color:var(--ink);margin:0;max-width:62ch;position:relative}
 /* honest uncertainty — a tentative insight reads soft, the same way a soft directive
    does: the lead phrase in gold, the body in italic secondary ink. Consistent voice. */
 .insight-card-soft{border-left-color:var(--line-2)}
 .insight-card-soft .insight-text{font-style:italic;color:var(--ink-2)}
-.insight-soft{color:var(--gold);font-style:normal;font-weight:600}
+.insight-soft{color:var(--gold);font-style:normal;font-weight:var(--weight-semibold)}
 /* the optional concrete suggestion — its own scannable line, never buried in prose */
-.insight-step{font-size:.9rem;color:var(--ink);line-height:1.5;margin:11px 0 0;max-width:62ch;position:relative}
-.insight-step-lbl{font-family:var(--font-ui);font-size:.62rem;font-weight:700;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--sage);margin-right:8px}
-.insight-why{font-size:.84rem;color:var(--ink-2);line-height:1.5;margin:11px 0 0;max-width:72ch;position:relative}
-.insight-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;position:relative}
+.insight-step{font-size:var(--text-md);color:var(--ink);line-height:var(--leading);margin:var(--space-6) 0 0;max-width:62ch;position:relative}
+.insight-step-lbl{font-family:var(--font-ui);font-size:var(--text-2xs);font-weight:var(--weight-bold);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--sage);margin-right:var(--space-4)}
+.insight-why{font-size:var(--text-md);color:var(--ink-2);line-height:var(--leading);margin:var(--space-6) 0 0;max-width:72ch;position:relative}
+.insight-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);margin-top:var(--space-7);position:relative}
 /* quiet "why this" disclosure — mirrors the Brief's "tap to see why" */
 /* quiet disclosure → .linkbtn-quiet; delta = type only */
-.insight-why-more{font-family:var(--font-ui);font-size:.7rem;letter-spacing:.04em}
+.insight-why-more{font-family:var(--font-ui);font-size:var(--text-xs);letter-spacing:var(--tracking-wider)}
 /* insight/weekly actions — quiet text links (same idiom as "why this"), replacing
    the ambiguous ▲▼ vote arrows. "Got it" acknowledges AND clears the card (records
    the up-vote + dismisses in one tap → the brain learns this kind of connection
    lands); "Not useful" clears without a positive signal. A calm exit on both paths. */
-.insight-acts{display:flex;align-items:center;gap:16px}
+.insight-acts{display:flex;align-items:center;gap:var(--space-8)}
 /* quiet actions → .linkbtn-quiet; no underline; -go is the sage "commit" */
-.insight-act{font-family:var(--font-ui);font-size:.74rem;letter-spacing:.02em;text-decoration:none}
+.insight-act{font-family:var(--font-ui);font-size:var(--text-xs);letter-spacing:var(--tracking-wide);text-decoration:none}
 .insight-act.insight-act-go{color:var(--sage)}
 .insight-act.insight-act-go:hover{color:var(--sage-deep)}
 
@@ -195,136 +193,136 @@
 .weekly-slot:empty{display:none}
 /* sage-spined hero well → .well-accent.well-accent-sage; delta = small
    radius + masthead spacing + the wash clip */
-.weekly-card{border-radius:var(--radius-sm);padding:18px 20px 14px;margin:0 0 14px;
+.weekly-card{border-radius:var(--radius-sm);padding:var(--space-9) var(--space-10) var(--space-7);margin:0 0 var(--space-7);
   position:relative;overflow:hidden}
 .weekly-card::before{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(130% 90% at 0% 0%, color-mix(in srgb,var(--sage) 10%,transparent), transparent 60%)}
-.weekly-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;position:relative}
+.weekly-head{display:flex;align-items:baseline;gap:var(--space-5);margin-bottom:var(--space-5);position:relative}
 .weekly-kicker{color:var(--muted)}
-.weekly-range{font-family:var(--font-ui);font-size:.66rem;letter-spacing:.04em;color:var(--muted)}
-.weekly-text{font-family:var(--font-display);font-weight:460;font-variation-settings:"opsz" 60;
-  font-size:1.28rem;line-height:1.36;color:var(--ink);margin:0;max-width:60ch;position:relative}
+.weekly-range{font-family:var(--font-ui);font-size:var(--text-2xs);letter-spacing:var(--tracking-wider);color:var(--muted)}
+.weekly-text{font-family:var(--font-display);font-weight:var(--weight-medium);font-variation-settings:"opsz" 60;
+  font-size:var(--text-xl);line-height:var(--leading-snug);color:var(--ink);margin:0;max-width:60ch;position:relative}
 /* the one change — the single actionable thing, set apart so it never hides in prose */
 /* inline mini-well → .well-accent-sm; delta = tint bg + padding */
-.weekly-change{margin:14px 0 0;padding:11px 14px;background:var(--card-2);position:relative}
-.weekly-change-lbl{display:block;color:var(--accent);margin-bottom:3px}
-.weekly-change-text{margin:0;font-size:.92rem;line-height:1.45;color:var(--ink)}
+.weekly-change{margin:var(--space-7) 0 0;padding:var(--space-6) var(--space-7);background:var(--card-2);position:relative}
+.weekly-change-lbl{display:block;color:var(--accent);margin-bottom:var(--space-2)}
+.weekly-change-text{margin:0;font-size:var(--text-base);line-height:var(--leading-normal);color:var(--ink)}
 /* moved-on staleness (pull-only) — ONE quiet muted line under the masthead: when
    the read was written, that things have moved since, and a quiet re-read link.
    No pill, no box, no alarm color — softens rather than nags. */
-.weekly-stale{margin:-4px 0 10px;font-family:var(--font-ui);font-size:.74rem;line-height:1.45;
+.weekly-stale{margin:-4px 0 var(--space-5);font-family:var(--font-ui);font-size:var(--text-xs);line-height:var(--leading-normal);
   color:var(--muted);position:relative}
 .weekly-stale-sep{color:var(--line-2)}
-.weekly-why{font-size:.85rem;color:var(--ink-2);line-height:1.5;margin:12px 0 0;max-width:72ch;position:relative}
-.weekly-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:15px;position:relative}
-.weekly-wins{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
-.weekly-wins-lbl{display:block;margin-bottom:6px}
-.weekly-wins-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-.weekly-wins-item{font-size:.88rem;color:var(--ink-2);line-height:1.4}
+.weekly-why{font-size:var(--text-md);color:var(--ink-2);line-height:var(--leading);margin:var(--space-6) 0 0;max-width:72ch;position:relative}
+.weekly-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);margin-top:var(--space-8);position:relative}
+.weekly-wins{margin-top:var(--space-7);padding-top:var(--space-6);border-top:1px solid var(--line)}
+.weekly-wins-lbl{display:block;margin-bottom:var(--space-3)}
+.weekly-wins-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.weekly-wins-item{font-size:var(--text-md);color:var(--ink-2);line-height:var(--leading-normal)}
 .weekly-wins-item::before{content:"· ";color:var(--faint)}
 
 /* Depth one pull away — the deterministic team-week detail folds behind a native
    disclosure so the HERO (read + one change + wins) stays short. Fold idiom mirrors
    .team-fold: a ▸ that rotates open, quiet UI type. */
-.weekly-depth{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line);position:relative}
+.weekly-depth{margin:var(--space-7) 0 0;padding-top:var(--space-6);border-top:1px solid var(--line);position:relative}
 .weekly-depth>summary{
-  list-style:none;cursor:pointer;font-family:var(--font-ui);font-size:.72rem;
-  letter-spacing:.04em;color:var(--muted);display:inline-flex;align-items:center;gap:6px;
+  list-style:none;cursor:pointer;font-family:var(--font-ui);font-size:var(--text-xs);
+  letter-spacing:var(--tracking-wider);color:var(--muted);display:inline-flex;align-items:center;gap:var(--space-3);
 }
 .weekly-depth>summary::-webkit-details-marker{display:none}
-.weekly-depth>summary::before{content:"▸";font-size:.65rem;transition:transform .15s ease}
+.weekly-depth>summary::before{content:"▸";font-size:var(--text-2xs);transition:transform .15s ease}
 .weekly-depth[open]>summary::before{transform:rotate(90deg)}
 .weekly-depth>summary:hover{color:var(--ink-2)}
 /* Inside the fold the team-week block drops its own top rule (the fold owns it). */
-.weekly-depth .team-week{margin-top:11px;padding-top:0;border-top:none}
+.weekly-depth .team-week{margin-top:var(--space-6);padding-top:0;border-top:none}
 
 /* The acknowledged weekly read — compact + persistent for the week. One quiet line
    + the One change as a lasting chip, with a link back to the full read. */
-.weekly-acked{padding:12px 4px;margin:0 0 14px;position:relative}
-.weekly-acked-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.weekly-acked-mark{color:var(--sage);font-size:.9rem;line-height:1}
-.weekly-acked-lbl{font-family:var(--font-ui);font-size:.82rem;color:var(--ink-2)}
-.weekly-acked-more{margin-left:auto;font-family:var(--font-ui);font-size:.7rem;letter-spacing:.03em}
-.weekly-acked-change{margin:9px 0 0;padding:9px 13px;background:var(--card-2);
-  display:flex;flex-direction:column;gap:2px}
+.weekly-acked{padding:var(--space-6) var(--space-2);margin:0 0 var(--space-7);position:relative}
+.weekly-acked-line{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
+.weekly-acked-mark{color:var(--sage);font-size:var(--text-md);line-height:1}
+.weekly-acked-lbl{font-family:var(--font-ui);font-size:var(--text-sm);color:var(--ink-2)}
+.weekly-acked-more{margin-left:auto;font-family:var(--font-ui);font-size:var(--text-xs);letter-spacing:var(--tracking-wide)}
+.weekly-acked-change{margin:var(--space-5) 0 0;padding:var(--space-5) var(--space-7);background:var(--card-2);
+  display:flex;flex-direction:column;gap:var(--space-1)}
 .weekly-acked-change-lbl{display:block;color:var(--accent)}
-.weekly-acked-change-text{font-size:.88rem;line-height:1.4;color:var(--ink)}
+.weekly-acked-change-text{font-size:var(--text-md);line-height:var(--leading-normal);color:var(--ink)}
 
 /* the team's-week digest — the deterministic "here's what your team did" body
    beneath the weekly card's agentic sentence. Quiet, sectioned, words not scores. */
-.team-week{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);
-  display:flex;flex-direction:column;gap:13px;position:relative}
-.team-sec{display:flex;flex-direction:column;gap:5px}
+.team-week{margin-top:var(--space-7);padding-top:var(--space-6);border-top:1px solid var(--line);
+  display:flex;flex-direction:column;gap:var(--space-7);position:relative}
+.team-sec{display:flex;flex-direction:column;gap:var(--space-3)}
 .team-sec-lbl{display:block;color:var(--muted)}
-.team-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.team-item{font-size:.88rem;color:var(--ink-2);line-height:1.45;display:flex;flex-direction:column;gap:2px}
+.team-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3)}
+.team-item{font-size:var(--text-md);color:var(--ink-2);line-height:var(--leading-normal);display:flex;flex-direction:column;gap:var(--space-1)}
 .team-item-line::before{content:"· ";color:var(--faint)}
-.team-domain{font-family:var(--font-ui);font-size:.66rem;font-weight:700;letter-spacing:.05em;
-  text-transform:uppercase;color:var(--muted);margin-right:2px}
-.team-voice{font-size:.82rem;color:var(--muted);font-style:italic;padding-left:12px}
+.team-domain{font-family:var(--font-ui);font-size:var(--text-2xs);font-weight:var(--weight-bold);letter-spacing:var(--tracking-wider);
+  text-transform:uppercase;color:var(--muted);margin-right:var(--space-1)}
+.team-voice{font-size:var(--text-sm);color:var(--muted);font-style:italic;padding-left:var(--space-6)}
 .team-when{color:var(--muted)}
 .team-item.team-good .team-item-line{color:var(--sage-text,var(--ink-2))}
 .team-item.team-watch .team-item-line{color:var(--accent)}
 /* Quiet expander holding the items a display cap folded away (calm, editorial —
    a ▸ that rotates open, like .hist-fold but tucked inside a team section). */
-.team-fold{margin-top:2px}
+.team-fold{margin-top:var(--space-1)}
 .team-fold>summary{
-  list-style:none;cursor:pointer;font-family:var(--font-ui);font-size:.72rem;
-  letter-spacing:.03em;color:var(--muted);display:inline-flex;align-items:center;gap:5px;
+  list-style:none;cursor:pointer;font-family:var(--font-ui);font-size:var(--text-xs);
+  letter-spacing:var(--tracking-wide);color:var(--muted);display:inline-flex;align-items:center;gap:var(--space-3);
 }
 .team-fold>summary::-webkit-details-marker{display:none}
-.team-fold>summary::before{content:"▸";font-size:.65rem;transition:transform .15s ease}
+.team-fold>summary::before{content:"▸";font-size:var(--text-2xs);transition:transform .15s ease}
 .team-fold[open]>summary::before{transform:rotate(90deg)}
 .team-fold>summary:hover{color:var(--ink-2)}
-.team-fold-list{margin-top:6px}
+.team-fold-list{margin-top:var(--space-3)}
 
 /* autoregulation feedback (Today · finish bar) — reuses the check-in language.
    Optional, calm, dismissible; recovery INFORMS the coach, never auto-applies. */
-.feedback-slot{margin:10px 0 2px}
+.feedback-slot{margin:var(--space-5) 0 var(--space-1)}
 .feedback-slot:empty{display:none}
-.feedback-form{flex-direction:column;align-items:stretch;gap:11px}
+.feedback-form{flex-direction:column;align-items:stretch;gap:var(--space-6)}
 .feedback-form .feel-row{justify-content:space-between}
 .feedback-form .checkin-dismiss{position:absolute;top:8px;right:10px;margin-left:0}
-.feedback-done{font-size:.82rem}
+.feedback-done{font-size:var(--text-sm)}
 /* accent action → .linkbtn.linkbtn-plain.linkbtn-sm; delta = spacing only */
-.feedback-edit{font-family:var(--font-ui);padding:2px 4px;margin-left:4px}
+.feedback-edit{font-family:var(--font-ui);padding:var(--space-1) var(--space-2);margin-left:var(--space-2)}
 
 /* Pain & injury — the session-close lifecycle stays compact and editorial. */
-.symptom-lifecycle{margin-top:14px;text-align:left;color:var(--ink-2)}
-.symptom-lifecycle-head{display:flex;align-items:start;justify-content:space-between;gap:14px}
+.symptom-lifecycle{margin-top:var(--space-7);text-align:left;color:var(--ink-2)}
+.symptom-lifecycle-head{display:flex;align-items:start;justify-content:space-between;gap:var(--space-7)}
 .symptom-lifecycle-head .feedback-prompt{color:var(--ink);margin:0}
-.symptom-lifecycle-head p,.symptom-lifecycle-error p{margin:3px 0 0;color:var(--muted);font-size:.78rem;line-height:1.4}
-.symptom-lifecycle-head .linkbtn{flex:0 0 auto;min-height:30px;padding:5px 1px}
-.symptom-active-list{display:grid;gap:9px;margin-top:10px}
-.symptom-active-row{padding:11px 0 11px 11px;min-width:0}
-.symptom-row-heading{display:flex;align-items:start;justify-content:space-between;gap:10px}
-.symptom-area{min-width:0;color:var(--ink);font-family:var(--font-ui);font-size:.84rem;font-weight:650;line-height:1.4;overflow-wrap:anywhere}
+.symptom-lifecycle-head p,.symptom-lifecycle-error p{margin:var(--space-2) 0 0;color:var(--muted);font-size:var(--text-sm);line-height:var(--leading-normal)}
+.symptom-lifecycle-head .linkbtn{flex:0 0 auto;min-height:30px;padding:var(--space-3) 1px}
+.symptom-active-list{display:grid;gap:var(--space-5);margin-top:var(--space-5)}
+.symptom-active-row{padding:var(--space-6) 0 var(--space-6) var(--space-6);min-width:0}
+.symptom-row-heading{display:flex;align-items:start;justify-content:space-between;gap:var(--space-5)}
+.symptom-area{min-width:0;color:var(--ink);font-family:var(--font-ui);font-size:var(--text-md);font-weight:var(--weight-semibold);line-height:var(--leading-normal);overflow-wrap:anywhere}
 .symptom-watching{flex:0 0 auto;color:var(--gold-deep);background:color-mix(in srgb,var(--gold) 16%,transparent);border-radius:var(--radius-pill);
-  padding:3px 7px;font-family:var(--font-ui);font-size:.61rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+  padding:var(--space-2) var(--space-4);font-family:var(--font-ui);font-size:var(--text-2xs);font-weight:var(--weight-bold);letter-spacing:var(--tracking-wider);text-transform:uppercase}
 /* An imported note is not a current finding — it reads quieter than "Watching". */
 .symptom-unconfirmed{color:var(--muted);background:rgba(120,120,120,.12)}
-.symptom-active-row .sess-line{margin-top:5px;font-size:.74rem;line-height:1.4}
-.symptom-row-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.symptom-active-row .sess-line{margin-top:var(--space-3);font-size:var(--text-xs);line-height:var(--leading-normal)}
+.symptom-row-actions{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;margin-top:var(--space-5)}
 .symptom-row-actions .pillbtn{min-height:38px}
-.symptom-row-actions .linkbtn{min-height:30px;padding:5px 1px}
-.symptom-history{margin-top:12px;border-top:1px solid var(--line);padding-top:9px}
-.symptom-history>summary{display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--muted);font-family:var(--font-ui);font-size:.76rem;font-weight:650;list-style:none}
+.symptom-row-actions .linkbtn{min-height:30px;padding:var(--space-3) 1px}
+.symptom-history{margin-top:var(--space-6);border-top:1px solid var(--line);padding-top:var(--space-5)}
+.symptom-history>summary{display:flex;align-items:center;gap:var(--space-4);cursor:pointer;color:var(--muted);font-family:var(--font-ui);font-size:var(--text-xs);font-weight:var(--weight-semibold);list-style:none}
 .symptom-history>summary::-webkit-details-marker{display:none}
-.symptom-history>summary::before{content:"▸";font-size:.65rem;transition:transform var(--dur-1) var(--ease)}
+.symptom-history>summary::before{content:"▸";font-size:var(--text-2xs);transition:transform var(--dur-1) var(--ease)}
 .symptom-history[open]>summary::before{transform:rotate(90deg)}
-.symptom-history>summary span{color:var(--faint);font-size:.7rem}
-.symptom-history-list{display:grid;gap:7px;margin-top:9px}
-.symptom-history-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px 12px;padding:8px 0;border-top:1px solid var(--line)}
-.symptom-history-main{display:grid;gap:2px;min-width:0}
-.symptom-resolved-on{color:var(--faint);font-family:var(--font-ui);font-size:.7rem;line-height:1.35}
+.symptom-history>summary span{color:var(--faint);font-size:var(--text-xs)}
+.symptom-history-list{display:grid;gap:var(--space-4);margin-top:var(--space-5)}
+.symptom-history-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--space-4) var(--space-6);padding:var(--space-4) 0;border-top:1px solid var(--line)}
+.symptom-history-main{display:grid;gap:var(--space-1);min-width:0}
+.symptom-resolved-on{color:var(--faint);font-family:var(--font-ui);font-size:var(--text-xs);line-height:var(--leading-snug)}
 .symptom-history-row:first-child{border-top:0}
-.symptom-history-row .linkbtn{flex:0 0 auto;min-height:30px;padding:5px 1px}
+.symptom-history-row .linkbtn{flex:0 0 auto;min-height:30px;padding:var(--space-3) 1px}
 
 /* Energy Balance (Progress, and Fuel's foot) — a calm editorial read, never a
    dashboard. Atelier v2: one surface card, a mono kicker behind a small dot, the
    read in the serif voice. A lever read (dropping faster than lean-safe) says so
    with a dawn dot in the kicker, never a painted edge. */
-.eb-ctx{color:var(--muted);margin-top:11px}
+.eb-ctx{color:var(--muted);margin-top:var(--space-6)}
 .eb-card{
   background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
   padding:var(--space-7) var(--space-8) var(--space-7);margin:0 0 var(--space-7);position:relative;
@@ -332,112 +330,112 @@
 .eb-kicker{display:flex;align-items:center;gap:var(--space-3);color:var(--muted);margin-bottom:var(--space-4)}
 .eb-glyph{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--s-fuel);
   font-size:0;line-height:0;color:transparent;overflow:hidden;flex:0 0 auto}
-.eb-lead{font-family:var(--font-display);font-weight:400;font-size:var(--text-lg);line-height:1.3;
+.eb-lead{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-lg);line-height:var(--leading-snug);
   color:var(--ink);margin:0;max-width:46ch;text-wrap:pretty}
-.eb-body{font-size:var(--text-sm);color:var(--ink2);line-height:1.55;margin:var(--space-4) 0 0;max-width:48ch}
+.eb-body{font-size:var(--text-sm);color:var(--ink2);line-height:var(--leading);margin:var(--space-4) 0 0;max-width:48ch}
 /* The goal-aware cut-quality line — is the cut preserving muscle? A calm second read
    under the lead, in the body's own register. */
-.eb-quality{font-size:var(--text-sm);color:var(--ink);line-height:1.5;margin:var(--space-5) 0 0;max-width:48ch}
+.eb-quality{font-size:var(--text-sm);color:var(--ink);line-height:var(--leading);margin:var(--space-5) 0 0;max-width:48ch}
 /* Confidence as geometry: the maintenance-zone band widens (renderer) AND softens
    (here) as the read loosens — uncertainty shown as WIDTH, never a number or score.
    Composes the §04d .read-band; high confidence keeps the primitive's crisp default. */
-.eb-zone{margin:var(--space-7) 0 2px;display:flex;flex-direction:column;gap:var(--space-4)}
+.eb-zone{margin:var(--space-7) 0 var(--space-1);display:flex;flex-direction:column;gap:var(--space-4)}
 .eb-zone .read-band-track{height:8px;background:var(--well)}
 .eb-zone--medium .read-band-range{opacity:.82}
 .eb-zone--low .read-band-range{opacity:.5;box-shadow:none;
   background:linear-gradient(90deg,transparent,var(--sage-bg) 20%,var(--sage-bg) 80%,transparent)}
 .eb-card--lever .eb-glyph{background:var(--dawn)}
 /* The numeric hero, demoted BELOW the verbal read — a quiet reference strip, not a masthead. */
-#energyHero .phero{padding:2px 2px 4px}
-#energyHero .phero-title{font-family:var(--font-ui);font-variation-settings:normal;font-weight:600;
-  font-size:.68rem;text-transform:uppercase;letter-spacing:.16em;color:var(--muted)}
+#energyHero .phero{padding:var(--space-1) var(--space-1) var(--space-2)}
+#energyHero .phero-title{font-family:var(--font-ui);font-variation-settings:normal;font-weight:var(--weight-semibold);
+  font-size:var(--text-xs);text-transform:uppercase;letter-spacing:var(--tracking-widest);color:var(--muted)}
 #energyHero .phero-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:var(--space-4);gap:var(--space-6)}
-#energyHero .phero-n{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1.1}
-#energyHero .phero-stat .lbl{line-height:1.5}
+#energyHero .phero-n{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-xl);line-height:var(--leading-tight)}
+#energyHero .phero-stat .lbl{line-height:var(--leading)}
 .eb-foot{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3) var(--space-6);margin-top:var(--space-7)}
 .eb-checkin{flex:none;margin-top:0}
 .eb-note,.eb-advisory{font-family:var(--font-ui);color:var(--muted);text-transform:none;letter-spacing:0;font-size:var(--text-xs)}
-.eb-advisory{margin-top:11px;font-style:italic}
+.eb-advisory{margin-top:var(--space-6);font-style:italic}
 
 /* check-in result (under the Energy card) */
 .checkin-result:empty{display:none}
-.checkin-result{margin-top:4px}
-.eb-checking,.eb-checkin-quiet{color:var(--muted);font-size:.84rem;padding:6px 2px}
+.checkin-result{margin-top:var(--space-2)}
+.eb-checking,.eb-checkin-quiet{color:var(--muted);font-size:var(--text-md);padding:var(--space-3) var(--space-1)}
 .eb-checkin-quiet{font-style:italic}
 .eb-checkin-ok{
-  display:flex;gap:10px;align-items:flex-start;background:var(--sage-bg);
-  border-radius:var(--radius-sm);padding:13px 15px;
+  display:flex;gap:var(--space-5);align-items:flex-start;background:var(--sage-bg);
+  border-radius:var(--radius-sm);padding:var(--space-7) var(--space-8);
 }
 
 /* Progress → Fuel → Intake — meaning first, one selectable timeline, visible
    unknowns, and a bounded clinical-context footnote rather than a dashboard. */
-.nprog{display:flex;flex-direction:column;gap:16px;padding-bottom:24px}
-.nprog-read{padding:18px 2px 2px}
-.nprog-read h1{font-family:var(--font-display);font-size:1.42rem;font-weight:520;line-height:1.28;
-  max-width:28ch;margin:8px 0;color:var(--ink)}
-.nprog-read>p{max-width:62ch;margin:0;color:var(--ink-2);font-size:.88rem;line-height:1.55}
-.nprog-more{margin-top:4px}
+.nprog{display:flex;flex-direction:column;gap:var(--space-8);padding-bottom:var(--space-11)}
+.nprog-read{padding:var(--space-9) var(--space-1) var(--space-1)}
+.nprog-read h1{font-family:var(--font-display);font-size:var(--text-xl);font-weight:var(--weight-medium);line-height:var(--leading-snug);
+  max-width:28ch;margin:var(--space-4) 0;color:var(--ink)}
+.nprog-read>p{max-width:62ch;margin:0;color:var(--ink-2);font-size:var(--text-md);line-height:var(--leading)}
+.nprog-more{margin-top:var(--space-2)}
 .nprog-more>summary{cursor:pointer;list-style:none;display:inline-block;font-size:var(--text-sm);color:var(--ink-2);
-  text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong);padding:4px 0}
+  text-decoration:underline;text-underline-offset:var(--link-offset);text-decoration-color:var(--line-strong);padding:var(--space-2) 0}
 .nprog-more>summary::-webkit-details-marker{display:none}
-.nprog-more>p{max-width:62ch;margin:8px 0 0;color:var(--ink-2);font-size:.88rem;line-height:1.55}
+.nprog-more>p{max-width:62ch;margin:var(--space-4) 0 0;color:var(--ink-2);font-size:var(--text-md);line-height:var(--leading)}
 .nprog-more>.nprog-more-read{color:var(--ink)}
-.nprog-next{margin-top:14px;padding:10px 13px;color:var(--ink-2);font-size:.88rem;line-height:1.45}
-.nprog-next .lbl{display:block;margin-bottom:4px;color:var(--accent-deep)}
-.nprog-picks{gap:7px;padding:2px 1px 4px} /* scroller + edge fade: .rail */
+.nprog-next{margin-top:var(--space-7);padding:var(--space-5) var(--space-7);color:var(--ink-2);font-size:var(--text-md);line-height:var(--leading-normal)}
+.nprog-next .lbl{display:block;margin-bottom:var(--space-2);color:var(--accent-deep)}
+.nprog-picks{gap:var(--space-4);padding:var(--space-1) 1px var(--space-2)} /* scroller + edge fade: .rail */
 .nprog-pick{flex:0 0 auto;border:1px solid var(--line-2);border-radius:var(--radius-pill);background:var(--card);
-  color:var(--ink-2);font:600 .78rem var(--font-ui);padding:7px 12px;cursor:pointer}
+  color:var(--ink-2);font:600 .78rem var(--font-ui);padding:var(--space-4) var(--space-6);cursor:pointer}
 .nprog-pick.active{background:var(--ink);border-color:var(--ink);color:var(--on-accent)}
 .nprog-pick:active{transform:var(--press-sm)}
-.nprog-chartcard{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:16px}
-.nprog-charthead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
-.nprog-chartread{font-family:var(--font-display);font-size:1.03rem;line-height:1.35;margin-top:5px;color:var(--ink)}
-.nprog-reftext{max-width:24ch;text-align:right;color:var(--muted);font-size:.7rem;line-height:1.35}
-.nprog-chart{height:178px;position:relative;margin-top:18px;border-bottom:1px solid var(--line-2);
+.nprog-chartcard{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:var(--space-8)}
+.nprog-charthead{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-7)}
+.nprog-chartread{font-family:var(--font-display);font-size:var(--text-lead);line-height:var(--leading-snug);margin-top:var(--space-3);color:var(--ink)}
+.nprog-reftext{max-width:24ch;text-align:right;color:var(--muted);font-size:var(--text-xs);line-height:var(--leading-snug)}
+.nprog-chart{height:178px;position:relative;margin-top:var(--space-9);border-bottom:1px solid var(--line-2);
   background:linear-gradient(to bottom,transparent 49.5%,var(--line) 50%,transparent 50.5%)}
 .nprog-bars{position:absolute;inset:0 0 1px;display:grid;grid-template-columns:repeat(var(--nprog-days,35),minmax(2px,1fr));
-  align-items:end;gap:2px}
+  align-items:end;gap:var(--space-1)}
 .nprog-day{height:100%;position:relative;display:flex;align-items:flex-end}
-.nprog-day i{display:block;width:100%;min-height:3px;border-radius:3px 3px 1px 1px;background:var(--sage);
+.nprog-day i{display:block;width:100%;min-height:3px;border-radius:var(--radius-3xs) var(--radius-3xs) var(--radius-3xs) var(--radius-3xs);background:var(--sage);
   opacity:.8;transform-origin:bottom;animation:bargrow var(--dur-3) var(--ease) both}
 .nprog-day.partial i{opacity:.42;background:var(--stone-taupe)}
 .nprog-day.gap i{height:2px;min-height:2px;background:var(--line-2);opacity:1}
-.nprog-day em{position:absolute;left:0;right:0;height:2px;background:var(--accent);border-radius:2px;
+.nprog-day em{position:absolute;left:0;right:0;height:2px;background:var(--accent);border-radius:var(--radius-3xs);
   opacity:.78;transform:translateY(1px)}
-.nprog-axis{display:flex;justify-content:space-between;gap:10px;margin-top:6px;color:var(--muted);font-size:.65rem}
-.nprog-balance,.nprog-health{padding:4px 2px}
-.nprog-balance>p,.nprog-health>p{margin:7px 0 0;color:var(--muted);font-size:.78rem;line-height:1.5}
-.nprog-split{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:10px}
-.nprog-split span{height:38px;background:var(--card-2);border-radius:8px;overflow:hidden;position:relative}
+.nprog-axis{display:flex;justify-content:space-between;gap:var(--space-5);margin-top:var(--space-3);color:var(--muted);font-size:var(--text-2xs)}
+.nprog-balance,.nprog-health{padding:var(--space-2) var(--space-1)}
+.nprog-balance>p,.nprog-health>p{margin:var(--space-4) 0 0;color:var(--muted);font-size:var(--text-sm);line-height:var(--leading)}
+.nprog-split{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-5);margin-top:var(--space-5)}
+.nprog-split span{height:38px;background:var(--card-2);border-radius:var(--radius-xs);overflow:hidden;position:relative}
 .nprog-split b{position:absolute;left:0;bottom:0;height:3px;background:var(--sage)}
-.nprog-split i{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;color:var(--ink-2);font-size:.72rem}
-.nprog-health ul{list-style:none;margin:10px 0 0;padding:0;border-top:1px solid var(--line)}
-.nprog-healthrow{padding:12px 0;border-bottom:1px solid var(--line)}
-.nprog-healthtop{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:600}
-.nprog-healthrow p{margin:6px 0 0;color:var(--ink-2);font-size:.84rem;line-height:1.45}
-.nprog-healthrow small,.nprog-evidence{display:block;margin-top:5px;color:var(--muted);font-size:.73rem;line-height:1.45}
-.nprog-healthrow .linkbtn{display:inline-block;margin-top:6px}
-.nprog-frame{margin-top:10px;color:var(--muted);font-size:.72rem;font-style:italic}
+.nprog-split i{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;color:var(--ink-2);font-size:var(--text-xs)}
+.nprog-health ul{list-style:none;margin:var(--space-5) 0 0;padding:0;border-top:1px solid var(--line)}
+.nprog-healthrow{padding:var(--space-6) 0;border-bottom:1px solid var(--line)}
+.nprog-healthtop{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);font-weight:var(--weight-semibold)}
+.nprog-healthrow p{margin:var(--space-3) 0 0;color:var(--ink-2);font-size:var(--text-md);line-height:var(--leading-normal)}
+.nprog-healthrow small,.nprog-evidence{display:block;margin-top:var(--space-3);color:var(--muted);font-size:var(--text-xs);line-height:var(--leading-normal)}
+.nprog-healthrow .linkbtn{display:inline-block;margin-top:var(--space-3)}
+.nprog-frame{margin-top:var(--space-5);color:var(--muted);font-size:var(--text-xs);font-style:italic}
 @media(max-width:520px){
-  .nprog-charthead{display:block}.nprog-reftext{text-align:left;margin-top:6px;max-width:none}
+  .nprog-charthead{display:block}.nprog-reftext{text-align:left;margin-top:var(--space-3);max-width:none}
   .nprog-chart{height:150px}.nprog-axis span:nth-child(2){display:none}
 }
-.eb-ok-mark{color:var(--sage);font-size:.95rem;line-height:1.4;flex:0 0 auto}
-.eb-ok-lead{font-weight:600;color:var(--ink);font-size:.92rem}
-.eb-ok-body{margin:5px 0 0;font-size:.85rem;color:var(--ink-2);line-height:1.5}
+.eb-ok-mark{color:var(--sage);font-size:var(--text-base);line-height:var(--leading-normal);flex:0 0 auto}
+.eb-ok-lead{font-weight:var(--weight-semibold);color:var(--ink);font-size:var(--text-base)}
+.eb-ok-body{margin:var(--space-3) 0 0;font-size:var(--text-md);color:var(--ink-2);line-height:var(--leading)}
 /* spined well → .well-accent; delta = padding + clip */
-.eb-proposal{padding:16px 18px 14px;position:relative;overflow:hidden}
-.eb-target{display:flex;align-items:baseline;gap:9px;margin-top:4px}
+.eb-proposal{padding:var(--space-8) var(--space-9) var(--space-7);position:relative;overflow:hidden}
+.eb-target{display:flex;align-items:baseline;gap:var(--space-5);margin-top:var(--space-2)}
 .eb-target-unit{color:var(--muted)}
-.eb-macros{color:var(--ink-2);margin-top:7px;text-transform:none;letter-spacing:.02em;font-size:.8rem}
-.eb-why{font-size:.88rem;color:var(--ink);line-height:1.5;margin:10px 0 0;max-width:48ch}
+.eb-macros{color:var(--ink-2);margin-top:var(--space-4);text-transform:none;letter-spacing:var(--tracking-wide);font-size:var(--text-sm)}
+.eb-why{font-size:var(--text-md);color:var(--ink);line-height:var(--leading);margin:var(--space-5) 0 0;max-width:48ch}
 
 /* Apple Health setup (Settings) */
-.ah-fields{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ah-fields{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-top:var(--space-5)}
 .ah-fields span{
   display:inline-flex;align-items:center;min-height:28px;border:1px solid var(--line);
-  border-radius:var(--radius-pill);background:var(--card-2);padding:5px 9px;color:var(--ink-2);
-  font-size:.76rem;font-weight:600;
+  border-radius:var(--radius-pill);background:var(--card-2);padding:var(--space-3) var(--space-5);color:var(--ink-2);
+  font-size:var(--text-xs);font-weight:var(--weight-semibold);
 }
-.ah-builder-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.ah-builder-actions{display:flex;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-6)}
 

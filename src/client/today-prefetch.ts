@@ -131,8 +131,9 @@ type TodayFanInDeps = {
         paths.push(`/today-strength-line?date=${q(date)}`, `/training-symptoms?on=${q(date)}&include_resolved=1`);
       } else {
         paths.push(`/today-agenda?date=${q(date)}`, "/coaching-focus", `/today-side?date=${q(date)}`, "/context-tags/vocab",
-          `/context-tags?date=${q(deps.localISO())}`, "/directives", "/brain/changes");
-        if (date === deps.localISO()) paths.push(`/training-agenda?date=${q(date)}`);
+          `/context-tags?date=${q(deps.localISO())}`, "/directives", "/brain/changes",
+          `/today-path?date=${q(date)}`, `/today-digest?date=${q(date)}`);
+        if (date === deps.localISO()) paths.push(`/training-agenda?date=${q(date)}`, "/plan/week", "/recovery/baseline");
       }
       const aggregate = deps.api(CairnTodayDataLoader.aggregatePath(date, surface));
       apiPrime(paths, aggregate.then((value) => (value as { responses?: unknown } | null)?.responses ?? null));

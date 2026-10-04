@@ -74,6 +74,7 @@ import { getProgramState, runVolumeSpikeRead, type MesocycleState } from "./prog
 import { runIntensityDiscipline } from "./run-progression.js";
 import { programBalance } from "./progression.js";
 import { addDaysISO, daysBetweenISO, localDateISO, nowContext } from "./shared.js";
+import { requestMemo } from "./request-memo.js";
 import { coachContextBackstopSignature, registerTrainingCacheClear } from "./training-cache.js";
 import { getTrainingIntent, isStrengthLedIntent } from "./training-intent.js";
 import { listTrainingSymptoms } from "./training-symptoms.js";
@@ -3618,6 +3619,19 @@ export function weekAheadPlan(date = localDateISO()): { days: WeekAheadDay[]; su
 // the week-ahead card does, not a second drifted implementation. Never throws;
 // null on any failure or when the program state can't ground a purpose.
 export function planDayPurpose(planDayId: number, date = localDateISO()): string | null {
+  // Request-memoized: GET /plan's purpose lines are read twice per Today open (the
+  // aggregate and the week strip). The answer is a string or null; the key names the
+  // plan day id with its type, the day, and the local date the program state reads.
+  if (typeof planDayId === "number")
+    return requestMemo(
+      `plan_day_purpose:${planDayId}:${String(date).slice(0, 10)}:${localDateISO()}`,
+      () => planDayPurposeRead(planDayId, date),
+      (value) => value
+    );
+  return planDayPurposeRead(planDayId, date);
+}
+
+function planDayPurposeRead(planDayId: number, date: string): string | null {
   try {
     const d = String(date).slice(0, 10);
     // Plan days hold strength only, so a day with items is a lifting day.

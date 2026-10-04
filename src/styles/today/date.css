@@ -8,8 +8,8 @@ header{position:relative}
    eyebrow for the day it shows. */
 body:is([data-tab="today"],[data-tab="day"]) header #header-title,
 header #header-title.hdr-eyebrow{
-  font-family:var(--font-mono);font-weight:400;font-size:.7rem;letter-spacing:var(--tracking-mono);
-  text-transform:uppercase;color:var(--ink2);line-height:1.6;margin:0;display:inline-flex;align-items:center;
+  font-family:var(--font-mono);font-weight:var(--weight-regular);font-size:var(--text-xs);letter-spacing:var(--tracking-mono);
+  text-transform:uppercase;color:var(--ink2);line-height:var(--leading);margin:0;display:inline-flex;align-items:center;
   min-height:32px;
 }
 body:is([data-tab="today"],[data-tab="day"]) header{padding-bottom:0}
@@ -35,10 +35,10 @@ body[data-tab="today"] header::after{
    and on a (re)load body[data-tab] lands after the header's first paint, so one
    animated the boot-time h1 size down and dragged Today up ~60px under the reader. */
 body[data-tab="today"] header.condensed{
-  padding-top:calc(env(safe-area-inset-top) + 6px);padding-bottom:4px;
+  padding-top:calc(env(safe-area-inset-top) + 6px);padding-bottom:var(--space-2);
 }
 body[data-tab="today"] header.condensed::after{opacity:1}
-body[data-tab="today"] header.condensed #header-title{font-size:.7rem}
+body[data-tab="today"] header.condensed #header-title{font-size:var(--text-xs)}
 
 /* -------------------------------------------------------------------
    32 · View enter — subtle fade+rise on full content swaps

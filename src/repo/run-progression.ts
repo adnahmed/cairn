@@ -105,6 +105,7 @@ import {
   type DemonstratedRunCapacity,
 } from "./run-capacity.js";
 import { isoDaysAgo, mondayOf } from "../lib/dates.js";
+import { copyDeep, memoKey, requestMemo } from "./request-memo.js";
 
 function shiftDaysISO(dateISO: string, n: number): string {
   return isoDaysAgo(dateISO, -n);
@@ -1073,7 +1074,22 @@ export function hrvReadsDown(delta: unknown, baselineMedian?: unknown): boolean 
     : Math.abs(drop) >= HRV_DOWN_ABSOLUTE_DROP_MS;
 }
 
-export function weeklyRunPlan(
+// One request asks the engine for the same week many times over (the coach context,
+// the agenda, the race ladder, compliance, the plan strip): a call with no injected
+// inputs — or only plain flags — is memoized for the request (request-memo.ts).
+// Injected objects (a program state, a compliance read) always compute.
+export function weeklyRunPlan(date?: string, opts?: Parameters<typeof weeklyRunPlanRead>[1]): WeeklyRunPlan {
+  const plain =
+    opts == null ||
+    Object.values(opts).every(
+      (v) => v == null || typeof v === "string" || typeof v === "number" || typeof v === "boolean"
+    );
+  const key = plain ? memoKey(opts ?? null) : null;
+  if (key == null) return weeklyRunPlanRead(date, opts);
+  return requestMemo(`weekly_run_plan:${date || localDateISO()}:${key}`, () => weeklyRunPlanRead(date, opts), copyDeep);
+}
+
+function weeklyRunPlanRead(
   date?: string,
   opts?: {
     programState?: ProgramState;

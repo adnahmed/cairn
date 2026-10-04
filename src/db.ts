@@ -12,6 +12,27 @@ const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "cairn.db");
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 export const db = new DatabaseSync(DB_PATH);
+
+// The connection's ROLLBACK epoch. SQLite's total_changes() counts every row a
+// statement changed, including rows a later ROLLBACK (or ROLLBACK TO a savepoint)
+// throws away, and it never goes down — so it alone cannot tell the request memo
+// (src/repo/request-memo.ts) that a value read inside a since-undone unit names rows
+// that no longer exist. Every rollback on this connection runs through `exec`, so
+// counting them here covers withSqliteSavepoint and every hand-written ROLLBACK site.
+let sqliteRollbackEpoch = 0;
+const execRaw = db.exec.bind(db);
+db.exec = (sql: string): void => {
+  try {
+    execRaw(sql);
+  } finally {
+    if (/^\s*ROLLBACK\b/i.test(sql)) sqliteRollbackEpoch++;
+  }
+};
+
+/** How many ROLLBACK statements this connection has run (see above). */
+export function sqliteRollbackCount(): number {
+  return sqliteRollbackEpoch;
+}
 db.exec("PRAGMA journal_mode = WAL;");
 db.exec("PRAGMA foreign_keys = ON;");
 // Connection tuning for a single-writer app on slow flash (a Pi's SD card / USB
@@ -45,7 +66,9 @@ CREATE TABLE IF NOT EXISTS exercises (
   garmin_exercise TEXT,                   -- FIT sub-exercise; null means category-only (always legal on a Garmin PUT)
   garmin_map_status TEXT,                 -- mapped|unmapped|skipped|null
   suggested_name TEXT,                    -- an agent's cleaner title the rename guard would not apply on its own — waits for a human yes/no (repo/exercises.ts renameExercise)
-  refused_name TEXT                       -- the suggestion a person declined; the same proposal is never parked again
+  refused_name TEXT,                      -- the suggestion a person declined; the same proposal is never parked again
+  input_profile TEXT,                     -- stated log-row profile: loaded | bodyweight | mobility; NULL = derived (repo/exercise-input.ts) (v119)
+  per_side INTEGER                        -- 1 = the dose is each side's ("2 × 6 / side"), 0 = not; NULL = read from the name (v119)
 );
 -- Imported instructional guides for a movement: step-by-step text, muscles worked,
 -- equipment and two demonstration photos, from the public-domain free-exercise-db
@@ -499,6 +522,11 @@ CREATE TABLE IF NOT EXISTS garmin_activities (
   avg_ground_contact_ms REAL, -- running dynamics (detail endpoint)
   avg_vertical_osc_cm REAL,   -- vertical oscillation
   avg_vertical_ratio REAL,    -- vertical ratio (%)
+  -- the run's shape (migration v117) — repo/run-structure.ts
+  gap_speed REAL,             -- grade-adjusted average speed (m/s)
+  body_battery_delta REAL,    -- Body Battery change across the activity
+  structure_json TEXT,        -- [{kind,bouts,secs,meters,ascent_m,descent_m,avg_speed}] warm-up/work/recovery/walk segments
+  laps_json TEXT,             -- [{n,kind,secs,meters,avg_hr,max_hr,avg_speed,gap_speed,ascent_m,descent_m,cadence,avg_power}]
   session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL, -- reconciled Cairn session (strength activities)
   raw_json TEXT,
   created_at TEXT DEFAULT (datetime('now')),

@@ -263,14 +263,19 @@ type TodayBriefActionsDayRead = import("../contracts/client.js").ClientDayRead &
     const whyBtn = brief.querySelector<HTMLElement>("[data-briefwhy]");
     const hasSignals = !!(read.signals && Object.keys(read.signals).length);
     const stampEl = () => brief.querySelector<HTMLElement>("[data-brief-stamp]");
-    if (whyBtn && (hasSignals || stampEl())) {
+    // The session's engine reasons (guardrails, the anchor line) live here too, never
+    // on the lift card's face.
+    const caveatsEl = () => brief.querySelector<HTMLElement>("[data-brief-caveats]");
+    if (whyBtn && (hasSignals || stampEl() || caveatsEl())) {
       whyBtn.hidden = false;
       whyBtn.addEventListener("click", () => {
         const stamp = stampEl();
+        const caveats = caveatsEl();
         const isOpen = whyBtn.getAttribute("aria-expanded") === "true";
         if (isOpen) {
           brief.querySelector(".brief-why-panel")?.remove();
           if (stamp) stamp.hidden = true;
+          if (caveats) caveats.hidden = true;
           whyBtn.textContent = "tap to see why";
           whyBtn.setAttribute("aria-expanded", "false");
           return;
@@ -278,6 +283,7 @@ type TodayBriefActionsDayRead = import("../contracts/client.js").ClientDayRead &
         whyBtn.setAttribute("aria-expanded", "true");
         whyBtn.textContent = "hide";
         if (stamp) stamp.hidden = false;
+        if (caveats) caveats.hidden = false;
         if (!hasSignals) return;
         // Reading-grammar contributor rows (Amendment 2) when the primitive is
         // loaded and the read yields any; otherwise the calm prose summary — the

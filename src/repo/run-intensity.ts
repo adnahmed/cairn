@@ -10,6 +10,11 @@
 //   • the athlete NAMED it quality ("Hills", "5k+sprints", "LT HR Test" —
 //     `namesQualityRun`): an interval day's recoveries pull the average into the
 //     steady band, and his title is his own input;
+//   • he RAN it as a structured interval workout on the watch (≥3 work bouts with
+//     recoveries and ≥6 min of work — `intervalSessionEvidence`, run-structure.ts):
+//     the workout he chose and executed is input of the same standing as his title.
+//     Its own work laps, read against HIS easy line, can still say the bouts were
+//     all easy (a run/walk workout) — the watch's labels never grade it;
 //   • HARD_EFFORT.z4Seconds sat in heart-rate bins lying wholly ABOVE his threshold
 //     band (bin floor > z4_top). Garmin's bins are drawn on Garmin's zones, so a bin
 //     straddling his line proves nothing either way.
@@ -25,11 +30,13 @@ import { db } from "../db.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
 import { canonicalEnduranceSport } from "./endurance-sports.js";
 import { HARD_EFFORT } from "./heavy-load.js";
-import { classifyRunEffort, getHrModel, type HrModel } from "./hr-model.js";
+import { classifyRunEffort, easyCeiling, getHrModel, type HrModel } from "./hr-model.js";
 import { getEnduranceSchedule, isoDow } from "./profile.js";
 import { addDaysISO } from "./shared.js";
 import { median } from "../lib/numbers.js";
 import { namesQualityRun } from "./stated-effort.js";
+import { intervalSessionEvidence } from "./run-structure.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 export interface PersonalRunRead {
   hard: boolean;
@@ -49,7 +56,7 @@ export function usablePersonalHrModel(date: string): HrModel | null {
 }
 
 export function personalRunRead(
-  run: { avg_hr?: unknown; minutes?: unknown; names?: unknown[]; zones?: unknown },
+  run: { avg_hr?: unknown; minutes?: unknown; names?: unknown[]; zones?: unknown; structure?: unknown; laps?: unknown },
   model: HrModel | null
 ): PersonalRunRead | null {
   if (!model?.zones) return null;
@@ -61,6 +68,7 @@ export function personalRunRead(
   if (effort === "unknown") return null;
   if (effort === "quality") return { hard: true, effort };
   if ((run.names ?? []).some((name) => namesQualityRun(name))) return { hard: true, effort };
+  if (intervalSessionEvidence(run.structure, run.laps, easyCeiling(model))) return { hard: true, effort };
   let above = 0;
   try {
     const z = typeof run.zones === "string" ? JSON.parse(run.zones) : run.zones;
@@ -78,7 +86,8 @@ export function personalRunRead(
 /**
  * The personal read of one activities ⨝ garmin_activities row: null when it is not a
  * run with heart rate, or no usable model exists (the caller keeps the watch's bars).
- * Rows carry `type`, `avg_hr`, `hr_minutes`, `g_name`, `raw_text` and `zones`; the
+ * Rows carry `type`, `avg_hr`, `hr_minutes`, `g_name`, `raw_text`, `zones`, and
+ * `structure`/`laps` (garmin_activities.structure_json/laps_json); the
  * model is a thunk so a day with no run never pays for one.
  */
 export function personalRunReadForRow(r: any, model: () => HrModel | null): PersonalRunRead | null {
@@ -86,7 +95,14 @@ export function personalRunReadForRow(r: any, model: () => HrModel | null): Pers
   const avg = Number(r?.avg_hr);
   if (!Number.isFinite(avg) || avg <= 0) return null;
   return personalRunRead(
-    { avg_hr: avg, minutes: r.hr_minutes, names: [r.g_name, r.raw_text], zones: r.zones },
+    {
+      avg_hr: avg,
+      minutes: r.hr_minutes,
+      names: [r.g_name, r.raw_text],
+      zones: r.zones,
+      structure: r.structure,
+      laps: r.laps,
+    },
     model()
   );
 }
@@ -139,6 +155,10 @@ export interface RunLengthBars {
 /** The long-run bars for a run dated `date`, read off the runs in the window BEFORE it. */
 export function runLengthBars(date: string, fixed: { min: number; km: number }): RunLengthBars {
   const day = String(date).slice(0, 10);
+  return requestMemo(`run_length_bars:${day}:${JSON.stringify(fixed)}`, () => runLengthBarsRead(day, fixed), copyDeep);
+}
+
+function runLengthBarsRead(day: string, fixed: { min: number; km: number }): RunLengthBars {
   let long_dows: number[] = [];
   try {
     long_dows = (getEnduranceSchedule()?.days ?? []).filter((d) => d.kind === "long").map((d) => d.dow);

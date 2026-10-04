@@ -19,6 +19,47 @@ export function setArtAlias(kind: string, query: string, assetKey: string) {
   ).run(kind, query, assetKey);
 }
 
+export function listArtAliases(kind: string): { query: string; asset_key: string }[] {
+  return db.prepare(`SELECT query, asset_key FROM art_aliases WHERE kind = ? ORDER BY query`).all(kind) as any[];
+}
+
+export function deleteArtAliases(kind: string, queries: string[]): number {
+  const del = db.prepare(`DELETE FROM art_aliases WHERE kind = ? AND query = ?`);
+  let removed = 0;
+  for (const query of queries) removed += Number(del.run(kind, query).changes ?? 0);
+  return removed;
+}
+
+/**
+ * Aliases written by the matcher's `Number(null) === 0` bug: the alias points at an
+ * asset that a `reuse` ledger row recorded for this same query while that asset
+ * was the NEWEST of its kind — index 0 of the newest-first list the matcher was
+ * shown — and the asset is not literally this query. A genuine "same picture"
+ * verdict landing on exactly the newest asset is rare; the bug did it every time.
+ * Read-only; `repairMisfiledArtAliases` (src/art.ts) decides what to drop.
+ */
+export function listIndexZeroReuseAliases(kind: string): { query: string; asset_key: string; text: string }[] {
+  return db
+    .prepare(
+      `SELECT al.query, al.asset_key, a.text
+         FROM art_aliases al
+         JOIN art_assets a ON a.key = al.asset_key
+        WHERE al.kind = ?
+          AND EXISTS (
+            SELECT 1 FROM art_usage u
+             WHERE u.kind = al.kind AND u.query = al.query AND u.asset_key = al.asset_key
+               AND u.action = 'reuse'
+               AND NOT EXISTS (
+                 SELECT 1 FROM art_assets b
+                  WHERE b.kind = al.kind AND b.key <> al.asset_key
+                    AND b.created_at <= u.created_at
+                    AND (b.created_at > a.created_at OR (b.created_at = a.created_at AND b.key < al.asset_key))
+               )
+          )`
+    )
+    .all(kind) as any[];
+}
+
 export function getArtIndex(kind: string, query: string): { asset_key: string; version: number } | null {
   const row = db
     .prepare(`SELECT asset_key, version FROM art_index WHERE kind = ? AND query = ?`)
@@ -73,11 +114,32 @@ export function artIndexUsesKey(assetKey: string, exceptKind?: string, exceptQue
   return !!row;
 }
 
+// Called once per generation that landed bytes on disk. A forced regenerate writes the
+// SAME key again (food/activity keys are the query's own hash), so the conflict branch
+// re-stamps `created_at` — strictly later than before, even within the same second —
+// because food/activity art URLs carry that time as `v=` (assetVersion, src/art.ts) and
+// the phone's cache-first service worker would otherwise keep serving the old picture.
 export function addArtAsset(key: string, kind: string, text: string) {
   db.prepare(
     `INSERT INTO art_assets (key, kind, text) VALUES (?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET text = excluded.text`
+     ON CONFLICT(key) DO UPDATE SET
+       text = excluded.text,
+       created_at = MAX(datetime('now'), COALESCE(datetime(art_assets.created_at, '+1 second'), datetime('now')))`
   ).run(key, kind, text);
+}
+
+export function getArtAsset(
+  key: string
+): { key: string; kind: string; text: string; created_at: string | null } | null {
+  const row = db.prepare(`SELECT key, kind, text, created_at FROM art_assets WHERE key = ?`).get(key) as any;
+  return row
+    ? {
+        key: String(row.key),
+        kind: String(row.kind),
+        text: String(row.text ?? ""),
+        created_at: row.created_at == null ? null : String(row.created_at),
+      }
+    : null;
 }
 
 export function listArtAssets(kind: string, limit = 150): { key: string; text: string }[] {

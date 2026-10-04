@@ -63,9 +63,10 @@ import {
 import type { HarmEvidenceKind } from "./brain/read-adherence.js";
 import { localDateISO } from "./shared.js";
 import { planDayStrengthGroups } from "./training-read.js";
-import { registerRaceLadderPeak } from "./race-ladder-hook.js";
+import { registerRaceLadderPeak, type RaceLadderPlanDraft } from "./race-ladder-hook.js";
 import { type RaceStrengthLead, raceStrengthLead, raceStrengthPrinciple } from "./race-strength.js";
 import { getTrainingIntent } from "./training-intent.js";
+import { copyFlat, memoKey, requestMemo } from "./request-memo.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1378,12 +1379,18 @@ export function raceLadderFor(
 
 // The engine's race-feasibility sentence reads the same walk (race-ladder-hook.ts).
 registerRaceLadderPeak((asOf, plan) => {
+  const key = memoKey(plan);
+  if (key == null) return raceLadderPeakRead(asOf, plan);
+  return requestMemo(`race_ladder_peak:${asOf}:${key}`, () => raceLadderPeakRead(asOf, plan), copyFlat);
+});
+
+function raceLadderPeakRead(asOf: string, plan: RaceLadderPlanDraft): number | null {
   const goal = getEnduranceGoal(asOf);
   const distance = Number(goal?.distance_km);
   if (!goal?.is_race || !goal.date || !(distance > 0) || goal.phase === "past") return null;
   const weeks = raceLadderFor({ ...goal, date: goal.date, distance_km: distance }, asOf, plan as any).weeks;
   return weeks.find((w) => w.kind === "peak")?.km ?? null;
-});
+}
 
 function planDayName(dayNumber: number): string | null {
   try {

@@ -249,7 +249,7 @@ export function registerPlanExerciseTools(server: McpToolRegistrar) {
 
   server.tool(
     "list_exercises",
-    "List every exercise with its muscle group, mode (reps|timed), constraint note, and cues.",
+    "List every exercise with its muscle group, mode (reps|timed), constraint note, cues, and `input` — what its log row asks for: profile loaded (weight·reps·RIR) | bodyweight (reps·RIR, load optional) | mobility (reps or time only — never a load target or RIR), and per_side (the dose is each side's).",
     {},
     async () => asText(listExercises())
   );
@@ -278,7 +278,7 @@ export function registerPlanExerciseTools(server: McpToolRegistrar) {
 
   server.tool(
     "update_exercise",
-    "Update an existing exercise by name: mode (reps|timed), muscle_group, cues, constraint_note, or rename it with `name` (a person's rename always lands; if the new name already exists the two fold into one). `keep_name` declines a parked `suggested_name` and remembers the no. Logged numbers never move.",
+    "Update an existing exercise by name: mode (reps|timed), muscle_group, cues, constraint_note, input_profile / per_side (what its log row asks for), or rename it with `name` (a person's rename always lands; if the new name already exists the two fold into one). `keep_name` declines a parked `suggested_name` and remembers the no. Logged numbers never move.",
     {
       exercise: z.string().describe("exact exercise name"),
       name: z.string().optional().describe("the new display name (cleaned; the old spelling keeps resolving as an alias)"),
@@ -287,6 +287,16 @@ export function registerPlanExerciseTools(server: McpToolRegistrar) {
       muscle_group: z.string().nullable().optional(),
       cues: z.string().nullable().optional(),
       constraint_note: z.string().nullable().optional(),
+      input_profile: z
+        .enum(["loaded", "bodyweight", "mobility"])
+        .nullable()
+        .optional()
+        .describe("state what the log row asks for: loaded = weight·reps·RIR; bodyweight = reps·RIR with load optional; mobility = reps or time only, no load target, no RIR. null returns it to the derived read"),
+      per_side: z
+        .boolean()
+        .nullable()
+        .optional()
+        .describe("true when the dose is each side's (\"2 × 6 / side\"); null returns it to the name-based read"),
     },
     async ({ exercise, ...patch }) => {
       const row = findExercise(exercise);

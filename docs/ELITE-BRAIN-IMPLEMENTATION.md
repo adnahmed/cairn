@@ -13,7 +13,7 @@ Cairn now has an accountable, whole-person coaching loop rather than a collectio
 4. Material signals enter one coalesced durable review path instead of route-specific agent calls.
 5. Lead mode can quietly apply bounded changes, announce structural changes, or hold for review according to one server policy.
 6. Every autonomous training-plan change is explained at the affected exercise and has exact server-owned Undo; Chat can cancel an announcement or put an applied change back in one turn. Meal-plan state changes are ledgered but never claim Undo without a stored before-snapshot.
-7. Specialists can investigate bounded history through nine read-only capabilities and reconcile material cross-domain conflicts into one voice.
+7. Specialists can investigate bounded history through ten read-only capabilities and reconcile material cross-domain conflicts into one voice.
 8. Learned, Today, weekly-read, and operator surfaces expose accountability without exposing internal scores, raw prompts, tool logs, or chain-of-thought.
 
 The original lunch failure mode is explicitly guarded: a food-only turn cannot trigger training work. A later training change is handled in the background and appears with its reason on the affected exercise when it matters.

@@ -25,6 +25,7 @@ import { db } from "../db.js";
 import { createAliasStore } from "./canon-aliases.js";
 import { seriesUnitsCompatible } from "./lab-units.js";
 import { bumpMarkerDataVersion } from "./marker-cache.js";
+import { copyFlat, requestMemo } from "./request-memo.js";
 
 // Lowercase, fold every non-alphanumeric run to a single space, collapse + trim.
 // "Glucose (random)" and "Glucose Random" → "glucose random" (a real merge);
@@ -378,6 +379,14 @@ const aliasStore = createAliasStore({
 
 export function getMarkerAlias(rawNorm: string): { canonical_key: string; canonical_name: string } | null {
   if (!rawNorm) return null;
+  // Request-memoized: every marker read canonicalizes every reading, so one Today open
+  // asked for the same ~150 aliases about twelve times each.
+  if (typeof rawNorm === "string")
+    return requestMemo(
+      `marker_alias:${rawNorm}`,
+      () => aliasStore.get(rawNorm) as { canonical_key: string; canonical_name: string } | null,
+      copyFlat
+    );
   return aliasStore.get(rawNorm) as { canonical_key: string; canonical_name: string } | null;
 }
 

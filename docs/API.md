@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**363 routes** across 125 groups.
+**365 routes** across 127 groups.
 
 ## `/activities`
 
@@ -212,7 +212,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 |---|---|---|
 | GET | `/api/context-tags` |  |
 | POST | `/api/context-tags/toggle` | Tap = tag today, tap again = untag (archives the row). Body: { key, date? }. |
-| GET | `/api/context-tags/vocab` | The vocabulary itself (travel/drinks/rough sleep/work crunch/feeling off). |
+| GET | `/api/context-tags/vocab` | The vocabulary itself (travel/drinks/rough sleep/work crunch/feeling off). The vocabulary plus what each tag changes (src/repo/context-tag-effects.ts), so the Today sheet can say it in one plain sentence per tag. |
 
 ## `/daily-session`
 
@@ -875,6 +875,18 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | GET | `/api/today-agenda` | The Today salience arbiter: ONE ranking + budget pass over the whole Today surface, so only the 1-2 things that matter most today render inline and the rest collapse behind a quiet "more". Marking "seen" at the end (debounced) powers the "since you last looked" continuity line. |
 | POST | `/api/today-agenda/ack` | Presentation acknowledgement only: health-focus retires its current semantic revision without resolving/dismissing the underlying directives; the fast-loss-attention item retires the current cut-quality episode for 14 days. Materially new evidence can create a new revision and surface either item sooner. |
 | POST | `/api/today-agenda/dismiss` | A dismiss is DIFFERENT from an ack: ack is a presentation-only revision retire (health-focus / fast-loss-attention only, and it can 409 stale). Dismiss is the generic "hide this card" affordance every dismissible agenda candidate already has client-side — this just also records the evidence row (surface_dismissals) so a REPEATED dismissal of the same card can, over time, feed the same soft suppression a thumbs-down already drives for insights. Fire-and-forget from the client; always 200 (recording is best-effort, never blocks the dismiss itself). |
+
+## `/today-digest`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/today-digest` | What the team changed lately, one lift per row with before -> after and the decision's server-owned Undo (src/domain/today/today-digest.ts). A projection over the Changes feed; pure read. Set-aside drafts live in the feed, not here. |
+
+## `/today-path`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/today-path` | The path under the Brief: the race estimate, the weight and the anchor lift with their trends, the dated milestones ahead, the ONE lever for this week, and the progress board (src/repo/today-path.ts). Real measures in real units, no score. A pure read; ?date=YYYY-MM-DD defaults to today. |
 
 ## `/today-plan-day`
 

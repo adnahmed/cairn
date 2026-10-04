@@ -1,7 +1,9 @@
 import { db } from "../db.js";
 import { POST_INTERVENTION_MIN_SPAN_DAYS, postInterventionWeightTrend } from "./goal-pace.js";
+import { settledPainPlaceReader } from "./injury-symptom-link.js";
 import { addDaysISO, localDateISO } from "./shared.js";
 import { getSessionByDate, sessionSummary } from "./sessions.js";
+import { memoNeutralWrite } from "./request-memo.js";
 
 export type KnownMemoryKind =
   | "note"
@@ -223,9 +225,14 @@ function touchMemoryReferenced(ids: number[]) {
   const unique = [...new Set((ids ?? []).filter((id) => Number.isInteger(id)))].slice(0, 60);
   if (!unique.length) return;
   try {
-    db.prepare(
-      `UPDATE memory SET last_referenced_at = datetime('now') WHERE id IN (${unique.map(() => "?").join(", ")})`
-    ).run(...unique);
+    // Only the reference stamp moves, and no request-memoized read consults it.
+    memoNeutralWrite(() =>
+      db
+        .prepare(
+          `UPDATE memory SET last_referenced_at = datetime('now') WHERE id IN (${unique.map(() => "?").join(", ")})`
+        )
+        .run(...unique)
+    );
   } catch {
     /* best effort */
   }
@@ -274,7 +281,52 @@ export function memoryForCoach(limit = 40): MemoryRow[] {
   }
   const out = merged.slice(0, limit);
   touchMemoryReferenced(out.map((r) => r.id));
-  return out;
+  // The coach context is a prompt's copy: a settled pain reads as history there.
+  return memoryPainHistory(out).map((row) => (row.pain_history ? { ...row, content: memoryPromptContent(row) } : row));
+}
+
+// ---------- a pain memory follows its symptom ----------
+// A memory about pain at a place ("acute right flank pain from a Pallof press") is
+// words about ONE episode, and the athlete closes the episode on the training
+// symptom, never on the memory. Read-side, like the injury tie it reuses
+// (settledPainPlaceReader, injury-symptom-link.ts): while that place's same-episode
+// symptom stands resolved and nothing open names the place, the memory reaches a
+// prompt marked as history; a recurrence reopens the symptom and the mark is gone.
+// The row itself is never rewritten, so nothing needs undoing.
+export interface MemoryPainHistory {
+  symptom_id: number;
+  resolved_on: string;
+  place: string | null;
+}
+
+export type MemoryWithPainHistory = MemoryRow & { pain_history?: MemoryPainHistory };
+
+// Kinds that are about the athlete's state (an injury, a constraint, an observation, a
+// decision made around a pain). A learning, an insight, a goal or a preference is not
+// an account of a pain episode, whatever words it uses.
+const PAIN_HISTORY_KINDS = new Set(["injury", "constraint", "observation", "note", "fact", "decision", ""]);
+
+export function memoryPainHistory(rows: MemoryRow[], on = localDateISO()): MemoryWithPainHistory[] {
+  if (!rows.length) return rows;
+  const settled = settledPainPlaceReader(on);
+  return rows.map((row) => {
+    if (!PAIN_HISTORY_KINDS.has(String(row.kind ?? ""))) return row;
+    const written = String(row.created_at ?? "").slice(0, 10);
+    const place = settled(String(row.content ?? ""), written);
+    if (!place) return row;
+    return {
+      ...row,
+      pain_history: { symptom_id: place.symptom_id, resolved_on: place.resolved_on, place: place.spoken_place },
+    };
+  });
+}
+
+/** The memory sentence as a prompt should read it: a settled pain says it is history. */
+export function memoryPromptContent(row: MemoryWithPainHistory, maxContent = Number.POSITIVE_INFINITY): string {
+  const content = String(row.content ?? "").slice(0, maxContent);
+  const history = row.pain_history;
+  if (!history) return content;
+  return `${content} [History, not current: ${history.place ? `the ${history.place}` : "this pain"} settled on ${history.resolved_on}.]`;
 }
 
 // ---------- outcome learning (suggestions → actuals) ----------

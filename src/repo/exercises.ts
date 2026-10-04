@@ -23,10 +23,12 @@ import {
   repointGuidesOnMerge,
 } from "./exercise-guide.js";
 import { isValidGarminRef, mapExerciseToGarmin, sameExerciseIdentity } from "./garmin-exercise-map.js";
+import { type ExerciseInput, validInputProfile, withExerciseInputs } from "./exercise-input.js";
 import { getProgress } from "./sessions.js";
 import { addDaysISO } from "./shared.js";
 import { withSqliteSavepoint } from "./sqlite-savepoint.js";
 import { bumpTrainingDataVersion } from "./training-cache.js";
+import { copyFlat, memoKey, requestMemo } from "./request-memo.js";
 
 // ---------- exercises ----------
 const EXERCISE_MODES = ["reps", "timed"];
@@ -48,6 +50,10 @@ export interface ExerciseRow {
   last_logged?: string | null;
   suggested_name?: string | null; // an agent's cleaner title waiting for a yes/no (renameExercise)
   refused_name?: string | null; // the suggestion a person declined — never parked again
+  input_profile?: string | null; // stated log-row profile override (loaded|bodyweight|mobility); NULL = derived
+  per_side?: number | null; // stated per-side dose override (1/0); NULL = read from the name
+  /** What the log row asks for — derived unless stated (repo/exercise-input.ts). */
+  input?: ExerciseInput;
 }
 
 function validMode(mode: any): string | undefined {
@@ -55,13 +61,16 @@ function validMode(mode: any): string | undefined {
 }
 
 export function listExercises(): ExerciseRow[] {
-  return db
+  const rows = db
     .prepare(
       `SELECT e.*, (SELECT MAX(s.date) FROM logged_sets l JOIN sessions s ON s.id = l.session_id
                      WHERE l.exercise_id = e.id) AS last_logged
          FROM exercises e ORDER BY e.name`
     )
     .all() as unknown as ExerciseRow[];
+  // Every reader (the session card, the add-exercise flow, MCP list_exercises) gets
+  // the same answer to "what does this movement's log row ask for".
+  return withExerciseInputs(rows as any[]) as ExerciseRow[];
 }
 
 export function findExercise(name: string): any {
@@ -469,6 +478,7 @@ export function applyExerciseEnrichment(
     equipment?: string | null;
     garmin_category?: string | null;
     garmin_exercise?: string | null;
+    per_side?: boolean | null;
   },
 ): { id: number; name: string } {
   const cur = getExercise(id);
@@ -510,6 +520,15 @@ export function applyExerciseEnrichment(
   const mode = validMode(fields.mode ?? undefined);
   if (mode && mode !== ex.mode && exerciseReferenceCount(workingId).logs === 0) {
     db.prepare(`UPDATE exercises SET mode = ? WHERE id = ?`).run(mode, workingId);
+  }
+
+  // One side at a time is a fact about the movement, filled once (never over a value
+  // a person or an earlier pass already stated). Only a YES persists: a stored value
+  // outranks the name read, so an agent's `false` would silently un-side a drill the
+  // name already reads as one-sided ("World's Greatest Stretch"), and a `false` the
+  // name read agrees with adds nothing but a pin against a later correction.
+  if (fields.per_side === true && ex.per_side == null) {
+    db.prepare(`UPDATE exercises SET per_side = 1 WHERE id = ?`).run(workingId);
   }
 
   // The agent's FIT mapping, held to the catalog's own enum. An invented category
@@ -966,6 +985,10 @@ export function updateExercise(
     name?: string | null;
     // "Keep the name I have": declines the parked suggestion and remembers the no.
     keep_name?: boolean;
+    // What the log row asks for (repo/exercise-input.ts): a stated profile, or null to
+    // return to the derived read. per_side likewise (true/false, null = from the name).
+    input_profile?: string | null;
+    per_side?: boolean | null;
   }
 ): any {
   const cur = getExercise(id);
@@ -987,6 +1010,16 @@ export function updateExercise(
   if (patch.muscle_group !== undefined) { sets.push("muscle_group = ?"); vals.push(patch.muscle_group ?? null); }
   if (patch.cues !== undefined) { sets.push("cues = ?"); vals.push(patch.cues ?? null); }
   if (patch.constraint_note !== undefined) { sets.push("constraint_note = ?"); vals.push(patch.constraint_note ?? null); }
+  if (patch.input_profile !== undefined) {
+    const profile = patch.input_profile == null || patch.input_profile === "" ? null : validInputProfile(patch.input_profile);
+    if (patch.input_profile != null && patch.input_profile !== "" && !profile) {
+      throw new Error("input_profile must be one of: loaded, bodyweight, mobility");
+    }
+    sets.push("input_profile = ?"); vals.push(profile);
+  }
+  if (patch.per_side !== undefined) {
+    sets.push("per_side = ?"); vals.push(patch.per_side == null ? null : patch.per_side ? 1 : 0);
+  }
   if (sets.length) {
     vals.push(id);
     db.prepare(`UPDATE exercises SET ${sets.join(", ")} WHERE id = ?`).run(...vals);
@@ -1026,6 +1059,12 @@ export function deleteExercise(name: string) {
 // history. Encoding preserved: negative = assist (closer to 0 = harder), 0/bodyweight
 // is excluded (load progression doesn't apply). sessionsBack defaults to 3.
 export function recentWorkingWeight(name: string, sessionsBack = 3, beforeExclusive?: string): number | null {
+  const key = memoKey([name, sessionsBack, beforeExclusive]);
+  if (key == null) return recentWorkingWeightRead(name, sessionsBack, beforeExclusive);
+  return requestMemo(`recent_working_weight:${key}`, () => recentWorkingWeightRead(name, sessionsBack, beforeExclusive), copyFlat);
+}
+
+function recentWorkingWeightRead(name: string, sessionsBack: number, beforeExclusive?: string): number | null {
   // Alias-aware: "Incline DB Press" and "Incline Dumbbell Press" are one series —
   // and a bodyweight-ladder row that REPLACED another ("Assisted Pull-Up" rotated out
   // for "Neutral-Grip Pull-Up") reads the rung history it inherited
@@ -1220,6 +1259,12 @@ export function hasUnloadedWorkingHistory(name: string, sessionsBack = 3): boole
 // family. The hardest completed hold across the last few sessions is the trustworthy
 // baseline used when an agent proposes a new timed prescription.
 export function recentWorkingSeconds(name: string, sessionsBack = 3, beforeExclusive?: string): number | null {
+  const key = memoKey([name, sessionsBack, beforeExclusive]);
+  if (key == null) return recentWorkingSecondsRead(name, sessionsBack, beforeExclusive);
+  return requestMemo(`recent_working_seconds:${key}`, () => recentWorkingSecondsRead(name, sessionsBack, beforeExclusive), copyFlat);
+}
+
+function recentWorkingSecondsRead(name: string, sessionsBack: number, beforeExclusive?: string): number | null {
   const ex = resolveExerciseName(name);
   if (ex.exercise_id == null) return null;
   const exId = ex.exercise_id;

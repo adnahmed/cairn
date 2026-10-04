@@ -10,6 +10,7 @@ import {
   type ClientBrainChanges,
   type ClientBrainChangesSeenResponse,
   type ClientBrainChangeState,
+  type ClientBrainSetAside,
 } from "../../contracts/brain-changes.js";
 import { getBrainRollback, listBrainDecisions, listBrainExpectations } from "../../repo/brain-decisions.js";
 import { latestBrainEvaluation } from "../../repo/brain-evaluations.js";
@@ -805,6 +806,100 @@ function statusLine(state: ClientBrainChangeState, day: string, landsOn: string 
   return `Landed ${dayWord(day, asOf)}`;
 }
 
+// ---------- drafts set aside ----------
+//
+// A held draft the team SET ASIDE (a superseded `thaw_receipt` row, autonomy-service.ts)
+// changed nothing, so it is not a row of the feed. It still never silently disappears:
+// it is one quiet line under the changes, worded HERE from what the draft touched and
+// the machine reason the receipt carries — never the draft's own agent summary (clipped
+// engineering prose), an ISO date or a threshold.
+
+const MAX_SET_ASIDE = 5;
+
+// Why it was set aside, by the receipt's machine outcome. Plain words, no dates.
+const SET_ASIDE_REASON: Record<string, string> = {
+  superseded_by_newer_review: "a newer review replaced it.",
+  closed_source_superseded: "a newer one took its place.",
+  superseded_premise_gone: "what it was about is no longer in your plan.",
+  superseded_pain_settled: "the pain it was protecting has settled.",
+  superseded_week_passed: "the week it was written for has passed.",
+  superseded_stale_proposal: "it waited too long to still fit.",
+  superseded_stale_evidence: "your picture moved after it was written.",
+  superseded_stale_plan: "it sat too long to still fit your week.",
+  refused_by_plan: "it no longer fit your plan as it stands.",
+};
+const SET_ASIDE_REASON_BY_CODE: Record<string, string> = {
+  source_superseded: SET_ASIDE_REASON.superseded_by_newer_review,
+  premise_gone: SET_ASIDE_REASON.superseded_premise_gone,
+  stale_proposal: SET_ASIDE_REASON.superseded_stale_proposal,
+  stale_snapshot: SET_ASIDE_REASON.superseded_stale_evidence,
+  stale_plan: SET_ASIDE_REASON.superseded_stale_plan,
+  apply_refused: SET_ASIDE_REASON.refused_by_plan,
+};
+const SET_ASIDE_FALLBACK_REASON = "it no longer fit where you are.";
+
+function setAsideSubject(decision: BrainDecision, draft: Draft | null): string | null {
+  const action = (decision.action ?? {}) as Record<string, any>;
+  if (decision.source_ref_type === "meal_plan" || Number(action.meal_plan_id) > 0) return "a week of meals";
+  const parsed = draft?.parsed ?? null;
+  if (parsed?.kind === "nutrition_target") return "your calorie target";
+  if (parsed && Array.isArray(parsed.changes)) {
+    const names: string[] = [];
+    const seen = new Set<string>();
+    for (const change of parsed.changes) {
+      const name = String(change?.exercise ?? change?.swap?.from ?? "").trim();
+      if (!name || seen.has(name.toLowerCase())) continue;
+      seen.add(name.toLowerCase());
+      names.push(name);
+    }
+    if (names.length === 1 || names.length === 2) return joinList(names);
+    if (names.length > 2) return `${countWord(names.length)} lifts`;
+  }
+  if (parsed && Array.isArray(parsed.days)) return "your plan";
+  return null;
+}
+
+function setAsideLine(decision: BrainDecision): string {
+  const action = (decision.action ?? {}) as Record<string, any>;
+  const context = (decision.context ?? {}) as Record<string, unknown>;
+  const reason =
+    SET_ASIDE_REASON[String(action.outcome ?? "")] ??
+    SET_ASIDE_REASON_BY_CODE[String(context.review_reason_code ?? "")] ??
+    SET_ASIDE_FALLBACK_REASON;
+  const subject = setAsideSubject(decision, draftOf(decision));
+  return subject
+    ? `An older draft for ${subject} was set aside: ${reason}`
+    : `An older draft was set aside: ${reason}`;
+}
+
+function setAsideRead(decisions: BrainDecision[], floor: string, asOf: string): ClientBrainSetAside[] {
+  const out: Array<ClientBrainSetAside & { at: string }> = [];
+  const seen = new Set<string>();
+  for (const decision of decisions) {
+    try {
+      const context = (decision.context ?? {}) as Record<string, unknown>;
+      if (decision.status !== "superseded" || context.thaw_receipt !== true || decision.id == null) continue;
+      const day = localDayOfStamp(decision.created_at);
+      if (!day || day < floor || day > asOf) continue;
+      // One line per draft: a later sweep that files a second receipt for it says nothing new.
+      const source = `${decision.source_ref_type ?? ""}:${decision.source_ref_key ?? decision.id}`;
+      if (seen.has(source)) continue;
+      seen.add(source);
+      out.push({
+        id: decision.id,
+        day,
+        label: dayGroupLabel(day, asOf),
+        line: setAsideLine(decision),
+        at: stamp(decision.created_at) ?? "",
+      });
+    } catch {
+      // Per-row isolation, as for the changes.
+    }
+  }
+  out.sort((a, b) => b.day.localeCompare(a.day) || b.at.localeCompare(a.at) || b.id - a.id);
+  return out.slice(0, MAX_SET_ASIDE).map(({ at: _at, ...row }) => row);
+}
+
 // ---------- the read ----------
 
 function seenMarker(): string | null {
@@ -922,6 +1017,7 @@ export function brainChangesRead(
     since_seen_line: sinceSeenLine(sinceSeen, shown, asOf, now),
     seen_at: seenAt,
     seen_through: now.toISOString(),
+    set_aside: setAsideRead(candidates, floor, asOf),
   };
 }
 

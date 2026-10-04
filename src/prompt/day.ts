@@ -21,6 +21,7 @@ import { getSessionByDate, sessionSummary } from "../repo/sessions.js";
 import { hybridDayContext } from "../repo/training-read.js";
 import type { CoachContext } from "../repo/coach-context.js";
 import { promptData } from "./context-projection.js";
+import { todayPath, todayPathPromptView } from "../repo/today-path.js";
 import { localDateISO } from "../repo/shared.js";
 import {
   activeInjuryAreas,
@@ -394,6 +395,21 @@ function debriefFacts(date: string): string {
     : "";
 }
 
+// The path under the Brief (src/repo/today-path.ts), compacted for the one site that
+// reads it (`today_path`, day_read). Computed here rather than in getCoachContext so
+// every other prompt and route pays nothing for it; a context that already carries
+// the key keeps its own, and a failed read simply leaves the key out.
+function withTodayPath(context: CoachContext, date?: string): CoachContext {
+  if ((context as any).today_path !== undefined) return context;
+  try {
+    const path = todayPath(date || (context as any).now?.date || localDateISO());
+    if (!path.race && !path.weight && !path.anchor) return context;
+    return { ...context, today_path: todayPathPromptView(path) };
+  } catch {
+    return context;
+  }
+}
+
 export function buildDayReadPrompt(
   ctx?: CoachContext,
   opts: {
@@ -407,7 +423,7 @@ export function buildDayReadPrompt(
     currentWording?: { headline?: string | null; why?: string | null } | null;
   } = {}
 ): string {
-  const context = dateScopedPromptContext(ctx ?? getCoachContext(), opts.date);
+  const context = withTodayPath(dateScopedPromptContext(ctx ?? getCoachContext(), opts.date), opts.date);
   // The baseline the CALLER will clamp, persist and fingerprint — passed in so the
   // prompt describes the exact read the server-policy layer then acts on. Computing
   // a second one here is what opened the rich/thin seam: the agent was told
@@ -546,6 +562,10 @@ export function buildDayReadPrompt(
     if (a?.distance_km != null) parts.push(`${a.distance_km} km`);
     ltBits.push(parts.join(" "));
   }
+  // The road this day sits on (DATA.today_path): credit first, then forward once.
+  const pathLine = (context as any).today_path
+    ? `\nTHE ROAD AHEAD (DATA.today_path: the race estimate, the weight and the anchor lift with their trends, the next milestones, and this week's one lever): when today already holds work, credit it in specific words — the run or the lift itself, never a count. Then, only when it fits, point forward ONCE: what today is for on that road. One clause, in a friend's voice; never a countdown, a score or a lecture, and never restate the numbers as a list.`
+    : "";
   const todayLine = ltBits.length
     ? `\nALREADY LOGGED TODAY: ${ltBits.join("; ")}. Acknowledge what they've already done and reflect it in the read — do NOT suggest a fresh session as if the day were blank.`
     : "";
@@ -642,7 +662,7 @@ ${JSON.stringify(baseline.signals)}
 A rules-only baseline suggested: kind="${baseline.kind}", focus=${JSON.stringify(baseline.focus)}.
 You MAY disagree with the baseline when the whole picture warrants it — it is a floor, not a ceiling${namedBrakeBlock ? " — but a train baseline is read quieter only under the NAMED BRAKE RULE below" : ""}.
 RECENT TRAINING (most recent first): ${sessionLine}.
-TRAINING RHYTHM (read the whole history, not just today): ${rhythmLine}${todayLine}${renderRecentReads(feltDate)}${renderReadOutcomes(context, baseline)}${renderPeriodization(feltDate)}${doneBlock}${lastNightLine}${oneNightLine}${fuelDemandLine}
+TRAINING RHYTHM (read the whole history, not just today): ${rhythmLine}${todayLine}${pathLine}${renderRecentReads(feltDate)}${renderReadOutcomes(context, baseline)}${renderPeriodization(feltDate)}${doneBlock}${lastNightLine}${oneNightLine}${fuelDemandLine}
 ${CONTEXT_GUARDRAILS}
 ${renderSignalState(context)}${renderCoachingFocus(context, { brief: true })}${renderDiscipline(context, "day")}${renderEnduranceGoal(context, "day")}${renderRunCompliance(context, "day")}${renderRunZones(context)}${renderRunPlan(context)}${renderStrengthSchedule(context)}${renderConnectedBrain(context, { domains: ["training", "watch"] })}${renderProgramState(context, { brief: true })}${renderMuscleGroups(context)}${renderPerformance(context, { brief: true })}${renderDexaTargeting(context, "training")}${renderBodyComp(context)}${renderHealthLead(context)}${renderReactionModel(context)}${renderTrajectory(context)}${renderActiveContext(context)}${renderTodayFuel(context)}${renderTrainingConstraints(context)}${feltBlock}${learnedBlock}${backedBlock}${driveBlock}${todayHoldBlock}${namedBrakeBlock}${currentWordingBlock}${overrideBlock}
 ${renderJsonContract(DAY_READ_SCHEMA)}

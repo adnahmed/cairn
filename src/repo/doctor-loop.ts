@@ -17,6 +17,7 @@ import { listDirectives } from "./directives.js";
 import { directiveIntentOf } from "./directives-read.js";
 import { matchOptimalZone, optimalDistance } from "./propagation-data.js";
 import { collapseDoctorLoop, isDoctorLoopSignal, type DoctorLoopItem } from "./doctor-loop-items.js";
+import { withDerivedReadings } from "./doctor-loop-derived.js";
 import { labRangeRead } from "./lab-range.js";
 import { spokenMarkerName } from "./loop-speech.js";
 import { optimalTrustworthy } from "./optimal-trust.js";
@@ -826,7 +827,9 @@ function newestMarkerPerSignal(markers: MarkerLike[]): MarkerLike[] {
 }
 
 export function refreshDoctorLoopAttention(): AttentionScheduleEntry[] {
-  const { markers } = getMarkerHistory() as { markers: MarkerLike[] };
+  // A draw that measured a derivable marker's components (TC + HDL) is a check of the
+  // derived marker too (non-HDL-C) — doctor-loop-derived.ts, the one place that says so.
+  const markers = withDerivedReadings((getMarkerHistory() as { markers: MarkerLike[] }).markers);
   const activeMarkers = activeDirectiveMarkers();
   const out: AttentionScheduleEntry[] = [];
   const seen = new Set<string>();
@@ -997,7 +1000,9 @@ export function spokenLoopReason(
   const policy = loopPolicySentence(item.reason);
   if (item.kind !== "lab") return policy;
   const asOf = toDate(opts.asOf);
-  const markers = opts.markers ?? (getMarkerHistory() as { markers: MarkerLike[] }).markers ?? [];
+  const markers = withDerivedReadings(
+    opts.markers ?? (getMarkerHistory() as { markers: MarkerLike[] }).markers ?? []
+  );
   // One reading per label: the comparable, newest series (the rule the refresh pass
   // files the cadence by — newestMarkerPerSignal).
   const byLabel = new Map<string, MarkerLike>();

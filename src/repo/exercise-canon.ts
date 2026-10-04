@@ -20,6 +20,7 @@
 
 import { db } from "../db.js";
 import { createAliasStore } from "./canon-aliases.js";
+import { copyFlat, copyRows, requestMemo } from "./request-memo.js";
 
 // ---- THE CANONICAL MUSCLE-GROUP TAXONOMY (authoritative) --------------------
 // Every exercise resolves to exactly one of these. `core`, `forearms`, `mobility`
@@ -198,12 +199,28 @@ export function isPrepMovement(name: string | null | undefined): boolean {
 
 // ---- name normalization -----------------------------------------------------
 // Lowercase, fold non-alphanumerics to spaces, collapse + trim. Used for matching.
+// Pure string → string, asked ~100k times by one Today open over a few hundred distinct
+// names: answered from a bounded process-wide table (pure, so it never goes stale).
+const PURE_NAME_CACHE_MAX = 4096;
+const normalizedNames = new Map<string, string>();
+const normalizedKeys = new Map<string, string>();
+function remembered(cache: Map<string, string>, input: string, value: string): string {
+  if (cache.size >= PURE_NAME_CACHE_MAX) cache.clear();
+  cache.set(input, value);
+  return value;
+}
+
 export function normalizeExerciseName(raw: string): string {
-  return String(raw ?? "")
+  if (typeof raw === "string") {
+    const hit = normalizedNames.get(raw);
+    if (hit !== undefined) return hit;
+  }
+  const value = String(raw ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  return typeof raw === "string" ? remembered(normalizedNames, raw, value) : value;
 }
 
 // Placeholder names a faithful importer sometimes carries in place of a movement — a
@@ -234,9 +251,14 @@ export function foldPluralToken(t: string): string {
 // lifts), so the key stays tight. "Dead hang" / "Dead hang timed" → "dead hang".
 const NON_DISTINGUISHING = new Set(["timed"]);
 export function normalizedExerciseKey(name: string): string {
+  if (typeof name === "string") {
+    const hit = normalizedKeys.get(name);
+    if (hit !== undefined) return hit;
+  }
   const tokens = normalizeExerciseName(name).split(" ").filter(Boolean);
   const kept = tokens.filter((t) => !NON_DISTINGUISHING.has(t)).map(foldPluralToken);
-  return (kept.length ? kept : tokens.map(foldPluralToken)).join(" ");
+  const value = (kept.length ? kept : tokens.map(foldPluralToken)).join(" ");
+  return typeof name === "string" ? remembered(normalizedKeys, name, value) : value;
 }
 
 // Cairn's own vocabulary is abbreviated the way a lifter writes on a phone
@@ -607,6 +629,10 @@ export interface ResolvedExerciseName {
 }
 
 function exerciseCatalogWithCounts(): Array<{ id: number; name: string; sets: number }> {
+  return requestMemo("exercise_catalog_with_counts", exerciseCatalogWithCountsRead, copyRows);
+}
+
+function exerciseCatalogWithCountsRead(): Array<{ id: number; name: string; sets: number }> {
   try {
     return (
       db
@@ -637,6 +663,11 @@ function storedExerciseRow(name: string): { id: number; name: string } | null {
 }
 
 export function resolveExerciseName(name: string): ResolvedExerciseName {
+  if (typeof name !== "string") return resolveExerciseNameRead(name);
+  return requestMemo(`resolve_exercise_name:${name}`, () => resolveExerciseNameRead(name), copyFlat);
+}
+
+function resolveExerciseNameRead(name: string): ResolvedExerciseName {
   const raw = String(name ?? "").trim();
   const norm = normalizeExerciseName(raw);
   if (!norm) return { canonical: "", exercise_id: null, key: "" };
@@ -1019,6 +1050,12 @@ const TIMED_PATTERNS: RegExp[] = [
   /\bcarries\b/,
   /loaded carry/,
   /for time/,
+  // Static stretches are held, not counted. A controlled-rep drill that merely says
+  // "stretch" (World's Greatest Stretch, a dynamic stretch) stays reps.
+  /\bcouch stretch/,
+  /\bpigeon\b/,
+  /\bchild s pose\b/,
+  /\b(?:hip flexor|hamstring|quad|calf|pec|doorway|sleeper|lat|frog|butterfly|static) stretch/,
 ];
 
 // Detect whether an exercise should be logged as a timed hold or as reps.

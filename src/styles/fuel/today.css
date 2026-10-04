@@ -25,7 +25,7 @@
   min-width:0;padding-top:var(--space-5);border-top:1px solid var(--line)}
 .fuel-today-num dd{margin:0}
 .fuel-today-k{font-size:var(--text-sm);color:var(--ink2)}
-.fuel-today-num .numeral-lg{font-family:var(--font-ui);font-size:var(--text-md);font-weight:600;color:var(--ink)}
+.fuel-today-num .numeral-lg{font-family:var(--font-ui);font-size:var(--text-md);font-weight:var(--weight-semibold);color:var(--ink)}
 .fuel-today-unit{font-size:var(--text-xs);color:var(--muted)}
 .fuel-today-value{white-space:nowrap;font-variant-numeric:tabular-nums}
 .fuel-today-value.is-unknown{font-size:var(--text-md);color:var(--muted)}
@@ -33,20 +33,20 @@
 /* protein: the whole row, the serif figure, the meter under it */
 .fuel-today-num.is-anchor{grid-column:1/-1;padding-top:0;border-top:0}
 .fuel-today-num.is-anchor .fuel-today-k{font-size:var(--text-md);color:var(--ink)}
-.fuel-today-num.is-anchor .numeral-lg{font-family:var(--font-display);font-weight:400;font-size:var(--text-xl);line-height:1}
+.fuel-today-num.is-anchor .numeral-lg{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-xl);line-height:1}
 .fuel-today-num.is-anchor .fuel-today-unit{font-size:var(--text-sm)}
 .fuel-today-meter{grid-column:1/-1;margin-top:var(--space-3)}
 .fuel-today-track{display:block;position:relative;height:6px;border-radius:var(--radius-pill);background:var(--well);overflow:hidden}
 .fuel-today-fill{position:absolute;inset:0 auto 0 0;border-radius:var(--radius-pill);background:var(--s-fuel);
   transition:width var(--dur-3) var(--ease)}
 .fuel-today-num.is-anchor .fuel-today-sub{grid-column:1}
-.fuel-today-line{margin:var(--space-5) 0 0;font-size:var(--text-sm);color:var(--ink2);line-height:1.5}
+.fuel-today-line{margin:var(--space-5) 0 0;font-size:var(--text-sm);color:var(--ink2);line-height:var(--leading)}
 .fuel-today-nums + .fuel-today-line{margin-top:var(--space-6)}
-.fuel-today-togo{grid-column:2;font-size:var(--text-xs);color:var(--d-fuel);font-weight:600;white-space:nowrap}
-.fuel-today-togo .numeral,.fuel-today-line .numeral{font-family:var(--font-ui);font-weight:600;color:inherit;
+.fuel-today-togo{grid-column:2;font-size:var(--text-xs);color:var(--d-fuel);font-weight:var(--weight-semibold);white-space:nowrap}
+.fuel-today-togo .numeral,.fuel-today-line .numeral{font-family:var(--font-ui);font-weight:var(--weight-semibold);color:inherit;
   font-size:inherit;font-variant-numeric:tabular-nums}
 .fuel-today-band,.fuel-today-pending{font-size:var(--text-xs);color:var(--muted)}
-.fuel-today-empty{margin:0;font-size:var(--text-md);color:var(--ink2);line-height:1.5}
+.fuel-today-empty{margin:0;font-size:var(--text-md);color:var(--ink2);line-height:var(--leading)}
 .fuel-today-retry,.idea-cards-retry{min-height:44px}
 
 /* ---- Log what you ate: a quiet field that opens the shared composer in its place ---- */
@@ -54,7 +54,7 @@
 .fuel-log-title{margin:0}
 .fuel-log-toggle{flex:1 1 100%;display:flex;align-items:flex-start;min-height:64px;margin-top:var(--space-4);
   padding:var(--space-6) var(--space-7);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);
-  font-family:var(--font-ui);font-size:var(--text-base);line-height:1.45;text-align:left;color:var(--muted);cursor:text;
+  font-family:var(--font-ui);font-size:var(--text-base);line-height:var(--leading-normal);text-align:left;color:var(--muted);cursor:text;
   transition:border-color var(--dur-1) var(--ease),transform var(--dur-1) var(--ease)}
 .fuel-log-toggle:hover{border-color:var(--line-strong)}
 .fuel-log-toggle:active{transform:var(--press-lg)}
@@ -62,8 +62,8 @@
 .fuel-log-fold{display:none}
 /* open: the field gives way to the composer, the control folds to a small "Close" */
 .fuel-log.is-open .fuel-log-toggle{flex:0 0 auto;margin:0 0 0 auto;min-height:32px;padding:var(--space-2) 0;
-  background:none;border:0;border-radius:0;font-size:var(--text-sm);font-weight:600;color:var(--muted);cursor:pointer;
-  text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+  background:none;border:0;border-radius:0;font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--muted);cursor:pointer;
+  text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:var(--link-offset)}
 .fuel-log.is-open .fuel-log-faux{display:none}
 .fuel-log.is-open .fuel-log-fold{display:inline}
 .fuel-log-panel,.fuel-meal-panel{display:grid;grid-template-rows:0fr;visibility:hidden;
@@ -73,7 +73,7 @@
 .fuel-log-composer{padding-top:var(--space-3)}
 .fuel-log-composer .chatbar{margin-top:0;align-items:flex-end}
 .fuel-log-composer .chatbar textarea{min-height:96px;border-radius:var(--radius-md);padding:var(--space-6) var(--space-7)}
-.fuel-log-hint{margin:var(--space-4) var(--space-1) 0;font-size:var(--text-xs);color:var(--muted);line-height:1.5}
+.fuel-log-hint{margin:var(--space-4) var(--space-1) 0;font-size:var(--text-xs);color:var(--muted);line-height:var(--leading)}
 
 /* ---- Logged today: hairline rows in one card, each opening into its meal card ---- */
 .fuel-meals-title{margin:0 0 var(--space-4)}
@@ -89,16 +89,16 @@
 .fuel-meal-main{display:contents}
 .fuel-meal-meta{grid-column:1 / -1;grid-row:2}
 .fuel-meal-items{grid-column:1 / -1;grid-row:3}
-.fuel-meal-name{grid-column:1;grid-row:1;min-width:0;font-size:var(--text-md);font-weight:600;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fuel-meal-name{grid-column:1;grid-row:1;min-width:0;font-size:var(--text-md);font-weight:var(--weight-semibold);line-height:var(--leading-snug);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fuel-meal-meta{margin-top:var(--space-1);font-size:var(--text-xs);color:var(--muted)}
-.fuel-meal-items{margin-top:var(--space-1);font-size:var(--text-xs);color:var(--ink2);line-height:1.45}
+.fuel-meal-items{margin-top:var(--space-1);font-size:var(--text-xs);color:var(--ink2);line-height:var(--leading-normal)}
 .fuel-meal-nums{font-size:var(--text-sm);color:var(--ink2);white-space:nowrap;font-variant-numeric:tabular-nums}
 .fuel-meal-nums.is-pending{color:var(--muted);font-style:italic}
 .fuel-meal-chev{color:var(--muted);transition:transform var(--dur-1) var(--ease)}
 .fuel-meal.is-open .fuel-meal-chev{transform:rotate(90deg)}
 .fuel-meal.is-open .fuel-meal-items{display:none}
 .fuel-meal.is-open .fuel-meal-panel-in{padding-bottom:var(--space-6)}
-.fuel-meal-note,.fuel-meal-raw{margin:var(--space-3) 0 0;font-size:var(--text-sm);color:var(--muted);line-height:1.45}
+.fuel-meal-note,.fuel-meal-raw{margin:var(--space-3) 0 0;font-size:var(--text-sm);color:var(--muted);line-height:var(--leading-normal)}
 .fuel-meal-actions{display:flex;justify-content:flex-end}
 .fuel-meal-fix{margin-top:var(--space-4)}
 .fuel-meal-fix-nums{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:0 var(--space-5)}
@@ -110,7 +110,7 @@
 /* ---- Ideas for the rest of today: a swipeable row of cards, serif titles. An idea
    is labelled one, carries no done state, and never reads as a meal eaten. ---- */
 .idea-cards-title{margin:0 0 var(--space-2)}
-.idea-cards-words{margin:0 0 var(--space-5);font-size:var(--text-xs);color:var(--muted);line-height:1.5}
+.idea-cards-words{margin:0 0 var(--space-5);font-size:var(--text-xs);color:var(--muted);line-height:var(--leading)}
 .idea-cards-list{list-style:none;margin:0 calc(-1 * var(--gutter));padding:0 var(--gutter) var(--space-2);
   display:grid;grid-auto-flow:column;grid-auto-columns:minmax(252px,82%);gap:var(--space-5);
   overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scroll-padding-inline:var(--gutter);scrollbar-width:none}
@@ -121,11 +121,11 @@
 .idea-card-head{display:flex;align-items:baseline;gap:var(--space-4);min-width:0}
 .idea-card-kind{flex:0 0 auto;color:var(--d-fuel)}
 .idea-card-portion{min-width:0;font-size:var(--text-xs);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.idea-card-title{margin:var(--space-1) 0 0;font-family:var(--font-display);font-weight:400;font-size:1.05rem;line-height:1.25;color:var(--ink)}
+.idea-card-title{margin:var(--space-1) 0 0;font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-lead);line-height:var(--leading-snug);color:var(--ink)}
 .idea-card-nums{margin:0;font-size:var(--text-xs);color:var(--muted);font-variant-numeric:tabular-nums}
-.idea-card-why{flex:1 1 auto;margin:0;font-size:var(--text-sm);color:var(--ink2);line-height:1.45}
+.idea-card-why{flex:1 1 auto;margin:0;font-size:var(--text-sm);color:var(--ink2);line-height:var(--leading-normal)}
 .idea-card-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-6);margin-top:var(--space-3)}
-.idea-card-start{padding:7px 13px;font-size:var(--text-sm)}
+.idea-card-start{padding:var(--space-4) var(--space-7);font-size:var(--text-sm)}
 .idea-card-start,.idea-card-another{min-height:44px}
 .idea-card-another{font-size:var(--text-sm)}
 .idea-card-another[disabled]{opacity:.55;cursor:default}

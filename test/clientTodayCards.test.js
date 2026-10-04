@@ -651,3 +651,176 @@ test("a folded top set reads as the lift's top set inside ONE card, and a standi
   assert.match(agreeing, /ex-rx/);
   assert.doesNotMatch(agreeing, /data-rx="off"/);
 });
+
+// ---- input profiles (server: src/repo/exercise-input.ts) ----------------------
+// A stretch or drill asks only for what it takes: no RIR, the load well tucked
+// behind a quiet "+ Add load", and a one-sided dose says "/ side".
+
+const MOBILITY_REPS = { profile: "mobility", mode: "reps", per_side: true, source: "derived" };
+const MOBILITY_HOLD = { profile: "mobility", mode: "timed", per_side: true, source: "derived" };
+
+test("a mobility reps card asks for reps only — no RIR, load tucked away, dose per side", () => {
+  const cards = loadTodayCards();
+  const html = cards.exerciseCardHtml(
+    { fromSession: true, exercise: "World's Greatest Stretch", sets: 2, rep_low: 6, rep_high: 6, input: MOBILITY_REPS },
+    [],
+    { weight: null, reps: 6, rir: null },
+    null,
+    null,
+    {}
+  );
+  assert.match(html, /<span class="ex-sets">2 × 6 \/ side<\/span>/);
+  assert.match(html, /data-input="mobility"/);
+  assert.doesNotMatch(html, /class="in-rir"/, "no reps-in-reserve on a stretch");
+  assert.doesNotMatch(html, /<span>RIR<\/span>/);
+  assert.match(html, /class="in-w"[^>]*hidden>/, "the load well is in the row but hidden");
+  assert.match(html, /<span data-cap="w" hidden>Weight<\/span>/);
+  assert.match(html, /data-addload/);
+  assert.match(html, /aria-label="Reps, each side"/);
+});
+
+test("a mobility hold keeps the timed Start/Log flow with time alone", () => {
+  const cards = loadTodayCards();
+  const html = cards.exerciseCardHtml(
+    { fromSession: true, exercise: "Couch Stretch", sets: 2, target_seconds: 45, mode: "timed" },
+    [],
+    { duration_sec: 45 },
+    null,
+    null,
+    { exInputs: { "Couch Stretch": MOBILITY_HOLD } }
+  );
+  assert.match(html, /<span class="ex-sets">2 × 45s \/ side<\/span>/);
+  assert.match(html, /class="timerbtn"/);
+  assert.match(html, /class="in-dur"/);
+  assert.match(html, /class="in-w"[^>]*hidden>/);
+  assert.match(html, /data-addload/);
+});
+
+test("a bodyweight card keeps reps and RIR; an assist already in play opens the load well", () => {
+  const cards = loadTodayCards();
+  const input = { profile: "bodyweight", mode: "reps", per_side: false, source: "derived" };
+  const plain = cards.exerciseCardHtml(
+    { fromPlan: true, exercise: "Chest Dips", sets: 3, rep_low: 8, rep_high: 12, input },
+    [],
+    { weight: null, reps: 8, rir: 2 },
+    null,
+    null,
+    {}
+  );
+  assert.match(plain, /class="in-rir"/, "RIR is a real read on bodyweight strength");
+  assert.match(plain, /class="in-w"[^>]*hidden>/);
+  assert.match(plain, /data-addload/);
+  const assisted = cards.exerciseCardHtml(
+    { fromPlan: true, exercise: "Chest Dips", sets: 3, rep_low: 8, rep_high: 12, input },
+    [],
+    { weight: -30, reps: 8, rir: 2 },
+    null,
+    null,
+    {}
+  );
+  assert.match(assisted, /class="in-w" aria-label="Weight" value="-30">/, "a prefilled assist is never hidden");
+  assert.doesNotMatch(assisted, /data-addload/);
+});
+
+test("a hidden load well is blank even when the prefill says 0, so a set logs unloaded (null), never 0", () => {
+  const cards = loadTodayCards();
+  const input = { profile: "bodyweight", mode: "reps", per_side: false, source: "derived" };
+  const html = cards.exerciseCardHtml(
+    { fromPlan: true, exercise: "Chest Dips", sets: 3, rep_low: 8, rep_high: 12, input },
+    [],
+    { weight: 0, reps: 8, rir: 2 },
+    null,
+    null,
+    {}
+  );
+  assert.match(html, /class="in-w" aria-label="Weight" value=""[^>]*hidden>/);
+  assert.doesNotMatch(html, /class="in-w"[^>]*value="0"/);
+  const mobility = cards.exerciseCardHtml(
+    { fromSession: true, exercise: "World's Greatest Stretch", sets: 2, rep_low: 6, rep_high: 6, input: MOBILITY_REPS },
+    [],
+    { weight: 0, reps: 6, rir: null },
+    null,
+    null,
+    {}
+  );
+  assert.match(mobility, /class="in-w" aria-label="Weight" value=""[^>]*hidden>/);
+  assert.match(mobility, /data-input="mobility" data-per-side="1"/, "a late last-time line can say / side");
+  assert.doesNotMatch(html, /data-per-side/);
+});
+
+test("a loaded card, or one with no profile at all, keeps the full weight · reps · RIR row", () => {
+  const cards = loadTodayCards();
+  for (const input of [undefined, { profile: "loaded", mode: "reps", per_side: false, source: "derived" }]) {
+    const html = cards.exerciseCardHtml(
+      { fromPlan: true, exercise: "Barbell Bench Press", sets: 3, rep_low: 5, rep_high: 8, target_weight: 185, input },
+      [],
+      { weight: 185, reps: 5, rir: 2 },
+      null,
+      null,
+      {}
+    );
+    assert.match(html, /class="in-w" aria-label="Weight" value="185">/);
+    assert.match(html, /class="in-rir"/);
+    assert.doesNotMatch(html, /data-addload|\/ side/);
+  }
+});
+
+test("the last-time line on a per-side drill says the count is each side's", () => {
+  const cards = loadTodayCards();
+  const html = cards.exerciseCardHtml(
+    { fromPlan: true, exercise: "Ankle Rocker", sets: 2, rep_low: 10, rep_high: 10, input: MOBILITY_REPS },
+    [],
+    { reps: 10 },
+    null,
+    null,
+    {},
+    { weight: null, reps: 10, date: "2020-01-01" }
+  );
+  assert.match(html, /Last time: 10 reps \/ side/);
+});
+
+test("revealLoadForLastSet opens a tucked-away well only for a loaded last set the athlete has not typed over", () => {
+  const ctx = loadTodayCardsContext();
+  const rowWith = (well) => {
+    const cap = { removeAttribute() {} };
+    const card = {
+      querySelector(selector) {
+        if (selector === ".logrow .in-w") return well;
+        if (selector === '.logcaps [data-cap="w"]') return cap;
+        return null;
+      },
+    };
+    return { querySelector: (selector) => (selector === ".in-w" ? well : null), closest: () => card };
+  };
+  const reveal = (well, lastSet) => {
+    ctx.CairnTodayCards.revealLoadForLastSet(rowWith(well), lastSet);
+    return well.hidden === false;
+  };
+  assert.equal(reveal({ hidden: true, dataset: {} }, { weight: 25 }), true, "a loaded last set opens the well");
+  assert.equal(reveal({ hidden: true, dataset: {} }, { weight: -30 }), true, "an assist is a load too");
+  assert.equal(reveal({ hidden: true, dataset: {} }, { weight: 0 }), false, "an unloaded last set stays tucked away");
+  assert.equal(reveal({ hidden: true, dataset: {} }, { weight: null }), false);
+  assert.equal(reveal({ hidden: true, dataset: {} }, { weight: "" }), false);
+  assert.equal(reveal({ hidden: true, dataset: { dirty: "1" } }, { weight: 25 }), false, "a typed well is left alone");
+});
+
+test("revealLoad shows the tucked-away well and retires the affordance", () => {
+  const ctx = loadTodayCardsContext();
+  const weight = { hidden: true, focused: false, focus() { this.focused = true; } };
+  const cap = { removed: false, removeAttribute(name) { if (name === "hidden") this.removed = true; } };
+  const button = { gone: false, remove() { this.gone = true; } };
+  const card = {
+    querySelector(selector) {
+      if (selector === ".logrow .in-w") return weight;
+      if (selector === '.logcaps [data-cap="w"]') return cap;
+      if (selector === "[data-addload]") return button;
+      return null;
+    },
+  };
+  const row = { closest: (selector) => (selector === ".ex" ? card : null) };
+  ctx.CairnTodayCards.revealLoad(row, { focus: true });
+  assert.equal(weight.hidden, false);
+  assert.equal(cap.removed, true);
+  assert.equal(button.gone, true);
+  assert.equal(weight.focused, true);
+});

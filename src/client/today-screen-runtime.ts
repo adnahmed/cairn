@@ -25,6 +25,7 @@ type TodayScreenRuntimeSessionSuggestOptions = Parameters<Window["CairnTodaySess
 type TodayScreenRuntimeState = ClientAppState & Record<string, unknown> & {
   day: number | null;
   exModes: Record<string, string>;
+  exInputs?: Record<string, unknown>;
   logDate: string;
   planJump?: string;
   planReveal?: { date: string; on: boolean; blank?: boolean };
@@ -225,6 +226,7 @@ function createTodayScreenRuntime(input: TodayScreenRuntimeInput): TodayScreenRu
     return CairnTodayCards.exerciseCardHtml(item, logged, prefill, revealIdx, rx, {
       day: input.state.day,
       exModes: input.state.exModes,
+      exInputs: input.state.exInputs ?? null,
     }, lastSet);
   }
 

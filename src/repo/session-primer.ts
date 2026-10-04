@@ -24,6 +24,7 @@
 import { db } from "../db.js";
 import { getActiveDailySession } from "./adaptive-session.js";
 import { getCachedDayRead } from "./day-read-cache.js";
+import { exerciseInputFor } from "./exercise-input.js";
 import { dayRead } from "./day-read.js";
 import { listBrainDecisions } from "./brain-decisions.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
@@ -466,6 +467,9 @@ function buildFresh(movements: string[], date: string): SessionPrimerFresh[] {
   if (loggedSessionDays() < FRESH_BASE_SESSIONS) return [];
   const out: SessionPrimerFresh[] = [];
   for (const name of movements) {
+    // A stretch or mobility drill is not a lift to calibrate: "log your real working
+    // weight" is wrong for it, and a new drill needs no flag of its own.
+    if (exerciseInputFor(name).profile === "mobility") continue;
     const tenure = movementTenureWeeks(name, date);
     if (tenure === 0) {
       out.push({

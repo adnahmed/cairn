@@ -23,6 +23,7 @@ import {
   applyDueAnnouncedDecisions,
   applyProposalWithAutonomy,
   newRequestTellBudget,
+  TEAM_REVIEW_QUESTION_LEAD,
   type RequestTellBudget,
 } from "./domain/brain/autonomy-service.js";
 import { registerTrainingCacheClear } from "./repo/training-cache.js";
@@ -156,7 +157,8 @@ export function enqueueTeamReviewIfDue(
     agent: null,
     input: {
       question:
-        `Weekly team review for the week starting tomorrow. Each specialist: the ONE next step toward your goal's milestone in DATA.road_ahead and its trade-off. ` +
+        // The lead sentence is how the premise pass knows this draft's target week.
+        `${TEAM_REVIEW_QUESTION_LEAD} Each specialist: the ONE next step toward your goal's milestone in DATA.road_ahead and its trade-off. ` +
         `Conductor: reconcile them in the block's priority order (${order.join(" > ") || "as the data reads"}) into next week's plan — ` +
         `prefer bounded plan_update changes that move the lead goal's milestone and protect the others; a plan_restructure must keep the athlete's stated lifting and run weekdays.`,
       domains: [...TEAM_REVIEW_DOMAINS],

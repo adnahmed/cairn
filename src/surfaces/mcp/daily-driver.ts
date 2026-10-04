@@ -9,7 +9,8 @@ import {
 } from "../../domain/brain/index.js";
 import { allGuidelines, guidelineFor } from "../../domain/health/index.js";
 import { addMemory } from "../../domain/person/index.js";
-import { dayRecord, dayRecordDate, todayStones } from "../../domain/today/index.js";
+import { dayRecord, dayRecordDate, overnightDigest, todayStones } from "../../domain/today/index.js";
+import { todayPath } from "../../repo/today-path.js";
 import { deriveInsightIntentKey, splitInsightIntentKey } from "../../repo/insight-intent.js";
 import { recordDismissal } from "../../repo/surface-dismissals.js";
 import { asText, type McpToolRegistrar } from "./shared.js";
@@ -30,6 +31,20 @@ export function registerDailyDriverTools(server: McpToolRegistrar) {
     "The six stones on Today (Strength, Endurance, Fuel, Recovery, Body, Heart) → { date, stones:[{key,label,word,tone,line,target:{tab,section}}] }, always six in that order. Each `word` is one or two plain words the server projects from the five signal dimensions and the domain reads (today's lift, the race build, today's intake, the weight trend, the lab read); `tone` is ok | watch | quiet; `line` is one athlete-facing sentence or null. A stone with no fresh signal reads \"quiet\" — never low; a partial intake day reads \"in progress\". No scores. Pure read, mirrors GET /api/today/stones. Pass `date` (YYYY-MM-DD; defaults to today).",
     { date: z.string().optional() },
     async ({ date }) => asText(todayStones(date))
+  );
+
+  server.tool(
+    "get_today_path",
+    "The path under Today's Brief → { as_of, trail_start, race:{event,distance_label,date,days_to_race,estimate_sec,target_sec,target_raw,trend_delta_sec,since,fit}|null, weight:{mode,current_lb,current_date,goal_lb,goal_date,trend_lb_wk,needed_lb_wk,points[]}|null, anchor:{exercise,est_1rm,target_est_1rm,lb_per_week,projection_weeks}|null, milestones:[{date,end_date,label,kind,detail}], lever:{text,kind}|null, focus, board:[{key,id,label,start_text,now_text,goal_text,progress,reached,note,direction}], week:{km_planned,km_logged,long_km,phase}|null }. Composed from the race build, goal pace, the strength journeys, the next-checkup read and the attention schedule; re-derives none of them. The race estimate against its target is a fit word (fits/stretch/beyond_horizon); every number is a real measure in its unit, never a score. Pure read, mirrors GET /api/today-path. Pass `date` (YYYY-MM-DD; defaults to today).",
+    { date: z.string().optional() },
+    async ({ date }) => asText(todayPath(date))
+  );
+
+  server.tool(
+    "get_today_digest",
+    "What the team changed lately, one lift per row → { as_of, when, headline, changes:[{id,state,title,status_line,moves:[{exercise,direction,from_text,to_text,reason}],undo:{available,label},new}] }. A projection over the Changes feed: titles, timing words and Undo are the feed's own; each move reads the change's recorded before → after (an announced change reads the live plan as its before). Held drafts the team set aside are not here; get_brain_changes lists them under `set_aside`. Undo posts the change `id` to revert_brain_decision. Pure read, mirrors GET /api/today-digest. Pass `date` (YYYY-MM-DD; defaults to today).",
+    { date: z.string().optional() },
+    async ({ date }) => asText(overnightDigest(date))
   );
 
   server.tool(

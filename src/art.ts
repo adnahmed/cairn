@@ -6,10 +6,14 @@ import { listActivities } from "./repo/activities.js";
 import {
   addArtAsset,
   artIndexUsesKey,
+  deleteArtAliases,
   getArtAlias,
+  getArtAsset,
   getArtIndex,
   listArtAssets,
   listArtIndex,
+  listArtAliases,
+  listIndexZeroReuseAliases,
   recordArtUsage,
   setArtAlias,
   setArtIndex,
@@ -23,6 +27,8 @@ import {
   normalizedExerciseKey,
 } from "./repo/exercise-canon.js";
 import { findExercise, listExercises } from "./repo/exercises.js";
+import { getExerciseGuide } from "./repo/exercise-guide.js";
+import { getAppState, setAppState } from "./repo/app-state.js";
 import { exercisePoseFromExplanation, getCachedExerciseExplanation } from "./coachOps/training.js";
 import { listFoodNotes, listMealPlans } from "./repo/nutrition.js";
 import { getGeminiApiKey, getSettings } from "./repo/settings.js";
@@ -121,8 +127,9 @@ export interface ArtContext {
   equipment?: string | null;
   // A one-or-two-sentence description of the MOVEMENT itself, taken from the
   // exercise's how-to guide (setup + move). The name alone under-specifies a
-  // pose — "Cable Lateral Raise" rendered as a plank, because the style
-  // references were the only pose signal the model had.
+  // pose. (The plank once served for "Cable Lateral Raise" and "World's
+  // Greatest Stretch" was a misfiled ALIAS onto a front-plank asset — see
+  // parseMatchIndex / exerciseAliasTrusted — not a prompt the model misread.)
   pose?: string | null;
 }
 
@@ -253,7 +260,21 @@ export function cachedArtPath(kind: ArtKind, text: string): string | null {
   const direct = existingFile(cacheKey(kind, text));
   if (direct) return direct;
   const aliasKey = getArtAlias(kind, normalize(text));
+  // An exercise alias is honoured only when it points at the SAME movement. The
+  // retired text-model matcher filed seven unrelated movements (World's Greatest
+  // Stretch, a crunch, a lateral raise…) onto one "front plank" figurine, and a
+  // persisted alias short-circuits every later pose-aware generation — the plank
+  // would be served forever. A foreign alias reads as a miss so the producer runs.
+  if (kind === "exercise" && aliasKey && !exerciseAliasTrusted(text, aliasKey)) return null;
   return existingFile(aliasKey);
+}
+
+/** Whether an exercise alias's asset depicts the queried movement (same name, or a linked one). */
+export function exerciseAliasTrusted(query: string, assetKey: string): boolean {
+  const asset = getArtAsset(assetKey);
+  if (!asset) return false;
+  if (normalize(asset.text) === normalize(query)) return true;
+  return exerciseNamesLinked(query, asset.text);
 }
 
 /** Current asset version for a name-only query. Missing → 0 (no figurine yet). */
@@ -261,6 +282,10 @@ export function artVersion(kind: ArtKind, text: string): number {
   const idx = getArtIndex(kind, indexQuery(text));
   if (idx && existingFile(idx.asset_key)) return idx.version;
   if (cachedArtPath(kind, text)) return 1;
+  // A name whose misfiled alias the boot repair dropped has nothing of its own yet, but a
+  // phone may hold the wrong figurine under a v-less or v=1 URL: name the version its
+  // replacement will land under, so the URL is already a new one.
+  if (kind === "exercise" && aliasRepairedQuery(kind, text)) return exerciseTargetVersion(text, false);
   return 0;
 }
 
@@ -298,11 +323,38 @@ export function artVersions(opts?: { queries?: string[] | undefined }): { versio
     versions[`exercise|${row.query}`] = row.version;
   }
   for (const { kind, q } of enumeratePwaArt()) {
-    if (kind !== "exercise") continue;
+    if (kind !== "exercise") {
+      const v = assetVersion(kind, q);
+      if (v > 0) versions[`${kind}|${q}`] = v;
+      continue;
+    }
     const v = byNorm.get(indexQuery(q));
     if (v && v > 0) versions[`${kind}|${q}`] = v;
   }
   return { versions };
+}
+
+/**
+ * Food and activity pictures have no art_index row, so their URL version is the
+ * served asset's creation time (epoch seconds). The art URL is immutable and the
+ * service worker is cache-first by full URL, so without a `v=` a query that is
+ * re-pointed at a different picture (a regenerated one, or a misfiled alias
+ * repaired) would keep showing the old bytes on a phone forever. A newer asset
+ * always carries a larger `v`, which is also what the SW's eviction compares.
+ * 0 (no `v=`) when nothing is drawn or the file is a seed-pack copy with no row.
+ */
+export function assetVersion(kind: ArtKind, text: string): number {
+  // A query whose misfiled alias the boot repair dropped was served the wrong picture
+  // under a URL the phone may still hold — with no `v=` at all before this versioning
+  // existed. It never goes back to a v that old: with nothing drawn yet it carries the
+  // repair's own time, and its eventual picture anything strictly later.
+  const repaired = aliasRepairedQuery(kind, text) ? aliasRepairEpoch() : 0;
+  const file = cachedArtPath(kind, text);
+  if (!file) return repaired;
+  const created = getArtAsset(assetKeyFromPath(file))?.created_at;
+  const ms = created ? Date.parse(`${created.replace(" ", "T")}Z`) : Number.NaN;
+  const own = Number.isFinite(ms) && ms > 0 ? Math.floor(ms / 1000) : 0;
+  return repaired ? Math.max(own, repaired + 1) : own;
 }
 
 // ---- serial generation queue (in-flight dedup by cache key) ----
@@ -404,8 +456,7 @@ function requestExerciseArt(text: string, settle?: (produced: boolean) => void):
   if (artCircuitOpen(imageModelFor("exercise"))) return refuse();
   if (cachedArtPath("exercise", name)) return refuse();
   const ctx = buildExerciseArtContext(name);
-  const version = Math.max(1, artVersion("exercise", name) || 1);
-  const key = exerciseAssetKey(name, ctx, version);
+  const key = exerciseAssetKey(name, ctx, exerciseTargetVersion(name, false));
   if (failed.has(key)) return refuse();
   if (inFlight.has(key)) {
     settle?.(false); // someone else's job owns this key — nothing of ours to wait on
@@ -458,20 +509,51 @@ export async function produceExerciseArt(name: string, context?: ArtContext | nu
 /** Fill muscle_group / equipment / pose from the row, then the deterministic floor. */
 export function buildExerciseArtContext(name: string, extra?: ArtContext | null): ArtContext {
   const row = findExercise(name) as { muscle_group?: string | null; equipment?: string | null } | undefined;
-  let pose = extra?.pose ?? null;
-  if (!pose) {
-    try {
-      const guide: any = getCachedExerciseExplanation(name);
-      pose = exercisePoseFromExplanation(guide?.explanation);
-    } catch {
-      /* a missing guide is the ordinary state — the classifier still shapes the prompt */
-    }
-  }
+  const pose = extra?.pose || exercisePoseFor(name);
   return {
     muscle_group: extra?.muscle_group || row?.muscle_group || classifyMuscleGroup(name) || null,
     equipment: extra?.equipment || row?.equipment || detectImplement(name) || null,
     pose: pose || null,
   };
+}
+
+/**
+ * The movement description an exercise figurine is drawn from: the coach's cached
+ * how-to (setup + move), else the imported library guide's opening steps. Null
+ * when neither exists — the classifier context still shapes the prompt then.
+ */
+export function exercisePoseFor(name: string): string | null {
+  try {
+    const cached: any = getCachedExerciseExplanation(name);
+    const pose = exercisePoseFromExplanation(cached?.explanation);
+    if (pose) return pose;
+  } catch {
+    /* a missing how-to is the ordinary state */
+  }
+  try {
+    return exercisePoseFromGuideSteps(getExerciseGuide(name)?.instructions);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The library guide's first two steps as a pose description. The library's
+ * opening step is sometimes a preamble ("This is a three-part stretch."), so two
+ * steps ride along; exercisePoseClause caps the length.
+ */
+export function exercisePoseFromGuideSteps(steps: unknown): string | null {
+  if (!Array.isArray(steps)) return null;
+  const text = steps
+    .slice(0, 2)
+    .map((step) =>
+      String(step ?? "")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter(Boolean)
+    .join(" ");
+  return text || null;
 }
 
 export function clearArtFailures(kind: ArtKind, text: string): void {
@@ -513,7 +595,9 @@ export async function regenerateArt(
   context?: ArtContext | null
 ): Promise<ArtRegenerateOutcome> {
   const text = String(q ?? "").trim();
-  const version = () => artVersion(kind, text);
+  // The same `v` scale the client's art URL uses: an exercise's redraw counter, a food
+  // or activity picture's creation time (assetVersion).
+  const version = () => (kind === "exercise" ? artVersion(kind, text) : assetVersion(kind, text));
   if (!text) return { ok: false, regenerated: false };
   if (!getGeminiApiKey() || !getSettings().art_enabled) return { ok: false, regenerated: false };
   const model = imageModelFor(kind);
@@ -581,6 +665,27 @@ async function warmArtUnderName(
   return true;
 }
 
+/**
+ * The version the next exercise figurine for this name lands under. One answer for
+ * the queue's dedup/failure key and the producer's asset key, so a parked failure
+ * is seen by both. A name that was only ever served through a (now distrusted)
+ * alias starts at v2: a phone may hold that wrong figurine under v=1 in the
+ * service worker's cache-first art layer, and the replacement must not share it.
+ */
+export function exerciseTargetVersion(text: string, force: boolean): number {
+  const q = indexQuery(text);
+  const current = getArtIndex("exercise", q);
+  const currentFile = existingFile(current?.asset_key) || (!current ? existingFile(cacheKey("exercise", text)) : null);
+  const currentVersion = current?.version || (currentFile ? 1 : 0);
+  if (force) return currentVersion + 1 || 1;
+  if (currentVersion) return currentVersion;
+  // The boot repair deletes the distrusted alias before the warm-up runs, so the alias
+  // itself is gone by then; the repair's own record of the names it un-aliased carries
+  // the same fact.
+  const aliasKey = getArtAlias("exercise", q);
+  return (aliasKey && existingFile(aliasKey)) || aliasRepairedQuery("exercise", text) ? 2 : 1;
+}
+
 async function warmExerciseUnderName(
   text: string,
   context: ArtContext | null | undefined,
@@ -591,8 +696,7 @@ async function warmExerciseUnderName(
   const q = indexQuery(text);
   const current = getArtIndex("exercise", q);
   const currentFile = existingFile(current?.asset_key) || (!current ? existingFile(cacheKey("exercise", text)) : null);
-  const currentVersion = current?.version || (currentFile ? 1 : 0);
-  const version = force ? currentVersion + 1 || 1 : currentVersion || 1;
+  const version = exerciseTargetVersion(text, force);
   const key = exerciseAssetKey(text, ctx, version);
 
   if (inFlight.has(key)) return false;
@@ -843,6 +947,21 @@ function textCost(inTokens: number, outTokens: number): number {
   return (inTokens * TEXT_IN_USD_PER_M + outTokens * TEXT_OUT_USD_PER_M) / 1_000_000;
 }
 
+/**
+ * The matcher's `match` as an index into the listed assets, or null for "no match".
+ * Strict on purpose: `Number(null)` is 0, and that one coercion filed every
+ * non-matching query onto the NEWEST asset of its kind — hundreds of meals drawn
+ * as one chicken plate, seven movements as one front plank. Only a real integer
+ * (or an all-digit string) inside the list counts.
+ */
+export function parseMatchIndex(raw: unknown, length: number): number | null {
+  let idx: number;
+  if (typeof raw === "number") idx = raw;
+  else if (typeof raw === "string" && /^\s*\d+\s*$/.test(raw)) idx = Number(raw);
+  else return null;
+  return Number.isInteger(idx) && idx >= 0 && idx < length ? idx : null;
+}
+
 // Resolve a queued query to the asset it should serve: an existing asset
 // (reused: true — no image call) or a canonical key/text to generate under.
 // Exported so tests can pin the exercise reuse rule without going through drain.
@@ -869,8 +988,8 @@ export async function resolveConcept(job: {
       output_tokens: out_tokens,
       est_cost_usd: textCost(in_tokens, out_tokens),
     });
-    const idx = Number(json?.match);
-    if (Number.isInteger(idx) && idx >= 0 && idx < existing.length && existingFile(existing[idx].key)) {
+    const idx = parseMatchIndex(json?.match, existing.length);
+    if (idx != null && existingFile(existing[idx].key)) {
       setArtAlias(job.kind, norm, existing[idx].key);
       recordArtUsage({
         kind: job.kind,
@@ -1011,10 +1130,31 @@ export function enumeratePwaArt(): { kind: ArtKind; q: string }[] {
 // immediately instead of 204-then-generate on first view. Each query goes
 // through requestArt(), which already handles unavailability (no key /
 // art_enabled off / known-failed), cache hits, and in-flight dedup.
-export function warmArt(): { queued: number; skipped: number } {
+//
+// `repairedCap` bounds how many food/activity queries the alias repair un-aliased this
+// pass may queue (the boot passes REPAIRED_ART_WARM_PER_BOOT): a repair can drop hundreds
+// of meal aliases at once, and each queued one is a paid matcher call and maybe an image.
+// The rest resolve lazily, when a screen actually asks for them (GET /api/art), or on a
+// later boot's share.
+export const REPAIRED_ART_WARM_PER_BOOT = 12;
+
+export function warmArt(opts: { repairedCap?: number } = {}): { queued: number; skipped: number } {
   let queued = 0;
   let skipped = 0;
+  const cap = opts.repairedCap;
+  let repairedQueued = 0;
   for (const { kind, q } of enumeratePwaArt()) {
+    if (cap != null && kind !== "exercise" && aliasRepairedQuery(kind, q)) {
+      if (repairedQueued >= cap) {
+        skipped++;
+        continue;
+      }
+      if (requestArt(kind, q)) {
+        queued++;
+        repairedQueued++;
+      } else skipped++;
+      continue;
+    }
     if (requestArt(kind, q)) queued++;
     else skipped++;
   }
@@ -1043,6 +1183,108 @@ export function artManifest(): { ready: string[]; enabled: boolean } {
 export function artState(): { ready: string[]; enabled: boolean; versions: Record<string, number> } {
   const manifest = artManifest();
   return { ...manifest, versions: artVersions().versions };
+}
+
+// ---- one-shot repair of misfiled aliases ----
+
+const ALIAS_REPAIR_STATE_KEY = "art_alias_repair_v1";
+
+/**
+ * Drop the aliases that serve one movement's or meal's picture for another:
+ *   • exercise — any alias whose asset is not the same or a linked movement
+ *     (the retired text matcher's verdicts; cachedArtPath already distrusts them);
+ *   • food / activity — the `Number(null) === 0` signature (listIndexZeroReuseAliases).
+ * Dropping an alias deletes no image: the query simply misses, re-asks the (now
+ * strict) matcher, and either reuses a genuine match or draws its own picture.
+ * Dry run unless `apply`. Returns the counts per kind.
+ */
+export function repairMisfiledArtAliases(opts: { apply?: boolean } = {}): Record<ArtKind, number> {
+  const out: Record<ArtKind, number> = { food: 0, exercise: 0, activity: 0 };
+  const queries = misfiledAliasQueries();
+  for (const kind of ART_KINDS) {
+    out[kind] = opts.apply ? deleteArtAliases(kind, queries[kind]) : queries[kind].length;
+  }
+  return out;
+}
+
+function misfiledAliasQueries(): Record<ArtKind, string[]> {
+  const out: Record<ArtKind, string[]> = { food: [], exercise: [], activity: [] };
+  for (const kind of ART_KINDS) {
+    out[kind] =
+      kind === "exercise"
+        ? listArtAliases(kind)
+            .filter((row) => !exerciseAliasTrusted(row.query, row.asset_key))
+            .map((row) => row.query)
+        : listIndexZeroReuseAliases(kind)
+            .filter((row) => normalize(row.text) !== row.query)
+            .map((row) => row.query);
+  }
+  return out;
+}
+
+/**
+ * Run the alias repair once per database (boot), before the art warm-up. The record it
+ * leaves names every query it un-aliased, because the alias itself — the only other
+ * evidence a phone may hold a wrong picture for that name — is gone afterwards: those
+ * names start at a new URL version (exerciseTargetVersion, assetVersion), and the
+ * food/activity ones are queued a few per boot rather than all at once (warmArt).
+ */
+export function repairMisfiledArtAliasesOnce(): Record<ArtKind, number> | null {
+  if (getAppState(ALIAS_REPAIR_STATE_KEY)) return null;
+  const queries = misfiledAliasQueries();
+  const removed: Record<ArtKind, number> = { food: 0, exercise: 0, activity: 0 };
+  for (const kind of ART_KINDS) removed[kind] = deleteArtAliases(kind, queries[kind]);
+  setAppState(ALIAS_REPAIR_STATE_KEY, JSON.stringify({ at: new Date().toISOString(), removed, queries }));
+  aliasRepairThisTick = undefined;
+  return removed;
+}
+
+type AliasRepairRecord = { epoch: number; queries: Record<ArtKind, Set<string>> };
+let aliasRepairCache: { raw: string; record: AliasRepairRecord | null } | null = null;
+// The record as read in the current synchronous span (undefined = not read yet). The
+// version map and the warm-up ask once per PWA query; a live record can name hundreds
+// of meals, so it is read once per span, not once per query.
+let aliasRepairThisTick: AliasRepairRecord | null | undefined;
+
+function aliasRepairRecord(): AliasRepairRecord | null {
+  if (aliasRepairThisTick !== undefined) return aliasRepairThisTick;
+  const record = readAliasRepairRecord();
+  aliasRepairThisTick = record;
+  queueMicrotask(() => {
+    aliasRepairThisTick = undefined;
+  });
+  return record;
+}
+
+function readAliasRepairRecord(): AliasRepairRecord | null {
+  const raw = getAppState(ALIAS_REPAIR_STATE_KEY);
+  if (!raw) return null;
+  if (aliasRepairCache?.raw === raw) return aliasRepairCache.record;
+  let record: AliasRepairRecord | null = null;
+  try {
+    const parsed = JSON.parse(raw) as { at?: unknown; queries?: Partial<Record<ArtKind, unknown>> };
+    const ms = Date.parse(String(parsed?.at ?? ""));
+    const queries = { food: new Set<string>(), exercise: new Set<string>(), activity: new Set<string>() };
+    for (const kind of ART_KINDS) {
+      const list = parsed?.queries?.[kind];
+      if (Array.isArray(list)) for (const q of list) if (typeof q === "string" && q) queries[kind].add(q);
+    }
+    record = { epoch: Number.isFinite(ms) && ms > 0 ? Math.floor(ms / 1000) : 0, queries };
+  } catch {
+    record = null;
+  }
+  aliasRepairCache = { raw, record };
+  return record;
+}
+
+/** Whether the boot repair dropped this query's misfiled alias. */
+function aliasRepairedQuery(kind: ArtKind, text: string): boolean {
+  return !!aliasRepairRecord()?.queries[kind].has(normalize(text));
+}
+
+/** When the repair ran (epoch seconds); 0 when it never did or its record is unreadable. */
+function aliasRepairEpoch(): number {
+  return aliasRepairRecord()?.epoch || 0;
 }
 
 // ---- pre-baked seed-art pack (offline, no key) ----

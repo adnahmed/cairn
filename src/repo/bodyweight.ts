@@ -1,5 +1,6 @@
 import { db } from "../db.js";
 import { LB_PER_KG, localDateISO } from "./shared.js";
+import { copyRows, memoKey, requestMemo } from "./request-memo.js";
 
 export type CanonicalBodyweightSource = "manual" | "garmin";
 
@@ -39,6 +40,15 @@ function dateRange(column: string, since?: string | null, through?: string | nul
 export function canonicalBodyweightSeries(
   opts: { since?: string | null; through?: string | null } = {}
 ): CanonicalBodyweightPoint[] {
+  const key = memoKey(opts);
+  if (key == null) return canonicalBodyweightSeriesRead(opts);
+  return requestMemo(`canonical_bodyweight_series:${key}`, () => canonicalBodyweightSeriesRead(opts), copyRows);
+}
+
+function canonicalBodyweightSeriesRead(opts: {
+  since?: string | null;
+  through?: string | null;
+}): CanonicalBodyweightPoint[] {
   const garminRange = dateRange("date", opts.since, opts.through);
   const manualRange = dateRange("date", opts.since, opts.through);
   const garminRows = db

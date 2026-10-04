@@ -20,6 +20,13 @@ function setupWeightChip(): void {
   };
   if (chip) chip.addEventListener("click", toggle);
   if (mini) mini.addEventListener("click", toggle);
+  // The week's bodyweight tile keeps its sparkline: only its number is rewritten.
+  const paintMini = (w: number): void => {
+    if (!mini) return;
+    const val = typeof mini.querySelector === "function" ? mini.querySelector("[data-wtval]") : null;
+    if (val) val.innerHTML = `${w}<span class="tweek-u">lb</span>`;
+    else mini.innerHTML = `${w}<span class="wt-mini-unit">lb</span><span class="stat-plus">+</span>`;
+  };
   const save = async (): Promise<void> => {
     const w = +input.value;
     if (!w) { input.focus(); return; }
@@ -39,7 +46,7 @@ function setupWeightChip(): void {
       }
       const pendingVal = chip && chip.querySelector("[data-wtval]");
       if (pendingVal) pendingVal.innerHTML = `${w}<span class="stat-plus">+</span>`;
-      if (mini) mini.innerHTML = `${w}<span class="wt-mini-unit">lb</span><span class="stat-plus">+</span>`;
+      paintMini(w);
       input.value = ""; inline.hidden = true;
       toast("Saved — will sync when you're back online");
       return;
@@ -52,7 +59,7 @@ function setupWeightChip(): void {
     swrInvalidate("progress:energy");
     const valEl = chip && chip.querySelector("[data-wtval]");
     if (valEl) valEl.innerHTML = `${w}<span class="stat-plus">+</span>`;
-    if (mini) mini.innerHTML = `${w}<span class="wt-mini-unit">lb</span><span class="stat-plus">+</span>`;
+    paintMini(w);
     input.value = ""; inline.hidden = true;
     toast("Weight logged");
   };
@@ -92,10 +99,13 @@ function loadCheckin(): Promise<void> {
 }
 
 // ---------- context tags: cheap one-tap life context (WHOOP-journal pattern) ----------
-// A quiet row of chips — travel / drinks / rough sleep setup / work crunch / feeling
-// off. Tap tags today, tap again untags. No streaks, no history guilt: this is
-// evidence the insight generator quietly tests against outcomes, never advice, and
-// never gates anything. Renders nothing until the vocab + today's state are both in.
+// Travel / drinks / rough sleep setup / work crunch / feeling off. Today shows ONE
+// quiet line ("Something going on today? Tell the team", or what is already noted)
+// that opens a sheet listing the tags, each with the plain sentence of what it
+// changes (the server words it from what it actually does with the tag — GET
+// /context-tags/vocab, src/repo/context-tag-effects.ts). Tap tags today, tap again
+// untags. No streaks, no history guilt, never a gate. Chat sets the same tags.
+// Renders nothing until the vocab + today's state are both in.
 async function loadTagChips(): Promise<void> {
   const slot = view.querySelector<HTMLElement>("#tagsSlot");
   if (!slot) return;
@@ -114,16 +124,48 @@ async function loadTagChips(): Promise<void> {
   if (state.tab !== "today" || !slot.isConnected) return;
   if (!Array.isArray(vocab) || !vocab.length) { slot.innerHTML = ""; return; }
   const onKeys = new Set((Array.isArray(tagged) ? tagged : []).map((t) => t.key));
-  renderTagChips(slot, vocab, onKeys);
+  renderTagLine(slot, vocab, onKeys);
 }
 
-function renderTagChips(slot: HTMLElement, vocab: CaptureContextTagDef[], onKeys: Set<string>): void {
-  const chips = vocab.map((t) =>
-    `<button class="tag-chip${onKeys.has(t.key) ? " tag-chip-on" : ""}" data-tag="${escAttr(t.key)}" type="button" aria-pressed="${onKeys.has(t.key) ? "true" : "false"}">${escHtml(t.label)}</button>`
-  ).join("");
-  slot.innerHTML = `<div class="tags-chips">${chips}</div>`;
-  slot.querySelectorAll<HTMLElement>("[data-tag]").forEach((b) =>
-    b.addEventListener("click", () => toggleTagChip(b)));
+function tagLineHtml(vocab: CaptureContextTagDef[], onKeys: Set<string>): string {
+  const on = vocab.filter((t) => onKeys.has(t.key)).map((t) => t.label);
+  const said = on.length ? `${on.join(", ")} noted today` : "Something going on today?";
+  return `<button class="ctxline" type="button" data-ctx-open aria-haspopup="dialog"><span class="ctxline-t">${escHtml(said.charAt(0).toUpperCase() + said.slice(1))}</span><span class="ctxline-go">${on.length ? "Change" : "Tell the team"}</span></button>`;
+}
+
+function tagSheetHtml(vocab: CaptureContextTagDef[], onKeys: Set<string>): string {
+  const rows = vocab
+    .map((t) => {
+      const on = onKeys.has(t.key);
+      const effect = typeof t.effect === "string" ? t.effect : "";
+      return `<button class="tag-chip ctxsheet-row${on ? " tag-chip-on" : ""}" data-tag="${escAttr(t.key)}" type="button" aria-pressed="${on ? "true" : "false"}"><span class="ctxsheet-name">${escHtml(t.label.charAt(0).toUpperCase() + t.label.slice(1))}</span>${effect ? `<span class="ctxsheet-eff">${escHtml(effect)}</span>` : ""}<span class="ctxsheet-mark" aria-hidden="true"></span></button>`;
+    })
+    .join("");
+  return `<div class="ctxsheet-hd"><h3 id="ctxSheetTitle">Something going on today?</h3><button class="xbtn sheet-x" type="button" aria-label="Close" data-ui-sheet-close>✕</button></div>
+  <p class="ctxsheet-lede">Tap what applies to today; tap again to take it back. You can also just say it in chat.</p>
+  <div class="ctxsheet-list">${rows}</div>`;
+}
+
+function renderTagLine(slot: HTMLElement, vocab: CaptureContextTagDef[], onKeys: Set<string>): void {
+  slot.innerHTML = tagLineHtml(vocab, onKeys);
+  slot.querySelector<HTMLElement>("[data-ctx-open]")?.addEventListener("click", () => {
+    const sheet = CairnUiSheet.open({
+      html: tagSheetHtml(vocab, onKeys),
+      labelledBy: "ctxSheetTitle",
+      sheetClass: "ui-sheet ctxsheet",
+      onClose: () => {
+        // The line says what is noted now; the sheet's chips were the truth.
+        if (slot.isConnected) renderTagLine(slot, vocab, onKeys);
+      },
+    });
+    sheet.sheet.querySelectorAll<HTMLElement>("[data-tag]").forEach((b) =>
+      b.addEventListener("click", () =>
+        toggleTagChip(b).then(() => {
+          const key = b.dataset.tag || "";
+          if (b.classList.contains("tag-chip-on")) onKeys.add(key);
+          else onKeys.delete(key);
+        })));
+  });
 }
 
 // A chip flips in the same frame it is tapped; the toggle rides behind it and the

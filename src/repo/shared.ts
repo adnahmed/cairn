@@ -35,7 +35,26 @@ function cached(
 // follow the traveling device (see src/tz.ts). Cheap numeric parts come from the
 // fast Date getters on the system-local path; the costly weekday/time formatters
 // are cached above.
-function zonedParts(d: Date, zone?: string) {
+type ZonedParts = ReturnType<typeof zonedPartsUncached>;
+
+// The parts of the last instant asked about, with its zone. One request asks for
+// "today" thousands of times, runs of them inside the same millisecond, and the answer
+// is a pure function of the instant, the zone and — on the system-local path — the
+// process's own TZ (in the key). Handed out as a copy, so a caller can never change
+// what the next one reads.
+let lastZoned: { ms: number; key: string; parts: ZonedParts } | null = null;
+
+function zonedParts(d: Date, zone?: string): ZonedParts {
+  if (!(d instanceof Date)) return zonedPartsUncached(d, zone);
+  const ms = d.getTime();
+  const key = zone ? zone : `\u0000${process.env.TZ ?? ""}`;
+  if (lastZoned !== null && lastZoned.ms === ms && lastZoned.key === key) return { ...lastZoned.parts };
+  const parts = zonedPartsUncached(d, zone);
+  if (Number.isFinite(ms)) lastZoned = { ms, key, parts: { ...parts } };
+  return parts;
+}
+
+function zonedPartsUncached(d: Date, zone?: string) {
   const key = zone ?? "";
   const time = cached(
     timeFmt,

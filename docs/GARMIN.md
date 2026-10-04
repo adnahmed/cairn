@@ -198,15 +198,58 @@ richness (`steps`, `avg_stride_len`, `min/max_elevation_m`, `lap_count`) plus
 from one bounded `/activity-service/activity/{id}` detail call per recent activity
 (`summaryDTO`), since the list payload omits them.
 
+Running dynamics are read from the LIST payload (`avgGroundContactTime`,
+`avgVerticalOscillation`, `avgVerticalRatio`); the detail call only fills what that
+left empty. Until 2026-10-02 they were written from the detail call alone, whose
+`summaryDTO` answered null, so the three columns were empty on every run — migration
+v117 refilled them from the stored `raw_json`.
+
+### A run's shape (migration v117, `src/repo/run-structure.ts`)
+
+A summary hides how a run was built: six hill repeats with walked recoveries average
+to an easy-looking heart rate. Two sources carry the shape:
+
+- **Segments** — `splitSummaries`, already in the list payload: warm-up, the work
+  bouts of a structured workout (count, total time, distance, climb), recoveries,
+  cool-down, and the run/walk detection. Stored normalized as `structure_json`, with
+  `gap_speed` (grade-adjusted speed) and `body_battery_delta` beside it. No extra call;
+  v117 backfilled every stored activity.
+- **Laps** — `/activity-service/activity/{id}/splits` → `lapDTOs`: each lap's time,
+  distance, pace, grade-adjusted pace, avg/max HR, climb, cadence and power, stored as
+  `laps_json`. One call per endurance activity with more than one lap, bounded by
+  `GARMIN_LAPS_LIMIT` (default 20), and skipped once stored — a saved activity's laps
+  never change. Older runs get laps only if they fall inside a later sync's window.
+
+What reads it:
+
+- The coach's run line (`recent-cardio.ts` → "RECENT RUNS & CARDIO") carries a short
+  **shape** note — work bouts, recoveries, walking, grade-adjusted pace on a hilly run,
+  and each work rep's time, pace and HR once laps exist. `read_training_window` carries
+  the same note per activity.
+- The **`read_activity_detail`** coach read (`src/brain/read-tools.ts`) returns one
+  activity in full — every lap, the segments, HR time in bands, running form, power,
+  Body Battery change, stated effort and the personal HR model's read — so chat, the
+  day read and conferences can look inside a run only when a question turns on it.
+  Garmin's training effect, its label and its EPOC load never ride there.
+- The **hard read** (`personalRunRead`, `run-intensity.ts`): a run executed as a
+  structured interval workout (≥3 work bouts, ≥2 recoveries, ≥6 min of work) is
+  quality work, the same standing as a title that names it — unless its own work laps,
+  read against the athlete's easy line, were all easy.
+
+No second-by-second HR stream or GPS track is fetched or stored.
+
 Tunables: `GARMIN_SYNC_DAYS` (activity lookback, default 30), `GARMIN_SYNC_LIMIT`
 (activity count, default 100), `GARMIN_HR_ZONE_LIMIT` (per-activity HR-zone fetches,
 default 20), `GARMIN_DETAIL_LIMIT` (per-activity detail fetches for training load +
-running dynamics, default 20). Daily wellness is fetched for the most recent
+running dynamics, default 20), `GARMIN_LAPS_LIMIT` (per-activity lap fetches, default
+20). Daily wellness is fetched for the most recent
 `min(days, 14)` days.
 
 The coach receives a compact summary (it never sees the raw rows):
 
 - recent activity volume by type, with hard/long sessions + their HR zones / training effect
+- each recent run's shape (intervals, walking, grade-adjusted pace, work reps), with
+  every lap one `read_activity_detail` away
 - sleep (with deep/REM), resting HR, HRV + status, stress, Body Battery, respiration,
   SpO₂, skin-temp deviation, training readiness, VO₂max + training status, and body
   composition where available

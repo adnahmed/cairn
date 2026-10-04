@@ -8,7 +8,7 @@ import {
   type ChatAction,
 } from "../chatActions.js";
 import { getCoachContext } from "../repo/coach.js";
-import { listMemory } from "../repo/memory.js";
+import { listMemory, memoryPainHistory, memoryPromptContent } from "../repo/memory.js";
 import { getFoodNote, mealPlanConstraintSnapshot } from "../repo/nutrition.js";
 import type { ChatLane } from "../chatRouting.js";
 import { renderChatLinkedPagesBlock, type ChatLinkedPage } from "../chatLinks.js";
@@ -301,7 +301,9 @@ ${imagePath}
 Open and LOOK at that image file directly before answering.
 - If it shows food (a plate, meal, snack, packaged item): identify the dish, estimate portion sizes
   and macros from ordinary servings (rough is fine — never invent precision), emit ONE "log_food"
-  action with the estimate, and summarize it in "reply" (dish · ~kcal · protein).
+  action with the estimate, and in your reply name the dish and say in a sentence or two what it
+  means for their day. The food receipt card under the reply already shows the numbers and the
+  ingredients, so never restate kcal, grams or a macro list in the prose.
 - If it is not food (gym equipment, a form-check frame, a menu, a label): just use what you see to
   answer their message; only log when they clearly want something logged.
 ` : "";
@@ -499,11 +501,13 @@ function memoryLedgerLine(m: any): string {
     ...(updated && updated !== created ? [`last updated ${updated}`] : []),
     ...(referenced ? [`last surfaced ${referenced}`] : ["never surfaced"]),
   ];
-  return `- [id ${m.id}] (${facts.join(", ")}) ${String(m.content ?? "").slice(0, 240)}`;
+  // A pain whose symptom has since settled says so (memoryPainHistory), so the librarian
+  // never folds it into the picture as a current pain.
+  return `- [id ${m.id}] (${facts.join(", ")}) ${memoryPromptContent(m, 240)}`;
 }
 
 export function buildMemoryConsolidationPrompt(): string {
-  const rows = (listMemory(120) as any[]).map(memoryLedgerLine).join("\n");
+  const rows = (memoryPainHistory(listMemory(120)) as any[]).map(memoryLedgerLine).join("\n");
   return `${CAIRN_PERSONA}
 
 Right now you are acting as Cairn's coaching-memory librarian. Tidy the user's memory store so it stays a

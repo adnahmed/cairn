@@ -684,7 +684,7 @@ const CONSUMER_READS = [
   {
     schema: "EXERCISE_ENRICH_SCHEMA",
     consumer: "applyExerciseEnrichment",
-    fields: ["canonical", "muscle_group", "group", "mode", "equipment", "garmin_category", "garmin_exercise"],
+    fields: ["canonical", "muscle_group", "group", "mode", "equipment", "garmin_category", "garmin_exercise", "per_side"],
   },
   {
     schema: "EXERCISE_RECONCILE_SCHEMA",

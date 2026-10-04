@@ -10,6 +10,7 @@ import { completedIntakeWindow, type CompletedIntakeDay } from "./intake-window.
 import { vouchedRunCompliance } from "./sessions.js";
 import { sessionLogContradictsLowRating } from "./session-dose-log.js";
 import { addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
+import { copyFlat, requestMemo } from "./request-memo.js";
 // "Is the cut essentially finished?" — a LEAF read (profile + resolved bodyweight
 // + the shared near-goal band), deliberately not the recomposition read, which
 // consumes this module.
@@ -554,7 +555,13 @@ function subjectiveChannels(
 // both signals need real, repeated running (a thin/skipped week never fires), and it
 // only ever pushes the protective (fuel-the-work) direction. null when nothing qualifies.
 function enduranceStrainSignal(today: string): { reason: string; evidence: string } | null {
-  return runDeclineWhileVolumeHeld(today) ?? sustainedRunComplianceDrop(today);
+  const read = () => runDeclineWhileVolumeHeld(today) ?? sustainedRunComplianceDrop(today);
+  // Request-memoized: the fuel read is computed more than once per Today open (the
+  // standalone snapshot, and the coach's own pass with its injected inputs), and this
+  // arm reads only `today` and the log — never those injected inputs. Keyed by the
+  // local date too, for the run-compliance reads beneath it.
+  if (typeof today !== "string") return read();
+  return requestMemo(`endurance_strain_signal:${today}:${localDateISO()}`, read, copyFlat);
 }
 
 // Endurance output decline while volume held: the last ~14 days of RUN efforts vs

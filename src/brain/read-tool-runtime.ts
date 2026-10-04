@@ -10,6 +10,19 @@ import { supplementsForCoach } from "../repo/supplements.js";
 import { resolveExerciseName } from "../repo/exercise-canon.js";
 import { canonicalMarker } from "../repo/marker-canon.js";
 import { dailyManualWeighIns } from "../repo/bodyweight.js";
+import { isStrengthGarminType } from "../repo/activities.js";
+import { easyCeiling } from "../repo/hr-model.js";
+import { personalRunReadForRow, usablePersonalHrModel } from "../repo/run-intensity.js";
+import {
+  clockFromSecs,
+  distanceLabel,
+  isStructuredIntervalSession,
+  normalizeStoredLaps,
+  normalizeStoredStructure,
+  paceFromSpeed,
+  structureNote,
+} from "../repo/run-structure.js";
+import { getSettings } from "../repo/settings.js";
 import {
   COACH_READ_TOOL_CATALOG,
   normalizeCoachReadToolRequest,
@@ -260,11 +273,12 @@ function readTrainingWindow(
       // The heart rate lives on the linked watch row, not the activity: without the join
       // a run read back from here carried its HR only inside a free-text notes string.
       `SELECT a.id, a.date, a.type, a.duration_min, a.distance_km, a.pace, a.rpe, a.notes, a.source,
-              g.avg_hr, g.max_hr
+              g.avg_hr, g.max_hr, g.structure_json, g.laps_json, g.gap_speed, g.ascent_m
        FROM activities a LEFT JOIN garmin_activities g ON g.activity_id = a.id
        WHERE a.date BETWEEN ? AND ? ORDER BY a.date DESC, a.id DESC LIMIT ?`
     )
     .all(start, end, COACH_READ_TOOL_CATALOG.read_training_window.max_rows + 1) as MutableRow[];
+  const units = trainingUnits();
   const events: MutableRow[] = [
     ...sessionRows.map((row) => ({
       event: "session",
@@ -287,7 +301,16 @@ function readTrainingWindow(
             }
           : null,
     })),
-    ...activityRows.map((row) => ({ event: "activity", ...row, notes: cappedText(row.notes) })),
+    ...activityRows.map(({ structure_json, laps_json, gap_speed, ascent_m, ...row }) => ({
+      event: "activity",
+      ...row,
+      notes: cappedText(row.notes),
+      // The run's shape (intervals, walking, hills); read_activity_detail has every lap.
+      shape: structureNote(structure_json, laps_json, units, {
+        gap_speed: finite(gap_speed),
+        ascent_m: finite(ascent_m),
+      }),
+    })),
   ];
   events.sort((a, b) => String(b.date).localeCompare(String(a.date)) || Number(b.id) - Number(a.id));
   const max = COACH_READ_TOOL_CATALOG.read_training_window.max_rows;
@@ -699,6 +722,139 @@ function readCurrentPlanDetail(request: Extract<CoachReadToolRequest, { tool: "r
   };
 }
 
+function trainingUnits(): "km" | "mi" {
+  try {
+    return getSettings().run_units === "mi" ? "mi" : "km";
+  } catch {
+    return "km";
+  }
+}
+
+// One activity in full: its laps, segments and form. Garmin's training-effect label,
+// training-effect numbers and EPOC load are deliberately absent — none of them is a
+// verdict on a run (owner law, run-intensity.ts); the athlete's own HR model's read is.
+function readActivityDetail(request: Extract<CoachReadToolRequest, { tool: "read_activity_detail" }>): RawRead {
+  const row = db
+    .prepare(
+      `SELECT a.id, a.date, a.type, a.raw_text, a.duration_min AS a_duration, a.distance_km AS a_distance,
+              a.pace, a.rpe, a.source,
+              g.name AS g_name, g.start_time, g.duration_min, g.moving_min, g.distance_km,
+              g.avg_hr, g.max_hr, g.ascent_m, g.elevation_loss_m, g.avg_cadence, g.max_cadence,
+              g.avg_power, g.max_power, g.norm_power, g.avg_speed, g.max_speed, g.gap_speed, g.avg_temp,
+              g.steps, g.avg_stride_len, g.avg_ground_contact_ms, g.avg_vertical_osc_cm, g.avg_vertical_ratio,
+              g.body_battery_delta, g.lap_count, g.hr_zones_json AS zones, g.structure_json AS structure,
+              g.laps_json AS laps,
+              COALESCE(g.moving_min, g.duration_min, a.duration_min) AS hr_minutes
+         FROM activities a LEFT JOIN garmin_activities g ON g.activity_id = a.id
+        WHERE a.id = ?
+        ORDER BY g.id DESC LIMIT 1`
+    )
+    .get(request.args.activity_id) as MutableRow | undefined;
+  const laps: MutableRow[] = [];
+  if (!row || isStrengthGarminType(row.type)) {
+    return { data: { activity_id: request.args.activity_id, found: false, laps }, row_arrays: [laps] };
+  }
+  const units = trainingUnits();
+  const date = String(row.date).slice(0, 10);
+  const model = usablePersonalHrModel(date);
+  let personal: ReturnType<typeof personalRunReadForRow> = null;
+  try {
+    personal = personalRunReadForRow(row, () => model);
+  } catch {
+    personal = null;
+  }
+  const structure = normalizeStoredStructure(row.structure);
+  const sourceLaps = normalizeStoredLaps(row.laps) ?? [];
+  const max = COACH_READ_TOOL_CATALOG.read_activity_detail.max_rows;
+  for (const lap of sourceLaps.slice(0, max)) {
+    laps.push({
+      lap: lap.n,
+      kind: lap.kind,
+      time: clockFromSecs(lap.secs),
+      distance: distanceLabel(lap.meters, units),
+      pace: paceFromSpeed(lap.avg_speed, units),
+      grade_adjusted_pace: paceFromSpeed(lap.gap_speed, units),
+      avg_hr: lap.avg_hr,
+      max_hr: lap.max_hr,
+      ascent_m: lap.ascent_m,
+      descent_m: lap.descent_m,
+      cadence_spm: lap.cadence,
+      avg_power_w: lap.avg_power,
+    });
+  }
+  let zones: unknown = null;
+  try {
+    const parsed = typeof row.zones === "string" ? JSON.parse(row.zones) : null;
+    zones = Array.isArray(parsed)
+      ? parsed.map((z: any) => ({ zone: z?.zone ?? null, from_bpm: z?.low_hr ?? null, time: clockFromSecs(z?.secs) }))
+      : null;
+  } catch {
+    zones = null;
+  }
+  const distanceKm = finite(row.distance_km) ?? finite(row.a_distance);
+  const rpe = finite(row.rpe);
+  return {
+    data: {
+      activity_id: row.id,
+      found: true,
+      units,
+      activity: {
+        date,
+        started: typeof row.start_time === "string" ? row.start_time.slice(11, 16) || null : null,
+        type: row.type,
+        title: cappedText(row.raw_text, 120) ?? cappedText(row.g_name, 120),
+        source: row.source,
+        distance: distanceKm == null ? null : distanceLabel(distanceKm * 1000, units),
+        duration_min: finite(row.duration_min) ?? finite(row.a_duration),
+        moving_min: finite(row.moving_min),
+        pace: paceFromSpeed(row.avg_speed as number, units) ?? cappedText(row.pace, 20),
+        grade_adjusted_pace: paceFromSpeed(row.gap_speed as number, units),
+        avg_hr: finite(row.avg_hr),
+        max_hr: finite(row.max_hr),
+        ascent_m: finite(row.ascent_m),
+        descent_m: finite(row.elevation_loss_m),
+        cadence_spm: { avg: finite(row.avg_cadence), max: finite(row.max_cadence) },
+        power_w: { avg: finite(row.avg_power), normalized: finite(row.norm_power), max: finite(row.max_power) },
+        temperature_c: finite(row.avg_temp),
+        body_battery_change: finite(row.body_battery_delta),
+        running_form: {
+          ground_contact_ms: finite(row.avg_ground_contact_ms),
+          vertical_oscillation_cm: finite(row.avg_vertical_osc_cm),
+          vertical_ratio_pct: finite(row.avg_vertical_ratio),
+          stride_length: finite(row.avg_stride_len),
+          steps: finite(row.steps),
+        },
+        stated_rpe: rpe,
+        personal_hr_read: personal
+          ? { effort: personal.effort, hard: personal.hard, easy_ceiling_bpm: model ? easyCeiling(model) : null }
+          : null,
+        hr_time_in_bands: zones,
+      },
+      structure: {
+        interval_session: isStructuredIntervalSession(structure),
+        segments: (structure ?? []).map((seg) => ({
+          kind: seg.kind,
+          bouts: seg.bouts,
+          time: clockFromSecs(seg.secs),
+          distance: distanceLabel(seg.meters, units),
+          pace: paceFromSpeed(seg.avg_speed, units),
+          ascent_m: seg.ascent_m,
+          descent_m: seg.descent_m,
+        })),
+      },
+      lap_count: finite(row.lap_count),
+      laps,
+      laps_note: sourceLaps.length
+        ? null
+        : Number(row.lap_count ?? 0) > 1
+          ? "This run has laps on the watch that have not synced yet."
+          : "The watch recorded this run as one lap.",
+    },
+    row_arrays: [laps],
+    truncated: sourceLaps.length > laps.length,
+  };
+}
+
 function argsSummary(request: CoachReadToolRequest): string {
   switch (request.tool) {
     case "read_exercise_history":
@@ -719,6 +875,8 @@ function argsSummary(request: CoachReadToolRequest): string {
       return `kind=${request.args.kind ?? "any"};subject=${request.args.subject_key ? "present" : "none"};limit=${request.args.limit}`;
     case "read_current_plan_detail":
       return `scope=${request.args.scope}`;
+    case "read_activity_detail":
+      return `subject=activity`;
   }
 }
 
@@ -781,6 +939,9 @@ export function executeCoachReadTool(
         break;
       case "read_current_plan_detail":
         raw = readCurrentPlanDetail(request);
+        break;
+      case "read_activity_detail":
+        raw = readActivityDetail(request);
         break;
     }
     const result = finalize(request.tool, raw);

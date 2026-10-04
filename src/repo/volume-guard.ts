@@ -68,18 +68,20 @@ function intOrNull(value: unknown): number | null {
   return Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : null;
 }
 
-// The stored `sets` for one strength prescription, or null when the item is not on
-// that day at all (removed, rotated out, or the day itself is gone).
-function currentPlanSets(dayNumber: number, exercise: string): number | null {
+// The stored strength prescription for one day/exercise, or null when the item is not
+// on that day at all (removed, rotated out, or the day itself is gone).
+function currentPlanItem(dayNumber: number, exercise: string): Record<string, unknown> | null {
   // Alias-aware: a change naming the lift the way the athlete types it must still
   // find the slot the plan stores, or a genuine set cut reads as an ADD and slips
   // past the volume guard.
   const exerciseId = resolveExerciseName(String(exercise ?? "")).exercise_id;
+  const columns =
+    "pi.sets AS sets, pi.target_weight AS target_weight, pi.rep_low AS rep_low, pi.rep_high AS rep_high, pi.target_seconds AS target_seconds";
   const row = (
     exerciseId != null
       ? db
           .prepare(
-            `SELECT pi.sets AS sets
+            `SELECT ${columns}
                FROM plan_items pi
                JOIN plan_days pd ON pd.id = pi.plan_day_id
               WHERE pd.day_number = ? AND pi.exercise_id = ?
@@ -88,7 +90,7 @@ function currentPlanSets(dayNumber: number, exercise: string): number | null {
           .get(Number(dayNumber), exerciseId)
       : db
           .prepare(
-            `SELECT pi.sets AS sets
+            `SELECT ${columns}
                FROM plan_items pi
                JOIN plan_days pd ON pd.id = pi.plan_day_id
                JOIN exercises e ON e.id = pi.exercise_id
@@ -97,7 +99,47 @@ function currentPlanSets(dayNumber: number, exercise: string): number | null {
           )
           .get(Number(dayNumber), String(exercise ?? ""))
   ) as any;
+  return row ?? null;
+}
+
+// The stored `sets` for one strength prescription, or null when the item is not on
+// that day at all.
+function currentPlanSets(dayNumber: number, exercise: string): number | null {
+  const row = currentPlanItem(dayNumber, exercise);
   return row ? intOrNull(row.sets) : null;
+}
+
+// Does this proposal's changes[] only EASE what the plan already holds? True when every
+// change names a strength item the plan carries now and either removes it or moves no
+// dial upward — sets, load, either end of the rep range, the hold. Load reads on one
+// line: assisted (negative) < bodyweight (null, read as 0) < added load, so more
+// assist is lighter. A swap brings a new movement and an unknown item is an ADD, so
+// neither ever eases. Answered against the plan, never the model's account of itself.
+export function changesOnlyEaseLoad(changes: unknown): boolean {
+  if (!Array.isArray(changes) || !changes.length) return false;
+  const finiteOrNull = (value: unknown): number | null =>
+    value == null || value === "" || !Number.isFinite(Number(value)) ? null : Number(value);
+  for (const change of changes as any[]) {
+    if (!change || typeof change !== "object" || change.swap) return false;
+    if (String(change.kind ?? "").toLowerCase() === "cardio") return false;
+    const dayNumber = Number(change.day_number);
+    const exercise = String(change.exercise ?? "").trim();
+    if (!Number.isFinite(dayNumber) || !exercise) return false;
+    const current = currentPlanItem(dayNumber, exercise);
+    if (!current) return false;
+    if (change.remove === true || intOrNull(change.sets) === 0) continue;
+    if (Object.hasOwn(change, "target_weight")) {
+      const requested = finiteOrNull(change.target_weight) ?? 0;
+      if (requested > (finiteOrNull(current.target_weight) ?? 0)) return false;
+    }
+    for (const field of ["sets", "rep_low", "rep_high", "target_seconds"]) {
+      const requested = finiteOrNull(change[field]);
+      const held = finiteOrNull(current[field]);
+      if (requested == null) continue;
+      if (held == null || requested > held) return false;
+    }
+  }
+  return true;
 }
 
 // Does this proposal's changes[] LOWER the prescribed volume anywhere? Answered

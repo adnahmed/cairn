@@ -36,6 +36,7 @@ import {
 import { isStatedEasyRpe } from "./stated-effort.js";
 import { addDaysISO, localDateISO } from "./shared.js";
 import { median } from "../lib/numbers.js";
+import { copyFlat, requestMemo } from "./request-memo.js";
 
 export type MovementBucket = "push" | "pull" | "lower" | "core" | "mobility" | "other";
 export type TrainingLoad = "hard" | "moderate" | "easy";
@@ -378,6 +379,14 @@ function workingDoseSets(rows: DoseSet[]): DoseSet[] {
 // canonical decision view for recovery-week coaching only; global historical
 // tonnage/volume metrics retain their existing semantics.
 export function recoverySessionDose(sessionId: number): RecoverySessionDose {
+  // Request-memoized: the trajectory, the program state and the day reads each grade
+  // the same sessions. A flat row of primitives, keyed by the session id it was given.
+  if (typeof sessionId === "number")
+    return requestMemo(`recovery_session_dose:${sessionId}`, () => recoverySessionDoseRead(sessionId), copyFlat);
+  return recoverySessionDoseRead(sessionId);
+}
+
+function recoverySessionDoseRead(sessionId: number): RecoverySessionDose {
   const session = db
     .prepare(
       `SELECT s.id, s.date, s.created_at, s.plan_day_id, s.soreness, s.performance,
@@ -387,6 +396,7 @@ export function recoverySessionDose(sessionId: number): RecoverySessionDose {
     )
     .get(sessionId) as any;
   const planDayId = session?.plan_day_id == null ? null : Number(session.plan_day_id);
+  const identities = new Map<string, ReturnType<typeof doseExerciseIdentity>>();
   const raw = (
     db
       .prepare(
@@ -397,7 +407,14 @@ export function recoverySessionDose(sessionId: number): RecoverySessionDose {
       )
       .all(sessionId) as any[]
   ).map((row): DoseSet => {
-    const identity = doseExerciseIdentity(String(row.exercise));
+    // One identity per exercise name for this pass: the lookup is a pure read and
+    // nothing is written while these already-fetched rows are mapped.
+    const name = String(row.exercise);
+    let identity = identities.get(name);
+    if (!identity) {
+      identity = doseExerciseIdentity(name);
+      identities.set(name, identity);
+    }
     return {
       id: Number(row.id),
       exercise_id: Number(row.exercise_id),
@@ -637,7 +654,9 @@ export function dayLoad(
               MAX(ga.avg_hr) AS avg_hr,
               MAX(COALESCE(ga.moving_min, ga.duration_min)) AS hr_minutes,
               MAX(ga.name) AS g_name,
-              MAX(ga.hr_zones_json) AS zones
+              MAX(ga.hr_zones_json) AS zones,
+              MAX(ga.structure_json) AS structure,
+              MAX(ga.laps_json) AS laps
          FROM activities a LEFT JOIN garmin_activities ga ON ga.activity_id = a.id
         WHERE a.date = ?
         GROUP BY a.id`
@@ -756,7 +775,8 @@ function hardCardioDayCore(
                 a.raw_text AS raw_text, g.name AS g_name, g.avg_hr AS avg_hr,
                 COALESCE(g.moving_min, g.duration_min, a.duration_min) AS hr_minutes,
                 g.aerobic_te AS aerobic_te, g.anaerobic_te AS anaerobic_te,
-                g.te_label AS te_label, g.training_load AS load, g.hr_zones_json AS zones
+                g.te_label AS te_label, g.training_load AS load, g.hr_zones_json AS zones,
+                g.structure_json AS structure, g.laps_json AS laps
            FROM activities a LEFT JOIN garmin_activities g ON g.activity_id = a.id
           WHERE a.date = ?`
       )
@@ -857,6 +877,14 @@ export interface LongestRunNovelty {
 // window before it? Null when there is no run that day, no distance recorded, or
 // too thin a history to call anything a first. Null-safe; never throws.
 export function longestRunNovelty(date: string, lookbackDays = LONGEST_RUN_LOOKBACK_DAYS): LongestRunNovelty | null {
+  return requestMemo(
+    `longest_run_novelty:${date}:${lookbackDays}`,
+    () => longestRunNoveltyRead(date, lookbackDays),
+    copyFlat
+  );
+}
+
+function longestRunNoveltyRead(date: string, lookbackDays: number): LongestRunNovelty | null {
   try {
     const runSport = activitySportWhere("activities", RUN_SPORT_PATTERNS);
     const today = db

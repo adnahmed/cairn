@@ -94,6 +94,24 @@ export function symptomAreaVocabularyLabel(value: unknown): string | null {
 }
 
 /**
+ * The place word as the text itself SPELLS it ("flank", not the "oblique" label it
+ * shares with the intercostals), at the same earliest-match position the label reads.
+ * For receipts a person reads: their word, not the vocabulary's. Null when the text
+ * names no recognized place.
+ */
+export function symptomAreaSpokenWord(value: unknown): string | null {
+  const text = String(value ?? "").toLowerCase();
+  if (!text) return null;
+  let best: { index: number; word: string } | null = null;
+  for (const term of AREA_TERMS) {
+    const match = term.re.exec(text);
+    if (!match) continue;
+    if (!best || match.index < best.index) best = { index: match.index, word: match[0] };
+  }
+  return best ? best.word.replace(/\s+/g, " ").trim() : null;
+}
+
+/**
  * Every distinct place the text names, bare of side ("knee and hip pain" → knee, hip).
  * The terms are ordered most-specific first, and each match is consumed before the
  * next term looks, so "lower back" is one place, never "lower back" plus "back".

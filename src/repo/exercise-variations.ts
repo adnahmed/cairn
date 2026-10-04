@@ -368,10 +368,28 @@ function buildAlternativeWhy(original: string, entry: ExerciseEntry, pattern: Mo
  * Classify an exercise name (and optional muscle_group hint) into one of the
  * 14 movement patterns. Returns null when the exercise cannot be mapped.
  */
+// Pure (constant rule tables, no global regexes): remembered per (name, group) in a
+// bounded process-wide table — one Today open asks it ~10k times over ~100 names.
+const CLASSIFIED_CACHE_MAX = 4096;
+const classifiedPatterns = new Map<string, MovementPattern | null>();
+
 export function classifyPattern(
   exerciseName: string,
   muscleGroup?: string,
 ): MovementPattern | null {
+  if (typeof exerciseName !== "string" || (muscleGroup !== undefined && typeof muscleGroup !== "string")) {
+    return classifyPatternRead(exerciseName, muscleGroup);
+  }
+  const key = `${muscleGroup === undefined ? "u" : `g${muscleGroup}`}\u0000${exerciseName}`;
+  const hit = classifiedPatterns.get(key);
+  if (hit !== undefined) return hit;
+  const value = classifyPatternRead(exerciseName, muscleGroup);
+  if (classifiedPatterns.size >= CLASSIFIED_CACHE_MAX) classifiedPatterns.clear();
+  classifiedPatterns.set(key, value);
+  return value;
+}
+
+function classifyPatternRead(exerciseName: string, muscleGroup?: string): MovementPattern | null {
   const name = exerciseName.trim();
 
   // Primary: keyword rules on the name

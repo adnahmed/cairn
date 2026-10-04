@@ -78,6 +78,23 @@ export interface ClientBrainChangeDay {
   changes: ClientBrainChange[];
 }
 
+/**
+ * A held draft the team SET ASIDE instead of applying it — housekeeping, not a change:
+ * nothing moved. One quiet, finished line in plain words ("An older draft for Back Squat
+ * was set aside: a newer review replaced it."), never the draft's own agent text, an
+ * ISO date or a threshold. It never counts toward `since_seen` and carries no Undo.
+ */
+export interface ClientBrainSetAside {
+  /** The receipt's `brain_decisions` id. */
+  id: number;
+  /** Local YYYY-MM-DD it was set aside. */
+  day: string;
+  /** "Today", "Yesterday", a weekday within the week, else "Sep 14". */
+  label: string;
+  /** The finished sentence. */
+  line: string;
+}
+
 export interface ClientBrainChanges {
   /** Local YYYY-MM-DD the read was built for. */
   as_of: string;
@@ -91,6 +108,8 @@ export interface ClientBrainChanges {
   seen_at: string | null;
   /** ISO instant to pass back as `through` when marking this read seen, so a change that lands meanwhile stays new. */
   seen_through: string;
+  /** Held drafts set aside inside the window, newest first; empty when none. */
+  set_aside: ClientBrainSetAside[];
 }
 
 export interface ClientBrainChangesSeenRequest {

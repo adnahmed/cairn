@@ -246,6 +246,26 @@ test("fresh day: a movement new this week surfaces in fresh[] against an establi
   );
 });
 
+test("a never-logged mobility drill is not flagged fresh — no 'log your real working weight' on a stretch", () => {
+  makeExercise("Back Squat", "quads");
+  makeExercise("World's Greatest Stretch", "mobility");
+  makeExercise("Step Up", "quads");
+  planDay(1, "Lower", [
+    { exercise: "World's Greatest Stretch", sets: 2, rep_low: 6, rep_high: 6 },
+    { exercise: "Back Squat", sets: 3, rep_low: 5, rep_high: 5, target_weight: 225 },
+    { exercise: "Step Up", sets: 2, rep_low: 8, rep_high: 12 },
+  ]);
+  for (const d of [35, 30, 25, 20, 15, 10]) logSet("Back Squat", localDaysAgo(d), { weight: 225, reps: 5, rir: 2 });
+
+  const primer = sessionPrimer(undefined, { dayNumber: 1 });
+  assert.ok(primer, "a primer is produced");
+  assert.ok(primer.fresh.some((f) => /step up/i.test(f.exercise)), "a never-logged lift is still fresh");
+  assert.ok(
+    !primer.fresh.some((f) => /greatest stretch/i.test(f.exercise)),
+    "a stretch is prep, not a lift to calibrate"
+  );
+});
+
 test("an applied rotation reads as 'Swapped in X for Y' in changed[] and suppresses its fresh[] duplicate", () => {
   makeExercise("Back Squat", "quads");
   makeExercise("Front Squat", "quads");

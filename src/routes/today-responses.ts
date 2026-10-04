@@ -20,7 +20,7 @@
 //     loaders decide, so a backlog drain or a week-ahead job never fires for a card
 //     nobody drew.
 import { brainChangesRead, listVisibleInsights, teamWeekRead } from "../domain/brain/index.js";
-import { CONTEXT_TAG_VOCAB, getProfile, listContextTags } from "../domain/person/index.js";
+import { getProfile, listContextTags } from "../domain/person/index.js";
 import {
   calendarDayRead,
   getEnduranceGoal,
@@ -29,6 +29,7 @@ import {
   planDayProgression,
   planDayRecoveryCandidates,
   planUpcomingNote,
+  planWeek,
   programAdjustments,
   raceBuild,
   recentTraining,
@@ -38,8 +39,11 @@ import {
   weekWins,
   weeklyRunPlan,
 } from "../domain/training/index.js";
-import { todayDateParam } from "../domain/today/index.js";
+import { overnightDigest, todayDateParam } from "../domain/today/index.js";
 import { flexibleTrainingAgenda, sessionPrimer } from "../repo.js";
+import { contextTagVocab } from "../repo/context-tag-effects.js";
+import { todayPath } from "../repo/today-path.js";
+import { getRecoveryBaselineRead } from "../repo/baseline-bands.js";
 import { localDateISO } from "../repo/shared.js";
 import { directivesResponse } from "./connected-brain.js";
 import { weekAheadResponse } from "./day-coach.js";
@@ -150,12 +154,21 @@ export function todaySurfaceResponses(
   if (isToday) put(out, `/training-agenda?date=${q(date)}`, () => flexibleTrainingAgenda(date));
   // Phase-one side panels and the capture row's tag chips (wall-clock date).
   put(out, `/today-side?date=${q(date)}`, () => todaySideRead(date));
-  put(out, "/context-tags/vocab", () => CONTEXT_TAG_VOCAB);
+  put(out, "/context-tags/vocab", () => contextTagVocab());
   const wallDate = localDateISO();
   put(out, `/context-tags?date=${q(wallDate)}`, () => listContextTags(wallDate));
   // The directives the capture provenance reads, the Changes line.
   put(out, "/directives", () => directivesResponse(false));
   put(out, "/brain/changes", () => brainChangesRead({}));
+  // The redesigned Today's forward reads: the path under the Brief (and the week,
+  // horizon and progress board it feeds), the overnight digest, the week strip's
+  // projection and the recovery gauges' personal bands.
+  put(out, `/today-path?date=${q(date)}`, () => todayPath(date));
+  put(out, `/today-digest?date=${q(date)}`, () => overnightDigest(date));
+  if (isToday) {
+    put(out, "/plan/week", () => planWeek());
+    put(out, "/recovery/baseline", () => getRecoveryBaselineRead());
+  }
   // The rail: only the cards this agenda names (see the header).
   const cards = agendaCards(opts.agenda);
   if (cards.has("fuel")) put(out, `/nutrition/day?date=${q(date)}`, () => nutritionDayResponse(date));

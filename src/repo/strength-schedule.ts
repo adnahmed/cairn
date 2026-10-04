@@ -24,6 +24,7 @@ import { db } from "../db.js";
 import { mondayOf } from "../lib/dates.js";
 import { getStrengthSchedule, isoDow, type StrengthScheduleDay } from "./profile.js";
 import { localDateISO } from "./shared.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 /** Six calendar weeks, and three of them make a habit — the race-build ride law. */
 export const OBSERVED_WEEKS_WINDOW = 6;
@@ -120,6 +121,10 @@ export function observedLiftDows(asOf?: string): { dows: number[]; weeks_seen: n
  * like unset, which is what every downstream gate already treats as "no opinion".
  */
 export function strengthScheduleRead(asOf?: string): StrengthScheduleRead {
+  return requestMemo(`strength_schedule_read:${asOf ?? ""}`, () => strengthScheduleReadUncached(asOf), copyDeep);
+}
+
+function strengthScheduleReadUncached(asOf?: string): StrengthScheduleRead {
   const stated = getStrengthSchedule();
   if (stated?.days.length) {
     return { days: stated.days, source: "stated", weeks_seen: 0, weeks_window: OBSERVED_WEEKS_WINDOW };

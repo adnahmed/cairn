@@ -685,6 +685,62 @@ test("Today add-exercise controller keeps a typed prefill when the network last-
   assert.equal(logRow.querySelector(".in-rir").value, "", "RIR stays the athlete's to give");
 });
 
+async function insertWithPendingLastSet(harness, name) {
+  let resolveLastSet;
+  harness.deps.api = async (path) => {
+    harness.requests.push(path);
+    if (path === "/exercises") return [];
+    return new Promise((resolve) => {
+      resolveLastSet = resolve;
+    });
+  };
+  await harness.controller.setupAddExercise(harness.deps);
+  harness.input.value = name;
+  harness.go.click();
+  const logRow = harness.rootEl.querySelector(".logrow");
+  // As the real card renders a bodyweight/mobility row with no load in play: the
+  // well is in the row but tucked away, and a one-sided drill marks its row.
+  const well = logRow.querySelector(".in-w");
+  well.hidden = true;
+  well.value = "";
+  logRow.dataset.perSide = "1";
+  return { logRow, well, resolve: (row) => resolveLastSet(row) };
+}
+
+test("an off-plan bodyweight card opens its tucked-away well when the network last set carried a load", async () => {
+  const harness = loadController();
+  const revealed = [];
+  harness.context.CairnTodayCards = {
+    revealLoadForLastSet(scope, lastSet) {
+      revealed.push(scope);
+      assert.equal(lastSet.weight, 25, "the network last set is handed over before any fill");
+      const w = scope.querySelector(".in-w");
+      if (w) w.hidden = false;
+    },
+  };
+  const { logRow, well, resolve } = await insertWithPendingLastSet(harness, "Single-Leg Glute Bridge");
+  resolve({ weight: 25, reps: 10, rir: null, duration_sec: null });
+  await flushAsync();
+  assert.equal(revealed.length, 1, "the well is revealed through CairnTodayCards.revealLoadForLastSet");
+  assert.equal(revealed[0], logRow);
+  assert.equal(well.hidden, false);
+  assert.equal(well.value, "25", "the load is filled only once it is visible");
+  assert.match(harness.rootEl.querySelector(".ex-lastset").textContent, /^Last time: 25 × 10 \/ side/);
+});
+
+test("an off-plan bodyweight card keeps its well tucked away when the last set was unloaded", async () => {
+  const harness = loadController();
+  const revealed = [];
+  // The cards module decides (an unloaded last set reveals nothing); the controller never fills a hidden well.
+  harness.context.CairnTodayCards = { revealLoadForLastSet: (scope) => revealed.push(scope) };
+  const { well, resolve } = await insertWithPendingLastSet(harness, "Single-Leg Glute Bridge");
+  resolve({ weight: 0, reps: 12, rir: null, duration_sec: null });
+  await flushAsync();
+  assert.equal(revealed.length, 1, "the last set is handed to the cards module, which leaves the well alone");
+  assert.equal(well.hidden, true);
+  assert.equal(well.value, "", "never a load the athlete did not see");
+});
+
 test("exerciseNameKey folds case, whitespace, and punctuation like the server", () => {
   const harness = loadController();
   const key = harness.controller.exerciseNameKey;

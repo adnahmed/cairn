@@ -8,10 +8,13 @@ import { getProgramState } from "./program-state.js";
 import { computeGoalCheck } from "./profile.js";
 import { localDateISO } from "./shared.js";
 import {
+  currentFoodDataVersion,
+  currentTrainingDataVersion,
   foodBackstopSignature,
   registerTrainingCacheClear,
   trainingBackstopSignature,
 } from "./training-cache.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 import { underfuelingRead, type UnderfuelingRead } from "./underfueling.js";
 import { wholePersonTrajectory } from "./whole-person-trajectory.js";
 
@@ -67,6 +70,18 @@ export function currentUnderfuelingRead(
   opts: UnderfuelingSnapshotOptions = {},
 ): UnderfuelingRead {
   const d = String(today || localDateISO());
+  // Request-memoized for the standalone form (no injected inputs): a Today open asks for
+  // the day's fuel read ~20 times, each three backstop queries and a structuredClone.
+  if (!hasExplicitSnapshot(opts))
+    return requestMemo(
+      `current_underfueling:${d}:${localDateISO()}:${currentTrainingDataVersion()}:${currentFoodDataVersion()}`,
+      () => currentUnderfuelingReadCached(d, opts),
+      copyDeep
+    );
+  return currentUnderfuelingReadCached(d, opts);
+}
+
+function currentUnderfuelingReadCached(d: string, opts: UnderfuelingSnapshotOptions): UnderfuelingRead {
   const cacheable = !hasExplicitSnapshot(opts);
   const key = cacheable
     ? `${d}|${trainingBackstopSignature()}|${foodBackstopSignature()}|${underfuelingBackstopSignature()}`

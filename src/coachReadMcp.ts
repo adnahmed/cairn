@@ -42,6 +42,7 @@ const SCHEMAS: Record<CoachReadToolName, any> = {
     day_number: z.number().int().min(1).max(14).optional(),
     day: z.string().optional(),
   },
+  read_activity_detail: { activity_id: z.number().int().min(1) },
 };
 
 function asText(value: unknown) {
@@ -70,7 +71,7 @@ export interface CoachReadMcpListener {
 }
 
 /** Claude CLI argv for one capability-scoped run. Strict mode prevents ambient
- * MCP configuration from widening the nine-tool read-only surface. */
+ * MCP configuration from widening the closed read-only surface. */
 export function coachReadMcpConfigArgs(listener: Pick<CoachReadMcpListener, "url">): string[] {
   return [
     "--mcp-config",

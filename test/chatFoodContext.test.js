@@ -68,3 +68,27 @@ test("a food-only chat turn is explicitly kept to food rather than an unrelated 
   assert.match(prompt, /Do NOT pivot into a lift, future\s+training change, or plan update from a food-only turn/i);
   assert.match(prompt, /Do not narrate a background plan_update/i);
 });
+
+test("a logged meal's numbers live on its receipt card, so the reply never restates them", () => {
+  const prompts = {
+    coach: buildChatPrompt([], "I had a turkey sandwich and an apple for lunch"),
+    capture: buildChatPrompt([], "turkey sandwich for lunch", undefined, { lane: "capture" }),
+    photo: buildChatPrompt([], "lunch", "/tmp/plate.jpg"),
+  };
+  for (const [lane, prompt] of Object.entries(prompts)) {
+    assert.match(prompt, /FOOD RECEIPT card right under your reply/, `${lane}: the model knows the card exists`);
+    assert.match(prompt, /must NOT restate any of it: no calories or grams, no macro list or bullets/, lane);
+    assert.match(prompt, /one or two sentences of MEANING/, lane);
+    // The prose-first contract is untouched.
+    assert.match(prompt, /===CAIRN_REPLY===/, lane);
+  }
+  // Only log_food renders the full receipt; an amendment is a one-line chip, so its
+  // prose may name what changed (never a macro list).
+  for (const [lane, prompt] of Object.entries(prompts)) {
+    assert.doesNotMatch(prompt, /When you emit log_food \(or update_food_note\)/, lane);
+    assert.match(prompt, /An amended meal does NOT get the full receipt card/, lane);
+    assert.match(prompt, /may briefly name what changed/, lane);
+  }
+  assert.doesNotMatch(prompts.photo, /dish · ~kcal · protein/, "the photo path no longer asks for a macro summary");
+  assert.match(prompts.photo, /never restate kcal, grams or a macro list in the prose/);
+});

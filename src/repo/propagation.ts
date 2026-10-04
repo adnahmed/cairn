@@ -66,6 +66,7 @@ import {
   presentGroups,
   wearableTrendWindow,
 } from "./propagation-data.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 // The sex/age snapshot the connected-brain paths thread into matchOptimalZone so a
 // woman / older adult isn't held to the male/generic default band. Null-safe: an
@@ -365,7 +366,11 @@ function activeDirectivesByMarker(): Map<string, ReturnType<typeof listActiveDir
   return map;
 }
 
-export function prioritizeMarkers() {
+export function prioritizeMarkers(): ReturnType<typeof prioritizeMarkersRead> {
+  return requestMemo("prioritize_markers", prioritizeMarkersRead, copyDeep);
+}
+
+function prioritizeMarkersRead() {
   const { markers: labMarkers } = getMarkerHistory();
   // Fold in wearable fitness markers (VO2max/RHR/HRV) — a LAB reading of the same
   // marker always wins (a blood/test draw supersedes a device estimate). Dedup on

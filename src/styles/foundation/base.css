@@ -24,7 +24,7 @@ input,select,textarea{font-family:var(--font-ui);color:var(--ink)}
 button,input,select,textarea,a{touch-action:manipulation}
 ::placeholder{color:var(--faint-ink);opacity:1}
 ::selection{background:var(--dawn-wash);color:var(--ink)}
-:focus-visible{outline:2px solid var(--dawn);outline-offset:2px;border-radius:6px}
+:focus-visible{outline:2px solid var(--dawn);outline-offset:2px;border-radius:var(--radius-2xs)}
 /* Programmatic focus never paints the keyboard ring. A tab switch moves focus onto
    #view or the new view's first heading (tabindex="-1" reading positions, not
    controls); where an engine still matches :focus-visible after a TAP, the switch
@@ -49,7 +49,7 @@ input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 *{scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:99px;border:3px solid var(--paper)}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:var(--radius-pill);border:3px solid var(--paper)}
 ::-webkit-scrollbar-thumb:hover{background:var(--faint-ink)}
 
 /* screen-reader-only — visually hidden, still in the accessibility tree.
@@ -62,24 +62,24 @@ input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 header{padding:calc(env(safe-area-inset-top) + 20px) var(--gutter) 10px;max-width:680px;margin:0 auto}
 /* the page title: Young Serif at one weight (400), tight and balanced */
 h1{
-  font-family:var(--font-display);font-weight:400;font-size:var(--text-2xl);line-height:1.1;
-  letter-spacing:-.01em;color:var(--ink);margin-top:4px;text-wrap:balance;
+  font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-2xl);line-height:var(--leading-tight);
+  letter-spacing:var(--tracking-tight);color:var(--ink);margin-top:var(--space-2);text-wrap:balance;
 }
-h1 i,h1 em{font-style:italic;font-weight:400}
+h1 i,h1 em{font-style:italic;font-weight:var(--weight-regular)}
 main{max-width:680px;margin:0 auto;padding:0 var(--gutter);position:relative}
 
 /* the mono label — Martian Mono, small, uppercase, letter-spaced (the "PROTEIN" style).
    .eyebrow is its v2 name; .lbl stays for every surface that already prints it. */
 .lbl,.eyebrow{
   font-family:var(--font-mono);text-transform:uppercase;letter-spacing:var(--tracking-mono);
-  font-size:var(--text-2xs);font-weight:400;color:var(--muted);line-height:1.5;
+  font-size:var(--text-2xs);font-weight:var(--weight-regular);color:var(--muted);line-height:var(--leading);
 }
 
 /* Display serif numerals */
 .numeral{
-  font-family:var(--font-display);font-weight:400;line-height:1.05;color:var(--ink);
+  font-family:var(--font-display);font-weight:var(--weight-regular);line-height:1;color:var(--ink);
   font-variant-numeric:lining-nums tabular-nums;
 }
-.numeral-xl{font-size:var(--text-3xl);font-weight:400;letter-spacing:-.015em}
+.numeral-xl{font-size:var(--text-3xl);font-weight:var(--weight-regular);letter-spacing:var(--tracking-tight)}
 .numeral-lg{font-size:var(--text-xl)}
 

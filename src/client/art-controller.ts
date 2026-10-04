@@ -73,10 +73,13 @@ function applyArtVersions(payload: ClientArtVersionsResponse | null | undefined)
   CairnArtMemory.mergeVersions(payload?.versions);
 }
 
+// Every kind carries `v=` when the server named one: exercises a redraw counter,
+// food and activity the served picture's creation time — so a re-pointed picture
+// is a new URL and the cache-first SW layer cannot keep serving the old bytes.
 function artUrl(kind: string, query: string, version?: number): string {
-  const v = version ?? (kind === "exercise" ? CairnArtMemory.version(artKey(kind, query)) : 0);
+  const v = version ?? CairnArtMemory.version(artKey(kind, query));
   let path = `/api/art?kind=${encodeURIComponent(kind)}&q=${encodeURIComponent(query)}`;
-  if (kind === "exercise" && v > 0) path += `&v=${encodeURIComponent(String(v))}`;
+  if (v > 0) path += `&v=${encodeURIComponent(String(v))}`;
   return withToken(path);
 }
 

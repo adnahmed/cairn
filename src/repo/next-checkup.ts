@@ -27,10 +27,13 @@ import { getLatestHealthReview, getMarkerHistory } from "./health.js";
 import { listDirectives } from "./directives.js";
 import { listSupplements } from "./supplements.js";
 import { canonicalMarker } from "./marker-canon.js";
-import { dexaRescanWhenText, dexaRescanWindow, latestDexaDate } from "./dexa-window.js";
+import { dexaRescanWhenText, dexaRescanWindow, latestDexaDate, shortDate } from "./dexa-window.js";
+import { withDerivedReadings } from "./doctor-loop-derived.js";
 import { matchOptimalZone, optimalDistance } from "./propagation-data.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
-import { daysBetweenISO } from "./shared.js";
+import { addDaysISO, daysBetweenISO } from "./shared.js";
+import { getEnduranceGoal, getProfile } from "./profile.js";
+import { resolvedCurrentBodyweight } from "./bodyweight.js";
 
 export type CheckupItemKind = "lab" | "dexa" | "review" | "add";
 
@@ -73,12 +76,45 @@ export interface CheckupPrep {
   questions: string[];
 }
 
+// One visit the open and opening rechecks fold into (see composeVisit).
+export type CheckupVisitLabState = "past_window" | "opens_in_window";
+
+export interface CheckupVisitLab {
+  label: string;
+  last_date: string | null; // the newest reading behind this follow-up, when known
+  state: CheckupVisitLabState; // past_window: already open today; opens_in_window: opens by the visit
+}
+
+export interface CheckupVisitAdd {
+  label: string;
+  why: string;
+}
+
+export interface CheckupVisitDexa {
+  last_date: string | null;
+  last_weight_lb: number | null;
+  current_weight_lb: number | null;
+  why: string;
+}
+
+export interface CheckupVisit {
+  window_start: string; // YYYY-MM-DD
+  window_end: string; // YYYY-MM-DD
+  why: string;
+  labs: CheckupVisitLab[];
+  add: CheckupVisitAdd[];
+  dexa: CheckupVisitDexa | null;
+  prep: string[];
+}
+
 export interface NextCheckupRead {
   lede: string;
   due_now: CheckupItem[];
   upcoming: CheckupItem[];
   follow_through: FollowThroughItem[];
   prep: CheckupPrep;
+  // The one visit the rechecks fold into; null when nothing is due or opening soon.
+  visit: CheckupVisit | null;
   has_content: boolean;
   frame: string;
 }
@@ -490,6 +526,208 @@ function composePrep(
   return { ordered_labs: orderedLabs, bring, questions };
 }
 
+// ---- one visit ----------------------------------------------------------------
+// Each recheck opens on its own cadence, so read one by one they ask for a trip to the
+// lab every few weeks. Folded, they ask for one: the earliest ~5-day window that sits
+// on/after the LATEST opening among rechecks opening within ~10 weeks — so one draw
+// covers the most open windows — and at least two weeks after a dated race that falls
+// before it (a race can briefly raise hs-CRP and lower testosterone). A recheck whose
+// window is already open folds into that same visit (`past_window`) instead of reading
+// as overdue on its own. The DEXA re-scan joins when it is due by the visit; it never
+// pushes the labs later. Deterministic, informational — a suggestion, never a booking.
+
+const VISIT_HORIZON_DAYS = 70; // "opening within ~10 weeks"
+const VISIT_WINDOW_DAYS = 5; // start .. start + 4
+const RACE_CLEARANCE_DAYS = 14;
+const MAX_VISIT_ADDS = 3;
+
+const VISIT_LAB_PREP = [
+  "A morning draw before 10 a.m., fasted overnight — water is fine.",
+  "No hard training the day before; a hard session can nudge hs-CRP up and testosterone down for a day or so.",
+];
+const VISIT_DEXA_PREP =
+  "For the DEXA scan, the same conditions as the last one — same time of day, same fasting and hydration, no training beforehand — so the two scans compare cleanly.";
+
+function roundLb(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
+// The body weight on the day of the last scan: the scan's own weight/total-mass line,
+// else a logged weigh-in within a few days of it, else the scan's fat + lean + bone sum.
+function dexaScanWeight(markers: MarkerLike[], scanDate: string): number | null {
+  const pointOn = (m: MarkerLike | undefined, date: string, slackDays = 0): number | null => {
+    const points = Array.isArray((m as any)?.points)
+      ? ((m as any).points as Array<{ date?: unknown; value?: unknown }>)
+      : [];
+    let best: { gap: number; value: number } | null = null;
+    for (const p of points) {
+      const gap = Math.abs(daysBetweenISO(String(p?.date ?? "").slice(0, 10), date) ?? Number.POSITIVE_INFINITY);
+      const value = Number(p?.value);
+      if (gap > slackDays || !Number.isFinite(value) || value <= 0) continue;
+      if (!best || gap < best.gap) best = { gap, value };
+    }
+    return best?.value ?? null;
+  };
+  const byName = (re: RegExp, dexaOnly: boolean) =>
+    markers.find((m) => re.test(String(m.name ?? m.key ?? "")) && (!dexaOnly || m.latest?.kind === "dexa"));
+  const lbUnit = (m: MarkerLike | undefined) => /^(lb|lbs|pounds?)$/i.test(String(m?.unit ?? "").trim());
+  const scanMass = byName(/\b(total (body )?mass|body weight|weight)\b/i, true);
+  if (scanMass && lbUnit(scanMass)) {
+    const v = pointOn(scanMass, scanDate);
+    if (v != null) return roundLb(v);
+  }
+  const weighIn = pointOn(byName(/^body weight$/i, false), scanDate, 3);
+  if (weighIn != null) return roundLb(weighIn);
+  const parts = [
+    /^fat mass \(total\)$|^fat mass total$/i,
+    /^lean mass \(total\)$|^lean mass total$/i,
+    /bone mineral content/i,
+  ]
+    .map((re) => byName(re, true))
+    .map((m) => (m && lbUnit(m) ? pointOn(m, scanDate) : null));
+  if (parts.every((v) => v != null)) return roundLb((parts as number[]).reduce((a, b) => a + b, 0));
+  return null;
+}
+
+function currentWeight(asOf: string, after: string | null): number | null {
+  try {
+    const w = resolvedCurrentBodyweight(getProfile(), asOf);
+    // A dated scale point only, and one taken after the scan — a profile fallback or an
+    // older weigh-in says nothing about the change since.
+    if (!w?.date || (after && w.date <= after)) return null;
+    const lb = Number(w.weight_lb);
+    return Number.isFinite(lb) && lb > 0 ? roundLb(lb) : null;
+  } catch {
+    return null;
+  }
+}
+
+function dexaVisitWhy(lastDate: string | null, lastLb: number | null, nowLb: number | null): string {
+  const when = lastDate ? ` on ${shortDate(lastDate)}` : "";
+  if (lastLb != null && nowLb != null) {
+    const diff = roundLb(nowLb - lastLb);
+    if (Math.abs(diff) >= 1) {
+      return `Your last scan${when} was at ${lastLb} lb and you're about ${Math.abs(diff)} lb ${diff < 0 ? "lighter" : "heavier"} now, so a repeat shows how much of that change was fat and how much was lean mass.`;
+    }
+    return `Your weight is about where it was at the last scan${when}, so a repeat shows whether the mix of fat and lean mass has shifted underneath it.`;
+  }
+  return `A repeat a few months after the last scan${when} shows how body composition has moved.`;
+}
+
+// The newest reading behind a follow-up: its own cadence row's reading date, else the
+// newest marker-cadence row it folds. Review/directive rows date a decision, not a draw.
+function visitLabLastDate(item: DoctorLoopItem): string | null {
+  const isDate = (d: unknown) => /^\d{4}-\d{2}-\d{2}/.test(String(d ?? ""));
+  if (item.signal_key.startsWith("marker:") && isDate(item.last_checked)) return String(item.last_checked).slice(0, 10);
+  let best: string | null = null;
+  for (const src of item.sources ?? []) {
+    if (!src.signal_key.startsWith("marker:") || !isDate(src.last_checked)) continue;
+    const d = String(src.last_checked).slice(0, 10);
+    if (!best || d > best) best = d;
+  }
+  return best;
+}
+
+function countWord(n: number): string {
+  return ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n] ?? String(n);
+}
+
+export function composeVisit(args: {
+  loop: DoctorLoopItem[];
+  asOf: string;
+  markers: MarkerLike[];
+  addOns?: CheckupItem[];
+  race?: { date: string; event?: string | null } | null;
+}): CheckupVisit | null {
+  const { loop, asOf, markers } = args;
+  const horizon = addDaysISO(asOf, VISIT_HORIZON_DAYS) ?? asOf;
+  const dated = loop.filter((item) => !!item.next_due && String(item.next_due) <= horizon);
+  const labItems = dated.filter((item) => item.kind !== "dexa");
+  const dexaItem = dated.find((item) => item.kind === "dexa") ?? null;
+  if (!labItems.length && !dexaItem) return null;
+
+  // The latest opening among the labs (the DEXA scan alone sets the date only when it is
+  // the whole visit); never before today.
+  const openings = (labItems.length ? labItems : [dexaItem as DoctorLoopItem]).map((i) => String(i.next_due));
+  let start = openings.reduce((a, b) => (b > a ? b : a), asOf);
+  const race = args.race && /^\d{4}-\d{2}-\d{2}$/.test(String(args.race.date)) ? args.race : null;
+  let raceShapedIt = false;
+  if (labItems.length && race) {
+    const clear = addDaysISO(race.date, RACE_CLEARANCE_DAYS);
+    const end = addDaysISO(start, VISIT_WINDOW_DAYS - 1) ?? start;
+    // A race before (or inside) the window, too close to it: the window moves to two
+    // weeks after the race.
+    if (clear && race.date <= end && clear > start) {
+      start = clear;
+      raceShapedIt = true;
+    } else if (clear && race.date <= end && race.date >= (addDaysISO(asOf, -RACE_CLEARANCE_DAYS) ?? asOf)) {
+      raceShapedIt = true; // already clear of it — still worth saying why the date works
+    }
+  }
+  const end = addDaysISO(start, VISIT_WINDOW_DAYS - 1) ?? start;
+
+  const labs: CheckupVisitLab[] = labItems
+    .filter((item) => String(item.next_due) <= end)
+    .map((item) => ({
+      label: item.label,
+      last_date: visitLabLastDate(item),
+      state: String(item.next_due) <= asOf ? ("past_window" as const) : ("opens_in_window" as const),
+    }));
+
+  let dexa: CheckupVisitDexa | null = null;
+  if (dexaItem && String(dexaItem.next_due) <= end) {
+    const lastDate =
+      latestDexaDate(markers as any[]) ??
+      (/^\d{4}-\d{2}-\d{2}/.test(String(dexaItem.last_checked ?? ""))
+        ? String(dexaItem.last_checked).slice(0, 10)
+        : null);
+    const lastLb = lastDate ? dexaScanWeight(markers, lastDate) : null;
+    const nowLb = currentWeight(asOf, lastDate);
+    dexa = {
+      last_date: lastDate,
+      last_weight_lb: lastLb,
+      current_weight_lb: nowLb,
+      why: dexaVisitWhy(lastDate, lastLb, nowLb),
+    };
+  }
+  if (!labs.length && !dexa) return null;
+
+  const covered = new Set(labs.map((l) => l.label.toLowerCase()));
+  const add: CheckupVisitAdd[] = labs.length
+    ? (args.addOns ?? [])
+        .filter((a) => !covered.has(a.label.toLowerCase()))
+        .slice(0, MAX_VISIT_ADDS)
+        .map((a) => ({ label: a.label, why: a.why }))
+    : [];
+
+  const span = `between ${shortDate(start)} and ${shortDate(end)}`;
+  const parts: string[] = [];
+  if (labs.length) {
+    const open = labs.filter((l) => l.state === "past_window").length;
+    parts.push(
+      labs.length === 1
+        ? `One morning draw ${span} covers the recheck that's open or opening.`
+        : `One morning draw ${span} covers all ${countWord(labs.length)} rechecks that are open or opening.`
+    );
+    if (open > 0 && open < labs.length)
+      parts.push(
+        `The ${open === 1 ? "one" : countWord(open)} already open ${open === 1 ? "folds" : "fold"} into the same visit rather than each needing a trip of its own.`
+      );
+    if (raceShapedIt && race) {
+      const name = String(race.event ?? "").trim() || "your race";
+      parts.push(
+        `It sits at least two weeks after ${name} on ${shortDate(race.date)}, since a race can briefly raise hs-CRP and lower testosterone.`
+      );
+    }
+    if (dexa) parts.push("The repeat DEXA scan fits the same visit.");
+  } else {
+    parts.push(`A repeat DEXA scan fits ${span}.`);
+  }
+
+  const prep = [...(labs.length ? VISIT_LAB_PREP : []), ...(dexa ? [VISIT_DEXA_PREP] : [])];
+  return { window_start: start, window_end: end, why: parts.join(" "), labs, add, dexa, prep };
+}
+
 // ---- lede ---------------------------------------------------------------------
 // One follow-up's window as a sentence: the marker list in plain speech, the DEXA scan
 // by its own name, a review follow-up in its own words. `extra` rides before the stop.
@@ -523,6 +761,17 @@ function composeLede(
   return "Nothing's due for a recheck right now. Your markers are quiet — Cairn will flag the next window when it opens.";
 }
 
+// The dated race the visit keeps clear of: the endurance goal's race date.
+function visitRace(asOf: string): { date: string; event: string | null } | null {
+  try {
+    const goal = getEnduranceGoal(asOf) as any;
+    if (!goal?.is_race || !/^\d{4}-\d{2}-\d{2}$/.test(String(goal.date ?? ""))) return null;
+    return { date: String(goal.date), event: goal.event ? String(goal.event) : null };
+  } catch {
+    return null;
+  }
+}
+
 // The whole read. `refresh` re-runs the deterministic attention pass first (the
 // REST route passes true so an open reflects the newest data even between nightly
 // scheduler passes); the scheduler op keeps it warm on a cadence regardless.
@@ -536,7 +785,9 @@ export function nextCheckupRead(opts: { refresh?: boolean; asOf?: string } = {})
   }
   const asOf = /^\d{4}-\d{2}-\d{2}$/.test(String(opts.asOf ?? "")) ? String(opts.asOf) : todayISO();
 
-  const { markers } = getMarkerHistory() as { markers: MarkerLike[] };
+  // A draw that measured a derivable marker's components counts as a check of it too
+  // (non-HDL-C from TC + HDL) — the same reading the doctor loop files its cadence from.
+  const markers = withDerivedReadings((getMarkerHistory() as { markers: MarkerLike[] }).markers);
   const markerByKey = new Map<string, MarkerLike>();
   for (const m of markers) {
     const key = String(m.key ?? m.name ?? "").toLowerCase();
@@ -611,6 +862,14 @@ export function nextCheckupRead(opts: { refresh?: boolean; asOf?: string } = {})
   const orderedLabs = scanOrderedLabs();
   const prep = composePrep(dueNow, addOns, followThrough, orderedLabs);
   const lede = composeLede(dueNow, upcomingDated, orderedLabs, followThrough, warrantedAddOns, asOf);
+  const visit = composeVisit({
+    loop,
+    asOf,
+    markers: markers as MarkerLike[],
+    addOns: warrantedAddOns.map(({ warranted: _warranted, ...item }) => item),
+    race: visitRace(asOf),
+  });
+
 
   const upcomingSoon = upcomingDated.some((e) => {
     const d = daysBetweenISO(e.next_due || "", asOf);
@@ -618,5 +877,5 @@ export function nextCheckupRead(opts: { refresh?: boolean; asOf?: string } = {})
   });
   const has_content = dueNow.length > 0 || upcomingSoon || orderedLabs.length > 0 || warrantedAddOns.length > 0;
 
-  return { lede, due_now: dueNow, upcoming, follow_through: followThrough, prep, has_content, frame: FRAME };
+  return { lede, due_now: dueNow, upcoming, follow_through: followThrough, prep, visit, has_content, frame: FRAME };
 }

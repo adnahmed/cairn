@@ -1371,6 +1371,7 @@ export async function processExerciseJob(id: number): Promise<void> {
         // invented or ill-fitting enum cannot displace a deterministic hit.
         garmin_category: asStr(parsed.garmin_category),
         garmin_exercise: asStr(parsed.garmin_exercise),
+        per_side: typeof parsed.per_side === "boolean" ? parsed.per_side : null,
       });
       finalName = applied.name || finalName;
       const updated = getExercise(applied.id) as any;

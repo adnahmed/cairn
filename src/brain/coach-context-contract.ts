@@ -459,6 +459,11 @@ export interface CoachContextEnvelope {
   // Additive + optional, like `read_adherence`: a partial context builder or an
   // imported DB never synthesizes it, and it stays out of the required/array key lists.
   tomorrow_holds?: CoachRecord | null;
+  // The road the day sits on (src/repo/today-path.ts todayPathPromptView): race
+  // estimate, weight and anchor lift with their trends, the next milestones and the
+  // week's one lever. Set ONLY by the Brief's prompt builder (buildDayReadPrompt) —
+  // getCoachContext never computes it. Additive + optional, like `tomorrow_holds`.
+  today_path?: CoachRecord | null;
   // Round W2.2: the most common hour recent sessions were logged, bucketed into a
   // plain part-of-day label. Derived from session timestamps so chat (and any other
   // site that carries it) can answer "when do they usually train?" itself instead of

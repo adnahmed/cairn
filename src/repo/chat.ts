@@ -12,6 +12,7 @@ import {
   type ChatRoutingDecision,
 } from "../chatRouting.js";
 import { withSqliteSavepoint } from "./sqlite-savepoint.js";
+import { memoNeutralWrite } from "./request-memo.js";
 import { FOOD_BASIS_VALUES, FOOD_CONFIDENCE_BANDS } from "../foodCapture.js";
 
 // ---------- chat ----------
@@ -709,12 +710,18 @@ export function createWeekAheadAgentJob(input: { cacheKey: string; agent?: strin
       // A malformed in-flight row is ignored rather than blocking a valid warm.
     }
   }
-  const job = createAgentJob({
-    kind: "week_ahead",
-    phase: "queued to sketch the week ahead",
-    input: { cacheKey, agent: input.agent ?? null },
-    agent: input.agent ?? null,
-  });
+  // The queued row is a job's own bookkeeping, which no request-memoized read consults
+  // (the same reason response-freshness.ts leaves agent_jobs off its key; the job's
+  // result lands in ai_cache, which is a real write). A Today open kicks this midway
+  // through, so on the odometer it would throw away every read memoized before it.
+  const job = memoNeutralWrite(() =>
+    createAgentJob({
+      kind: "week_ahead",
+      phase: "queued to sketch the week ahead",
+      input: { cacheKey, agent: input.agent ?? null },
+      agent: input.agent ?? null,
+    })
+  );
   return { job, created: true };
 }
 

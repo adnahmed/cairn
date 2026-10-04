@@ -1,0 +1,77 @@
+{
+  "totals": {
+    "space": 16,
+    "font": 27,
+    "weight": 0,
+    "radius": 0,
+    "tracking": 0,
+    "leading": 1
+  },
+  "files": {
+    "src/styles/ask/chat.css": {
+      "space": 1
+    },
+    "src/styles/foundation/base.css": {
+      "font": 1
+    },
+    "src/styles/foundation/cards.css": {
+      "space": 1
+    },
+    "src/styles/fuel/meal-sheet.css": {
+      "space": 1
+    },
+    "src/styles/fuel/planner.css": {
+      "space": 1
+    },
+    "src/styles/health/health.css": {
+      "space": 2
+    },
+    "src/styles/health/packet.css": {
+      "font": 7
+    },
+    "src/styles/health/stand.css": {
+      "font": 3
+    },
+    "src/styles/horizon/horizon.css": {
+      "font": 3
+    },
+    "src/styles/horizon/race.css": {
+      "leading": 1
+    },
+    "src/styles/session/exercise.css": {
+      "font": 2
+    },
+    "src/styles/shell/detail.css": {
+      "font": 1
+    },
+    "src/styles/shell/overlays.css": {
+      "space": 1
+    },
+    "src/styles/shell/responsive-nav.css": {
+      "space": 3
+    },
+    "src/styles/today/header.css": {
+      "font": 1
+    },
+    "src/styles/today/path.css": {
+      "font": 2
+    },
+    "src/styles/train/overview.css": {
+      "space": 1
+    },
+    "src/styles/train/progress-editorial.css": {
+      "space": 1
+    },
+    "src/styles/train/progress.css": {
+      "space": 3,
+      "font": 2
+    },
+    "src/styles/you/cairn.css": {
+      "font": 4
+    },
+    "src/styles/you/records.css": {
+      "space": 1,
+      "font": 1
+    }
+  }
+}

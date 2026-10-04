@@ -39,6 +39,8 @@ type TodayBriefVoiceApi = {
   aroundHtml(parts: { forward: string; periodization: string; arc: string; provenance: string; isToday?: boolean }): string;
   liveHtml(live: TodayBriefLive | null | undefined): string;
   nowHtml(parts: TodayBriefNowParts): string;
+  /** The anchor (or first) lift's prescription in words, for the NOW card's meta line. */
+  prescriptionLine(items: unknown, anchor?: unknown): string;
 };
 
 // The NOW card's pieces, each already built (and escaped) by the Brief.
@@ -203,7 +205,30 @@ type TodayBriefNowParts = {
     return { name: input.name, done: input.done, total: input.total, last, next };
   }
 
-  const CAIRN_TODAY_BRIEF_VOICE: TodayBriefVoiceApi = { whyHtml, aroundHtml, liveHtml, liveFacts, nowHtml };
+  // The anchor lift's prescription in words, or the first lift's when no anchor rides
+  // the day: "Deadlift · 225 lb · 3 × 5", "Pull-up · 30 lb assist · 3 × 6–8",
+  // "Plank · 3 × 45 s". Every number comes off the prescription itself.
+  function prescriptionLine(items: unknown, anchor?: unknown): string {
+    const list = (Array.isArray(items) ? items : []).filter(
+      (item) => item && typeof item === "object" && String((item as Record<string, unknown>).exercise ?? "").trim()
+    ) as Array<Record<string, unknown>>;
+    const want = String(anchor ?? "").trim().toLowerCase();
+    const pick = (want && list.find((item) => String(item.exercise).trim().toLowerCase() === want)) || list[0];
+    if (!pick) return "";
+    const n = (value: unknown): number | null => (value == null || value === "" || !Number.isFinite(Number(value)) ? null : Number(value));
+    const weight = n(pick.target_weight);
+    const load = weight == null || weight === 0 ? "" : weight < 0 ? `${Math.abs(weight)} lb assist` : `${weight} lb`;
+    const sets = n(pick.sets);
+    const seconds = n(pick.target_seconds);
+    const low = n(pick.rep_low);
+    const high = n(pick.rep_high);
+    const reps = low != null ? (high != null && high > low ? `${low}–${high}` : String(low)) : "";
+    const dose = seconds != null ? `${seconds} s` : reps;
+    const volume = sets != null && dose ? `${sets} × ${dose}` : dose;
+    return [String(pick.exercise).trim(), load, volume].filter(Boolean).join(" · ");
+  }
+
+  const CAIRN_TODAY_BRIEF_VOICE: TodayBriefVoiceApi = { whyHtml, aroundHtml, liveHtml, liveFacts, nowHtml, prescriptionLine };
 
   Object.assign(globalThis, { CairnTodayBriefVoice: CAIRN_TODAY_BRIEF_VOICE });
   if (typeof window !== "undefined") {

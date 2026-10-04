@@ -20,6 +20,7 @@ import {
   type ShadowCheckActivity,
 } from "./activity-shadow.js";
 import { parseActivity } from "./activity-capture.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 // Re-exported for existing callers (e.g. underfueling.ts) that import the shadow
 // helpers from here; the pure implementation lives in ./activity-shadow.js so a
@@ -703,6 +704,11 @@ export interface GarminActivityInput {
   avg_ground_contact_ms?: number | null;
   avg_vertical_osc_cm?: number | null;
   avg_vertical_ratio?: number | null;
+  // the run's shape (migration v117) — see run-structure.ts
+  gap_speed?: number | null; // grade-adjusted average speed, m/s
+  body_battery_delta?: number | null;
+  structure?: any; // RunStructureSegment[] — serialized to structure_json
+  laps?: any; // RunLap[] — serialized to laps_json
   raw?: any;
 }
 
@@ -922,10 +928,21 @@ const GARMIN_ACTIVITY_MERGE_COLS: Array<[string, keyof GarminActivityInput]> = [
   ["avg_ground_contact_ms", "avg_ground_contact_ms"],
   ["avg_vertical_osc_cm", "avg_vertical_osc_cm"],
   ["avg_vertical_ratio", "avg_vertical_ratio"],
+  ["gap_speed", "gap_speed"],
+  ["body_battery_delta", "body_battery_delta"],
+  ["structure_json", "structure"],
+  ["laps_json", "laps"],
   ["raw_json", "raw"],
 ];
 
-const GARMIN_ACTIVITY_JSON_KEYS = new Set(["hr_zones", "exercise_sets", "raw"]);
+const GARMIN_ACTIVITY_JSON_KEYS = new Set(["hr_zones", "exercise_sets", "structure", "laps", "raw"]);
+
+/** Are this activity's laps already stored? (The sync fetches laps once.) */
+export function garminLapsStored(externalId: string): boolean {
+  return !!db
+    .prepare(`SELECT 1 FROM garmin_activities WHERE external_id = ? AND laps_json IS NOT NULL LIMIT 1`)
+    .get(String(externalId));
+}
 
 // Did the caller STATE null for this key (clear it), or just not mention it (leave it)?
 // An explicitly-`undefined` key reads as "not mentioned" — that is what a spread of an
@@ -1374,12 +1391,12 @@ export function sleepNightsMissing(
   return Math.max(0, nights - covered.size);
 }
 
-// hydrateJson + parse the per-activity JSON arrays (hr_zones, exercise_sets) into
+// hydrateJson + parse the per-activity JSON arrays (hr_zones, exercise_sets, structure, laps) into
 // clean fields, dropping the raw *_json strings.
 function hydrateGarminActivity(r: any) {
   if (!r) return r;
   const out = hydrateJson(r) as any;
-  for (const key of ["hr_zones_json", "exercise_sets_json"] as const) {
+  for (const key of ["hr_zones_json", "exercise_sets_json", "structure_json", "laps_json"] as const) {
     const field = key.replace(/_json$/, "");
     let v: any = null;
     try {
@@ -1807,6 +1824,14 @@ export function listGarminDailyMetrics(limit = 30, opts: { raw?: boolean } = {})
 }
 
 export function getGarminCoachSummary(days = 14, asOfDate = localDateISO()) {
+  return requestMemo(
+    `garmin_coach_summary:${days}:${asOfDate}`,
+    () => getGarminCoachSummaryRead(days, asOfDate),
+    copyDeep
+  );
+}
+
+function getGarminCoachSummaryRead(days: number, asOfDate: string) {
   const windowDays = Math.max(1, Math.min(366, Math.trunc(Number(days) || 14)));
   const today = String(asOfDate || localDateISO()).slice(0, 10);
   const since = addDaysISO(today, -Math.max(0, windowDays - 1)) ?? today;

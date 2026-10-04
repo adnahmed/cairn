@@ -16,7 +16,7 @@ function loadMainShell() {
   return context.CairnTodayMainShell;
 }
 
-test("Today lead omits standalone typed, mic, and goal controls; the weigh-in rides the week row", () => {
+test("Today lead omits standalone typed, mic, and goal controls; the weigh-in rides This week", () => {
   const shell = loadMainShell();
   const html = shell.leadHtml(
     {
@@ -28,7 +28,7 @@ test("Today lead omits standalone typed, mic, and goal controls; the weigh-in ri
     { escapeHtml: String }
   );
 
-  // v2 wave 7: the bodyweight chip moved onto the week row, so the lead says it nowhere.
+  // The bodyweight tile lives in This week's tallies, so the lead says it nowhere.
   assert.doesNotMatch(html, /id="wtChipMini"|id="wtInlineInput"/);
   assert.doesNotMatch(html, /id="qlInput"|id="qlMic"|id="qlBtn"/);
   assert.doesNotMatch(html, /id="goalSlot"|id="goalLine"/);
@@ -36,21 +36,45 @@ test("Today lead omits standalone typed, mic, and goal controls; the weigh-in ri
   assert.doesNotMatch(html, /backToday|Back to today/);
 });
 
-test("the week row is ONE line: This week, its recap, and the weigh-in chip that never toggles the fold", () => {
+test("This week: the frame's tallies (lifts, km, the weigh-in tile), slots for the strip and gauges, the old detail folded", () => {
   const shell = loadMainShell();
   const html = shell.weekFoldHtml(
-    { weekRecap: "2 lifts", cellsHtml: "" },
-    { escapeHtml: String },
-    { currentWeight: 172.4 }
+    { weekRecap: "2 lifts", cellsHtml: `<div class="stat">x</div>`, planned: 5, done: 4, weekKm: 22.34 },
+    { escapeHtml: (v) => String(v).replace(/</g, "&lt;") },
+    { currentWeight: 172.4, trendLbWk: -0.76, liftOpen: "Pull <b>", runs: true }
   );
-  const summary = /<summary class="weekfold-sum">([\s\S]*?)<\/summary>/.exec(html)?.[1] || "";
-  assert.match(summary, /This week/);
-  assert.match(summary, /2 lifts/);
-  assert.match(summary, /<button id="wtChipMini"[^>]*data-keep-fold[^>]*>172\.4<span class="wt-mini-unit">lb/);
-  // The weight input opens under the row, outside the fold, so it works while it is closed.
-  assert.ok(html.indexOf('id="wtInlineInput"') > html.indexOf("</details>"));
-  // No weight said twice: no weigh-in tile inside the fold.
+  assert.match(html, /<section class="tweek" id="todayWeek" aria-label="This week">/);
+  assert.match(html, /<span class="lbl">This week<\/span>/);
+  // Lifts done of planned, with today's open lift named (escaped).
+  assert.match(html, /data-cu="4">0<\/span><span class="tweek-u">\/5<\/span>/);
+  assert.match(html, /lifts · Pull &lt;b> open/);
+  // Kilometres, with the plan note filled later by the today-ahead bundle.
+  assert.match(html, />22\.3<span class="tweek-u">km<\/span>/);
+  assert.match(html, /id="tweekKmNote"/);
+  // The weigh-in tile keeps the inline capture's id; its number has its own node so
+  // a save rewrites it without dropping the sparkline beside it.
+  assert.match(html, /<button id="wtChipMini" class="tweek-tally tweek-wt"[^>]*><span class="tweek-n num" data-wtval>172\.4<span class="tweek-u">lb<\/span><\/span><small>lb · −0\.8\/wk<\/small><span class="tweek-spark" id="tweekSpark"/);
+  assert.match(html, /id="tweekStrip"/);
+  assert.match(html, /id="tweekGauges"/);
+  // The weight input opens under the tallies, outside the fold.
+  assert.ok(html.indexOf('id="wtInlineInput"') < html.indexOf("<details"));
+  // The older detail stays one tap away.
+  assert.match(html, /<details class="weekfold tweek-more" id="weekFold">[\s\S]*More about this week[\s\S]*class="stat"[\s\S]*id="wearStrip"/);
   assert.doesNotMatch(html, /id="wtChip"/);
+});
+
+test("This week falls back to a cardio count for an athlete with no running", () => {
+  const shell = loadMainShell();
+  const html = shell.weekFoldHtml({ planned: 3, done: 1, weekKm: 0 }, { escapeHtml: String }, { weekCardio: 2, runs: false });
+  assert.match(html, /data-cu="2">0<\/span><\/div><small>cardio/);
+  assert.doesNotMatch(html, /tweekKmNote/);
+  assert.match(html, /weight · tap to log/);
+});
+
+test("the redesigned Today's async slots: the digest before the week, Coming up and the board after", () => {
+  const shell = loadMainShell();
+  assert.equal(shell.digestSlotHtml(), `<div id="todayDigestSlot" class="tdg-slot"></div>`);
+  assert.match(shell.aheadSlotsHtml(), /id="todayHorizonSlot"[\s\S]*id="todayHeadingSlot"/);
 });
 
 test("Today lead leaves the check-in to the Brief and keeps the tag chips, without the retired frequents strip", () => {
@@ -99,7 +123,7 @@ test("This week owns trajectory stats without rendering a standalone pace offer"
     { escapeHtml: String }
   );
 
-  assert.match(html, /^<div class="weekrow">\s*<details class="weekfold"/);
+  assert.match(html, /^<section class="tweek"/);
   assert.match(html, /pace-fast/);
   assert.doesNotMatch(html, /paceOffer|ask the coach/);
 });

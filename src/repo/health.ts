@@ -10,6 +10,7 @@ import { invalidateDayRead } from "./intelligence.js";
 import { injuriesResolvedBySymptoms, type SymptomResolution } from "./injury-symptom-link.js";
 import { sensorAgeDays } from "./sensor-freshness.js";
 import { daysBetweenISO, localDateISO } from "./shared.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 import { listExercises } from "./exercises.js";
 import { bodyRegion, resolveGroup } from "./exercise-canon.js";
 import { normalizeMarkerReading, parseLabNumber, seriesUnitsCompatible } from "./lab-units.js";
@@ -1380,6 +1381,17 @@ function markerHistorySignature(): string {
 // current semantics, where every call returns brand-new objects). The heavy walk lives
 // in computeMarkerHistory below.
 export function getMarkerHistory(): { markers: any[]; groups: any[] } {
+  // Request-memoized over the process memo below: one Today open reads the marker
+  // history about eighteen times, each paying the signature and a structuredClone. The
+  // key carries the in-process marker version the signature folds in, and the local date.
+  return requestMemo(
+    `marker_history:${currentMarkerDataVersion()}:${localDateISO()}`,
+    getMarkerHistoryCached,
+    copyDeep
+  );
+}
+
+function getMarkerHistoryCached(): { markers: any[]; groups: any[] } {
   const key = markerHistorySignature();
   if (markerHistoryCache && markerHistoryCache.key === key) {
     return structuredClone(markerHistoryCache.value);

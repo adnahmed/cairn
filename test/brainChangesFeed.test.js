@@ -246,7 +246,16 @@ test("a stale ask whose target left the plan is retired by the sweep, never appl
   const items = repo.getPlan().flatMap((day) => day.items.map((item) => item.exercise));
   assert.ok(!items.includes("Chest Dips"), "the dead swap never landed");
   assert.deepEqual(reviewRows(), []);
-  assert.deepEqual(feedRows(), [], "a retired question is not a change");
+  const read = brainChangesRead();
+  assert.deepEqual(feedRows(read), [], "a retired question is not a change");
+  // …but it never silently disappears: one quiet set-aside line, in plain words.
+  assert.equal(read.set_aside.length, 1);
+  assert.equal(
+    read.set_aside[0].line,
+    "An older draft for Decline Bench Press was set aside: what it was about is no longer in your plan."
+  );
+  assert.equal(read.set_aside[0].label, "Today");
+  assert.equal(read.since_seen, 0, "housekeeping is never news");
 });
 
 test("a surviving ask is re-decided through the autonomy path, the surprise budget in force", () => {
@@ -535,4 +544,94 @@ test("GET /api/brain/changes and get_brain_changes answer the same read; seen mi
     assert.equal(again.ok, true);
     assert.ok(Date.parse(again.seen_at) >= Date.parse(marked.seen_at));
   });
+});
+
+// The live case from a real Today: a superseded conference draft whose own summary is
+// engineering prose with an ISO date and a gate ("re-enter Back Squat at 185 x 3 x 5-7 …
+// behind a brace gate; hold…"). The set-aside line is worded from what the draft touched
+// and the receipt's machine reason — never that summary, and never twice for one draft.
+function setAsideReceipt(proposalId, outcome, extra = {}) {
+  return repo.recordDecision({
+    effective_date: null,
+    kind: "training_target",
+    domain: "training",
+    summary: "A held draft was set aside instead of applied.",
+    rationale: "A newer team review replaced this one. Nothing changed; a fresh read can pick this up from where you are now.",
+    source: "case_conference",
+    source_ref_type: "plan_proposal",
+    source_ref_key: String(proposalId),
+    status: "superseded",
+    autonomy_tier: "ask",
+    risk_class: "low",
+    reversible: false,
+    input_fingerprint: null,
+    context: { thaw_receipt: true, review_reason_code: "source_superseded", ...extra },
+    action: { proposal_id: Number(proposalId), outcome },
+    specialist: null,
+    applied_at: null,
+    reverted_at: null,
+    superseded_by: null,
+    evaluator_version: null,
+  });
+}
+
+test("a meal-plan draft retired as a stale plan reads in plain words, never the fallback", () => {
+  for (const outcome of ["superseded_stale_plan", "some_future_outcome"]) {
+    repo.recordDecision({
+      effective_date: null,
+      kind: "meal_plan",
+      domain: "nutrition",
+      summary: "A held draft was set aside instead of applied.",
+      rationale: "This meal-plan draft sat unapplied for more than 14 days.",
+      source: "autonomy",
+      source_ref_type: "meal_plan",
+      source_ref_key: outcome === "superseded_stale_plan" ? "901" : "902",
+      status: "superseded",
+      autonomy_tier: "ask",
+      risk_class: "low",
+      reversible: false,
+      input_fingerprint: null,
+      context: { thaw_receipt: true, review_reason_code: "stale_plan" },
+      action: { meal_plan_id: outcome === "superseded_stale_plan" ? 901 : 902, outcome },
+      specialist: null,
+      applied_at: null,
+      reverted_at: null,
+      superseded_by: null,
+      evaluator_version: null,
+    });
+  }
+  const lines = brainChangesRead().set_aside.map((row) => row.line);
+  assert.equal(lines.length, 2);
+  for (const line of lines) {
+    assert.equal(line, "An older draft for a week of meals was set aside: it sat too long to still fit your week.");
+  }
+});
+
+test("a set-aside draft is one plain line in the feed, never its agent summary, a date or a threshold", () => {
+  const draft = repo.createProposal("case_conference", "case conference: weekly", "", {
+    summary:
+      "Week of 2026-09-28: re-enter Back Squat at 185 x 3 x 5-7 on Wednesday Lower A behind a brace gate; hold RIR >= 2.",
+    changes: [{ day_number: 3, exercise: "Back Squat", target_weight: 185, reason: "brace gate" }],
+  });
+  setAsideReceipt(draft.id, "superseded_by_newer_review");
+  // A later sweep filing a second receipt for the same draft says nothing new.
+  setAsideReceipt(draft.id, "superseded_by_newer_review");
+  const nutrition = repo.createProposal("case_conference", "case conference: weekly", "", {
+    kind: "nutrition_target",
+    summary: "Hold 2,350 kcal through 2026-10-04.",
+  });
+  setAsideReceipt(nutrition.id, "superseded_stale_proposal");
+
+  const read = brainChangesRead();
+  assert.deepEqual(feedRows(read), [], "nothing moved, so nothing is a change");
+  assert.equal(read.since_seen, 0);
+  const lines = read.set_aside.map((row) => row.line).sort();
+  assert.deepEqual(lines, [
+    "An older draft for Back Squat was set aside: a newer review replaced it.",
+    "An older draft for your calorie target was set aside: it waited too long to still fit.",
+  ]);
+  for (const line of lines) {
+    assert.doesNotMatch(line, /\d{4}-\d{2}-\d{2}|RIR|>=|brace gate|Week of|\.\./, line);
+  }
+  assert.ok(read.set_aside.every((row) => row.label === "Today" && Number(row.id) > 0));
 });

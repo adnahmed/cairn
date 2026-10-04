@@ -1,31 +1,31 @@
 /* ---------- Train overview (the training home) ---------- */
 /* The week's load: a mono eyebrow, one serif voice line and one mono fact. */
-.tov-mast{padding:10px 0 4px}
+.tov-mast{padding:var(--space-5) 0 var(--space-2)}
 .tov-mast-h{
-  font-family:var(--font-display);font-size:1.42rem;line-height:1.16;font-weight:400;color:var(--ink);
-  margin:6px 0 0;letter-spacing:-.005em;text-wrap:balance;
+  font-family:var(--font-display);font-size:var(--text-xl);line-height:var(--leading-tight);font-weight:var(--weight-regular);color:var(--ink);
+  margin:var(--space-3) 0 0;letter-spacing:0;text-wrap:balance;
 }
-.tov-mast-fact{display:block;margin:9px 0 12px;color:var(--muted)}
+.tov-mast-fact{display:block;margin:var(--space-5) 0 var(--space-6);color:var(--muted)}
 /* Training-load band: ONE aligned row under the masthead — label · compact meter ·
    one plain word (usual / lighter / heavier), never a number. Composes §04d
    .read-band; the word takes terracotta only when the band is .hot. */
-.tov-loadband{margin:4px 0 18px}
-.tov-loadband .read-band{flex-direction:row;align-items:center;gap:12px}
+.tov-loadband{margin:var(--space-2) 0 var(--space-9)}
+.tov-loadband .read-band{flex-direction:row;align-items:center;gap:var(--space-6)}
 .tov-loadband .read-band-label{flex:0 0 auto}
 .tov-loadband .read-band-track{flex:1 1 auto;min-width:48px;height:6px}
 .tov-loadband .read-band-dot{width:10px;height:10px;border-width:2px}
 .tov-loadband .read-band-phrase{flex:0 0 auto;min-width:4.2em;text-align:right;
-  font-size:.8rem;font-weight:600;line-height:1;color:var(--ink-2)}
+  font-size:var(--text-sm);font-weight:var(--weight-semibold);line-height:1;color:var(--ink-2)}
 .tov-loadband .read-band.hot .read-band-phrase{color:var(--accent-deep)}
 /* The muscle map: front + back silhouettes, tones = plain-word bands. */
-.tov-map.sess{padding:14px 16px 12px;border-radius:18px;margin:6px 0 0}
-.tov-figs{display:flex;justify-content:center;gap:26px;margin:10px 0 4px}
-.tov-figs figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.tov-map.sess{padding:var(--space-7) var(--space-8) var(--space-6);border-radius:var(--radius);margin:var(--space-3) 0 0}
+.tov-figs{display:flex;justify-content:center;gap:var(--space-12);margin:var(--space-5) 0 var(--space-2)}
+.tov-figs figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:var(--space-3)}
 .tov-fig{width:112px;height:auto;display:block}
 .tov-map [data-group]{cursor:pointer}
 .tov-map [data-group]:focus-visible,.bm-co2:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.tov-legend{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;padding:8px 0 2px}
-.tov-leg{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;color:var(--ink-2)}
+.tov-legend{display:flex;flex-wrap:wrap;gap:var(--space-6);justify-content:center;padding:var(--space-4) 0 var(--space-1)}
+.tov-leg{display:inline-flex;align-items:center;gap:var(--space-3);font-size:var(--text-xs);color:var(--ink-2)}
 .tov-leg-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 .tov-dot-due{background:var(--accent)}
 .tov-dot-ok{background:var(--sage)}
@@ -33,37 +33,36 @@
 .tov-dot-recover{background:var(--ink-2);opacity:.55}
 .tov-dot-idle{background:var(--line)}
 /* Per-muscle rows: name + verdict chip, a you-are-here band, one honest note. */
-.tov-kicker{margin:22px 0 2px}
+.tov-kicker{margin:var(--space-11) 0 var(--space-1)}
 /* Muscle rows: hairline-divided on the ground, never a stack of cards. */
 .tov-rows{display:grid}
 .tov-row{
-  width:100%;display:flex;align-items:center;gap:12px;text-align:left;color:inherit;font:inherit;
+  width:100%;display:flex;align-items:center;gap:var(--space-6);text-align:left;color:inherit;font:inherit;
   background:none;border:0;border-top:1px solid var(--line);border-radius:0;
-  padding:12px 2px;margin:0;box-shadow:none;
+  padding:var(--space-6) var(--space-1);margin:0;box-shadow:none;
   cursor:pointer;transition:transform var(--dur-1) var(--ease);
 }
 .tov-rows>.tov-row:first-child{border-top:0}
 .tov-more{border-top:1px solid var(--line)}
-.tov-more-sum{display:flex;align-items:baseline;gap:10px;min-height:46px;padding:12px 2px;cursor:pointer;list-style:none;
-  font-size:var(--text-sm);font-weight:600;color:var(--ink-2)}
+.tov-more-sum{display:flex;align-items:baseline;gap:var(--space-5);min-height:46px;padding:var(--space-6) var(--space-1);cursor:pointer;list-style:none;
+  font-size:var(--text-sm);font-weight:var(--weight-semibold);color:var(--ink-2)}
 .tov-more-sum::-webkit-details-marker{display:none}
 .tov-more-sum::after{content:"›";margin-left:auto;color:var(--muted);transition:transform var(--dur-1) var(--ease)}
 .tov-more[open]>.tov-more-sum::after{transform:rotate(90deg)}
-.tov-more-hint{min-width:0;flex:1;font-weight:400;font-size:var(--text-xs);color:var(--muted);
+.tov-more-hint{min-width:0;flex:1;font-weight:var(--weight-regular);font-size:var(--text-xs);color:var(--muted);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tov-more[open] .tov-more-hint{visibility:hidden}
 .tov-more>.tov-rows>.tov-row:first-child{border-top:1px solid var(--line)}
 .tov-row:active{transform:var(--press-lg)}
 .tov-row-dot{width:8px;height:8px;border-radius:50%;flex:none}
-.tov-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
-.tov-row-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.tov-row-name{font-weight:500;color:var(--ink);font-size:var(--text-body)}
-.tov-row-note{font-size:.74rem;color:var(--muted)}
+.tov-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-3)}
+.tov-row-top{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4)}
+.tov-row-name{font-weight:var(--weight-medium);color:var(--ink);font-size:var(--text-body)}
+.tov-row-note{font-size:var(--text-xs);color:var(--muted)}
 .tov-row-arw{color:var(--muted);flex:none}
 .tov-chip{
-  font-size:.66rem;letter-spacing:.04em;color:var(--ink-2);
-  background:var(--card-2);border-radius:var(--radius-pill);padding:2px 9px;white-space:nowrap;
-}
+  font-size:var(--badge-text);letter-spacing:var(--tracking-wider);color:var(--ink-2);
+  background:var(--card-2);border-radius:var(--radius-pill);padding:var(--badge-pad);white-space:nowrap;font-weight:var(--badge-weight)}
 .tov-chip-adv{color:var(--sage-text);background:var(--sage-bg)}
 .tov-chip-stall{color:var(--accent-deep);background:var(--accent-wash)}
 /* Categorical band: three zones, productive shaded sage, a placed dot. */
@@ -74,40 +73,40 @@
   transform:translate(-50%,-50%);border:2px solid var(--card);box-shadow:var(--shadow-sm);
 }
 /* Focus well + weekly moves + latest sessions. */
-.tov-focus{margin:14px 0;padding:16px 18px 14px}
+.tov-focus{margin:var(--space-7) 0;padding:var(--space-8) var(--space-9) var(--space-7)}
 /* The focus read: a quiet surface card, the headline in the serif voice. No spine:
    tone never paints chrome. */
-.well-accent.tov-focus{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:none}
+.well-accent.tov-focus{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:none}
 .well-accent.tov-focus::before{display:none}
-.tov-focus>.lbl+p{margin:6px 0 12px;font-family:var(--font-display);font-size:1.06rem;line-height:1.28;color:var(--ink);text-wrap:balance}
-.tov-focus-title{font-weight:600;color:var(--ink);margin:4px 0 2px}
-.tov-focus-why{font-size:.82rem;color:var(--ink-2)}
-.tov-focus-move{font-size:.82rem;color:var(--ink-2);font-style:italic;margin-top:6px}
-.tov-focus-retest{font-size:.74rem;color:var(--muted);margin-top:6px}
-.tov-focus .linkbtn{margin-top:8px}
+.tov-focus>.lbl+p{margin:var(--space-3) 0 var(--space-6);font-family:var(--font-display);font-size:var(--text-lead);line-height:var(--leading-snug);color:var(--ink);text-wrap:balance}
+.tov-focus-title{font-weight:var(--weight-semibold);color:var(--ink);margin:var(--space-2) 0 var(--space-1)}
+.tov-focus-why{font-size:var(--text-sm);color:var(--ink-2)}
+.tov-focus-move{font-size:var(--text-sm);color:var(--ink-2);font-style:italic;margin-top:var(--space-3)}
+.tov-focus-retest{font-size:var(--text-xs);color:var(--muted);margin-top:var(--space-3)}
+.tov-focus .linkbtn{margin-top:var(--space-4)}
 /* The lever's why, move and re-test fold under one quiet tap. */
-.tov-focus-fold{margin-top:6px}
-.tov-focus-fold-sum{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:32px;
+.tov-focus-fold{margin-top:var(--space-3)}
+.tov-focus-fold-sum{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:var(--space-3);min-height:32px;
   font-size:var(--text-xs);color:var(--muted)}
 .tov-focus-fold-sum::-webkit-details-marker{display:none}
 .tov-focus-fold-sum::after{content:"›";transition:transform var(--dur-1) var(--ease)}
 .tov-focus-fold[open] .tov-focus-fold-sum::after{transform:rotate(90deg)}
-.tov-focus-fold-body{padding:2px 0 4px}
+.tov-focus-fold-body{padding:var(--space-1) 0 var(--space-2)}
 .tov-focus-fold[open] .tov-focus-fold-body{animation:in var(--dur-2) var(--ease) both}
 @media (prefers-reduced-motion: reduce){.tov-focus-fold[open] .tov-focus-fold-body{animation:none}}
-.jprog-card{margin:14px 0;padding:16px 18px 15px}
-.jprog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.jprog-card{margin:var(--space-7) 0;padding:var(--space-8) var(--space-9) var(--space-8)}
+.jprog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-6)}
 .jprog-title{
-  margin:4px 0 0;font-family:var(--font-display, ui-serif, Georgia, serif);
-  font-size:1.18rem;line-height:1.25;font-weight:600;color:var(--ink);
+  margin:var(--space-2) 0 0;font-family:var(--font-display, ui-serif, Georgia, serif);
+  font-size:var(--text-lg);line-height:var(--leading-snug);font-weight:var(--weight-semibold);color:var(--ink);
 }
 .jprog-chip{
   flex:none;border-radius:var(--radius-pill);background:var(--sage-bg);color:var(--sage-text);
-  font-size:.66rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
-  padding:4px 9px;
+  font-size:var(--badge-text);font-weight:var(--badge-weight);letter-spacing:var(--tracking-mono);text-transform:uppercase;
+  padding:var(--badge-pad);
 }
-.jprog-arc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:15px 0 13px}
-.jprog-step{position:relative;display:flex;flex-direction:column;gap:6px;min-width:0;color:var(--muted)}
+.jprog-arc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-4);margin:var(--space-8) 0 var(--space-7)}
+.jprog-step{position:relative;display:flex;flex-direction:column;gap:var(--space-3);min-width:0;color:var(--muted)}
 .jprog-step:not(:last-child)::after{
   content:"";position:absolute;left:15px;right:-8px;top:5px;height:2px;
   background:linear-gradient(90deg,var(--line),transparent);
@@ -121,48 +120,48 @@
 .jprog-step.active .jprog-dot{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-wash)}
 .jprog-step-label{
   display:block;min-width:0;overflow-wrap:anywhere;
-  font-size:.68rem;line-height:1.25;color:var(--ink-2);
+  font-size:var(--text-xs);line-height:var(--leading-snug);color:var(--ink-2);
 }
 .jprog-moment{
-  display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:flex-start;
-  background:var(--card-2);border-radius:var(--radius-sm);padding:12px 13px;margin-top:8px;
+  display:grid;grid-template-columns:auto 1fr;gap:var(--space-6);align-items:flex-start;
+  background:var(--card-2);border-radius:var(--radius-sm);padding:var(--space-6) var(--space-7);margin-top:var(--space-4);
 }
 .jprog-moment-mark{width:28px;height:28px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 5px color-mix(in srgb,var(--gold) 18%,transparent)}
-.jprog-moment-title,.jprog-sug-title{font-weight:650;color:var(--ink);font-size:.94rem;margin-top:2px}
-.jprog-moment-detail,.jprog-sug-reason,.jprog-sug-meta,.jprog-quiet{font-size:.8rem;line-height:1.45;color:var(--ink-2)}
-.jprog-moment-date{font-size:.72rem;color:var(--muted);margin-top:4px}
+.jprog-moment-title,.jprog-sug-title{font-weight:var(--weight-semibold);color:var(--ink);font-size:var(--text-base);margin-top:var(--space-1)}
+.jprog-moment-detail,.jprog-sug-reason,.jprog-sug-meta,.jprog-quiet{font-size:var(--text-sm);line-height:var(--leading-normal);color:var(--ink-2)}
+.jprog-moment-date{font-size:var(--text-xs);color:var(--muted);margin-top:var(--space-2)}
 .jprog-suggestion{
-  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
-  border-top:1px solid var(--line);margin-top:12px;padding-top:12px;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-6);
+  border-top:1px solid var(--line);margin-top:var(--space-6);padding-top:var(--space-6);
 }
 .jprog-suggestion .linkbtn{flex:none;margin-top:1px}
-.jprog-quiet{margin-top:8px}
+.jprog-quiet{margin-top:var(--space-4)}
 @media (max-width:520px){
-  .jprog-card{padding:14px}
-  .jprog-arc{gap:5px}
+  .jprog-card{padding:var(--space-7)}
+  .jprog-arc{gap:var(--space-3)}
   .jprog-suggestion{display:block}
-  .jprog-suggestion .linkbtn{margin-top:8px}
+  .jprog-suggestion .linkbtn{margin-top:var(--space-4)}
 }
-.tov-moves.sess{padding:0;margin:22px 0 0;background:none;border:0;border-radius:0}
-.tov-moves .lbl{display:block;margin-bottom:2px}
-.tov-move{display:flex;align-items:flex-start;gap:10px;padding:11px 2px;border-top:1px solid var(--line)}
+.tov-moves.sess{padding:0;margin:var(--space-11) 0 0;background:none;border:0;border-radius:0}
+.tov-moves .lbl{display:block;margin-bottom:var(--space-1)}
+.tov-move{display:flex;align-items:flex-start;gap:var(--space-5);padding:var(--space-6) var(--space-1);border-top:1px solid var(--line)}
 .tov-moves .lbl+.tov-move{border-top:0}
-.tov-move .tov-row-dot{margin-top:5px}
-.tov-move-main{display:flex;flex-direction:column;gap:2px;font-size:var(--text-sm);color:var(--ink)}
-.tov-move-main b{font-weight:600}
-.tov-move-why{font-size:.74rem;color:var(--muted);font-weight:400}
-.tov-recent{margin:22px 0 8px}
-.tov-recent .lbl{display:block;margin:0 0 2px}
+.tov-move .tov-row-dot{margin-top:var(--space-3)}
+.tov-move-main{display:flex;flex-direction:column;gap:var(--space-1);font-size:var(--text-sm);color:var(--ink)}
+.tov-move-main b{font-weight:var(--weight-semibold)}
+.tov-move-why{font-size:var(--text-xs);color:var(--muted);font-weight:var(--weight-regular)}
+.tov-recent{margin:var(--space-11) 0 var(--space-4)}
+.tov-recent .lbl{display:block;margin:0 0 var(--space-1)}
 .tov-sess{
-  width:100%;display:flex;align-items:center;gap:10px;text-align:left;color:inherit;font:inherit;
+  width:100%;display:flex;align-items:center;gap:var(--space-5);text-align:left;color:inherit;font:inherit;
   background:none;border:0;border-top:1px solid var(--line);border-radius:0;
-  padding:12px 2px;margin:0;box-shadow:none;
+  padding:var(--space-6) var(--space-1);margin:0;box-shadow:none;
   cursor:pointer;transition:transform var(--dur-1) var(--ease);
 }
 .tov-recent .lbl+.tov-sess{border-top:0}
-.tov-recent>.linkbtn,.tov-moves>.linkbtn{margin-top:4px}
+.tov-recent>.linkbtn,.tov-moves>.linkbtn{margin-top:var(--space-2)}
 .tov-sess:active{transform:var(--press-lg)}
-.tov-sess-name{font-weight:500;color:var(--ink);font-size:var(--text-body);flex:1;min-width:0}
+.tov-sess-name{font-weight:var(--weight-medium);color:var(--ink);font-size:var(--text-body);flex:1;min-width:0}
 .tov-sess-meta{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:var(--tracking-mono);text-transform:uppercase;color:var(--muted);white-space:nowrap}
 @media (min-width:960px){
   .tov-figs{gap:52px}
@@ -174,13 +173,13 @@
    pointing to Horizon's goal line, where the journey story and the road-ahead
    timeline live in full. The Fuel group's "Log food" line (Intake, Energy) wears
    the same shape, pointing to Today's Fuel. */
-.tov-jpoint{margin:16px 0;display:flex;align-items:center;gap:12px;min-height:44px;
-  padding:13px 16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:none;
+.tov-jpoint{margin:var(--space-8) 0;display:flex;align-items:center;gap:var(--space-6);min-height:44px;
+  padding:var(--space-7) var(--space-8);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:none;
   color:inherit;text-decoration:none;transition:transform var(--dur-1) var(--ease)}
 .tov-jpoint:active{transform:var(--press-lg)}
 .tov-jpoint-kick{flex:none;color:var(--muted)}
-.tov-jpoint-line{flex:1;min-width:0;font-family:var(--font-ui);font-size:.9rem;font-weight:600;color:var(--ink);
-  line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tov-jpoint-line{flex:1;min-width:0;font-family:var(--font-ui);font-size:var(--text-md);font-weight:var(--weight-semibold);color:var(--ink);
+  line-height:var(--leading-snug);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tov-jpoint:hover .tov-jpoint-line{color:var(--ink-2)}
 .tov-jpoint-arw{flex:none;color:var(--muted)}
 
@@ -197,17 +196,17 @@
 
 /* ---- Always-available "start training" entries (round: lead-and-start) ---- */
 /* Plan editor: per-day "Train this day" stacks above "Edit day" in the read view. */
-.prog-head-actions{display:flex;flex-direction:column;gap:6px;flex:0 0 auto;align-items:flex-end}
+.prog-head-actions{display:flex;flex-direction:column;gap:var(--space-3);flex:0 0 auto;align-items:flex-end}
 .prog-head-actions .ghostbtn{margin-top:0}
 /* Train overview: the calm "Start today's training" CTA under the week masthead. */
-.tov-start{margin:4px 0 12px}
+.tov-start{margin:var(--space-2) 0 var(--space-6)}
 /* Today's lift leads Train: the one focal point — the day's lift in the serif
    voice, its caveat quiet under it, and the one door into it. */
-.tov-today{display:flex;flex-direction:column;align-items:stretch;gap:14px;margin:4px 0 16px;
-  padding:16px 18px 18px;background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:none}
-.tov-today .strength-line{gap:6px}
-.tov-today .strength-line-t{font-family:var(--font-display);font-weight:400;font-size:1.62rem;line-height:1.14;
-  letter-spacing:-.005em;text-wrap:balance}
-.tov-today .strength-line-caveat{font-size:var(--text-sm);color:var(--ink-2);line-height:1.45}
+.tov-today{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-7);margin:var(--space-2) 0 var(--space-8);
+  padding:var(--space-8) var(--space-9) var(--space-9);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:none}
+.tov-today .strength-line{gap:var(--space-3)}
+.tov-today .strength-line-t{font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-2xl);line-height:var(--leading-tight);
+  letter-spacing:0;text-wrap:balance}
+.tov-today .strength-line-caveat{font-size:var(--text-sm);color:var(--ink-2);line-height:var(--leading-normal)}
 .tov-today .tov-start{margin:0}
 

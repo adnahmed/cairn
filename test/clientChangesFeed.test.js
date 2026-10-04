@@ -130,7 +130,9 @@ test("rows are grouped by day and print the server's words verbatim", () => {
   assert.equal(swap.querySelector(".chfeed-why"), null, "no why is printed when the server wrote none");
 
   const recovery = host.querySelector('[data-chfeed-id="7"]');
-  assert.equal(recovery.querySelector("button"), null, "no Undo when the server says it is unavailable");
+  assert.equal(recovery.querySelector("[data-chfeed-undo], [data-chfeed-hold]"), null, "no Undo when the server says it is unavailable");
+  // Every row keeps the one optional door to the conversation.
+  assert.equal(recovery.querySelector("[data-chfeed-talk]").textContent, "Talk it through");
   assert.ok(recovery.querySelector(".chfeed-outcome").classList.contains("chfeed-outcome-ok"));
   assert.equal(recovery.querySelector(".chfeed-new"), null);
 });
@@ -161,6 +163,40 @@ test("an empty feed says what would fill it, never a zero", () => {
     assert.match(empty.textContent, /When the team adjusts your training or meals/);
     assert.doesNotMatch(empty.textContent, /\b0\b|no data/i);
   }
+});
+
+const SET_ASIDE = [
+  {
+    id: 90,
+    day: "2026-09-24",
+    label: "Yesterday",
+    line: "An older draft for Back Squat was set aside: a newer review replaced it.",
+  },
+];
+
+test("drafts set aside are quiet lines after the changes: no Undo, no outcome, never news", () => {
+  const win = load();
+  const host = renderHtml(win.CairnChangesFeed.feedHtml({ ...feed(), set_aside: SET_ASIDE }), {
+    document: win.document,
+  });
+  const aside = host.querySelector(".chfeed-aside");
+  assert.ok(aside, "the set-aside group");
+  assert.equal(host.querySelector(".chfeed").lastElementChild, aside, "it closes the feed, under the changes");
+  assert.equal(aside.querySelector(".chfeed-day-label").textContent, "Set aside");
+  const rows = aside.querySelectorAll(".chfeed-aside-row");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].querySelector(".chfeed-why").textContent, SET_ASIDE[0].line);
+  assert.equal(rows[0].querySelector(".chfeed-meta").textContent, "Yesterday");
+  assert.equal(aside.querySelector("button, .chfeed-outcome, .chfeed-new, [data-chfeed-id]"), null);
+  assert.equal(host.querySelectorAll(".chfeed-day").length, 2, "not a day of changes");
+  // With no change to show, the calm empty state still stands over the line.
+  const only = renderHtml(win.CairnChangesFeed.feedHtml({ ...feed(), days: [], set_aside: SET_ASIDE }), {
+    document: win.document,
+  });
+  assert.ok(only.querySelector(".chfeed-empty"));
+  assert.equal(only.querySelectorAll(".chfeed-aside-row").length, 1);
+  assert.equal(win.CairnChangesFeed.setAsideHtml({ ...feed(), set_aside: [] }), "");
+  assert.equal(win.CairnChangesFeed.setAsideHtml(feed()), "", "an older server sends none");
 });
 
 test("the first paint staggers rows in; an in-place paint does not", () => {
@@ -320,7 +356,7 @@ test("Undo reverts once through decision-undo and repaints only the affected row
   const bench = host.querySelector('[data-chfeed-id="12"]');
   assert.ok(bench.classList.contains("is-reverted"));
   assert.ok(bench.classList.contains("is-settled"), "the changed row washes once");
-  assert.equal(bench.querySelector("button"), null, "a put-back change has no Undo left");
+  assert.equal(bench.querySelector("[data-chfeed-undo], [data-chfeed-hold]"), null, "a put-back change has no Undo left");
   assert.equal(bench.querySelector(".chfeed-outcome").textContent, "this was stopped before we could tell");
   assert.equal(host.querySelector('[data-chfeed-id="11"]'), swap, "an untouched row keeps its node");
   assert.equal(
@@ -442,7 +478,7 @@ test("Undo in the server's real order moves the put-back row within its day and 
   const put = host.querySelector('[data-chfeed-id="12"]');
   assert.ok(put.classList.contains("is-reverted"));
   assert.ok(put.classList.contains("is-settled"));
-  assert.equal(put.querySelector("button"), null);
+  assert.equal(put.querySelector("[data-chfeed-undo], [data-chfeed-hold]"), null);
   assert.equal(host.querySelectorAll(".chfeed-day").length, 2);
 });
 
@@ -462,7 +498,7 @@ test("a revert that lands but whose follow-up read fails shows the row put back,
   const bench = host.querySelector('[data-chfeed-id="12"]');
   assert.ok(bench.classList.contains("is-reverted"));
   assert.equal(bench.querySelector(".chfeed-status").textContent, "Put back");
-  assert.equal(bench.querySelector("button"), null, "no Undo left, busy or otherwise");
+  assert.equal(bench.querySelector("[data-chfeed-undo], [data-chfeed-hold]"), null, "no Undo left, busy or otherwise");
   assert.equal(host.querySelector("[aria-busy]"), null);
   assert.ok(bench.querySelector(".chfeed-new"), "this visit's New mark stays");
   assert.equal(host.querySelector('[data-chfeed-id="11"]'), swap);
@@ -518,4 +554,58 @@ test("the teardown removes the listener and stops pending paints", async () => {
   await host.querySelector("[data-chfeed-undo]").click();
   await flush();
   assert.equal(h.calls.filter((c) => c.path.endsWith("/revert")).length, 0);
+});
+
+test("a long why folds to three lines behind Read all; the row leads with the digest's arrow", () => {
+  const win = load();
+  const long = "The last three sessions ".repeat(10).trim();
+  const host = renderHtml(
+    win.CairnChangesFeed.rowHtml(change({ id: 5, title: "Raised your Bench Press target", why: long })),
+    { document: win.document }
+  );
+  const why = host.querySelector(".chfeed-why");
+  assert.equal(why.textContent, long, "the full text stays in the node");
+  assert.ok(why.classList.contains("is-folded"));
+  assert.equal(host.querySelector("[data-chfeed-more]").textContent, "Read all");
+  assert.equal(host.querySelector(".chfeed-arrow").textContent, "↑");
+  const short = renderHtml(win.CairnChangesFeed.rowHtml(change({ id: 6, title: "Lowered your Row target", why: "Short." })), {
+    document: win.document,
+  });
+  assert.ok(!short.querySelector(".chfeed-why").classList.contains("is-folded"));
+  assert.equal(short.querySelector("[data-chfeed-more]"), null);
+  assert.equal(short.querySelector(".chfeed-arrow").textContent, "↓");
+});
+
+test("a revalidate repaints the set-aside lines only when the server's list moved", async () => {
+  const win = load();
+  const host = createHost(win.document);
+  const warm = { ...feed(), since_seen: 0, set_aside: SET_ASIDE };
+  const fresh = clone(warm);
+  fresh.days[0].changes[1].status_line = "Lands Tuesday";
+  fresh.set_aside = [
+    ...SET_ASIDE,
+    { id: 91, day: "2026-09-23", label: "Wednesday", line: "An older draft for your plan was set aside: it waited too long to still fit." },
+  ];
+  const h = harness({ peek: warm, fresh: false, reads: [fresh] });
+  win.CairnChangesFeedController.mount(host, h.deps);
+  const bench = host.querySelector('[data-chfeed-id="12"]');
+  assert.equal(host.querySelectorAll(".chfeed-aside-row").length, 1);
+  await flush();
+  assert.equal(host.querySelector('[data-chfeed-id="12"]'), bench, "the changes are patched in place");
+  const rows = host.querySelectorAll(".chfeed-aside-row");
+  assert.equal(rows.length, 2);
+  assert.equal(host.querySelectorAll(".chfeed-aside").length, 1, "one group, replaced, never stacked");
+  assert.equal(host.querySelector(".chfeed").lastElementChild, host.querySelector(".chfeed-aside"));
+});
+
+test("a swap leads with its own glyph; a title with no readable verb carries no empty arrow circle", () => {
+  const win = load();
+  const swap = renderHtml(win.CairnChangesFeed.rowHtml(change({ id: 7, title: "Swapped Cable Lateral Raise for Upright Row" })), {
+    document: win.document,
+  });
+  assert.equal(swap.querySelector(".chfeed-arrow").textContent, "⇄");
+  const plain = renderHtml(win.CairnChangesFeed.rowHtml(change({ id: 8, title: "Your plan now has a test week" })), {
+    document: win.document,
+  });
+  assert.equal(plain.querySelector(".chfeed-arrow"), null);
 });

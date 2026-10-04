@@ -77,6 +77,7 @@ import { mealPlanAutoDraftEnabled } from "../../repo/meal-plan-auto-draft.js";
 import { automaticOrphanIntent, chatOrphanIntent } from "../../repo/proposal-intent.js";
 import { buildProgressionProposal } from "../../repo/progression.js";
 import { changesReduceSets } from "../../repo/volume-guard.js";
+import { settledPainPlaceReader, type SettledPainPlace } from "../../repo/injury-symptom-link.js";
 import { buildRunPlanProposal } from "../../repo/run-progression.js";
 import { capProtectiveRaise, cutReaffirmation, deriveCutTarget } from "../../repo/cut-target.js";
 import { getSettings } from "../../repo/settings.js";
@@ -2181,8 +2182,181 @@ function retireRefusedDraft(
   }
 }
 
+// ---- THE OTHER DEAD PREMISES (2026-10-02) ------------------------------------------
+//
+// A movement leaving the plan is one way a held draft loses its subject. Three more,
+// each read deterministically and each conservative — when the read is unsure, the
+// draft stays exactly where it was:
+//
+//   • A NEWER TEAM REVIEW. A case conference reconciles the athlete's whole picture, so
+//     a later conference over the same scope (training, or nutrition) has already said
+//     what the team thinks now. The older draft is the team's superseded opinion, and
+//     asking the athlete to adjudicate it beside the newer one is asking twice.
+//   • A SETTLED PAIN. A draft whose every change states its purpose as protecting a
+//     place ("cap the Pallof press to protect the healing right flank"), where that
+//     place's symptom has resolved and NOTHING open names it again — the same narrow,
+//     side-aware matcher the injury tie uses (settledPainPlaceReader). Never when an
+//     open symptom or an open injury matches; a recurrence reopens the place and the
+//     draft would not have been retired.
+//   • A PASSED WEEK. A weekly team review is written "for the week starting tomorrow";
+//     once that week is over it has no week left to shape. Only the weekly review
+//     carries a target window the server can read reliably — other drafts name day
+//     numbers on a template, never dates, so no other draft is aged out here.
+
+/** The weekly team review's question opens with this (scheduler.ts); its target week
+ * is the seven days after the day it was written. */
+export const TEAM_REVIEW_QUESTION_LEAD = "Weekly team review for the week starting tomorrow.";
+const CONFERENCE_INSTRUCTION_PREFIX = "case conference:";
+// A conference may write a protective draft off a stale reading a little after the
+// athlete has closed the symptom (it read a memory, an older note); within this many
+// days of the resolution the draft is still about that episode.
+const SETTLED_PAIN_DRAFT_ALLOWANCE_DAYS = 14;
+
+interface DraftRetirement {
+  outcome: "premise_gone" | "source_superseded";
+  why: string;
+  /** The ledger's machine reading, on the receipt's action. */
+  action_outcome: string;
+  /** Stamped onto every closed hold beside retire_reason / retired_explanation. */
+  hold_context: Record<string, unknown>;
+  action: Record<string, unknown>;
+}
+
+function isConferenceDraft(proposal: any): boolean {
+  return (
+    String(proposal?.agent ?? "") === "case_conference" &&
+    String(proposal?.instruction ?? "").startsWith(CONFERENCE_INSTRUCTION_PREFIX)
+  );
+}
+
+function conferenceScope(parsed: any): "training" | "nutrition" | null {
+  if (!parsed || typeof parsed !== "object") return null;
+  if (parsed.kind === "nutrition_target") return "nutrition";
+  if (Array.isArray(parsed.changes) || Array.isArray(parsed.days)) return "training";
+  return null;
+}
+
+function draftWrittenOn(proposal: any): string | null {
+  const created = parseDbTime(proposal?.created_at);
+  return created ? localDateISO(created) : null;
+}
+
+const RECEIPT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function receiptDay(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  return `${RECEIPT_MONTHS[Number(match[2]) - 1] ?? match[2]} ${Number(match[3])}`;
+}
+
+/** A newer conference draft over the same scope, or null. Any status: a later review
+ * that landed, was set aside, or still waits has equally replaced this one's opinion. */
+function newerConferenceReview(proposal: any): { id: number } | null {
+  if (!isConferenceDraft(proposal)) return null;
+  const scope = conferenceScope(proposal.parsed);
+  if (!scope) return null;
+  const rows = db
+    .prepare(
+      `SELECT id, parsed_json FROM plan_proposals
+        WHERE agent = 'case_conference' AND id > ? AND instruction LIKE 'case conference:%'
+        ORDER BY id DESC LIMIT 20`
+    )
+    .all(Number(proposal.id)) as any[];
+  for (const row of rows) {
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(String(row.parsed_json ?? "null"));
+    } catch {
+      continue;
+    }
+    if (conferenceScope(parsed) === scope) return { id: Number(row.id) };
+  }
+  return null;
+}
+
+/** The settled place a draft's EVERY change protects, or null (see the note above). */
+function settledPainPremise(
+  proposal: any,
+  settled: ReturnType<typeof settledPainPlaceReader>
+): SettledPainPlace | null {
+  const parsed = proposal?.parsed ?? {};
+  if (Array.isArray(parsed.days) || Array.isArray(parsed.cardio) || parsed.kind === "nutrition_target") return null;
+  const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
+  const writtenOn = draftWrittenOn(proposal);
+  if (!changes.length || !writtenOn) return null;
+  let first: SettledPainPlace | null = null;
+  for (const change of changes) {
+    // The change's STATED PURPOSE only — a note is how to run it ("any pain at the
+    // flank ends the squat"), and a gate is not a purpose.
+    const place = settled(String(change?.reason ?? ""), writtenOn, {
+      written_after_resolution_days: SETTLED_PAIN_DRAFT_ALLOWANCE_DAYS,
+    });
+    if (!place) return null;
+    first ??= place;
+  }
+  return first;
+}
+
+/** Why this held draft has nothing left to do, or null when it still has a premise. */
+function draftRetirement(
+  proposal: any,
+  settled: ReturnType<typeof settledPainPlaceReader>,
+  today: string
+): DraftRetirement | null {
+  const missing = proposalPremiseGone(proposal);
+  if (missing) {
+    const movements = missing.join(" and ");
+    const why =
+      missing.length === 1
+        ? `${movements} is no longer in your plan, so this change has nothing left to act on.`
+        : `${movements} are no longer in your plan, so this change has nothing left to act on.`;
+    return {
+      outcome: "premise_gone",
+      why,
+      action_outcome: "superseded_premise_gone",
+      hold_context: { retired_movements: missing },
+      action: { missing_movements: missing },
+    };
+  }
+  const pain = settledPainPremise(proposal, settled);
+  if (pain) {
+    const subject = pain.spoken_place ? `Your ${pain.spoken_place}` : "That pain";
+    return {
+      outcome: "premise_gone",
+      why: `${subject} settled on ${receiptDay(pain.resolved_on)}, so this protective change has nothing left to protect.`,
+      action_outcome: "superseded_pain_settled",
+      hold_context: { retired_symptom_id: pain.symptom_id, retired_place_resolved_on: pain.resolved_on },
+      action: { settled_symptom_id: pain.symptom_id, settled_on: pain.resolved_on },
+    };
+  }
+  if (isConferenceDraft(proposal) && String(proposal.instruction).includes(TEAM_REVIEW_QUESTION_LEAD)) {
+    const writtenOn = draftWrittenOn(proposal);
+    const weekEnd = writtenOn ? addDaysISO(writtenOn, 7) : null;
+    if (weekEnd && today > weekEnd) {
+      return {
+        outcome: "premise_gone",
+        why: "The week this review was written for has passed, so it has no week left to shape.",
+        action_outcome: "superseded_week_passed",
+        hold_context: { retired_week_end: weekEnd },
+        action: { week_end: weekEnd },
+      };
+    }
+  }
+  const newer = newerConferenceReview(proposal);
+  if (newer) {
+    return {
+      outcome: "source_superseded",
+      why: "A newer team review replaced this one.",
+      action_outcome: "superseded_by_newer_review",
+      hold_context: { superseded_by_proposal_id: newer.id },
+      action: { newer_proposal_id: newer.id },
+    };
+  }
+  return null;
+}
+
 /**
- * Retire ONE draft whose premise has left the plan, with the receipt a person can read.
+ * Retire ONE draft whose premise is gone, with the receipt a person can read.
  *
  * The receipt is written first, then `setProposalStatus(…, 'superseded')` retires the
  * draft AND every live `review` hold pointing at it in the same authoritative call
@@ -2190,37 +2364,32 @@ function retireRefusedDraft(
  * row would be a vaguer second one beside it). The holds are stamped BEFORE that
  * transition, so each retired row carries why it stopped asking.
  */
-function retireDraftWithDeadPremise(proposal: any, missing: string[]): void {
+function retireDraftWithDeadPremise(proposal: any, retirement: DraftRetirement): void {
   const shape = proposalShape(proposal);
-  const movements = missing.join(" and ");
-  const why =
-    missing.length === 1
-      ? `${movements} is no longer in your plan, so this change has nothing left to act on.`
-      : `${movements} are no longer in your plan, so this change has nothing left to act on.`;
   const holds = liveReviewHoldsForProposal(Number(proposal.id));
   for (const hold of holds) {
     patchBrainDecision(Number(hold.id), {
       context: {
         ...((hold.context ?? {}) as Record<string, any>),
         review_required: false,
-        retire_reason: "premise_gone",
-        retired_movements: missing,
-        retired_explanation: why,
+        retire_reason: retirement.outcome,
+        ...retirement.hold_context,
+        retired_explanation: retirement.why,
       },
     });
   }
   recordRetiredDraftReceipt({
     shape,
-    outcome: "premise_gone",
-    why,
+    outcome: retirement.outcome,
+    why: retirement.why,
     source: proposal.agent || "autonomy",
     sourceRefType: "plan_proposal",
     sourceRefKey: Number(proposal.id),
     reviewDecisionId: holds[0]?.id ?? null,
     action: {
       proposal_id: proposal.id,
-      outcome: "superseded_premise_gone",
-      missing_movements: missing,
+      outcome: retirement.action_outcome,
+      ...retirement.action,
       reason_provenance: proposalReasonProvenance(proposal),
     },
   });
@@ -2247,6 +2416,12 @@ function retireDraftsWithDeadPremise(now = Date.now()): number {
   // that is exactly the row a person is still being asked about.
   const seen = new Set<number>();
   const candidates = [...(listProposals(50) as any[]), ...(listReviewHeldProposals(50) as any[])];
+  const today = localDateISO(new Date(now));
+  // One read of the symptom/injury state for the whole pass, and only when a draft
+  // gets far enough to ask it.
+  let settled: ReturnType<typeof settledPainPlaceReader> | null = null;
+  const settledReader: ReturnType<typeof settledPainPlaceReader> = (text, writtenOn, options) =>
+    (settled ??= settledPainPlaceReader(today))(text, writtenOn, options);
   for (const proposal of candidates) {
     try {
       if (proposal?.status !== "draft") continue;
@@ -2254,9 +2429,9 @@ function retireDraftsWithDeadPremise(now = Date.now()): number {
       seen.add(Number(proposal.id));
       const createdAt = parseDbTime(proposal.created_at)?.getTime() ?? Number.NaN;
       if (!Number.isFinite(createdAt) || now - createdAt < ORPHAN_ADOPTION_GRACE_MS) continue;
-      const missing = proposalPremiseGone(proposal);
-      if (!missing) continue;
-      retireDraftWithDeadPremise(proposal, missing);
+      const retirement = draftRetirement(proposal, settledReader, today);
+      if (!retirement) continue;
+      retireDraftWithDeadPremise(proposal, retirement);
       retired += 1;
     } catch (err) {
       // Per-draft isolation: one unreadable payload must never break the sweep.

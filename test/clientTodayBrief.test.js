@@ -66,9 +66,17 @@ test("Today Brief renders calm launch and steer controls safely", () => {
   assert.match(html, /data-redirect="start-session"/);
   assert.match(html, /data-redirect="ask-session"/);
   assert.match(html, /data-override="rough night"/);
-  assert.match(html, /Next: legs &lt;tomorrow&gt;/);
-  assert.match(html, /Week 2 of 6 arc &lt;line&gt;/, "arc renders alongside forward, not discarded");
+  // Today's own Brief no longer carries the "Around today" fold: the road ahead is the
+  // Coming up rail (the Today redesign). Another date's Brief keeps it.
+  assert.doesNotMatch(html, /Next: legs|brief-around/);
   assert.doesNotMatch(html, /Push <today>|Upper <body>|Week 2 of 6 arc <line>/);
+  const other = brief.briefHtml(
+    { kind: "train", headline: "Push", forward: "Next: legs <tomorrow>", arc: "Week 2 of 6 arc <line>", signals: {} },
+    { isToday: false, showPlan: false }
+  );
+  assert.match(other, /Next: legs &lt;tomorrow&gt;/);
+  assert.match(other, /Week 2 of 6 arc &lt;line&gt;/, "arc renders alongside forward, not discarded");
+  assert.doesNotMatch(other, /Week 2 of 6 arc <line>/);
 });
 
 test("Today Brief suppresses irrelevant steer chips and exposes reset when steered", () => {
@@ -102,11 +110,13 @@ test("Today Brief shows the forward plan link on train AND done reads (not rest)
     signals: {},
   };
 
-  assert.doesNotMatch(brief.briefHtml(read, { isToday: true }), /Next: Hinge/);
-  assert.match(brief.briefHtml({ ...read, kind: "train" }, { isToday: true }), /Next: Hinge/);
+  // (Another date's Brief: today's own carries the road ahead in Coming up instead.)
+  assert.doesNotMatch(brief.briefHtml(read, { isToday: false }), /Next: Hinge/);
+  assert.match(brief.briefHtml({ ...read, kind: "train" }, { isToday: false }), /Next: Hinge/);
+  assert.doesNotMatch(brief.briefHtml({ ...read, kind: "train" }, { isToday: true }), /Next: Hinge/);
   // After the work is in, "Next: …" is the so-what that replaces the retired
   // Start-session controls — a DONE day is never a dead end.
-  const done = brief.briefHtml({ ...read, kind: "done", headline: "Long run done" }, { isToday: true });
+  const done = brief.briefHtml({ ...read, kind: "done", headline: "Long run done" }, { isToday: false });
   assert.match(done, /Next: Hinge/);
   assert.doesNotMatch(done, /Start session/);
 });
@@ -151,7 +161,8 @@ test("Today Brief renders separate recovery and calendar-block clocks with escap
       },
       signals: {},
     },
-    { isToday: true }
+    // Another date's Brief: today's carries the block clock on This week's header.
+    { isToday: false }
   );
 
   assert.match(html, /Recovery week · Day 3 of 7 · reduced volume/);
@@ -1004,7 +1015,8 @@ test("a session with logged work says Continue, carries its progress, and names 
   assert.match(html, /TRAIN DAY<\/div>/, "the kicker leaves the minutes to the NOW card");
   assert.match(html, /class="brief-now brief-now-card"/);
   assert.ok(html.indexOf("brief-session-meta") < html.indexOf("brief-launch"));
-  assert.match(html, /brief-session-line">Anchor day · Back Squat</);
+  // The anchor line is the engine's reason: it waits behind "tap to see why".
+  assert.match(html, /<div class="brief-caveats" data-brief-caveats hidden><div class="brief-caveat">Anchor day · Back Squat</);
   // The focus sentence appears exactly once — in today's lift line.
   assert.equal(html.match(/Quad-dominant strength &amp; ankle resilience/g)?.length, 1);
   assert.doesNotMatch(html, /class="brief-focus"/);
@@ -1196,9 +1208,13 @@ test("the week around the read folds behind one tap, and a started session shows
       },
     }
   );
-  assert.match(html, /<details class="brief-around">[\s\S]*Next: legs[\s\S]*<\/details>/);
-  // The connected-brain provenance is never folded away.
-  assert.ok(html.indexOf('id="briefProvenance"') > html.indexOf("</details>"), "provenance stays in view");
+  // Today's Brief no longer folds the week around it (Coming up carries the road
+  // ahead); the connected-brain provenance stays in view.
+  assert.doesNotMatch(html, /brief-around|Next: legs/);
+  assert.match(html, /id="briefProvenance"/);
+  const other = brief.briefHtml({ kind: "train", headline: "Pull", why: "", forward: "Next: legs", signals: {} }, { isToday: false });
+  assert.match(other, /<details class="brief-around">[\s\S]*Next: legs[\s\S]*<\/details>/);
+  assert.ok(other.indexOf('id="briefProvenance"') > other.indexOf("</details>"), "provenance stays in view");
   assert.match(html, /class="brief-live"/);
   assert.match(html, /Now · Pull &lt;b&gt; · 1 of 3/);
   assert.match(html, /Row 140 × 8\. Next: Curl 30 × 12\./);

@@ -483,20 +483,37 @@ test("a context tag chip flips in the same frame; the server settles it, a failu
     setAttribute: (k, v) => { attrs[k] = v; },
     addEventListener(_type, handler) { this.onclick = handler; },
   };
-  const slot = elementStub({ querySelectorAll: (sel) => (sel === "[data-tag]" ? [chip] : []) });
+  // Today shows ONE quiet line; the tags (each with what it changes) live in a sheet.
+  const opener = { addEventListener(_type, handler) { this.onclick = handler; } };
+  const slot = elementStub({ querySelector: (sel) => (sel === "[data-ctx-open]" ? opener : null) });
+  const sheets = [];
   let answer;
   const toasts = [];
   const capture = loadCapture({
     view: { querySelector: (sel) => (sel === "#tagsSlot" ? slot : null) },
     toast: (m) => toasts.push(m),
+    CairnUiSheet: {
+      open(options) {
+        sheets.push(options);
+        return { sheet: { querySelectorAll: (sel) => (sel === "[data-tag]" ? [chip] : []) } };
+      },
+    },
     api: (path) =>
       path === "/context-tags/vocab"
-        ? Promise.resolve([{ key: "travel", label: "travel" }])
+        ? Promise.resolve([{ key: "travel", label: "travel", effect: "Food targets <hold>." }])
         : path.startsWith("/context-tags?")
           ? Promise.resolve([])
           : new Promise((resolve, reject) => { answer = { resolve, reject }; }),
   });
   await capture.loadTagChips();
+  assert.match(slot.innerHTML, /Something going on today\?/);
+  assert.match(slot.innerHTML, /Tell the team/);
+  assert.doesNotMatch(slot.innerHTML, /data-tag=/, "no chip row on Today's face");
+  opener.onclick();
+  assert.equal(sheets.length, 1);
+  // Each tag says what it changes, escaped; the toggle is the same chip as before.
+  assert.match(sheets[0].html, /data-tag="travel"/);
+  assert.match(sheets[0].html, /Food targets &lt;hold&gt;\./);
   const pending = chip.onclick();
   assert.equal(names.has("tag-chip-on"), true, "on at once, before the network answers");
   assert.equal(attrs["aria-pressed"], "true");

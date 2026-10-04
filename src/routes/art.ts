@@ -11,24 +11,23 @@ import {
   regenerateArt,
   enqueueExerciseArt,
   buildExerciseArtContext,
+  exercisePoseFor,
   assetKeyFromPath,
   type ArtContext,
 } from "../art.js";
 import { getArtStats } from "../domain/operator/index.js";
 import { exerciseArtPending, findExercise } from "../domain/training/index.js";
 import { getExerciseDetail } from "../repo.js";
-import { getCachedExerciseExplanation, exercisePoseFromExplanation } from "../coachOps.js";
 
 export const artRouter = Router();
 
 function exerciseContextFor(q: string): ArtContext {
   const detail: any = getExerciseDetail(q);
   if (detail?.found) {
-    const guide: any = getCachedExerciseExplanation(q);
     return {
       muscle_group: detail.muscle_group ?? null,
       equipment: detail.equipment ?? null,
-      pose: exercisePoseFromExplanation(guide?.explanation),
+      pose: exercisePoseFor(q),
     };
   }
   return buildExerciseArtContext(q);

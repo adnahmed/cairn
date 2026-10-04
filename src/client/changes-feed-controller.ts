@@ -192,11 +192,13 @@
       const days = next.days
         .map((day) => ({ day, changes: dayChanges(day).filter((change) => CairnChangesFeed.rowHtml(change)) }))
         .filter((group) => group.changes.length);
-      if (!root || !days.length) {
+      // An empty state standing over set-aside lines has no rows to key against either.
+      if (!root || !days.length || host.querySelector(".chfeed-empty")) {
         paint(next, { enter: true });
         settle(rowEl(touched));
         return;
       }
+      const priorAside = JSON.stringify(current?.set_aside ?? []);
       current = next;
       const ids = new Set(days.flatMap((group) => group.changes.map((change) => Number(change.id))));
       for (const el of host.querySelectorAll<HTMLElement>("[data-chfeed-id]")) {
@@ -238,6 +240,12 @@
         const day = section.getAttribute("data-chfeed-day");
         if (day != null && !keptDays.has(day) && !section.querySelector(".chfeed-row")) section.remove();
       }
+      // The set-aside lines close the feed; repainted only when the server's list moved.
+      const aside = Array.from(root.children).find((el) => el.classList.contains("chfeed-aside")) ?? null;
+      if (aside && JSON.stringify(next.set_aside ?? []) === priorAside) return;
+      aside?.remove();
+      const fresh = fromHtml(CairnChangesFeed.setAsideHtml(next));
+      if (fresh) root.appendChild(fresh);
     }
 
     // The revert landed but the read after it did not: show that row as put back or
@@ -284,6 +292,21 @@
         "chfeed-undo": (el) => revert(el, "chfeed-undo"),
         "chfeed-hold": (el) => revert(el, "chfeed-hold"),
         "chfeed-retry": () => void load(),
+        // A folded why opens in place (and folds again).
+        "chfeed-more": (el) => {
+          const why = el.parentElement?.querySelector(".chfeed-why");
+          const open = el.getAttribute("aria-expanded") !== "true";
+          why?.classList.toggle("is-folded", !open);
+          el.setAttribute("aria-expanded", open ? "true" : "false");
+          el.textContent = open ? "Show less" : "Read all";
+        },
+        // "Talk it through" hands the change to chat, pre-filled with its own words.
+        "chfeed-talk": (el) => {
+          const id = Number(el.getAttribute("data-chfeed-talk"));
+          const row = flatten(current).find((entry) => Number(entry.change.id) === id)?.change;
+          if (!row || !deps.talk) return;
+          deps.talk(`Let's talk through this change: ${row.title}${row.why ? ` — ${row.why}` : ""}`);
+        },
       });
       return () => {
         generation += 1;

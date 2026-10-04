@@ -5,12 +5,14 @@ type SignalKey = string;
 interface BrainSnapshotScope {
   values: Map<SignalKey, unknown>;
   computes: Map<SignalKey, number>;
+  /** Request-scoped read memos (src/repo/request-memo.ts), each stamped with what it was read under. */
+  memos: Map<string, unknown>;
 }
 
 const als = new AsyncLocalStorage<BrainSnapshotScope>();
 
 function createScope(): BrainSnapshotScope {
-  return { values: new Map(), computes: new Map() };
+  return { values: new Map(), computes: new Map(), memos: new Map() };
 }
 
 export function runWithBrainSnapshot<T>(fn: () => T): T {
@@ -34,6 +36,11 @@ export function brainSignal<T>(key: SignalKey, compute: () => T): T {
   const value = compute();
   scope.values.set(key, value);
   return value;
+}
+
+/** The active scope's read-memo map, or null outside any snapshot (no memoization then). */
+export function activeSnapshotMemos(): Map<string, unknown> | null {
+  return als.getStore()?.memos ?? null;
 }
 
 export function invalidateBrainSnapshot(key?: SignalKey): void {

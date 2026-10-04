@@ -21,6 +21,7 @@ export const COACH_READ_TOOL_NAMES = [
   "read_life_context_window",
   "read_decision_history",
   "read_current_plan_detail",
+  "read_activity_detail",
 ] as const;
 export type CoachReadToolName = (typeof COACH_READ_TOOL_NAMES)[number];
 
@@ -50,7 +51,7 @@ export const COACH_READ_TOOL_CATALOG: Readonly<Record<CoachReadToolName, CoachRe
   read_training_window: {
     name: "read_training_window",
     description:
-      "A date-ordered event stream for the last N weeks: every session with its dose and feedback, every cardio activity (distance, duration, pace, average/max heart rate, the athlete's stated rpe), and skipped days, so consistency, volume trend, and missed work can be judged as a whole. Use it for the shape of recent training. It does not detail one exercise's sets (read_exercise_history) or the athlete's physiology (read_recovery_window).",
+      "A date-ordered event stream for the last N weeks: every session with its dose and feedback, every cardio activity (distance, duration, pace, average/max heart rate, the athlete's stated rpe, and its shape — interval bouts, walking, hills — when the watch recorded one), and skipped days, so consistency, volume trend, and missed work can be judged as a whole. Use it for the shape of recent training. It does not detail one exercise's sets (read_exercise_history) or the athlete's physiology (read_recovery_window).",
     effect: "read",
     launches_agent: false,
     exposes_sensitive_raw_data: false,
@@ -135,6 +136,17 @@ export const COACH_READ_TOOL_CATALOG: Readonly<Record<CoachReadToolName, CoachRe
     max_days: null,
     max_response_bytes: 65_536,
   },
+  read_activity_detail: {
+    name: "read_activity_detail",
+    description:
+      "ONE run or cardio activity in full, by its activity_id (from the RECENT RUNS lines or read_training_window): every lap with its time, distance, pace, grade-adjusted pace, average/max heart rate, climb and cadence; the workout's segments (warm-up, work bouts, recoveries, walking); time in each heart-rate band; running form (ground contact, vertical oscillation/ratio, stride); power, temperature, Body Battery change, the athlete's stated effort and their own HR model's read. Use it when a question turns on how a run went inside — the reps of an interval day, a fade, a hill — not for every run. No second-by-second stream or GPS track exists. found:false when the id is not an activity.",
+    effect: "read",
+    launches_agent: false,
+    exposes_sensitive_raw_data: false,
+    max_rows: 120,
+    max_days: null,
+    max_response_bytes: 65_536,
+  },
 });
 
 export type ExerciseHistoryArgs = {
@@ -151,6 +163,7 @@ export type BodyCompositionHistoryArgs = { limit: number };
 export type LifeContextWindowArgs = { start_date: string; end_date: string };
 export type DecisionHistoryArgs = { kind: BrainDecisionKind | null; subject_key: string | null; limit: number };
 export type CurrentPlanDetailArgs = { scope: "training"; day_number: number } | { scope: "meal"; day: string };
+export type ActivityDetailArgs = { activity_id: number };
 
 export type CoachReadToolRequest =
   | { tool: "read_exercise_history"; args: ExerciseHistoryArgs }
@@ -161,7 +174,8 @@ export type CoachReadToolRequest =
   | { tool: "read_body_composition_history"; args: BodyCompositionHistoryArgs }
   | { tool: "read_life_context_window"; args: LifeContextWindowArgs }
   | { tool: "read_decision_history"; args: DecisionHistoryArgs }
-  | { tool: "read_current_plan_detail"; args: CurrentPlanDetailArgs };
+  | { tool: "read_current_plan_detail"; args: CurrentPlanDetailArgs }
+  | { tool: "read_activity_detail"; args: ActivityDetailArgs };
 
 export interface CoachReadToolResult {
   tool: CoachReadToolName;
@@ -245,6 +259,10 @@ export function normalizeCoachReadToolRequest(value: unknown): CoachReadToolRequ
         return day ? { tool, args: { scope, day } } : null;
       }
       return null;
+    }
+    case "read_activity_detail": {
+      const activityId = boundedInteger(args.activity_id, 1, Number.MAX_SAFE_INTEGER);
+      return activityId ? { tool, args: { activity_id: activityId } } : null;
     }
   }
 }

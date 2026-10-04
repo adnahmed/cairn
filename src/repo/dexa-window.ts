@@ -52,7 +52,8 @@ export function dexaRescanWindow(baseline: string | null | undefined): DexaResca
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function shortDate(isoDate: string): string {
+// "Nov 16" — the short month-day the re-scan window and the checkup visit both print.
+export function shortDate(isoDate: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
   if (!m) return isoDate;
   const month = MONTHS[Number(m[2]) - 1] ?? m[2];

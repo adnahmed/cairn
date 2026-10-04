@@ -41,6 +41,7 @@ import { weeklyTonnage, weeklyKm } from "./program-state.js";
 // imports upward and the name stays a single source of truth.
 import { DAY_READ_ADHERENCE_METRIC, dayReadCallFromVerdict } from "./brain/read-adherence.js";
 import { currentTrainingDataVersion, registerTrainingCacheClear } from "./training-cache.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 // Rollback-as-evidence (W3.2): brain_rollbacks was written on every reversible
 // decision but never read back as a signal about the decision KIND itself. See
 // rollbackEvidenceByKind's doc comment for why this stays a small standalone
@@ -1960,6 +1961,18 @@ function personalResponseBackstop(): string {
 // Cached raw model (modifiers unfiltered by dispute) — shared by the public,
 // filtered read below and the belief-inspection listing.
 function cachedWhatWorksForYouRaw(): CoachWhatWorksForYou | null {
+  // Request-memoized over the process memo below (one Today open reads the model ~25
+  // times, each a ledger backstop query and a structuredClone). Keyed by what that
+  // memo's key holds that the request memo does not already: the local date and the
+  // in-process training write counter.
+  return requestMemo(
+    `what_works_for_you_raw:${localDateISO()}:${currentTrainingDataVersion()}`,
+    whatWorksForYouRawCached,
+    copyDeep
+  );
+}
+
+function whatWorksForYouRawCached(): CoachWhatWorksForYou | null {
   const today = localDateISO();
   const key = `${currentTrainingDataVersion()}|${today}|${trainingSymptomOnRecord(today) ? 1 : 0}|${personalResponseBackstop()}`;
   if (whatWorksCache && whatWorksCache.key === key) {

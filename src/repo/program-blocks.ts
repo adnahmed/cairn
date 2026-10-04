@@ -27,6 +27,7 @@ import {
   type ResolvedTrainingIntent,
   type TrainingIntent,
 } from "./training-intent.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 // ---- allowed enum values ----
 const VALID_FOCUS = ["strength", "hypertrophy", "endurance-base", "peak"] as const;
@@ -262,8 +263,11 @@ function recordBlockDecision(block: ProgramBlock): void {
  * Return the single active block, or null when no block is in progress.
  */
 export function getActiveBlock(): ProgramBlock | null {
-  return hydrateBlock(
-    db.prepare("SELECT * FROM program_blocks WHERE status = 'active' ORDER BY id DESC LIMIT 1").get()
+  return requestMemo(
+    "program_block:active",
+    () =>
+      hydrateBlock(db.prepare("SELECT * FROM program_blocks WHERE status = 'active' ORDER BY id DESC LIMIT 1").get()),
+    copyDeep
   );
 }
 

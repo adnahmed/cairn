@@ -8,6 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { brotliCompressSync } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -94,5 +95,12 @@ test("CSS minification keeps every load-bearing space, string and url", () => {
 test("the committed stylesheet is the minified partials", () => {
   const committed = readFileSync(path.join(root, "public/styles.css"), "utf8");
   assert.equal(committed, renderStyles());
-  assert.ok(committed.length < 470_000, "comments and indentation are not shipped");
+  // Asserted directly rather than by byte count: the partials read their scales as
+  // var(--space-5)-style tokens (docs/DESIGN.md "Tokens"), which grows the raw file
+  // while brotli — what ships — barely moves. Only the GENERATED banner is a comment.
+  const body = committed.replace(/^\/\*[\s\S]*?\*\/\n?/, "");
+  assert.doesNotMatch(body, /^[ \t]+\S/m, "indentation is not shipped");
+  assert.doesNotMatch(body, /\/\*(?!\*\/)/, "comments are not shipped");
+  // The size guard measures what ships: brotli (61.6 KB when the tokens landed).
+  assert.ok(brotliCompressSync(committed).length < 72_000, "the shipped stylesheet stays under 72 KB brotli");
 });

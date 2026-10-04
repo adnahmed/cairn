@@ -14,12 +14,20 @@
 import { weeklyRunPlan } from "./run-progression.js";
 import { getRunCompliance, runComplianceInWords, runComplianceWeekStart, type RunCompliance } from "./sessions.js";
 import { dayEpoch, isoDay, mondayOf } from "../lib/dates.js";
+import { copyDeep, registerMemoGuard, requestMemo } from "./request-memo.js";
 
 let composing = false;
+let composingReads = 0;
+registerMemoGuard(() => ({ active: composing, reads: composingReads }));
 
 export function runComplianceRead(dateISO?: string): RunCompliance {
   const weekStart = runComplianceWeekStart(dateISO ? weekStartOf(dateISO) : undefined);
+  return requestMemo(`run_compliance:${weekStart}`, () => runComplianceReadFor(weekStart), copyDeep);
+}
+
+function runComplianceReadFor(weekStart: string): RunCompliance {
   const actuals = getRunCompliance(weekStart);
+  composingReads++;
   if (composing) return actuals;
   composing = true;
   let live: ReturnType<typeof weeklyRunPlan> | null = null;

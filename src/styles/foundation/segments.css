@@ -1,17 +1,17 @@
 /* -------------------------------------------------------------------
    10 · Segmented sub-nav
    ------------------------------------------------------------------- */
-.seg{display:flex;gap:2px;background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--radius-pill);padding:3px;margin:2px 0 16px;position:relative;
+.seg{display:flex;gap:var(--space-1);background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius-pill);padding:var(--space-2);margin:var(--space-1) 0 var(--space-8);position:relative;
   overflow-x:auto;overflow-y:hidden;scroll-behavior:smooth;
   scrollbar-width:none;-ms-overflow-style:none}
 .seg::-webkit-scrollbar{display:none}
 /* Standalone pill groups wrap naturally and never inherit segmented-nav clipping. */
-.pill-group{display:flex;flex-wrap:wrap;gap:6px;background:transparent;border:none;padding:0;overflow:visible}
+.pill-group{display:flex;flex-wrap:wrap;gap:var(--space-3);background:transparent;border:none;padding:0;overflow:visible}
 .segbtn{
   flex:1;background:transparent;border:none;color:var(--ink2);
-  font-family:var(--font-ui);font-weight:500;letter-spacing:0;text-transform:none;
-  font-size:var(--text-sm);padding:7px 4px;border-radius:var(--radius-pill);white-space:nowrap;
+  font-family:var(--font-ui);font-weight:var(--weight-medium);letter-spacing:0;text-transform:none;
+  font-size:var(--text-sm);padding:var(--space-4) var(--space-2);border-radius:var(--radius-pill);white-space:nowrap;
   transition:background var(--dur-1) var(--ease),color var(--dur-1) var(--ease);position:relative;z-index:1;
 }
 .segbtn.active{background:var(--ink);color:var(--on-ink)}
@@ -22,7 +22,7 @@
    pills on one scrollable line. The sliding thumb assumes equal widths, so it
    yields to the solid active-pill background here. */
 .seg.seg-scroll{scroll-snap-type:x proximity}
-.seg.seg-scroll .segbtn{flex:0 0 auto;padding-left:13px;padding-right:13px;scroll-snap-align:center}
+.seg.seg-scroll .segbtn{flex:0 0 auto;padding-left:var(--space-7);padding-right:var(--space-7);scroll-snap-align:center}
 .seg.seg-scroll .seg-thumb{display:none}
 .seg.seg-scroll.seg-sliding .segbtn.active{background:var(--ink);color:var(--on-ink)}
 /* A rail that scrolls never looks clipped: the edge with more behind it fades out
@@ -51,7 +51,7 @@
    Sits below the tab bar / save bar / overlays in the z-stack (z:30 < 40+). */
 .segwrap{
   position:sticky;top:env(safe-area-inset-top,0px);z-index:var(--z-pinned);
-  margin:0 calc(-1 * var(--gutter)) 16px;padding:6px var(--gutter);
+  margin:0 calc(-1 * var(--gutter)) 16px;padding:var(--space-3) var(--gutter);
   background:color-mix(in srgb,var(--ground) 88%,transparent);
   backdrop-filter:blur(14px) saturate(1.1);-webkit-backdrop-filter:blur(14px) saturate(1.1);
 }

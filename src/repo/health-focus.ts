@@ -15,6 +15,7 @@ import { listWeight } from "./profile.js";
 import { dailyManualWeighIns } from "./bodyweight.js";
 import { localDateISO } from "./shared.js";
 import { injuryClosuresOn } from "./injury-symptom-link.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 // ============================================================================
 // HEALTH FOCUS — the prioritization/synthesis substrate (elite-coach layer).
@@ -102,6 +103,10 @@ export interface HealthFocus {
 }
 
 export function healthFocus(): HealthFocus {
+  return requestMemo("health_focus", healthFocusRead, copyDeep);
+}
+
+function healthFocusRead(): HealthFocus {
   const { markers: rankedMarkers } = prioritizeMarkers(); // ordered: flagged-first then furthest-from-optimal
   // Judge HRV / Resting HR on the SAME week the directive engine reads (wearableWeeklyMarkerRead
   // above) — a single night never drives this surface's tier/status either.

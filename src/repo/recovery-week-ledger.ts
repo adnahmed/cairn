@@ -1,6 +1,7 @@
 import { db } from "../db.js";
 import { getAppState, setAppState, setAppStateStrict } from "./app-state.js";
 import { addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 
 export const RECOVERY_WEEK_INSTRUCTION_PREFIX = "Reshape next week into a RECOVERY";
 export const RECOVERY_WEEK_ACTIVE_DAYS = 7;
@@ -68,6 +69,10 @@ function appliedProposal(stamp: RecoveryWeekStamp): any | null {
 }
 
 function recoveryWeekLedger(): ActiveRecoveryWeekLedger | null {
+  return requestMemo("recovery_week_ledger", recoveryWeekLedgerRead, copyDeep);
+}
+
+function recoveryWeekLedgerRead(): ActiveRecoveryWeekLedger | null {
   const stampRow = db
     .prepare(`SELECT value, updated_at FROM app_state WHERE key = ?`)
     .get(RECOVERY_WEEK_APPLIED_KEY) as any;

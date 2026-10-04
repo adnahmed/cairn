@@ -427,12 +427,29 @@ function zoneNameTrustworthy(name: string): boolean {
   return true;
 }
 
+// The unpersonalized zone a marker name matches. A pure function of the lowercased name
+// over the constant tables above, so it is remembered per name (a health read matches
+// the same few hundred names thousands of times); personalization stays per call.
+const ZONE_FOR_NAME_LIMIT = 4000;
+const zoneForName = new Map<string, OptimalZone | null>();
+
 // `profile` (optional) personalizes the sex/age-dependent bands (testosterone,
 // estradiol, ferritin, body fat, eGFR). Omitted → the male/generic default, so every
 // existing caller is byte-for-byte unchanged; the connected-brain paths thread the
 // athlete's profile through so a woman/older adult isn't held to a male band.
 export function matchOptimalZone(name: string, profile?: ZoneProfile | null): OptimalZone | null {
   const n = String(name ?? "").toLowerCase();
+  let best = zoneForName.get(n);
+  if (best === undefined) {
+    best = unpersonalizedZone(n);
+    if (zoneForName.size >= ZONE_FOR_NAME_LIMIT) zoneForName.clear();
+    zoneForName.set(n, best);
+  }
+  if (!best) return null;
+  return personalizeZone(best, profile);
+}
+
+function unpersonalizedZone(n: string): OptimalZone | null {
   // A ratio / urine / pattern / free-T / lipoprotein-subfraction name must not be held
   // to a serum concentration band it was never measured against (the clinically-wrong
   // directive guard). Checked first so nothing downstream sees a mis-routed zone.
@@ -455,8 +472,7 @@ export function matchOptimalZone(name: string, profile?: ZoneProfile | null): Op
   // non-morning cortisol must not be held to their serum morning-draw bands.
   if (suppressCalciumZone(n, best)) return null;
   if (suppressNonMorningCortisolZone(n, best)) return null;
-  if (!best) return null;
-  return personalizeZone(best, profile);
+  return best;
 }
 
 // Distance from the optimal band, normalized 0..1 by the band's own width

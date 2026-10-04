@@ -11,7 +11,7 @@ import { recoverChatTurns, abortAllTurns } from "./chatTurns.js";
 import { recoverAgentJobs, abortAllJobs } from "./agentJobs.js";
 import { recoverDicomImports } from "./dicomImports.js";
 import { startBrainReviewJobSubscriber } from "./brainReviewJobs.js";
-import { warmArt } from "./art.js";
+import { REPAIRED_ART_WARM_PER_BOOT, repairMisfiledArtAliasesOnce, warmArt } from "./art.js";
 import { maybeScheduleAgentCliAutoUpdate } from "./agentCliUpdates.js";
 import { authGuard, authEnabled, requireAuth, authStartupError, rateLimitGuard, rateLimitEnabled, tokenMatches, checkRateLimit } from "./auth.js";
 import { setAgentRunSink, loadAgents, invalidateAgentConfigured, warmAgentProbes } from "./agents.js";
@@ -250,7 +250,13 @@ const server = app.listen(PORT, HOST, () => {
   // immediately. requestArt() no-ops without a Gemini key / art_enabled.
   setTimeout(() => {
     try {
-      const { queued, skipped } = warmArt();
+      // First: forget the aliases that drew one thing as another, so the warm-up
+      // below re-resolves them (once per database; see repairMisfiledArtAliases).
+      const repaired = repairMisfiledArtAliasesOnce();
+      if (repaired) log.info("[art] misfiled aliases dropped", repaired);
+      // Un-aliased food/activity queries are queued a few per boot; the rest resolve
+      // lazily when a screen asks for them.
+      const { queued, skipped } = warmArt({ repairedCap: REPAIRED_ART_WARM_PER_BOOT });
       if (queued > 0) log.info(`[art] cache warm-up: queued ${queued}, skipped ${skipped}`);
     } catch (err) {
       log.warn("[art] cache warm-up failed", { error: err });

@@ -9,6 +9,7 @@
   type BrainChanges = import("../contracts/brain-changes.js").ClientBrainChanges;
   type BrainChange = import("../contracts/brain-changes.js").ClientBrainChange;
   type BrainChangeDay = import("../contracts/brain-changes.js").ClientBrainChangeDay;
+  type BrainSetAside = import("../contracts/brain-changes.js").ClientBrainSetAside;
 
   type ChangesFeedRowOptions = {
     /** Stagger index for the first-paint `.reveal` entrance; omitted means no entrance. */
@@ -60,6 +61,26 @@
     const stone = DOMAIN_STONE[text(change.domain).toLowerCase()];
     return `<span class="dot chfeed-dot${stone ? ` stone-${stone}` : " is-team"}" aria-hidden="true"></span>`;
   }
+
+  // The same row grammar as Today's overnight digest (today-digest-client.ts): an arrow
+  // in a small circle leads the title. Its direction is read off the server's own verb
+  // ("Raised…", "Lowered…") and is decoration only (aria-hidden) — the title says it.
+  const ARROW_VERBS: Array<[RegExp, string, string]> = [
+    [/^(raised|added)\b/i, "↑", "is-up"],
+    [/^(lowered|trimmed|eased)\b/i, "↓", "is-down"],
+    [/^held\b/i, "=", "is-same"],
+    [/^(reshaped|rotated|moved|adjusted)\b/i, "↔", "is-range"],
+    [/^(swapped|replaced|substituted)\b/i, "⇄", "is-range"],
+  ];
+
+  function arrowHtml(title: string): string {
+    const hit = ARROW_VERBS.find(([pattern]) => pattern.test(title));
+    // No verb the row can read: no glyph at all, never an empty circle with a dot in it.
+    return hit ? `<span class="tdg-arrow chfeed-arrow ${hit[2]}" aria-hidden="true">${hit[1]}</span>` : "";
+  }
+
+  // A long why folds to three lines with "Read all"; the full text stays in the node.
+  const WHY_FOLD_CHARS = 180;
 
   function text(value: unknown): string {
     return typeof value === "string" ? value.trim() : "";
@@ -117,12 +138,19 @@
       !options.enter && options.index != null ? ` style="--i:${Math.max(0, Math.trunc(options.index))}"` : "";
     const why = text(change.why);
     const fresh = change.new === true ? `<span class="chfeed-new">New</span>` : "";
+    const folds = why.length > WHY_FOLD_CHARS;
+    const whyHtml = why
+      ? `<p class="chfeed-why${folds ? " is-folded" : ""}">${escHtml(why)}</p>${
+          folds ? `<button class="linkbtn-quiet chfeed-more" type="button" data-chfeed-more aria-expanded="false">Read all</button>` : ""
+        }`
+      : "";
+    const talk = `<button class="linkbtn-quiet chfeed-talk" type="button" data-chfeed-talk="${escAttr(change.id)}">Talk it through</button>`;
     return `<li class="${classes.join(" ")}" data-chfeed-id="${escAttr(change.id)}"${stagger}>
-      <div class="chfeed-head">${dotHtml(change)}<p class="chfeed-title">${escHtml(title)}</p>${fresh}</div>
-      ${why ? `<p class="chfeed-why">${escHtml(why)}</p>` : ""}
+      <div class="chfeed-head">${dotHtml(change)}${arrowHtml(title)}<p class="chfeed-title">${escHtml(title)}</p>${fresh}</div>
+      ${whyHtml}
       ${outcomeHtml(change)}
       ${metaHtml(change)}
-      ${undoHtml(change)}
+      <div class="chfeed-acts">${undoHtml(change)}${talk}</div>
     </li>`;
   }
 
@@ -154,7 +182,30 @@
     });
   }
 
-  /** The whole feed: day groups, newest first, or the calm empty state. */
+  /**
+   * Drafts the team set aside: housekeeping, not changes — nothing moved, so no Undo,
+   * no outcome, no "New". One quiet line each under the changes, in the server's own
+   * finished words. "" when there are none.
+   */
+  function setAsideHtml(data: BrainChanges | null | undefined): string {
+    const rows = (data && Array.isArray(data.set_aside) ? data.set_aside : [])
+      .map((row: BrainSetAside) => {
+        const line = text(row?.line);
+        if (!line) return "";
+        const when = text(row.label);
+        return `<li class="chfeed-aside-row" data-chfeed-aside="${escAttr(row.id)}"><p class="chfeed-why">${escHtml(line)}</p>${
+          when ? `<p class="chfeed-meta">${escHtml(when)}</p>` : ""
+        }</li>`;
+      })
+      .filter(Boolean);
+    if (!rows.length) return "";
+    return `<section class="chfeed-aside" aria-label="Drafts set aside">
+      <h2 class="lbl chfeed-day-label">Set aside</h2>
+      <ul class="chfeed-aside-rows">${rows.join("")}</ul>
+    </section>`;
+  }
+
+  /** The whole feed: day groups, newest first, or the calm empty state; set-aside drafts last. */
   function feedHtml(data: BrainChanges | null | undefined, options: ChangesFeedOptions = {}): string {
     const days = data && Array.isArray(data.days) ? data.days : [];
     let start = 0;
@@ -165,7 +216,9 @@
         return out;
       })
       .join("");
-    return html ? `<div class="chfeed">${html}</div>` : emptyHtml();
+    const aside = setAsideHtml(data);
+    if (html) return `<div class="chfeed">${html}${aside}</div>`;
+    return aside ? `${emptyHtml()}<div class="chfeed">${aside}</div>` : emptyHtml();
   }
 
   /** A calm one-sentence failure with a way to try again; the surface is otherwise untouched. */
@@ -178,6 +231,7 @@
 
   const CAIRN_CHANGES_FEED = {
     feedHtml,
+    setAsideHtml,
     rowHtml,
     dayShellHtml,
     dayLabel,

@@ -10,6 +10,7 @@ import { personalRunReadForRow, runLengthBars, usablePersonalHrModel } from "./r
 import { CARDIO_GRADE } from "./heavy-load.js";
 import { isStatedEasyRpe } from "./stated-effort.js";
 import { addDaysISO, daysBetweenISO, localDateISO } from "./shared.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 import { mondayOf } from "../lib/dates.js";
 import {
   getEnduranceSchedule,
@@ -390,7 +391,9 @@ function cardioConflictDates(start: string, through: string): Set<string> {
                 MAX(g.avg_hr) AS avg_hr,
                 MAX(COALESCE(g.moving_min, g.duration_min)) AS hr_minutes,
                 MAX(g.name) AS g_name,
-                MAX(g.hr_zones_json) AS zones
+                MAX(g.hr_zones_json) AS zones,
+                MAX(g.structure_json) AS structure,
+                MAX(g.laps_json) AS laps
            FROM activities a
            LEFT JOIN garmin_activities g ON g.activity_id = a.id
           WHERE a.date >= ? AND a.date <= ?
@@ -465,6 +468,29 @@ function adjustedByPlan(plan: WeeklyRunPlan, run: RunPlanPrescription, weekStart
 }
 
 export function flexibleTrainingAgenda(
+  date?: string,
+  opts?: {
+    runPlan?: WeeklyRunPlan | null;
+  }
+): FlexibleTrainingAgenda {
+  // Request-memoized when the pass reads its own run plan (one Today open asks for the
+  // same day's agenda about ten times). A threaded-in run plan is an object the key
+  // cannot name, so that pass always computes. Keyed by the local date as well as the
+  // day the agenda is for, since the morning decision beneath it reads both.
+  if (opts?.runPlan === undefined) {
+    const asOf = date || localDateISO();
+    const today = localDateISO();
+    if (typeof asOf === "string")
+      return requestMemo(
+        `flexible_training_agenda:${asOf}:${today}`,
+        () => flexibleTrainingAgendaRead(date, opts),
+        copyDeep
+      );
+  }
+  return flexibleTrainingAgendaRead(date, opts);
+}
+
+function flexibleTrainingAgendaRead(
   date?: string,
   opts?: {
     runPlan?: WeeklyRunPlan | null;

@@ -23,6 +23,7 @@ import { programBalance } from "./progression.js";
 import { liftDows } from "./strength-schedule.js";
 import { registerHybridForwardProjection } from "./training-read.js";
 import { daysBetweenISO, joinList, localDateISO } from "./shared.js";
+import { copyDeep, copyRows, memoKey, requestMemo } from "./request-memo.js";
 
 export interface PlanDayCandidate {
   id: number;
@@ -130,6 +131,10 @@ export function planDayCandidates(): PlanDayCandidate[] {
 }
 
 function sessionGroups(sessionId: number): MuscleGroup[] {
+  return requestMemo(`session_groups:${String(sessionId)}`, () => sessionGroupsRead(sessionId), copyRows);
+}
+
+function sessionGroupsRead(sessionId: number): MuscleGroup[] {
   const rows = db
     .prepare(
       `SELECT DISTINCT e.name AS exercise, e.muscle_group AS muscle_group
@@ -212,6 +217,12 @@ export function resolveSessionPlanDay(
 }
 
 function recentSessionAnchors(date: string, candidates: PlanDayCandidate[]): SessionAnchor[] {
+  const key = memoKey([date, candidates]);
+  if (key == null) return recentSessionAnchorsRead(date, candidates);
+  return requestMemo(`recent_session_anchors:${key}`, () => recentSessionAnchorsRead(date, candidates), copyDeep);
+}
+
+function recentSessionAnchorsRead(date: string, candidates: PlanDayCandidate[]): SessionAnchor[] {
   const rows = db
     .prepare(
       `SELECT s.id AS id, s.date AS date, s.plan_day_id AS plan_day_id
@@ -537,6 +548,14 @@ export function weekdayPlanDayMap<T extends WeekdayMappablePlanDay>(
  * order rather than inventing Mon=Day1 weekdays.
  */
 export function thisWeekPlanDayMap(date = localDateISO()): {
+  map: Map<number, PlanDayCandidate>;
+  lift_dows: number[];
+  strength_start: number;
+} {
+  return requestMemo(`this_week_plan_day_map:${date}`, () => thisWeekPlanDayMapRead(date), copyDeep);
+}
+
+function thisWeekPlanDayMapRead(date: string): {
   map: Map<number, PlanDayCandidate>;
   lift_dows: number[];
   strength_start: number;

@@ -9,7 +9,14 @@ import { listContextEvents } from "./health.js";
 import { measuredRmrAssessment } from "./metabolism.js";
 import { getProfile, KCAL_PER_LB, projectGoalPace } from "./profile.js";
 import { LB_PER_KG, addDaysISO, localDateISO } from "./shared.js";
-import { foodBackstopSignature, registerTrainingCacheClear, trainingBackstopSignature } from "./training-cache.js";
+import {
+  currentFoodDataVersion,
+  currentTrainingDataVersion,
+  foodBackstopSignature,
+  registerTrainingCacheClear,
+  trainingBackstopSignature,
+} from "./training-cache.js";
+import { copyDeep, requestMemo } from "./request-memo.js";
 import { canonicalBodyweightSeries, resolvedCurrentBodyweight } from "./bodyweight.js";
 import { completedIntakeWindow } from "./intake-window.js";
 import { robustWeightEvidence } from "./weight-evidence.js";
@@ -191,6 +198,24 @@ export function estimateExpenditure(
   const normalizedWindow = normalizeWindowDays(windowDays);
   const syncMeasuredRmr = opts.syncMeasuredRmr !== false;
   const asOf = typeof opts.asOf === "string" && opts.asOf.trim() ? opts.asOf.trim() : localDateISO();
+  // Request-memoized on top of the single-slot process memo below: a Today open asks for
+  // the 21- and the 28-day windows alternately, which evict each other there every time.
+  // Keyed by every argument plus the local date and the two in-process write counters
+  // the process memo keys on (a write the odometer sees moves those too).
+  const rmr = syncMeasuredRmr ? "sync-rmr" : "read-rmr";
+  const versions = `${currentTrainingDataVersion()}|${currentFoodDataVersion()}`;
+  return requestMemo(
+    `expenditure:${normalizedWindow}|${rmr}|${asOf}|${localDateISO()}|${versions}`,
+    () => estimateExpenditureCached(normalizedWindow, syncMeasuredRmr, asOf),
+    copyDeep
+  );
+}
+
+function estimateExpenditureCached(
+  normalizedWindow: number,
+  syncMeasuredRmr: boolean,
+  asOf: string
+): ExpenditureEstimate {
   const key = `${normalizedWindow}|${syncMeasuredRmr ? "sync-rmr" : "read-rmr"}|${asOf}|${trainingBackstopSignature()}|${foodBackstopSignature()}`;
   if (expenditureCache && expenditureCache.key === key) return structuredClone(expenditureCache.value);
   const value = computeExpenditure(normalizedWindow, { syncMeasuredRmr, asOf });

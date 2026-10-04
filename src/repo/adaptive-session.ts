@@ -13,6 +13,7 @@ import { db } from "../db.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
 import { getAgentJob } from "./chat.js";
 import { isKnownBodyweightMovement, normalizedExerciseKey } from "./exercise-canon.js";
+import { exerciseInputFor } from "./exercise-input.js";
 import { findExercise, recentWorkingSeconds, recentWorkingWeight } from "./exercises.js";
 import { getPlanDay } from "./plan.js";
 import { selectedPlanDayForDate } from "./plan-selection.js";
@@ -707,13 +708,21 @@ function normalizeItem(
   }
 
   const mode = core.mode as "reps" | "timed";
+  // A mobility drill or stretch is prescribed as reps or a hold, never against a load
+  // (repo/exercise-input.ts). An agent's load target or heavier top set on one is
+  // dropped here; the athlete can still log a weight through the card's "+ Load".
+  const agentMobility = agentSource && exerciseInputFor(exercise, mode).profile === "mobility";
   const targetSeconds =
     mode === "timed" && core.target_seconds != null
       ? resolveAgentSeconds(exercise, core.target_seconds, agentSource, trustedAgentNormalized)
       : null;
   // Timed work may carry a load (lb × time); it resolves through the same load trust boundary.
-  const targetWeight = resolveAgentWeight(exercise, item.target_weight, agentSource, athleteSource, trustedAgentNormalized);
-  const topSet = normalizeTopSet(item.top_set, exercise, agentSource, athleteSource, trustedAgentNormalized);
+  const targetWeight = agentMobility
+    ? null
+    : resolveAgentWeight(exercise, item.target_weight, agentSource, athleteSource, trustedAgentNormalized);
+  const topSet = agentMobility
+    ? null
+    : normalizeTopSet(item.top_set, exercise, agentSource, athleteSource, trustedAgentNormalized);
   return {
     position,
     kind,
@@ -1068,8 +1077,15 @@ function hydrate(row: any) {
               const record = item as Record<string, unknown>;
               const decisionId = boundedNumber(record.brain_decision_id, 1, Number.MAX_SAFE_INTEGER, true);
               const decisionStillApplied = decisionId == null || appliedDecisionIds.has(decisionId);
+              // What the card's log row asks for, read live (a stated override made
+              // after the composition was written still lands). Strength items only.
+              const input =
+                record.kind !== "cardio" && typeof record.exercise === "string" && record.exercise.trim()
+                  ? exerciseInputFor(record.exercise, typeof record.mode === "string" ? record.mode : null)
+                  : null;
               return {
                 ...record,
+                ...(input ? { input } : {}),
                 note: dedupeStartLight(record.note),
                 brain_decision_id: decisionStillApplied ? decisionId : null,
                 brain_change_summary: decisionStillApplied

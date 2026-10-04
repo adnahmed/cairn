@@ -95,6 +95,7 @@ const EXERCISE_ENRICH_SCHEMA = `{
   "canonical": "<the clean, canonical Title-Case name of THIS SAME movement (fix casing/typos/junk, keep the implement + angle); return it unchanged if already clean>",
   "muscle_group": "<primary muscle group, ONE of: chest, back, shoulders, biceps, triceps, quads, hamstrings, glutes, calves, core, forearms, rear delts, mobility — or null if genuinely unclear>",
   "mode": "reps|timed",
+  "per_side": <true when it is done one side at a time and dosed per side (single-arm row, split squat, couch stretch, World's Greatest Stretch), false when both sides work together, null if unclear>,
   "equipment": "<short phrase for the main implement, e.g. 'a cable machine', 'a barbell', 'dumbbells', 'a resistance band', 'bodyweight' — or null if unclear>",
   "garmin_category": "<the CATEGORY of the ONE candidate below that is this same movement, copied EXACTLY — or null if none of them is>",
   "garmin_exercise": "<that candidate's EXERCISE, copied EXACTLY, or null when the candidate has none / only the category fits>"
@@ -132,7 +133,8 @@ Classify this single movement so the app can file it cleanly. Do NOT invent or s
 RULES:
 - "canonical": the cleanest real Title-Case name of THIS SAME movement — fix casing, typos, and junk words, but keep the implement and angle. If the name is already clean, return it unchanged. NEVER change it into a different movement.
 - "muscle_group": the primary muscle group it trains, from the allowed list, or null if genuinely unclear.
-- "mode": "timed" for a held position measured in seconds (plank, dead hang, wall sit, a stretch); "reps" for anything counted in reps.
+- "mode": "timed" for a held position measured in seconds (plank, dead hang, wall sit, a static stretch like a couch stretch or pigeon); "reps" for anything counted in reps — including controlled-rep mobility drills (CARs, ankle rockers, World's Greatest Stretch, 90/90 hip switches).
+- "per_side": true only when each side is worked separately and the dose is counted per side.
 - "equipment": a short phrase naming the main implement, or null if unclear.
 - "garmin_category" / "garmin_exercise": the movement's slot in the watch's own exercise taxonomy, so a session logged here reads correctly on the watch.
   • You MUST copy a category/exercise pair VERBATIM from GARMIN_CANDIDATES below. NEVER invent, translate, abbreviate or reword an enum — an unknown value is rejected outright.

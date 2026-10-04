@@ -4,7 +4,12 @@
 type TodayExerciseCardOptions = {
   day?: unknown;
   exModes?: Record<string, unknown> | null | undefined;
+  // exercise name → its server-derived input profile (GET /exercises `input`).
+  exInputs?: Record<string, unknown> | null | undefined;
 };
+
+type TodayCardInputProfile = "loaded" | "bodyweight" | "mobility";
+type TodayCardInput = { profile: TodayCardInputProfile; per_side: boolean };
 
 type TodayExerciseItem = Record<string, unknown>;
 type TodayLoggedSet = Record<string, unknown>;
@@ -31,6 +36,48 @@ function todayCardsExTimed(
   const exercise = todayString(item.exercise);
   if (exercise && exModes?.[exercise] === "timed") return true;
   return (Array.isArray(logged) ? logged : []).some((set) => todayRecord(set).duration_sec != null);
+}
+
+// What this card's log row asks for (server: src/repo/exercise-input.ts). The
+// composition item's own `input` wins (read live with the composition), then the
+// exercise list's; with neither, the card keeps the full loaded row it always had.
+function todayCardsInput(item: TodayExerciseItem, options: TodayExerciseCardOptions): TodayCardInput {
+  const pick = (value: unknown): TodayCardInput | null => {
+    const record = todayRecord(value);
+    const profile = record.profile;
+    if (profile !== "loaded" && profile !== "bodyweight" && profile !== "mobility") return null;
+    return { profile, per_side: record.per_side === true };
+  };
+  return (
+    pick(item.input) ??
+    pick(options.exInputs?.[todayString(item.exercise)]) ?? { profile: "loaded", per_side: false }
+  );
+}
+
+// Reveal a card's tucked-away load well (the "+ Add load" affordance on a bodyweight
+// or mobility row). Idempotent. A late prefill never fills a hidden well
+// (today-add-exercise-controller fillInput), so nothing logs a load unseen.
+function todayCardsRevealLoad(scope: Element | null | undefined, opts: { focus?: boolean } = {}): void {
+  if (!scope) return;
+  const card = scope.closest?.(".ex") ?? scope;
+  const weight = card.querySelector<HTMLInputElement>(".logrow .in-w");
+  if (weight) weight.hidden = false;
+  card.querySelector<HTMLElement>('.logcaps [data-cap="w"]')?.removeAttribute("hidden");
+  card.querySelector<HTMLElement>("[data-addload]")?.remove();
+  if (opts.focus) weight?.focus();
+}
+
+/**
+ * A card inserted from a (possibly empty) peek may render a bodyweight or mobility row with its
+ * load well tucked away before /last-set says the last set carried a load: open the well first,
+ * so the load is filled where the athlete can see it. A dirty or already-open well is left alone.
+ */
+function todayCardsRevealLoadForLastSet(scope: Element | null | undefined, lastSet: Record<string, unknown>): void {
+  const well = scope?.querySelector<HTMLInputElement>(".in-w");
+  if (!well?.hidden || well.dataset.dirty === "1") return;
+  const load = Number(lastSet.weight);
+  if (lastSet.weight == null || lastSet.weight === "" || !Number.isFinite(load) || load === 0) return;
+  todayCardsRevealLoad(scope);
 }
 
 function todayCardsSetChip(set: unknown, index?: number): string {
@@ -150,13 +197,15 @@ function exerciseCardHtml(
   // only truly ad-hoc cards retain the legacy "off-plan" treatment.
   const offPlan = !item.fromPlan && !item.fromSession;
   const timed = todayCardsExTimed(item, loggedSets, options.exModes);
+  const input = todayCardsInput(item, options);
+  const perSide = input.per_side ? " / side" : "";
   const range = offPlan ? "" : item.rep_low === item.rep_high ? `${item.rep_low}` : `${item.rep_low}–${item.rep_high}`;
   // A folded top set is on its own line; the header is the block's dose.
   const topSets = Math.max(0, todayFinite(item.top_sets) ?? 0);
   const blockSets = topSets && Number(item.sets) > topSets ? Number(item.sets) - topSets : item.sets;
   const targetText = timed
-    ? `${item.sets ?? "?"} × ${item.target_seconds != null ? fmtDur(item.target_seconds) : "time"}`
-    : `${blockSets} × ${range}`;
+    ? `${item.sets ?? "?"} × ${item.target_seconds != null ? fmtDur(item.target_seconds) : "time"}${perSide}`
+    : `${blockSets} × ${range}${perSide}`;
   // `reground` says the STORED target sits behind what the athlete is already
   // lifting (server: progression.ts `planBehind`), so that number is stale rather
   // than authoritative — printing it would lead the card with the one load nobody
@@ -198,21 +247,39 @@ function exerciseCardHtml(
   // Timed rows take an optional load before the time (a carry, a weighted hold);
   // blank = unloaded. prefillFor already opens it at the plan's load, else the last logged one.
   const timedLoad = prefill.weight != null && Number(prefill.weight) !== 0 ? prefill.weight : "";
+  // A bodyweight or mobility row does not ask for a load: the well stays in the row
+  // (hidden, blank, so a set logs unloaded) behind a quiet "+ Add load". A real load
+  // already in play — a prefilled last load, a planned load, an assist — opens it.
+  const loadInPlay = (value: unknown) => value != null && value !== "" && Number.isFinite(Number(value)) && Number(value) !== 0;
+  const showLoad =
+    input.profile === "loaded" || loadInPlay(prefill.weight) || (!offPlan && loadInPlay(item.target_weight));
+  // Reps in reserve is a strength read; a stretch or drill has none.
+  const showRir = input.profile !== "mobility";
+  const loadHidden = showLoad ? "" : " hidden";
+  // A hidden well is always blank: a prefilled 0 there would log a 0 lb set instead of
+  // an unloaded (null) one, and the athlete never saw it.
+  const repsLoad = showLoad ? (prefill.weight ?? "") : "";
+  // Only a tucked-away cap needs a handle for revealLoad; a loaded row keeps its markup.
+  const loadCap = showLoad ? "" : ' data-cap="w" hidden';
+  const inputAttr = ` data-input="${input.profile}"${input.per_side ? ' data-per-side="1"' : ""}`;
+  const addLoad = showLoad
+    ? ""
+    : `<button type="button" class="ex-addload" data-addload aria-label="${escAttr(`Add a load to ${exercise}`)}">+ Add load</button>`;
   const logrow = timed
-    ? `<div class="logcaps logcaps-timed" aria-hidden="true"><span>Weight</span><span>Time</span><i></i><i></i></div>
-      <div class="logrow logrow-timed" data-ex="${encodeURIComponent(exercise)}"${exKeyAttr} data-day="${escAttr(options.day ?? "")}" data-mode="timed">
-        <input type="number" inputmode="decimal" placeholder="WT" class="in-w" aria-label="${escAttr(`${exercise} weight (optional)`)}" value="${escAttr(timedLoad ?? "")}">
-        <input type="text" inputmode="numeric" autocomplete="off" placeholder="TIME · 1:30" class="in-dur" aria-label="${escAttr(`${exercise} duration`)}" value="${prefill.duration_sec != null ? fmtDur(prefill.duration_sec) : ""}">
+    ? `<div class="logcaps logcaps-timed" aria-hidden="true"><span${loadCap}>Weight</span><span>Time</span><i></i><i></i></div>
+      <div class="logrow logrow-timed" data-ex="${encodeURIComponent(exercise)}"${exKeyAttr} data-day="${escAttr(options.day ?? "")}" data-mode="timed"${inputAttr}>
+        <input type="number" inputmode="decimal" placeholder="WT" class="in-w" aria-label="${escAttr(`${exercise} weight (optional)`)}" value="${escAttr(timedLoad ?? "")}"${loadHidden}>
+        <input type="text" inputmode="numeric" autocomplete="off" placeholder="TIME · 1:30" class="in-dur" aria-label="${escAttr(`${exercise} duration${perSide ? ", each side" : ""}`)}" value="${prefill.duration_sec != null ? fmtDur(prefill.duration_sec) : ""}">
         <button type="button" class="timerbtn" data-stopwatch-state="idle" aria-label="${escAttr(`Start ${exercise} stopwatch`)}" aria-pressed="false">Start</button>
         <button class="logbtn" aria-label="${escAttr(`Log a set of ${exercise}`)}">Log</button>
-      </div>`
-    : `<div class="logcaps" aria-hidden="true"><span>Weight</span><span>Reps</span><span>RIR</span><i></i></div>
-      <div class="logrow" data-ex="${encodeURIComponent(exercise)}"${exKeyAttr} data-day="${escAttr(options.day ?? "")}">
-        <input type="number" inputmode="decimal" placeholder="WT" class="in-w" aria-label="Weight" value="${prefill.weight ?? ""}">
-        <input type="number" inputmode="numeric" placeholder="REPS" class="in-r" aria-label="Reps" value="${prefill.reps ?? ""}">
-        <input type="number" inputmode="decimal" placeholder="RIR" class="in-rir" title="Reps in reserve — how many more you could have done" aria-label="RIR (reps in reserve)" value="${prefill.rir ?? ""}">
+      </div>${addLoad}`
+    : `<div class="logcaps" aria-hidden="true"><span${loadCap}>Weight</span><span>Reps</span>${showRir ? "<span>RIR</span>" : ""}<i></i></div>
+      <div class="logrow" data-ex="${encodeURIComponent(exercise)}"${exKeyAttr} data-day="${escAttr(options.day ?? "")}"${inputAttr}>
+        <input type="number" inputmode="decimal" placeholder="WT" class="in-w" aria-label="Weight" value="${escAttr(repsLoad)}"${loadHidden}>
+        <input type="number" inputmode="numeric" placeholder="REPS" class="in-r" aria-label="${perSide ? "Reps, each side" : "Reps"}" value="${prefill.reps ?? ""}">
+        ${showRir ? `<input type="number" inputmode="decimal" placeholder="RIR" class="in-rir" title="Reps in reserve — how many more you could have done" aria-label="RIR (reps in reserve)" value="${prefill.rir ?? ""}">` : ""}
         <button class="logbtn" aria-label="${escAttr(`Log a set of ${exercise}`)}">Log</button>
-      </div>`;
+      </div>${addLoad}`;
   const skipButton =
     !offPlan && !exerciseLogged
       ? `<button class="ex-skip" data-skip="${encodeURIComponent(exercise)}" title="Not today" aria-label="Skip ${escAttr(exercise)} today">✕</button>`
@@ -228,7 +295,8 @@ function exerciseCardHtml(
   const lastSetLine = !done
     ? CairnTodayPlanSurface.lastSetLineHtml(lastSet, {
         escapeHtml: escHtml,
-        lastSetLineText: (ls) => CairnTodaySessionSetModel.lastSetLineText(ls, { fmtDur }),
+        lastSetLineText: (ls) =>
+          CairnTodaySessionSetModel.lastSetLineText(ls, { fmtDur }, { perSide: input.per_side }),
       })
     : "";
   // There is deliberately NO per-card pain widget. An exercise card asks the athlete
@@ -263,7 +331,7 @@ function exerciseCardHtml(
   const rxSilenced = !!reachLine && !!rx && rxAction !== "overload";
   // Decision-level narration and Undo live once above the cards. A card keeps
   // only a cue unique to this movement (swap, straps, start light).
-  return `<div class="ex${complete ? " ex-complete" : ""}${reveal != null ? " reveal" : ""}" data-card="${escAttr(exercise)}"${exKeyAttr} data-mode="${timed ? "timed" : "reps"}"${headlineDose ? ` data-dose="headline"` : ""}${rxSilenced ? ` data-rx="off"` : ""}${reveal != null ? ` style="${stagger(reveal)}"` : ""}>
+  return `<div class="ex${complete ? " ex-complete" : ""}${reveal != null ? " reveal" : ""}" data-card="${escAttr(exercise)}"${exKeyAttr} data-mode="${timed ? "timed" : "reps"}"${inputAttr}${headlineDose ? ` data-dose="headline"` : ""}${rxSilenced ? ` data-rx="off"` : ""}${reveal != null ? ` style="${stagger(reveal)}"` : ""}>
       <div class="ex-top">
         <div class="ex-top-main">
           <button class="ex-name" data-guide="${encodeURIComponent(exercise)}">${escHtml(exercise)}&nbsp;<span class="guide-i">ⓘ</span></button>
@@ -286,9 +354,22 @@ function exerciseCardHtml(
 const CAIRN_TODAY_CARDS = {
   exTimed: todayCardsExTimed,
   exerciseCardHtml,
+  revealLoad: todayCardsRevealLoad,
+  revealLoadForLastSet: todayCardsRevealLoadForLastSet,
 };
 
 Object.assign(globalThis, { CairnTodayCards: CAIRN_TODAY_CARDS });
+
+// "+ Add load" on a bodyweight / mobility card opens the tucked-away load well. One
+// delegated listener covers every card however it was rendered (the plan, a session
+// composition, an off-plan add). The well was always in the row, blank, so a set
+// logs unloaded; this only shows it, so a weighted stretch still logs as typed.
+if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target.closest("[data-addload]") : null;
+    if (target) todayCardsRevealLoad(target, { focus: true });
+  });
+}
 
 if (typeof window !== "undefined") {
   window.CairnTodayCards = CAIRN_TODAY_CARDS;

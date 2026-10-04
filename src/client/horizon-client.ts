@@ -315,7 +315,63 @@
     </div>`;
   }
 
-  const CAIRN_HORIZON = { KEYS, PANEL, laneHtml, laneSkeletonHtml, seasonHtml, weekHtml, weekSkeletonHtml, shellHtml };
+  // ---- All goals (the goal line's depth view, /app/horizon/goal) ----
+  //
+  // Every thread laid out in full: the race estimate, the bodyweight, each strength
+  // objective, the priority marker — start, now and goal on a track, with its one-line
+  // trend ("+4.2 lb/wk", "Recheck opens Nov 16"), most movement first. Moved here from
+  // Today (it echoed the Brief's Path card); the Path card's "All goals" link lands on
+  // it. Pure strings over GET /api/today-path's `board` (src/repo/today-path.ts).
+  // Measures, never grades: no score, no percent printed.
+  type GoalsPath = import("../contracts/today-path.js").TodayPath;
+  type GoalsRow = import("../contracts/today-path.js").TodayPathBoardRow;
+
+  function goalTrackHtml(row: GoalsRow): string {
+    if (row.progress == null) return "";
+    const w = Math.round(Math.max(0, Math.min(1, row.progress)) * 1000) / 10;
+    const label = [
+      row.start_text ? `from ${row.start_text}` : "",
+      `now ${row.now_text}`,
+      row.goal_text ? `goal ${row.goal_text}` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
+    return `<div class="thd-track" role="img" aria-label="${escAttr(`${row.label}: ${label}`)}"><span class="thd-fill${row.reached ? " is-reached" : ""}" style="--w:${w}%"></span><span class="thd-start" aria-hidden="true"></span><span class="thd-goal" aria-hidden="true"></span></div>`;
+  }
+
+  function goalRowHtml(row: GoalsRow): string {
+    const span =
+      row.key === "marker"
+        ? `<span class="thd-dir is-${escAttr(row.direction || "steady")}">${escHtml(row.now_text)}</span>`
+        : `<span>${row.start_text ? `${escHtml(row.start_text)} → ` : ""}<b class="num">${escHtml(row.now_text)}</b>${row.goal_text ? ` · goal ${escHtml(row.goal_text)}` : ""}</span>`;
+    return `<div class="thd-row thd-${escAttr(row.key)}" data-thd-row="${escAttr(row.id)}">
+      <div class="thd-top"><b>${escHtml(row.label)}</b>${span}</div>
+      ${goalTrackHtml(row)}
+      ${row.note ? `<small>${escHtml(row.note)}</small>` : ""}
+    </div>`;
+  }
+
+  /** All goals: one row per thread; "" with no thread to show. */
+  function goalsBoardHtml(path: GoalsPath | null | undefined): string {
+    const rows = path && Array.isArray(path.board) ? path.board : [];
+    if (!rows.length) return "";
+    return `<section class="thd horizon-goals" aria-label="All goals">
+      <div class="thd-mast"><span class="lbl">All goals</span></div>
+      <div class="thd-rows">${rows.map(goalRowHtml).join("")}</div>
+    </section>`;
+  }
+
+  const CAIRN_HORIZON = {
+    KEYS,
+    PANEL,
+    laneHtml,
+    laneSkeletonHtml,
+    seasonHtml,
+    weekHtml,
+    weekSkeletonHtml,
+    shellHtml,
+    goalsBoardHtml,
+  };
 
   Object.assign(globalThis, { CairnHorizon: CAIRN_HORIZON });
 }

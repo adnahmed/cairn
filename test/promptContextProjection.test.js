@@ -248,7 +248,10 @@ test("every prompt site emits well-formed JSON carrying exactly its allowlisted 
     // Parsing is the guardrail against ever shrinking a prompt by slicing its JSON:
     // a malformed blob in a prompt is worse than a large one.
     const parsed = JSON.parse(payload);
-    const expected = PROMPT_CONTEXT_SITES[site].keys.filter((key) => Object.hasOwn(full, key));
+    // `today_path` is the one key a builder adds itself (buildDayReadPrompt computes
+    // the Brief's path; getCoachContext never does), so it rides only the Brief.
+    const added = site === "day_read" && Object.hasOwn(parsed, "today_path") ? ["today_path"] : [];
+    const expected = [...PROMPT_CONTEXT_SITES[site].keys.filter((key) => Object.hasOwn(full, key)), ...added];
     assert.deepEqual(
       Object.keys(parsed).sort(),
       [...new Set(expected)].sort(),

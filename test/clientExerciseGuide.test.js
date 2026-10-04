@@ -256,3 +256,16 @@ test("the way out of a linked guide lives inside the opened section", async () =
   assert.deepEqual(calls, [{ path: "/exercise-guides/detach", body: { guide_id: "Barbell_Hip_Thrust" } }]);
   assert.equal(host.querySelector("[data-exguide]"), null, "the whole section goes, not just the button");
 });
+
+test("the start and finish photos sit open above the folded steps", () => {
+  const guideClient = loadGuideClient();
+  const html = guideClient.sectionHtml({
+    ...GUIDE,
+    images: [{ url: "/api/exercise-guides/image/a/0.jpg" }, { url: "/api/exercise-guides/image/a/1.jpg" }],
+  });
+  const [open, folded] = html.split('<details class="exguide-more">');
+  assert.ok(folded, "the steps keep their fold");
+  assert.match(open, /data-exguide-shots[\s\S]*Start[\s\S]*Finish/, "both frames render before the fold");
+  assert.doesNotMatch(folded, /data-exguide-shots/);
+  assert.match(folded, /class="exguide-steps"/);
+});

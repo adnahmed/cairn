@@ -126,7 +126,9 @@ export function lazyRoutePreloadTable(root, bundles) {
     if (src[bundle.lazy] !== `/${bundle.output.replace(/^public\//, "")}`) {
       throw new Error(`LAZY_BUNDLE_SRC[${bundle.lazy}] is ${src[bundle.lazy]}, but BUNDLES builds ${bundle.output}`);
     }
-    if (!bundle.views?.length) throw new Error(`lazy bundle ${bundle.lazy} declares no views`);
+    // A route-less bundle (`routeless: true`) renders inside an EAGER view's own page —
+    // today-ahead is Today's lower half — so no deep link ever needs it preloaded.
+    if (!bundle.views?.length && !bundle.routeless) throw new Error(`lazy bundle ${bundle.lazy} declares no views`);
   }
   const urls = [];
   const closure = (name) => {

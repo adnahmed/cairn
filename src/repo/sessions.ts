@@ -56,6 +56,7 @@ import {
 } from "./strength-objective-ledger.js";
 import { getActiveDailySessionForSession, listDailySessionCompositions } from "./adaptive-session.js";
 import { getAuthoritativeSessionRow, getOrCreateSessionRow } from "./session-core.js";
+import { copyDeep, memoKey, requestMemo } from "./request-memo.js";
 
 // ---------- sessions ----------
 export function getOrCreateSession(date: string, planDayId?: number | null): any {
@@ -1614,6 +1615,10 @@ export function vouchedRunCompliance(weekStartISO?: string): RunCompliance {
 // raw read stays for the engine itself (weeklyRunPlan reads last week's actuals here).
 export function getRunCompliance(weekStartISO?: string): RunCompliance {
   const monday = runComplianceWeekStart(weekStartISO);
+  return requestMemo(`run_compliance_actuals:${monday}`, () => getRunComplianceRead(monday), copyDeep);
+}
+
+function getRunComplianceRead(monday: string): RunCompliance {
   const nextMonday = new Date(new Date(monday + "T00:00:00Z").getTime() + 7 * 864e5).toISOString().slice(0, 10);
 
   const prescribed_sessions = 0;
@@ -2053,6 +2058,14 @@ export function snapshotDbTo(filePath: string): string {
 export const LOADED_HISTORY_MIN_SESSIONS = 2;
 
 export function getProgress(exerciseName: string, opts: { through?: string } = {}) {
+  // Request-memoized: program state reads every lift's whole history once per date it
+  // is asked for, and a Today open asks for several dates (about five reads per lift).
+  const key = memoKey([exerciseName, opts]);
+  if (key == null) return getProgressRead(exerciseName, opts);
+  return requestMemo(`progress:${key}`, () => getProgressRead(exerciseName, opts), copyDeep);
+}
+
+function getProgressRead(exerciseName: string, opts: { through?: string }) {
   const ex = findExercise(exerciseName);
   if (!ex) return { exercise: exerciseName, found: false, points: [] };
   const through = typeof opts.through === "string" && opts.through.trim() ? opts.through.trim() : null;

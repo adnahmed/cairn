@@ -1,0 +1,143 @@
+/* =====================================================================
+   Today below the Brief (the Today redesign): the "Something going on?"
+   line and its sheet, the overnight digest, This week (stones, tallies,
+   gauges), Coming up, and Where you're heading. Each section sits
+   `--today-gap` below the last under a 44px mast with its mono label on
+   the baseline and a hairline under it — the same rhythm as pebbles.css.
+   Every colour is a token; a stone's hue rides its `stone-<key>` class.
+   ===================================================================== */
+
+/* --- the context line and its sheet (capture.ts) --- */
+.today-wrap .ctxline{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-5);width:100%;
+  padding:0;background:none;border:0;color:var(--muted);font:inherit;font-size:var(--text-md);text-align:left;cursor:pointer}
+.today-wrap .ctxline:active{transform:var(--press-lg)}
+.ctxline-t{min-width:0}
+.ctxline-go{color:var(--dawn);font-weight:var(--weight-semibold);white-space:nowrap}
+.ctxsheet{padding:var(--space-8) var(--space-8) var(--space-11)}
+.ctxsheet-hd{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5)}
+.ctxsheet-hd h3{margin:0;font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-xl)}
+.ctxsheet-lede{margin:var(--space-3) 0 var(--space-6);color:var(--ink2);font-size:var(--text-md)}
+.ctxsheet-list{display:grid}
+.ctxsheet .ctxsheet-row{display:grid;grid-template-columns:minmax(0,1fr) 22px;column-gap:var(--space-6);align-items:center;
+  width:100%;margin:0;padding:var(--space-6) 0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;
+  color:var(--ink);text-align:left;font:inherit;cursor:pointer}
+.ctxsheet .ctxsheet-row:active{transform:var(--press-lg)}
+.ctxsheet-name{font-weight:var(--weight-semibold);font-size:var(--text-base)}
+.ctxsheet-eff{grid-column:1;color:var(--muted);font-size:var(--text-sm);line-height:var(--leading-normal)}
+.ctxsheet-mark{grid-column:2;grid-row:1 / span 2;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line-strong)}
+.ctxsheet .tag-chip-on .ctxsheet-mark{background:var(--ink);border-color:var(--ink);
+  box-shadow:inset 0 0 0 4px var(--surface)}
+
+/* --- the overnight digest (today-digest-client.ts) --- */
+.tdg-slot:empty{display:none}
+.today-wrap .tdg-slot{margin-top:var(--today-gap)}
+.tdg{display:grid;gap:var(--space-5)}
+.tdg-head{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--space-5);min-height:44px;
+  padding-bottom:var(--space-3);border-bottom:1px solid var(--line)}
+.tdg-head .lbl{color:var(--muted)}
+.tdg-all{white-space:nowrap}
+.tdg-moves{display:grid}
+.tdg-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:var(--space-5);align-items:center;
+  padding:var(--space-5) 0;border-bottom:1px solid var(--line);font-size:var(--text-md)}
+.tdg-arrow{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:var(--text-xs);
+  background:var(--surface2);color:var(--ink2)}
+.tdg-arrow.is-up,.tdg-arrow.is-added{background:var(--dawn-wash);color:var(--dawn)}
+.tdg-what{min-width:0}
+.tdg-ex{display:block;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tdg-what small{display:block;color:var(--muted);font-size:var(--text-xs);line-height:var(--leading-snug)}
+.tdg-val{display:flex;align-items:baseline;gap:var(--space-3);flex-wrap:wrap;justify-content:flex-end;text-align:right}
+.tdg-from{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-strong);font-size:var(--text-sm)}
+.tdg-to{font-weight:var(--weight-semibold);white-space:nowrap;color:var(--ink)}
+.tdg-undo{background:none;border:0;padding:var(--space-2) 0 var(--space-2) var(--space-3);font:inherit;font-size:var(--text-xs);
+  color:var(--muted);text-decoration:underline;text-underline-offset:var(--link-offset);cursor:pointer}
+.tdg-undo:active{transform:var(--press-xs)}
+.tdg-undo-row{display:flex;justify-content:flex-end;padding:var(--space-3) 0;border-bottom:1px solid var(--line)}
+.tdg-ask{display:grid;gap:var(--space-4);padding:var(--space-7);background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius-md)}
+.tdg-ask-k{color:var(--dawn)}
+.tdg-ask-q{margin:0;color:var(--ink);font-size:var(--text-base);line-height:var(--leading-normal)}
+.tdg-ask-btns{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:center}
+
+/* --- This week (today-main-shell-client.ts + today-week-client.ts) --- */
+.today-wrap .tweek{margin-top:var(--today-gap);display:grid;gap:var(--space-6)}
+.tweek-mast{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--space-5);min-height:44px;
+  padding-bottom:var(--space-3);border-bottom:1px solid var(--line)}
+.tweek-mast .lbl{color:var(--muted)}
+.tweek-block:empty{display:none}
+.tweek-strip-slot:empty,.tweek-gauges-slot:empty{display:none}
+.twk-days{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--space-2);text-align:center}
+.twk-day{display:grid;gap:var(--space-3);justify-items:center;font-family:var(--font-mono);font-size:var(--text-2xs);
+  letter-spacing:var(--tracking-wider);color:var(--muted)}
+.twk-stack{display:grid;gap:var(--space-2);justify-items:center;align-content:end;min-height:34px}
+.twk-st{display:block;width:18px;height:13px;border-radius:50% 50% 46% 54% / 58% 58% 42% 42%;
+  animation:twk-settle var(--dur-3) var(--ease) both;animation-delay:calc(var(--i,0) * 40ms)}
+.twk-st.is-lift{--c:var(--s-strength)}
+.twk-st.is-run{--c:var(--s-endurance)}
+.twk-st.is-done{background:var(--c)}
+.twk-st.is-planned{background:transparent;border:1.5px solid var(--c)}
+.twk-st.is-open{background:transparent;border:1.5px dashed var(--line-strong)}
+.twk-st.is-past{background:transparent;border:1.5px solid var(--line)}
+.twk-day.is-today{color:var(--dawn)}
+.twk-now{width:4px;height:4px;border-radius:50%;background:var(--dawn)}
+@keyframes twk-settle{from{transform:translateY(-6px);opacity:0}}
+.today-soft .twk-st,[data-held] .twk-st{animation:none}
+.tweek-tallies{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-4)}
+.tweek-tally{display:grid;gap:var(--space-1);align-content:start;padding:var(--space-5);background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius-md);min-width:0;text-align:left;font:inherit;color:inherit}
+.tweek-tally small{color:var(--muted);font-size:var(--text-xs);line-height:var(--leading-snug)}
+.tweek-n{font-family:var(--font-display);font-size:var(--text-lg);font-variant-numeric:tabular-nums;color:var(--ink);
+  white-space:nowrap}
+.tweek-u{font-family:var(--font-ui);font-size:var(--text-sm);color:var(--muted);margin-left:var(--space-1)}
+.tweek-wt{position:relative;cursor:pointer}
+.tweek-wt:active{transform:var(--press-lg)}
+.tweek-spark:empty{display:none}
+.tweek-spark{display:block;margin-top:var(--space-2)}
+.tspark{width:100%;max-width:96px;height:22px;display:block;overflow:visible}
+.tspark-line{fill:none;stroke:var(--d-body);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tspark-dot{fill:var(--d-body)}
+.tspark-goal{stroke:var(--d-body);stroke-width:1;stroke-dasharray:2 3;opacity:.7}
+.today-wrap .tweek .wt-inline:not([hidden]){display:flex;gap:var(--space-3);margin:0}
+.tgauges{display:grid;gap:var(--space-6)}
+.tgauge{display:grid;grid-template-columns:76px minmax(0,1fr) auto;column-gap:var(--space-5);row-gap:var(--space-1);
+  align-items:center;font-size:var(--text-sm)}
+.tgauge-l{color:var(--ink2)}
+.tgauge-bar{position:relative;height:6px;border-radius:var(--radius-pill);background:var(--surface2)}
+.tgauge-band{position:absolute;top:-2px;bottom:-2px;border-radius:var(--radius-pill);
+  background:color-mix(in srgb,var(--s-endurance) 40%,transparent);border:1px solid var(--s-endurance)}
+.tgauge-pin{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;background:var(--ink);
+  border:2px solid var(--ground);transform:translate(-50%,-50%)}
+.tgauge-pin.is-hot{background:var(--dawn)}
+.tgauge-v{font-weight:var(--weight-semibold);text-align:right;white-space:nowrap;color:var(--ink)}
+.tgauge-sub{grid-column:2 / span 2;color:var(--muted);font-family:var(--font-mono);font-size:var(--text-2xs);
+  letter-spacing:var(--tracking-wider);text-transform:uppercase}
+.today-wrap .tweek-more{border-top:0}
+.today-wrap .tweek-more .weekfold-sum{min-height:40px;border-top:1px solid var(--line);border-bottom:0}
+.today-wrap .tweek-more[open]{border-bottom:1px solid var(--line)}
+
+/* --- Coming up (today-horizon-client.ts) --- */
+.thz-slot:empty,.thd-slot:empty{display:none}
+.today-wrap .thz-slot,.today-wrap .thd-slot{margin-top:var(--today-gap)}
+.thz-mast,.thd-mast{display:flex;align-items:flex-end;min-height:44px;padding-bottom:var(--space-3);
+  border-bottom:1px solid var(--line)}
+.thz-mast .lbl,.thd-mast .lbl{color:var(--muted)}
+.thz-list{list-style:none;margin:0;padding:0}
+.thz-row{display:grid;grid-template-columns:48px 14px minmax(0,1fr);gap:var(--space-5);padding:var(--space-5) 0}
+.thz-when{line-height:var(--leading-snug);padding-top:var(--space-1);color:var(--muted)}
+.thz-rail{position:relative;display:grid;justify-items:center}
+.thz-rail::before{content:"";position:absolute;top:0;bottom:calc(-1 * var(--space-5));width:1.5px;background:var(--line)}
+.thz-row:first-child .thz-rail::before{top:9px}
+.thz-row:last-child .thz-rail::before{bottom:auto;height:9px}
+.thz-row:only-child .thz-rail::before{display:none}
+.thz-dot{position:relative;width:10px;height:10px;border-radius:50%;margin-top:var(--space-2);background:var(--c,var(--line-strong));
+  box-shadow:0 0 0 2px var(--ground)}
+.thz-dot.is-dawn{--c:var(--dawn)}
+.thz-t{font-size:var(--text-md);font-weight:var(--weight-semibold);color:var(--ink)}
+.thz-d{font-size:var(--text-sm);color:var(--ink2);line-height:var(--leading-normal)}
+.thz-act{display:inline-block;margin-top:var(--space-2);font-size:var(--text-sm)}
+
+/* --- Where you're heading (today-horizon-client.ts) --- */
+.thd-insight{margin:var(--space-7) 0 0;padding-top:var(--space-6);border-top:1px solid var(--line);color:var(--ink2);
+  font-size:var(--text-md);line-height:var(--leading)}
+.thd-insight .lbl{display:block;margin-bottom:var(--space-2);color:var(--dawn)}
+/* alone in its slot (the goals board lives on Horizon now), the sentence needs no rule above it */
+.thd-connection .thd-insight{margin-top:0;padding-top:0;border-top:0}

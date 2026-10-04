@@ -13,7 +13,8 @@
 //     distance and pace in the athlete's unit, duration, avg/max HR, stated effort, the
 //     personal model's read — at every site that carries the endurance bundle;
 //   • the chat prompt renders it as a plain block above DATA, with the rule that a
-//     listed run is never "missing" and that splits/streams are not stored;
+//     listed run is never "missing", that laps are one read away (read_activity_detail)
+//     and that HR streams / GPS tracks are not stored;
 //   • Garmin's training-effect number never rides as a verdict;
 //   • the bounded read tool returns the heart rate as a field, not only in notes.
 import { beforeEach, test } from "node:test";
@@ -97,7 +98,9 @@ test("chat DATA carries this morning's watch run with its numbers", () => {
   assert.match(block, new RegExp(`- today ${today}, started 6:34 AM — run`));
   assert.match(block, /"Boston Running" \[activity_id \d+\]: 6\.01 mi · 53\.9 min · 8:58\/mi · avg HR 157, max 170/);
   assert.match(block, /Never say a run listed here is missing/);
-  assert.match(block, /not a heart-rate graph, per-mile splits or a GPS track/);
+  // Laps are one read away; only streams and the GPS track are not kept.
+  assert.match(block, /read_activity_detail with its activity_id/);
+  assert.match(block, /no second-by-second heart-rate graph or GPS track/);
   assert.ok(!/effect 4\.5/.test(block), "Garmin's training effect never rides in the block");
   // The block sits ABOVE the DATA dump, where a reader meets it before the JSON.
   assert.ok(prompt.indexOf("RECENT RUNS & CARDIO") < prompt.indexOf("\nDATA:\n"));

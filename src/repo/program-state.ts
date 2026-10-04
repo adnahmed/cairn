@@ -67,6 +67,7 @@ import { getTrainingIntent } from "./training-intent.js";
 import { recoverySignalIsDecisionGrade } from "./sensor-cadence.js";
 import { countComparableDoseShortfallSessions } from "./session-dose-log.js";
 import { isoDaysAgo } from "../lib/dates.js";
+import { copyDeep, copyFlat, memoKey, requestMemo } from "./request-memo.js";
 
 // ---- ACWR low-base guards ---------------------------------------------------
 // An acute-vs-chronic ratio is only meaningful once there's a real CHRONIC base
@@ -441,6 +442,12 @@ const STATIC_STALL_SESSIONS = 3;
 export { comparableLiftDates } from "./lift-comparability.js";
 
 function gradeRepsLift(name: string, mg: string | null, through: string): GradedLift | null {
+  const key = memoKey([name, mg, through]);
+  if (key == null) return gradeRepsLiftRead(name, mg, through);
+  return requestMemo(`grade_reps_lift:${key}`, () => gradeRepsLiftRead(name, mg, through), copyDeep);
+}
+
+function gradeRepsLiftRead(name: string, mg: string | null, through: string): GradedLift | null {
   // Bounded to the day being read — an unbounded history hands a historical read
   // an est-1RM (and therefore a trend and a push/hold verdict) off sets that had
   // not been logged yet. getProgress's `through` is a horizon, not a window, so
@@ -791,9 +798,15 @@ function muscleVolume(date: string, weeks = 3): MuscleVolumeState[] {
 // ---- mesocycle / fatigue position ----
 // Exported for the reaction-model + next-step engines (they correlate prior-week
 // training load against acute markers / leverage). weekBack=0 is the trailing 7 days.
+// Keyed by the WINDOW, not (date, weekBack): the program state read at two dates a
+// week apart walks the same calendar weeks, and the window is all the read depends on.
 export function weeklyTonnage(date: string, weekBack: number): number {
   const end = isoDaysAgo(date, weekBack * 7);
   const start = isoDaysAgo(date, weekBack * 7 + 6);
+  return requestMemo(`weekly_tonnage:${start}:${end}`, () => weeklyTonnageRead(start, end), copyFlat);
+}
+
+function weeklyTonnageRead(start: string, end: string): number {
   const row = db
     .prepare(
       `SELECT COALESCE(SUM(ls.weight * ls.reps), 0) AS t FROM logged_sets ls JOIN sessions s ON s.id = ls.session_id
@@ -814,6 +827,13 @@ function weeklyNonTonnageLoad(
 ): { units: number; timed_seconds: number; bodyweight_sets: number; endurance_minutes: number } {
   const end = isoDaysAgo(date, weekBack * 7);
   const start = isoDaysAgo(date, weekBack * 7 + 6);
+  return requestMemo(`weekly_non_tonnage:${start}:${end}`, () => weeklyNonTonnageLoadRead(start, end), copyFlat);
+}
+
+function weeklyNonTonnageLoadRead(
+  start: string,
+  end: string
+): { units: number; timed_seconds: number; bodyweight_sets: number; endurance_minutes: number } {
   let timedSeconds = 0;
   let bodyweightSets = 0;
   try {
@@ -1334,6 +1354,12 @@ function mesocycle(
 export function weeklyKm(date: string, weekBack: number, patterns: string[]): number {
   const end = isoDaysAgo(date, weekBack * 7);
   const start = isoDaysAgo(date, weekBack * 7 + 6);
+  const key = memoKey(patterns);
+  if (key == null) return weeklyKmRead(start, end, patterns);
+  return requestMemo(`weekly_km:${start}:${end}:${key}`, () => weeklyKmRead(start, end, patterns), copyFlat);
+}
+
+function weeklyKmRead(start: string, end: string, patterns: string[]): number {
   const sport = activitySportWhere("activities", patterns);
   // Summed in JS, not SQL, so a hand log shadowing the watch's row of the same run
   // (withoutShadowActivities) never counts its kilometres twice.
@@ -1456,7 +1482,8 @@ function enduranceState(date: string): EnduranceState {
       `SELECT a.date AS date, a.type AS type, a.rpe AS rpe, a.raw_text AS raw_text,
               g.te_label AS te_label, g.anaerobic_te AS anaerobic_te, g.avg_hr AS avg_hr,
               COALESCE(g.moving_min, g.duration_min, a.duration_min) AS hr_minutes,
-              g.name AS g_name, g.hr_zones_json AS zones
+              g.name AS g_name, g.hr_zones_json AS zones,
+              g.structure_json AS structure, g.laps_json AS laps
          FROM activities a JOIN garmin_activities g ON g.activity_id = a.id
         WHERE a.date >= ? AND a.date <= ?
           AND (${aSport.sql})`
@@ -1792,19 +1819,53 @@ function hybridState(
 // are in the backstop and bump the version, so a fixed (date, version) pins one recovery
 // → one result, whether the object is passed or recomputed.
 //
-// Single-slot (bounded) — the hot path is always `today`; a rare historical ?date=
-// simply misses and replaces. Registered for the test-isolate reset.
-let programStateCache: { key: string; value: ProgramState } | null = null;
+// A few slots (bounded, least-recently-read dropped first): one page render reads
+// `today` AND the run engine's week dates (next Monday, last week's anchor), and a
+// single slot thrashed between them — every alternation recomputed the whole state.
+// A slot whose version/backstop has moved simply never matches again and ages out,
+// and every slot is keyed to the wall-clock day it was read on, so a historical or
+// future date's state is never carried across midnight.
+// Registered for the test-isolate reset.
+const PROGRAM_STATE_SLOTS = 8;
+const programStateCache = new Map<string, ProgramState>();
 registerTrainingCacheClear(() => {
-  programStateCache = null;
+  programStateCache.clear();
 });
 
 export function getProgramState(date?: string, recovery?: any): ProgramState {
+  // Request-memoized over the process memo below for the bare form (one Today open asks
+  // for today's program state ~50 times, each a backstop query and a structuredClone).
+  // A caller-supplied recovery view is an object the key cannot name, so it goes
+  // straight to the process memo exactly as before.
+  if (recovery === undefined) {
+    const d = date || localDateISO();
+    if (typeof d === "string")
+      return requestMemo(
+        `program_state:${d}:${localDateISO()}:${currentTrainingDataVersion()}`,
+        () => getProgramStateCached(d, undefined),
+        copyDeep
+      );
+  }
+  return getProgramStateCached(date, recovery);
+}
+
+function getProgramStateCached(date?: string, recovery?: any): ProgramState {
   const d = date || localDateISO();
-  const key = `${d}|${currentTrainingDataVersion()}|${trainingBackstopSignature()}`;
-  if (programStateCache && programStateCache.key === key) return structuredClone(programStateCache.value);
+  const wallDay = localDateISO();
+  const key = `${d}|${wallDay === d ? "" : wallDay}|${currentTrainingDataVersion()}|${trainingBackstopSignature()}`;
+  const hit = programStateCache.get(key);
+  if (hit) {
+    programStateCache.delete(key);
+    programStateCache.set(key, hit);
+    return structuredClone(hit);
+  }
   const value = computeProgramState(d, recovery);
-  programStateCache = { key, value };
+  programStateCache.set(key, value);
+  while (programStateCache.size > PROGRAM_STATE_SLOTS) {
+    const oldest = programStateCache.keys().next().value;
+    if (oldest === undefined) break;
+    programStateCache.delete(oldest);
+  }
   return structuredClone(value);
 }
 

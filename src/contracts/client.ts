@@ -670,6 +670,17 @@ export interface ClientPrescription {
 
 export type ClientSessionLoadBasis = "bodyweight" | "assisted" | "loaded" | "open";
 
+// What a movement's log row asks for (server: src/repo/exercise-input.ts).
+// loaded = weight · reps · RIR; bodyweight = reps · RIR, load on request;
+// mobility = reps or time only, load on request, never RIR. The mode axis is
+// the exercise's own (reps | timed); per_side doses each side ("2 × 6 / side").
+export interface ClientExerciseInput {
+  profile: "loaded" | "bodyweight" | "mobility";
+  mode: "reps" | "timed";
+  per_side: boolean;
+  source: "stated" | "derived";
+}
+
 export interface ClientSessionTopSet {
   sets: number;
   reps: number;
@@ -694,6 +705,8 @@ export interface ClientSessionSuggestionItem {
   // Server-derived. Null target_weight is BW only when this is "bodyweight";
   // "open" means the athlete picks the first load.
   load_basis?: ClientSessionLoadBasis;
+  // Server-derived on a read of a persisted composition (strength items only).
+  input?: ClientExerciseInput | null;
   target_distance_km?: number | null;
   target_duration_min?: number | null;
   target_zone?: string | null;

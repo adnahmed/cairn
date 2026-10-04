@@ -19,6 +19,16 @@ export type RaceLadderPeakFn = (asOf: string, plan: RaceLadderPlanDraft) => numb
 
 let hook: RaceLadderPeakFn | null = null;
 let walking = false;
+let walkingReads = 0;
+
+/**
+ * For src/repo/request-memo.ts: whether a ladder walk is in progress, and how many times
+ * a read has asked. A read that asked can answer differently inside a walk than outside
+ * one, so its memoized value is only ever served back under the same walk state.
+ */
+export function raceLadderWalkGuard(): { active: boolean; reads: number } {
+  return { active: walking, reads: walkingReads };
+}
 
 export function registerRaceLadderPeak(fn: RaceLadderPeakFn): void {
   hook = fn;
@@ -31,6 +41,7 @@ export function registerRaceLadderPeak(fn: RaceLadderPeakFn): void {
  * that nested plan, which then falls back to its own ramp read.
  */
 export function raceLadderPeak(asOf: string, plan: RaceLadderPlanDraft): number | null {
+  walkingReads++;
   if (!hook || walking) return null;
   walking = true;
   try {

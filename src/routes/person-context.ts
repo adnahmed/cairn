@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { onboardFromText } from "../coachOps.js";
+import { contextTagVocab } from "../repo/context-tag-effects.js";
 import {
   addContextEvent,
   addFamily,
@@ -75,7 +76,9 @@ personContextRouter.get("/injury-impacts", (_req, res) => res.json(getInjuryImpa
 
 // ---- context tags: cheap one-tap life context, a controlled vocabulary reusing context_events kind='tag' ----
 // The vocabulary itself (travel/drinks/rough sleep/work crunch/feeling off).
-personContextRouter.get("/context-tags/vocab", (_req, res) => res.json(CONTEXT_TAG_VOCAB));
+// The vocabulary plus what each tag changes (src/repo/context-tag-effects.ts), so the
+// Today sheet can say it in one plain sentence per tag.
+personContextRouter.get("/context-tags/vocab", (_req, res) => res.json(contextTagVocab()));
 
 personContextRouter.get("/context-tags", (req, res) => {
   const date = typeof req.query.date === "string" ? req.query.date : undefined;
