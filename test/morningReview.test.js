@@ -367,3 +367,45 @@ test("the cause-naming passages rotate across calendar days", () => {
   }
   assert.ok(seen.size > 1, "a stable input across calendar days must not print one literal forever");
 });
+
+// Live, 2026-10-04: a long mountain-bike ride on a quiet day graded hard, and the
+// Brief said "The run yesterday finished well above easy" about a day with no run.
+function logHardRide(date) {
+  const activityId = Number(
+    db
+      .prepare(
+        `INSERT INTO activities (date, type, raw_text, duration_min, distance_km, source)
+         VALUES (?, 'ride', 'Mountain Biking', 142, 31, 'test')`
+      )
+      .run(date).lastInsertRowid
+  );
+  harmSeq += 1;
+  db.prepare(
+    `INSERT INTO garmin_activities
+       (source_id, external_id, activity_id, date, type, name, duration_min, moving_min, distance_km, avg_hr, max_hr, te_label, aerobic_te)
+     VALUES (?, ?, ?, ?, 'mountain_biking', 'Mountain Biking', 142, 142, 31, 137, 172, 'tempo', 4)`
+  ).run(garminSourceId(), `review-ride-${harmSeq}`, activityId, date);
+}
+
+test("a hard ride behind a quiet read is named as the ride, never as a run, and carries no run ceiling", () => {
+  for (const lifted of [false, true]) {
+    resetTables(...HARM_TABLES);
+    const today = localDaysAgo(0);
+    const yesterday = localDaysAgo(1);
+    seedEasyCeiling(yesterday);
+    repo.saveDayRead(yesterday, read("easy"));
+    if (lifted) {
+      seedTrainingDay(yesterday);
+      db.prepare(`UPDATE sessions SET performance = 5 WHERE date = ?`).run(yesterday);
+    }
+    logHardRide(yesterday);
+
+    const review = morningReview(today);
+    assert.equal(review.passages.length, 1);
+    const passage = review.passages[0];
+    assert.match(passage, /\bride\b/i);
+    assert.doesNotMatch(passage, /\brun\b/i, "there was no run yesterday");
+    assert.doesNotMatch(passage, /\bbpm\b/, "the easy ceiling is a running ceiling");
+    assert.equal(violatesReadingGrammar(passage), null);
+  }
+});

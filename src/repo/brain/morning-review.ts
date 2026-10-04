@@ -23,7 +23,9 @@
 import { db } from "../../db.js";
 import type { BrainMetricKey } from "../../brain/expectation-contract.js";
 import { addDaysISO } from "../shared.js";
+import { canonicalEnduranceSport } from "../endurance-sports.js";
 import { runIntensityDiscipline } from "../run-progression.js";
+import { hardCardioDayIntense } from "../training-read.js";
 import { pickDayVariant } from "./day-read-rules.js";
 import {
   dayTrainingTruth,
@@ -157,6 +159,29 @@ const CAUSE_INTENSITY_RUN_ONLY_PLAIN_VARIANTS = [
   "What cost you yesterday was the run running hard rather than easy — keep the next one genuinely easy and this loosens.",
 ] as const;
 
+// `hard_cardio` is any cardio graded hard, not only a run: a long mountain-bike ride
+// on a quiet day reached the run sets above and printed "the run yesterday" about a
+// day with no run in it (live, 2026-10-04). When the day's RUNS are not what graded
+// hard, the sentence names the effort that was — and carries no easy ceiling, which
+// is the athlete's RUN heart-rate ceiling and says nothing about a ride.
+const CAUSE_INTENSITY_OTHER_VARIANTS: ReadonlyArray<(effort: string) => string> = [
+  (effort) =>
+    `You lifted well through yesterday's quiet read — it was the ${effort} that tipped it, a proper effort well past easy. A genuinely easy day next and the mornings open back up.`,
+  (effort) =>
+    `The lifting yesterday was not the cost; the ${effort} was, a big effort on a quiet day. Something easy next gives this back.`,
+  (effort) =>
+    `It wasn't the weights that made yesterday a loading day, it was the ${effort} — a real effort. One easy day and there's room to build again.`,
+] as const;
+
+const CAUSE_INTENSITY_OTHER_ONLY_VARIANTS: ReadonlyArray<(effort: string) => string> = [
+  (effort) =>
+    `Yesterday's ${effort} is what made it a big day — a proper effort, well past easy. An easy day next and the mornings open back up.`,
+  (effort) =>
+    `The ${effort} yesterday was a real effort, which is what turned a quiet day into a loading one. Something genuinely easy gives this back.`,
+  (effort) =>
+    `What made yesterday a loading day was the ${effort} — a solid, hard effort. Keep the next day easy and this loosens.`,
+] as const;
+
 const CAUSE_LONGEST_RUN_VARIANTS = [
   "The long run is what made yesterday a big day — it went further than anything in months. A quieter day lets that one land.",
   "Yesterday's run was the longest you've done in months, and a first like that asks for a little room afterwards.",
@@ -223,6 +248,39 @@ function easyCeiling(date: string): string | null {
   return Number.isFinite(ceiling) ? `${Math.round(ceiling)} bpm` : null;
 }
 
+// What graded the day hard, in the athlete's word for it: "run" when the day's runs
+// clear the intensity bars on their own, else the biggest other cardio effort that day
+// ("ride", "hike", "swim"…). Falls back to the neutral "session" rather than guessing.
+const EFFORT_NOUNS: Record<string, string> = { ride: "ride", swim: "swim", row: "row", ski: "ski" };
+function hardEffortNoun(date: string): string {
+  if (safe(() => hardCardioDayIntense(date, undefined, { sport: "run" }))) return "run";
+  const rows =
+    safe(
+      () =>
+        db
+          .prepare(
+            `SELECT a.type AS type, a.raw_text AS raw_text,
+                    COALESCE(MAX(g.training_load), 0) AS load, COALESCE(a.duration_min, 0) AS minutes
+               FROM activities a LEFT JOIN garmin_activities g ON g.activity_id = a.id
+              WHERE a.date = ?
+              GROUP BY a.id`
+          )
+          .all(date) as unknown as Array<{
+          type: string | null;
+          raw_text: string | null;
+          load: number;
+          minutes: number;
+        }>
+    ) ?? [];
+  const other = rows
+    .map((row) => ({ ...row, sport: canonicalEnduranceSport(row.type).key }))
+    .filter((row) => row.sport !== "run")
+    .sort((a, b) => Number(b.load) - Number(a.load) || Number(b.minutes) - Number(a.minutes))[0];
+  if (!other) return "session";
+  if (other.sport === "walk") return /\b(?:hik|ruck|fell)/i.test(`${other.type} ${other.raw_text}`) ? "hike" : "walk";
+  return EFFORT_NOUNS[other.sport] ?? "session";
+}
+
 const STREAK_WORDS = ["", "one", "two", "three", "four", "five", "six", "seven"] as const;
 const streakWord = (streak: number): string => STREAK_WORDS[streak] ?? `${streak}`;
 
@@ -249,16 +307,22 @@ function dayComparisonPassages(date: string): string[] {
   const passages: string[] = [];
 
   if (harm?.kind === "hard_cardio") {
-    const ceiling = easyCeiling(yesterday);
     // "The lifting was not the cost" is only sayable when there WAS lifting.
     const lifted = Number(truth.sets) > 0;
-    const withCeiling = lifted ? CAUSE_INTENSITY_CEILING_VARIANTS : CAUSE_INTENSITY_RUN_ONLY_CEILING_VARIANTS;
-    const withoutCeiling = lifted ? CAUSE_INTENSITY_PLAIN_VARIANTS : CAUSE_INTENSITY_RUN_ONLY_PLAIN_VARIANTS;
-    passages.push(
-      ceiling
-        ? pickDayVariant(withCeiling, date, `${key}_ceiling`)(ceiling)
-        : pickDayVariant(withoutCeiling, date, `${key}_intensity`)
-    );
+    const effort = hardEffortNoun(yesterday);
+    if (effort !== "run") {
+      const variants = lifted ? CAUSE_INTENSITY_OTHER_VARIANTS : CAUSE_INTENSITY_OTHER_ONLY_VARIANTS;
+      passages.push(pickDayVariant(variants, date, `${key}_other`)(effort));
+    } else {
+      const ceiling = easyCeiling(yesterday);
+      const withCeiling = lifted ? CAUSE_INTENSITY_CEILING_VARIANTS : CAUSE_INTENSITY_RUN_ONLY_CEILING_VARIANTS;
+      const withoutCeiling = lifted ? CAUSE_INTENSITY_PLAIN_VARIANTS : CAUSE_INTENSITY_RUN_ONLY_PLAIN_VARIANTS;
+      passages.push(
+        ceiling
+          ? pickDayVariant(withCeiling, date, `${key}_ceiling`)(ceiling)
+          : pickDayVariant(withoutCeiling, date, `${key}_intensity`)
+      );
+    }
   } else if (harm?.kind === "longest_run") {
     passages.push(pickDayVariant(CAUSE_LONGEST_RUN_VARIANTS, date, `${key}_longest_run`));
   } else if (!harm) {
