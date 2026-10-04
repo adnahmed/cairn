@@ -1,24 +1,17 @@
 // @ts-check
 // The race page (/app/horizon/race), the view: the depth behind Horizon's race glance.
-// Top to bottom: the race, THIS WEEK (the one focal card), the build week by week, how
-// the lifting fits, and the finish estimate as a fit with its basis, the paces one tap
-// deeper. Pure strings: the model carries every word, and each state (loading, empty,
+// Top to bottom: the race with its estimate line, THIS WEEK (the one focal card), next
+// week, the build week by week, how the lifting fits, and the estimate's basis with the
+// paces. Pure strings: the model carries every word, and each state (loading, empty,
 // error) has its own renderer here.
 {
+  /** The week's layout in the server's words (the strength layout, the ride), one tap deeper. */
   function moreHtml(model: ClientRaceViewModel): string {
-    if (!model.paces.length && !model.notes.length) return "";
-    const paces = model.paces.length
-      ? `<dl class="race-view-paces">${model.paces
-          .map(
-            (pace) =>
-              `<div class="race-view-pace"><dt>${escHtml(pace.label)}</dt><dd class="numeral">${escHtml(pace.text)}</dd></div>`
-          )
-          .join("")}</dl>`
-      : "";
+    if (!model.notes.length) return "";
     const notes = model.notes.map((note) => `<p class="race-view-note">${escHtml(note)}</p>`).join("");
     return `<details class="race-view-more">
-      <summary class="race-view-more-sum">${model.notes.length ? "Paces and the week's layout" : "Training paces"}</summary>
-      <div class="race-view-more-body">${paces}${notes}</div>
+      <summary class="race-view-more-sum">The week's layout</summary>
+      <div class="race-view-more-body">${notes}</div>
     </details>`;
   }
 
@@ -45,36 +38,81 @@
   }
 
   /**
-   * THIS WEEK, the page's one focal card: the week's stage, what the log holds of its
-   * volume on a quiet bar, the long run, the week's runs by weekday (`sessionsHtml`, the
-   * briefing's rows, handed in by the page), and the week's one coaching sentence. Works
-   * without a race: a runner's week has no stage and says so plainly.
+   * The week's volume as a segmented bar: one segment per logged run in its tone (easy,
+   * quality, long — a quality run also hatched, an extra dashed, so colour is never the
+   * only cue), a tick where the plan sits, the bar scaled to whichever is bigger so a
+   * week run past its plan shows the overflow. A key names the tones drawn.
+   */
+  function segmentBarHtml(week: ClientRaceThisWeek): string {
+    const segments = Array.isArray(week.segments) ? week.segments : [];
+    if (!segments.length && week.plan_frac == null) return "";
+    const segs = segments
+      .map(
+        (seg) =>
+          `<span class="race-week-seg is-${escAttr(seg.tone)}${seg.extra ? " is-extra" : ""}" style="--frac:${seg.frac}"></span>`
+      )
+      .join("");
+    const tick =
+      week.plan_frac != null
+        ? `<span class="race-week-tick" style="--frac:${week.plan_frac}"><span class="race-week-tick-word">plan</span></span>`
+        : "";
+    const said = segments.map((seg) => seg.label).filter(Boolean);
+    const label = [[week.logged_text, week.plan_text].filter(Boolean).join(", "), said.length ? said.join("; ") : ""]
+      .filter(Boolean)
+      .join(": ");
+    const tones = (["easy", "quality", "long"] as const).filter((tone) =>
+      segments.some((seg) => seg.tone === tone && seg.label)
+    );
+    const extra = segments.some((seg) => seg.extra);
+    const key = tones.length
+      ? `<span class="race-week-key" aria-hidden="true">${tones
+          .map((tone) => `<span class="race-week-key-item is-${tone}">${tone}</span>`)
+          .join("")}${extra ? `<span class="race-week-key-item is-extra">extra</span>` : ""}</span>`
+      : "";
+    return `<span class="race-week-bar${week.over ? " is-over" : ""}" role="img" aria-label="${escAttr(label)}">${segs}${tick}</span>${key}`;
+  }
+
+  /** "35.8 km · plan 19.5", or "19.5 km planned" before anything is run. */
+  function cardFigureHtml(week: ClientRaceThisWeek): string {
+    if (!week.logged_text && !week.plan_text) return "";
+    const plan = week.plan_text
+      ? `<span class="race-week-of">${week.logged_text ? " · " : ""}${escHtml(week.plan_text)}</span>`
+      : "";
+    return `<span class="race-week-num numeral">${escHtml(week.logged_text || "")}${plan}</span>`;
+  }
+
+  /**
+   * THIS WEEK, the page's one focal card: the kicker (stage, weeks out), the server's
+   * sentence for the week and one detail line, the volume as a segmented bar, then the
+   * week's runs — what was run first, what was planned second (`sessionsHtml`, handed in
+   * by the page). Works without a race: a runner's week has no stage and says so plainly.
    */
   function thisWeekHtml(
     week: ClientRaceThisWeek | null,
     opts: { sessionsHtml?: string; focus?: string; units?: "km" | "mi" } = {}
   ): string {
     const sessions = opts.sessionsHtml || "";
-    const focus = week?.focus || opts.focus || "";
+    const detail = week?.detail ?? week?.focus ?? "";
+    const focus = detail || opts.focus || "";
     if (!week && !sessions && !focus) return "";
-    const figure = volumeFigureHtml(week, "race-week");
-    const bar =
-      week?.frac != null
-        ? `<span class="race-week-track" aria-hidden="true"><span class="race-week-fill${week.banked ? " is-banked" : ""}" style="--frac:${week.frac}"></span></span>`
-        : "";
-    const long = week?.long_text ? `<span class="race-week-long">${escHtml(week.long_text)}</span>` : "";
+    const figure = week ? cardFigureHtml(week) : "";
+    const ran = !!week?.runs?.length;
+    // The planned long run, until a run is in: then the rows say what the long run was.
+    const long = week?.long_text && !ran ? `<span class="race-week-long">${escHtml(week.long_text)}</span>` : "";
+    const bar = week ? segmentBarHtml(week) : "";
     const volume =
-      figure || long
+      figure || long || bar
         ? `<div class="race-week-volume"><div class="race-week-row">${figure}${long}</div>${bar}</div>`
         : "";
-    return `<section class="race-week" aria-labelledby="raceWeekTitle">
+    const kicker = week?.kicker || "This week";
+    return `<section class="race-week${week?.closed ? " is-closed" : ""}" aria-labelledby="raceWeekTitle">
       <div class="race-week-head">
-        <div class="race-view-kickrow"><span class="lbl">This week</span>${opts.units ? unitsHtml(opts.units) : ""}</div>
-        <h3 class="race-week-stage" id="raceWeekTitle">${escHtml(week?.stage_word || "Your running week")}</h3>
+        <div class="race-view-kickrow"><span class="lbl">${escHtml(kicker)}</span>${opts.units ? unitsHtml(opts.units) : ""}</div>
+        <h3 class="race-week-stage" id="raceWeekTitle">${escHtml(week?.headline || week?.stage_word || "Your running week")}</h3>
+        ${focus ? `<p class="race-week-focus">${escHtml(focus)}</p>` : ""}
       </div>
       ${volume}
       ${sessions}
-      ${focus ? `<p class="race-week-focus">${escHtml(focus)}</p>` : ""}
     </section>`;
   }
 
@@ -99,17 +137,19 @@
   }
 
   /**
-   * The whole race page, top to bottom: the race (name, countdown, race day, the units),
-   * THIS WEEK, the build week by week, how the lifting fits, then the finish estimate
-   * with the paces one tap deeper. No chart here: the terrain is Horizon's glance, and
-   * the ladder below is the same build as a table. `enter` settles it in once.
+   * The whole race page, top to bottom: the race (name, countdown, race day, the units,
+   * the estimate's one line), THIS WEEK, next week (its own section, `nextWeekHtml`), the
+   * build week by week, how the lifting fits, then the estimate's basis and the paces.
+   * No chart here: the terrain is Horizon's glance, and the ladder below is the same
+   * build as a table. `enter` settles it in once.
    */
   function viewHtml(
     model: ClientRaceViewModel,
-    opts: { enter?: boolean; sessionsHtml?: string; units?: "km" | "mi" } = {}
+    opts: { enter?: boolean; sessionsHtml?: string; nextWeekHtml?: string; units?: "km" | "mi" } = {}
   ): string {
     const when = [model.countdown, model.race_day].filter(Boolean).join(" · ");
     const ladder = CairnRaceLadder.ladderHtml(model.ladder, { reveal: false });
+    const estimate = CairnRaceEstimate.estimateHtml(model.estimate, { paces: model.paces });
     return `<section class="race-view${opts.enter ? " settle-in is-entering" : ""}" aria-label="Race" data-race-view>
       <header class="race-view-head">
         <div class="race-view-kickrow">
@@ -118,11 +158,13 @@
         </div>
         <h2 class="race-view-event">${escHtml(model.event)}</h2>
         ${when ? `<p class="race-view-when">${escHtml(when)}</p>` : ""}
+        ${model.fit_text ? `<p class="race-view-fit${model.estimate.fit ? ` is-${escAttr(model.estimate.fit)}` : ""}">${escHtml(model.fit_text)}</p>` : ""}
       </header>
       ${thisWeekHtml(model.this_week, { sessionsHtml: opts.sessionsHtml })}
+      ${opts.nextWeekHtml || ""}
       ${ladder ? `<section class="race-section" aria-label="The build, week by week">${ladder}</section>` : ""}
       ${liftingHtml(model.lifting)}
-      <section class="race-section">${CairnRaceEstimate.estimateHtml(model.estimate)}</section>
+      ${estimate ? `<section class="race-section">${estimate}</section>` : ""}
       ${moreHtml(model)}
     </section>`;
   }

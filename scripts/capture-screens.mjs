@@ -72,6 +72,7 @@ const ROUTES = [
   { name: "today", path: "/app/today", tab: "today" },
   { name: "today-session", path: "/app/today/session", tab: "session" },
   { name: "today-fuel", path: "/app/today/fuel", tab: "plan" },
+  { name: "today-menu", path: "/app/today/menu", tab: "plan" },
   { name: "ask", path: "/app/ask", tab: "chat" },
   {
     name: "ask-whatif",

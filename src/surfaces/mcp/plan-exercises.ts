@@ -17,6 +17,7 @@ import {
   listGuideSuggestions,
   mergeExercises,
   orderPlanDayForEffect,
+  planLookAhead,
   planUpcomingNote,
   planWeek,
   reconcileExerciseGroups,
@@ -85,6 +86,13 @@ export function registerPlanExerciseTools(server: McpToolRegistrar) {
     "The Plan tab's connected week: calendar Mon–Sun when lift/run schedules map weekdays, otherwise template day order with weekday null. Each cell carries status (done/today/upcoming/rest/open), the plan day, any logged session, and any run intent. Layout suggestion is a quiet collision note when the week stacks heavy lower next to a long/quality run.",
     {},
     async () => asText(planWeek())
+  );
+
+  server.tool(
+    "get_plan_look_ahead",
+    "The training days ahead, read-only: today through the end of next week, one row a day — the lifting day's name and first few movements (plan days hold strength only), the calendar's run (easy/quality/long, km when known) or rest, today's lift in the server's one strength line, and each week's context (race-build rung, a recovery or deload week). mode 'order' when no lifting weekdays are known (the lifting days in the order they come round), 'empty' when nothing is planned. Mirrors GET /api/plan/look-ahead.",
+    {},
+    async () => asText(planLookAhead())
   );
 
   server.tool(

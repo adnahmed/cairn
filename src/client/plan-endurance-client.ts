@@ -167,9 +167,15 @@ function paintPlanEndurance(
     laterRunPlan: extra?.laterRunPlan,
     laterRaceBuild: extra?.laterRaceBuild,
   });
-  // This week's runs by weekday, for the THIS WEEK card (the race view's, or the plain
-  // one below for a runner with no race).
-  const sessionsHtml = CairnPlanEnduranceBriefing.sessionsHtml(briefing);
+  // This week's runs for the THIS WEEK card (the race view's, or the plain one for a
+  // runner with no race), what was run first; next week is its own section.
+  const weekModel = typeof CairnRaceWeekRuns !== "undefined" ? CairnRaceWeekRuns : null;
+  const runs = weekModel ? weekModel.weekRuns(raceBuild ?? null, agenda, units) : null;
+  const sessionsHtml = CairnPlanEnduranceBriefing.sessionsHtml(briefing, { runs, today });
+  const nextWeekHtml = CairnPlanEnduranceBriefing.nextWeekHtml(briefing, {
+    figure: weekModel ? weekModel.nextWeekText(raceBuild ?? null, units) : "",
+    today,
+  });
   // The race view is the primary race surface (race-view-*): the race, THIS WEEK, the
   // build week by week, how the lifting fits, the finish estimate. A failed read still
   // mounts it for a race goal, so it can say so and try again.
@@ -180,7 +186,7 @@ function paintPlanEndurance(
   const plainWeek =
     showRace || typeof CairnRaceView === "undefined"
       ? ""
-      : CairnRaceView.thisWeekHtml(CairnRaceViewModel.thisWeekModel(raceBuild ?? null, units), {
+      : CairnRaceView.thisWeekHtml(CairnRaceViewModel.thisWeekModel(raceBuild ?? null, units, { agenda }), {
           sessionsHtml,
           focus: CairnRaceViewModel.runWords(briefing.headline, units),
           units,
@@ -228,6 +234,7 @@ function paintPlanEndurance(
     goalHtml +
     (showRace ? `<div id="endRaceSlot" class="card-stack-item"></div>` : "") +
     (plainWeek ? `<div class="card-stack-item">${plainWeek}</div>` : "") +
+    (plainWeek && nextWeekHtml ? `<div class="card-stack-item">${nextWeekHtml}</div>` : "") +
     emptyHtml +
     (rampHtml ? `<div class="card-stack-item">${rampHtml}</div>` : "") +
     (standingNote ? `<div class="card-stack-item">${standingNote}</div>` : "") +
@@ -244,6 +251,8 @@ function paintPlanEndurance(
       load: () => api("/race-build"),
       units,
       sessionsHtml,
+      nextWeekHtml,
+      agenda,
       reducedMotion: () => (typeof reducedMotion === "function" ? reducedMotion() : false),
     });
   }

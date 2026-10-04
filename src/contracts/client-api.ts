@@ -731,6 +731,8 @@ export interface ClientPlanWeekRun {
   completion_date: ISODateString | string | null;
   // Prescribed distance, or the logged distance once completed.
   km: number | null;
+  /** An open run the day read rested: no run is prescribed today. */
+  rested?: true;
 }
 
 /** The week so far, in counts — the grounding for the strip's one spoken line. */
@@ -797,6 +799,61 @@ export interface ClientPlanWeek {
     run_days: string[];
   };
   strength_line?: ClientTodayStrengthLine | null;
+}
+
+/** One lift day ahead in the Program look-ahead (GET /api/plan/look-ahead). */
+export interface ClientPlanLookAheadLift {
+  /** The plan day's NAME. Today's row prints the strength line instead. */
+  title: string;
+  focus: string | null;
+  /** The plan day's first movements, in plan order. */
+  lifts: string[];
+  /** How many more movements the day holds. */
+  more: number;
+  /** Logged already (today's row only). */
+  done: boolean;
+}
+
+export interface ClientPlanLookAheadRun {
+  kind: string;
+  label: string;
+  /** Always km; the client prints the athlete's run units. */
+  km: number | null;
+  done: boolean;
+}
+
+export interface ClientPlanLookAheadDay {
+  date: ISODateString | string;
+  weekday: string;
+  today: boolean;
+  lift: ClientPlanLookAheadLift | null;
+  run: ClientPlanLookAheadRun | null;
+  rest: boolean;
+  hard: boolean;
+}
+
+export interface ClientPlanLookAheadMarker {
+  kind: "race_build" | "recovery" | "deload";
+  word: string;
+  note: string | null;
+}
+
+export interface ClientPlanLookAheadWeek {
+  week_start: ISODateString | string;
+  label: "This week" | "Next week";
+  markers: ClientPlanLookAheadMarker[];
+  days: ClientPlanLookAheadDay[];
+}
+
+/** The Program landing's read-only look-ahead: today through the end of next week. */
+export interface ClientPlanLookAhead {
+  as_of: ISODateString | string;
+  mode: "calendar" | "order" | "empty";
+  run_units: "km" | "mi";
+  strength_line: ClientTodayStrengthLine | null;
+  weeks: ClientPlanLookAheadWeek[];
+  /** `order` mode: the lifting days in the order they come round, the next first. */
+  order: ClientPlanLookAheadLift[];
 }
 
 export interface ClientExercise {
@@ -1346,6 +1403,43 @@ export interface ClientRaceBuildWeek {
   /** How lifting and running fit this week, in words; "" with no lifting or no running. */
   with_lifting: string;
   current: boolean;
+  /** Current week only: its running is done before Sunday night, so `km` is the week as run. */
+  closed?: boolean;
+  /** Current week only, once closed: what the engine prescribed for it. */
+  planned_km?: number | null;
+  /** The peak sits within ~5% of the biggest week already run (either side): said as about it in `focus`. */
+  holds_high?: boolean;
+}
+
+/**
+ * One run of this week from GET /api/race-build `this_week.runs`, actual first. Lines and
+ * `adjustment` are in km; restate figures in run units. Extras ride in the same list.
+ */
+export interface ClientRaceWeekRunActual {
+  activity_id: number;
+  date: ISODateString | string;
+  weekday: string;
+  title: string | null;
+  km: number | null;
+  duration_min: number | null;
+  pace_sec_per_km: number | null;
+  avg_hr: number | null;
+  /** Machine grade: the personal model's easy / steady / quality (a stated-easy run is easy). */
+  intensity: "easy" | "steady" | "quality";
+  /** The same grade as the athlete reads it — never the watch's label. */
+  intensity_word: ClientRunEffortWord;
+  stated_easy: boolean;
+  /** The planned run it closed; null for an extra. */
+  kind: ClientFlexibleRunKind | null;
+  intent_id: string | null;
+  extra: boolean;
+  planned: { kind: ClientFlexibleRunKind; label: string; km: number | null } | null;
+  /** "shortened to 8 km this morning"; null when the morning changed nothing. */
+  adjustment: string | null;
+  /** "13.5 km · 6:11/km · easy" */
+  actual_line: string;
+  /** "Planned long run 10.7 km, shortened to 8 km this morning." */
+  plan_line: string;
 }
 export interface ClientLegMapDay {
   day_number: number;
@@ -1393,6 +1487,14 @@ export interface ClientRaceBuild {
     logged_km: number;
     quality: { label: string; pace: ClientRacePaceBand | null } | null;
     why: string;
+    /** The week's running is done before Sunday night; the ladder reads it as closed today. */
+    closed?: boolean;
+    closed_reason?: "last_run_day_logged" | "every_intent_done" | null;
+    /** Every run logged this week, date order, actual first — extras included (`extra: true`). */
+    runs?: ClientRaceWeekRunActual[];
+    /** Server-written headline + one detail line (km, variant set); null with no run logged. */
+    headline?: string | null;
+    detail?: string | null;
   } | null;
   weeks: ClientRaceBuildWeek[];
   leg_map: ClientLegMapDay[];
@@ -1427,7 +1529,11 @@ export interface ClientRaceBuild {
     weeks: { week_start: ISODateString | string; km: number; runs: number }[];
     longest_recent_km: number | null;
     volume_word: "rising" | "steady" | "easing" | null;
+    /** The current week closed early and is the last of the four. */
+    includes_this_week?: boolean;
   };
+  /** One calm sentence (km) when the forward ladder moved because of this week; "" otherwise. */
+  adapted?: string;
   why: string;
   reason: string | null;
 }
@@ -1435,12 +1541,22 @@ export interface ClientRaceBuild {
 export type ClientFlexibleRunKind = "easy" | "quality" | "long";
 export type ClientFlexibleRunStatus = "open" | "completed";
 
+/** How hard a run was, in words — by the athlete's stated effort and personal model. */
+export type ClientRunEffortWord = "easy" | "steady" | "hard";
+
 export interface ClientRunCompletionEvidence {
   activity_id: number;
   date: ISODateString | string;
   duration_min: number | null;
   distance_km: number | null;
   intensity: "easy" | "quality";
+  /** The grade as the athlete reads it: easy / steady / hard. */
+  intensity_word?: ClientRunEffortWord;
+  /** What graded it: the athlete's word, the personal HR model, or the watch as fallback. */
+  intensity_basis?: "stated_easy" | "personal_model" | "watch";
+  title?: string | null;
+  avg_hr?: number | null;
+  pace_sec_per_km?: number | null;
   signals: string[];
 }
 
@@ -1458,6 +1574,9 @@ export interface ClientFlexibleRunIntent {
   target_duration_min: number | null;
   target_zone: string | null;
   completion: ClientRunCompletionEvidence | null;
+  /** The week's own plan for this slot, before any morning re-decided it. */
+  planned_label?: string | null;
+  planned_distance_km?: number | null;
   rationale: string;
   adjustment?: ClientRunDayAdjustment | null;
 }
@@ -1477,6 +1596,8 @@ export interface ClientFlexibleTrainingAgenda {
   today_guidance: "open" | "easy_only" | "not_first_choice" | "complete";
   why: string;
   today_adjustment?: ClientRunDayAdjustment | null;
+  /** Runs logged this week that closed no intention (an extra run), date order. */
+  extras?: ClientRunCompletionEvidence[];
 }
 
 export type ClientGroupVerdict = "advancing" | "stalling" | "building" | "maintaining";
@@ -3595,6 +3716,7 @@ export interface ClientApiResponses {
   "/api/checkins": ClientCheckin[] | ClientCheckin | null;
   "/api/plan": ClientPlanDay[];
   "/api/plan/week": ClientPlanWeek;
+  "/api/plan/look-ahead": ClientPlanLookAhead;
   "/api/plan/:day/order-for-effect": ClientPlanDay | null;
   // POST asks for a redraw and answers with the receipt; GET reports what is standing.
   "/api/plan/redraw": ClientPlanRedrawReceipt | ClientPlanRedrawStatus;

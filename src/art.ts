@@ -83,28 +83,53 @@ export function imageModelFor(kind: ArtKind): string {
 
 /** What one image of this kind costs to generate, for the spend ledger. */
 export function imageCostFor(kind: ArtKind): number {
-  return kind === "exercise" && GEMINI_EXERCISE_IMAGE_MODEL ? EXERCISE_IMAGE_COST_USD : IMAGE_COST_USD;
+  if (kind === "exercise" && GEMINI_EXERCISE_IMAGE_MODEL) {
+    // ART_IMAGE_COST_USD prices the base model only; the override model falls back to
+    // its own table price, never the base model's env rate.
+    return positiveEnv("ART_EXERCISE_IMAGE_COST_USD") || tableImageCost(GEMINI_EXERCISE_IMAGE_MODEL);
+  }
+  return imageCostForModel(GEMINI_IMAGE_MODEL);
 }
 
 function imageUrlFor(model: string): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 }
 
-// Cost estimates for the spend ledger (art_usage). Flash image bills a flat
-// ~1290 output tokens per image; text rates are USD per 1M tokens. All
-// env-overridable so a price change doesn't need a code change.
-// Rates below are Google's published list prices for gemini-3.1-flash-image
-// ($0.067 per generated image) and the Gemini 3.x Flash text tier ($0.75 per M
-// input / $3.75 per M output), as of 2026-08.
-const IMAGE_COST_USD = Number(process.env.ART_IMAGE_COST_USD || 0.067);
-// A mixed-model setup is mispriced by one flat rate: with the exercise override
-// in play, exercise images bill at the override model's rate (gemini-3-pro-image
-// is $0.134 per 1K/2K image as of 2026-08) while food and activity still bill at
-// the flash rate. Unset falls back to ART_IMAGE_COST_USD, so a single-model
-// install is unchanged.
-const EXERCISE_IMAGE_COST_USD = Number(process.env.ART_EXERCISE_IMAGE_COST_USD || 0) || IMAGE_COST_USD;
-const TEXT_IN_USD_PER_M = Number(process.env.ART_TEXT_IN_USD_PER_M || 0.75);
-const TEXT_OUT_USD_PER_M = Number(process.env.ART_TEXT_OUT_USD_PER_M || 3.75);
+// Cost estimates for the spend ledger (art_usage). Defaults follow the selected
+// model from the list-price tables below (Google's published Gemini API pricing,
+// checked 2026-10-04, 1K standard-tier images); an unlisted model id falls back
+// to the flash-image rate. An env override always wins: ART_IMAGE_COST_USD,
+// ART_EXERCISE_IMAGE_COST_USD, ART_TEXT_IN_USD_PER_M / ART_TEXT_OUT_USD_PER_M.
+// NOTE: Google doubles Gemini 3.x text prices on 2027-01-01; update the table then.
+export const IMAGE_COST_USD_BY_MODEL: Record<string, number> = {
+  "gemini-3.1-flash-lite-image": 0.0336,
+  "gemini-3.1-flash-image": 0.067,
+  "gemini-3-pro-image": 0.134,
+  "gemini-2.5-flash-image": 0.039,
+};
+export const TEXT_USD_PER_M_BY_MODEL: Record<string, { in: number; out: number }> = {
+  "gemini-3.8-flash": { in: 0.75, out: 3.75 },
+  "gemini-3.7-flash": { in: 0.75, out: 3.75 },
+  "gemini-3.6-flash": { in: 0.75, out: 3.75 },
+  "gemini-3.5-flash": { in: 1.5, out: 9 },
+  "gemini-3.5-flash-lite": { in: 0.3, out: 2.5 },
+  "gemini-3.1-flash-lite": { in: 0.25, out: 1.5 },
+};
+const FALLBACK_IMAGE_COST_USD = 0.067;
+const positiveEnv = (name: string): number => {
+  const n = Number(process.env[name] || 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+function tableImageCost(model: string): number {
+  return IMAGE_COST_USD_BY_MODEL[model] || FALLBACK_IMAGE_COST_USD;
+}
+/** Per-image cost for a model: ART_IMAGE_COST_USD wins, else the table, else flash. */
+export function imageCostForModel(model: string): number {
+  return positiveEnv("ART_IMAGE_COST_USD") || tableImageCost(model);
+}
+const TEXT_PRICE = TEXT_USD_PER_M_BY_MODEL[GEMINI_TEXT_MODEL] ?? { in: 0.75, out: 3.75 };
+const TEXT_IN_USD_PER_M = positiveEnv("ART_TEXT_IN_USD_PER_M") || TEXT_PRICE.in;
+const TEXT_OUT_USD_PER_M = positiveEnv("ART_TEXT_OUT_USD_PER_M") || TEXT_PRICE.out;
 
 // Up to this many already-generated exercise images ride along as style
 // references when the pro image model is in play.

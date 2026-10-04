@@ -86,17 +86,40 @@ test("journey, benchmark and risk producers are arbitrated into ONE lead + suppo
     groupsTrajectory: { groups: [{ verdict: "stalling", label: "Shoulders", lead_lift: "Overhead Press", stalled_signal: "flat", vary_options: [{ name: "Push Press" }] }] },
     journeyMilestones: [{ label: "Down 10 lb", detail: "A calm milestone.", kind: "weight_loss", priority: 5 }],
     benchmarkMilestones: [{ title: "Close to a 2× bodyweight deadlift", why: "within reach", suggested_test: "Test a heavy single", priority: 4 }],
-    dueAttention: [{ signal_key: "health:marker:ferritin", domain: "health", reason: "recheck ferritin" }, { signal_key: "training:strength:back-squat", domain: "training", reason: "re-test squat" }],
+    dueAttention: [{ signal_key: "marker:ferritin", domain: "health", reason: "recheck ferritin" }, { signal_key: "training:strength:back-squat", domain: "training", reason: "re-test squat" }],
   });
   assert.equal(out.available, true);
   // Exactly one lead — the single voice.
   assert.ok(out.lead && out.lead.title, "one lead is named");
-  // The due-attention re-checks batch into the ONE checkpoint (labs + lifts together).
+  // The due-attention re-checks batch into the ONE checkpoint (labs + lifts in one
+  // window), each in its own list: a lab is never one more name in the lift list.
   assert.ok(out.retest, "a batched checkpoint is produced");
-  assert.ok(out.retest.focus.some((f) => /ferritin/i.test(f)), "a due lab folds into the batched checkpoint");
+  assert.deepEqual(out.retest.labs, ["Ferritin"], "a due lab folds into the batched checkpoint, as a lab");
   assert.ok(out.retest.focus.some((f) => /squat/i.test(f)), "a due lift re-test folds into the same checkpoint");
+  assert.ok(!out.retest.focus.some((f) => /ferritin/i.test(f)), "the lab never rides in the lift list");
   // Journey + benchmark never become their own competing leads — they sit in the
   // supporting slots the conductor arbitrated them into.
   const titles = [out.lead.title, ...out.parallel.map((p) => p.title), ...out.later.map((l) => l.title)].join(" | ");
   assert.match(titles, /Down 10 lb|deadlift/i, "the supporting producers are surfaced, not dropped");
+});
+
+test("the check-in keeps a due marker out of the lift list and names it in its own casing", () => {
+  const out = coachingFocus({
+    goalMode: "maintain",
+    groupsTrajectory: { groups: [{ verdict: "stalling", label: "Back", lead_lift: "Barbell Bent-Over Row", stalled_signal: "flat", vary_options: [{ name: "Seal Row" }] }] },
+    performance: { tests_due: [{ exercise: "Barbell Bent-Over Row", kind: "strength" }, { exercise: "Machine Chest Press", kind: "strength" }] },
+    dueAttention: [
+      { signal_key: "marker:hs-crp", domain: "health", reason: "hs-CRP is outside its optimal/lab range" },
+      { signal_key: "directive-recheck:hs-crp", domain: "health", reason: "recheck" },
+      { signal_key: "training:strength:triceps-rope-pushdown", domain: "training", reason: "benchmark cadence" },
+      { signal_key: "dexa:body-composition", domain: "body", reason: "re-scan" },
+      // Another loop's row is not a test to book: it lists nowhere.
+      { signal_key: "journey:goal-checkin", domain: "journey", reason: "check in on the goal" },
+    ],
+  });
+  assert.ok(out.retest, "a batched checkpoint is produced");
+  assert.deepEqual(out.retest.focus, ["Barbell Bent-Over Row", "Machine Chest Press", "Triceps Rope Pushdown"]);
+  assert.deepEqual(out.retest.labs, ["hs-CRP", "DEXA scan"], "one hs-CRP, canonical casing, the scan beside it");
+  assert.equal(out.retest.in_weeks, 0, "a due lab makes the window due now");
+  assert.doesNotMatch(JSON.stringify(out.retest), /Hs Crp|Goal Checkin/);
 });

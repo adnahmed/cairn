@@ -74,34 +74,34 @@
     "public/js/bundle-08-train.js": {
       "lazy": "train",
       "measured": {
-        "raw": 321762,
-        "brotli": 70445
+        "raw": 332194,
+        "brotli": 72699
       },
       "budget": {
-        "raw": 331776,
-        "brotli": 72704
+        "raw": 343040,
+        "brotli": 75776
       }
     },
     "public/js/bundle-09-horizon.js": {
       "lazy": "horizon",
       "measured": {
-        "raw": 111780,
-        "brotli": 26707
+        "raw": 130422,
+        "brotli": 30380
       },
       "budget": {
-        "raw": 115712,
-        "brotli": 27648
+        "raw": 135168,
+        "brotli": 31744
       }
     },
     "public/js/bundle-10-ask.js": {
       "lazy": "ask",
       "measured": {
-        "raw": 116846,
-        "brotli": 27183
+        "raw": 122934,
+        "brotli": 28659
       },
       "budget": {
-        "raw": 120832,
-        "brotli": 28672
+        "raw": 126976,
+        "brotli": 29696
       }
     },
     "public/js/bundle-11-settings.js": {
@@ -129,12 +129,12 @@
     "public/js/bundle-13-meals.js": {
       "lazy": "meals",
       "measured": {
-        "raw": 62664,
-        "brotli": 13117
+        "raw": 71916,
+        "brotli": 15140
       },
       "budget": {
-        "raw": 65536,
-        "brotli": 14336
+        "raw": 74752,
+        "brotli": 16384
       }
     },
     "public/js/bundle-14-today-ahead.js": {

@@ -1,7 +1,5 @@
 // ==== 06-coach-meals.js ====
-type CoachAgent = import("../contracts/client-api.js").ClientAgentInfo & { name?: string };
 type CoachMealPlan = import("../contracts/client-api.js").ClientMealPlan;
-type CoachMealRecord = Record<string, unknown>;
 
 // SWR cache keys for the meal-plan journal. Drafts/swaps/reorders/recipes mutate the
 // plan server-side, so writes invalidate MEALS_KEY; MEALS_SETTINGS_KEY caches /settings
@@ -10,149 +8,10 @@ type CoachMealRecord = Record<string, unknown>;
 var MEALS_KEY = "meals:plans";
 var MEALS_SETTINGS_KEY = "meals:settings";
 
-function isCoachMealRecord(value: unknown): value is CoachMealRecord {
-  return !!value && typeof value === "object";
-}
-
-function coachMealRows<T extends CoachMealRecord = CoachMealRecord>(value: unknown): T[] {
-  return Array.isArray(value) ? (value.filter(isCoachMealRecord) as T[]) : [];
-}
-
-function htmlElement<T extends HTMLElement = HTMLElement>(value: Element | null | undefined): T | null {
-  return value instanceof HTMLElement ? (value as T) : null;
-}
-
-function agentName(agent: CoachAgent): string {
-  return typeof agent.name === "string" && agent.name ? agent.name : "agent";
-}
-
 // ---------- Changes (Ask → Changes) ----------
-// A composition only: the shell paints synchronously, then two components mount into
-// their own slots — the calm asks that still need the athlete (ask-card-*.ts) and the
-// history-first Changes feed with Undo (changes-feed-*.ts), both in the lazy ask bundle
-// (every entry goes through withBundle("ask")). Histories and manual review stay below.
-function coachAgentOptionsHtml(agents: CoachAgent[]): string {
-  return (
-    `<option value="auto">⟳ Auto · rotate enabled agents</option>` +
-    agents
-      .map(
-        (a) =>
-          `<option value="${escAttr(agentName(a))}"${a.enabled ? "" : " disabled"}>${escHtml(agentName(a))}${a.enabled ? "" : " (off)"}${a.env_ok ? "" : " · no key"}</option>`
-      )
-      .join("")
-  );
-}
-
-function mountCoachChanges(): void {
-  const asks = view.querySelector("#changesAsksSlot");
-  const feed = view.querySelector("#changesFeedSlot");
-  if (asks) CairnAskCardController.mount(asks, { peekCached, cachedApi, gotoChatWith });
-  if (feed) {
-    CairnChangesFeedController.mount(feed, {
-      api,
-      toast,
-      peekCached,
-      cachedApi,
-      swrInvalidate,
-      reducedMotion,
-      markRefreshing,
-      collapse: (el, done) => collapseEl(el, done),
-      skeleton: () => skelLines(3),
-      talk: (text) => gotoChatWith(text),
-      // Undo stays available at the affected item too; drop what those surfaces
-      // cached so they read the server's restored state on their next paint.
-      onReverted: () => {
-        swrInvalidate("plan");
-        swrInvalidate(MEALS_KEY);
-      },
-    });
-  }
-}
-
-async function renderCoach(): Promise<void> {
-  headerTitle.textContent = "Changes";
-  state.planSeg = "coach";
-  const token = ++pollToken;
-  // Changes lives under Ask (the team), reached from Ask and from Today's
-  // changes-line; the back link returns to the conversation.
-  view.innerHTML =
-    homeBackHtml("ask", "Ask") +
-    `
-    <p class="changes-lede sess-line">What the team changed, why, and an Undo. Most changes need nothing from you. Talk to the team anytime in <button class="linkbtn linkbtn-plain" id="changesToChat" type="button">Ask</button>.</p>
-    <div id="changesAsksSlot" class="changes-asks"></div>
-    <h1 class="lbl changes-h">What the team changed</h1>
-    <div id="changesFeedSlot" class="changes-feed-slot"></div>
-    <details class="changes-fold">
-      <summary class="lbl">Program change history</summary>
-      <div id="proplist"></div>
-    </details>
-    <details class="changes-fold">
-      <summary class="lbl">Meal-plan change history</summary>
-      <div id="meallist"></div>
-    </details>
-    <details class="changes-manual">
-      <summary class="lbl">Manual review</summary>
-      <p class="sess-line changes-manual-note">The team reviews your signals automatically. Use these controls only when you want an extra review or want to give a specific direction.</p>
-      <div class="field"><label>Agent</label>
-        <select id="agentsel">${coachAgentOptionsHtml([])}</select></div>
-      <div class="field"><label>Instruction (optional)</label>
-        <select id="presetsel">
-          <option value="">Review recent sessions and prepare the next useful changes</option>
-          <option value="Only adjust lower-body lifts; hold everything else.">Lower body only</option>
-          <option value="Be extra conservative; I felt beat up this week.">Extra conservative</option>
-          <option value="custom">Custom\u2026</option>
-        </select></div>
-      <div class="field" id="customwrap" hidden>
-        <textarea id="custominstr" rows="3" class="form-textarea" placeholder="e.g. focus on lower body; hold everything else\u2026"></textarea>
-      </div>
-      <div class="meals-actions">
-        <button id="runbtn" class="pillbtn pill-accent">Ask team to review program</button>
-      </div>
-      <div id="runstatus" class="changes-status"></div>
-      <div class="meals-actions">
-        <button id="mealbtn" class="pillbtn pill-accent">Ask team to refresh meals</button>
-      </div>
-      <div id="mealstatus" class="changes-status"></div>
-    </details>`;
-
-  wireHomeBack(view);
-  mountCoachChanges();
-  $("#changesToChat")?.addEventListener("click", () => activateTab("chat"));
-  $<HTMLSelectElement>("#presetsel")?.addEventListener("change", (e) => {
-    const wrap = htmlElement($("#customwrap"));
-    const target = e.target instanceof HTMLSelectElement ? e.target : null;
-    if (wrap) wrap.hidden = target?.value !== "custom";
-  });
-  $("#runbtn")?.addEventListener("click", () => {
-    CairnCoachProposalController.runCoachProposal(
-      $<HTMLSelectElement>("#agentsel")?.value || "auto",
-      instructionValue()
-    );
-  });
-  $("#mealbtn")?.addEventListener("click", runMealPlan);
-
-  // The histories and the agent list fill in behind the painted shell; each checks it
-  // is still the screen on view before it writes.
-  const current = (): boolean => token === pollToken && Boolean(view.querySelector("#changesFeedSlot"));
-  await Promise.allSettled([
-    api("/agents").then((agents) => {
-      const select = $<HTMLSelectElement>("#agentsel");
-      if (!current() || !select) return;
-      const chosen = select.value;
-      select.innerHTML = coachAgentOptionsHtml(coachMealRows<CoachAgent>(agents));
-      if (chosen && Array.from(select.options).some((o) => o.value === chosen && !o.disabled)) select.value = chosen;
-    }),
-    api("/proposals?limit=10").then((proposals) => {
-      if (current()) CairnCoachProposalController.renderProposals(proposals);
-    }),
-    api("/mealplans?limit=8").then((plans) =>
-      withBundle("meals", () => {
-        if (current()) CairnMealPlannerController.renderMealPlans(plans);
-      })
-    ),
-  ]);
-}
-
+// renderCoach and its screen live in the lazy ask bundle (coach-changes-screen.ts),
+// entered through the dispatcher's lazy("ask") and the segment deps' withLatestRender.
+// Its two manual-review controls stay here, beside the meal keys they invalidate.
 function instructionValue(): string {
   const preset = $<HTMLSelectElement>("#presetsel")?.value || "";
   if (preset === "custom") return $<HTMLTextAreaElement>("#custominstr")?.value.trim() || "";
@@ -170,15 +29,30 @@ function runMealPlan(): void {
   void withBundle("meals", () => CairnMealPlannerController.runCoachMealPlan(agent, instruction));
 }
 
+// Changes' meal-plan history, painted by the lazy meals bundle while Changes is on view.
+function renderCoachMealPlans(plans: unknown, current: () => boolean): unknown {
+  return withBundle("meals", () => {
+    if (current()) CairnMealPlannerController.renderMealPlans(plans);
+  });
+}
+
 // ---------- Plan → Food: the Fuel surface ----------
 // Today so far (protein first, energy, fiber — numbers with units, never a score),
 // the "Log food" composer, the day's meals as editable meal cards, three ideas from
 // the athlete's own staples, and the adaptive energy read. A composition only: the
 // shell paints synchronously, then each component mounts into its own slot. Logging
 // here never leaves the screen — the composer hands back the rows it logged and the
-// slots that read the day refresh. The weekly meal-plan journal is kept as history
-// in a fold at the foot (Plan → Meals redirects here with it open).
+// slots that read the day refresh. "This week's menu" (today's planned meals, from the
+// lazy meals bundle) sits above the day's journal and opens the week menu; past weeks
+// are kept as history in a fold at the foot.
 let fuelTeardowns: Array<() => void> = [];
+// The mounted menu card, so a meal-plan write (a draft that landed, Keep, Undo) can
+// refresh it in place without repainting Fuel.
+let fuelMenuCard: { slot: Element; handle: { refresh(): Promise<void> } } | null = null;
+// Cross-screen hand-offs for the next paint: where the week menu opens (today's day or
+// its top), and whether Fuel opens with its history fold open.
+let mealMenuFocusNext: "today" | "week" = "week";
+let fuelHistoryNext = false;
 
 function mountFuelSurface(token: number, date: string, today: string): void {
   for (const teardown of fuelTeardowns) teardown();
@@ -214,6 +88,8 @@ function mountFuelSurface(token: number, date: string, today: string): void {
 }
 
 function renderFoodJournal(options: { history?: boolean } = {}): Promise<unknown> {
+  if (fuelHistoryNext) options = { ...options, history: true };
+  fuelHistoryNext = false;
   state.planSeg = "food";
   const token = ++pollToken;
   const today = localISO();
@@ -235,18 +111,20 @@ function paintFoodJournal(token: number, date: string, today: string, isToday: b
     `<section class="meal-energy food-journal fuel" id="mealEnergy">
       <div id="dayFuelSlot" class="fuel-slot"></div>
       ${isToday ? `<div id="fuelLogSlot" class="fuel-slot"></div>` : ""}
+      ${isToday ? `<div id="fuelMenuSlot" class="fuel-slot"></div>` : ""}
       <div id="fuelMealsSlot" class="fuel-slot"></div>
       ${isToday ? `<div id="fuelIdeasSlot" class="fuel-slot"></div>` : ""}
       <div id="energyCard">${loadingState("Reading your trend…")}</div>
       <div id="energyHero"></div>
       <div id="checkinResult" class="checkin-result"></div>
       <details class="mp-history fuel-history" id="fuelHistory"${options.history ? " open" : ""}>
-        <summary class="lbl">Meal-plan history</summary>
+        <summary class="lbl">Earlier meal plans</summary>
         <div id="fuelHistorySlot" class="fuel-history-body"></div>
       </details>
     </section>`;
   wireHomeBack(view);
   mountFuelSurface(token, date, today);
+  mountFuelMenu(token);
   loadMealsEnergy(token);
   const fold = view.querySelector<HTMLDetailsElement>("#fuelHistory");
   fold?.addEventListener("toggle", () => {
@@ -261,28 +139,93 @@ function rerenderFoodSurface(): void {
   renderFoodJournal({ history: !!view.querySelector("#fuelHistory[open]") });
 }
 
-// A meal-plan history action (keep, discard, Hold/Undo, a draft that finished, a
-// discarded prefs edit) repaints the history fold ALONE. The slots above keep their
+// "This week's menu" on Fuel. The card lives in the lazy meals bundle; a placeholder of
+// its shape holds the slot so nothing below jumps when it lands. It never delays the
+// eager slots above and below it.
+function mountFuelMenu(token: number): void {
+  const slot = view.querySelector<HTMLElement>("#fuelMenuSlot");
+  if (!slot) return;
+  slot.innerHTML = `<div class="mmenu mmenu-skel" aria-hidden="true">${skelLines(2)}</div>`;
+  Promise.resolve(
+    withBundle("meals", () => {
+      if (token !== pollToken || !slot.isConnected) return;
+      const handle = CairnMealMenuCardController.mount(slot, {
+        isCurrent: () => token === pollToken && slot.isConnected,
+        openMenu: (focus) => openMealMenu(focus),
+      });
+      fuelMenuCard = { slot, handle };
+      fuelTeardowns.push(handle);
+      // The meals bundle's owed reconnect sweep waits for the card's first real paint, so
+      // a week still drafting reattaches to its status host, not to the skeleton.
+      return handle.ready;
+    })
+  ).catch(() => {
+    if (slot.isConnected) slot.innerHTML = "";
+  });
+}
+
+function openMealMenu(focus: "today" | "week" = "week"): void {
+  mealMenuFocusNext = focus;
+  state.planJump = "meals";
+  activateTab("plan");
+}
+
+function openFuel(withHistory = false): void {
+  fuelHistoryNext = withHistory;
+  state.planJump = "food";
+  activateTab("plan");
+}
+
+// A meal-plan action (keep, discard, Hold/Undo, a draft that landed, a discarded prefs
+// edit) repaints what shows the plans IN PLACE: the week menu on its screen; on Fuel
+// the menu card and, once opened, the history fold. Fuel's other slots keep their
 // mounts, so a meal card mid-edit keeps its unsaved grams, the Log composer keeps its
-// attached photo, and the page stays where the athlete scrolled it. Only when the
-// fold is not on view does it fall back to the Plan → Meals navigation.
+// attached photo, and the page stays where the athlete scrolled it.
 function repaintMealHistory(): Promise<unknown> {
   swrInvalidate(MEALS_KEY);
-  if (!view.querySelector("#fuelHistorySlot")) return Promise.resolve(renderMeals());
-  return paintMealHistory(pollToken);
+  const token = pollToken;
+  if (view.querySelector("#mealMenuSlot")) return paintMealMenu(token, "week");
+  const repaints: Promise<unknown>[] = [];
+  if (fuelMenuCard?.slot.isConnected) repaints.push(fuelMenuCard.handle.refresh());
+  if (view.querySelector<HTMLElement>("#fuelHistory")?.dataset.painted) repaints.push(paintMealHistory(token));
+  return Promise.all(repaints);
 }
 
-// Plan → Meals is no longer a destination: it redirects into Fuel with the meal-plan
-// journal open as history, and the URL follows (/app/plan/food).
-async function renderMeals(): Promise<unknown> {
-  const painted = renderFoodJournal({ history: true });
-  if (typeof syncRouteFromState === "function") syncRouteFromState("replace");
-  return painted;
+// Plan → Meals is the week menu (/app/today/menu; the v1 /app/plan/meals redirects
+// here): the current week's days and meals with swap, recipe and log, the shopping
+// list, and the ask for a fresh week. It opens from Fuel's card and Train → Fuel, and
+// steps back to Fuel. The planner itself is the lazy meals bundle's.
+function renderMeals(): Promise<unknown> {
+  state.planSeg = "meals";
+  const token = ++pollToken;
+  const focus = mealMenuFocusNext;
+  mealMenuFocusNext = "week";
+  // The page's name rides the Today home's eyebrow (as Fuel's does); the heading that
+  // takes focus on arrival says it once more for assistive tech only.
+  CairnUiHeader.setEyebrowTitle(headerTitle, "This week's menu");
+  // The route renders once the meals bundle has landed (lazy("meals", …)); the page
+  // frame is that bundle's, so the eager screen carries only the wiring.
+  return Promise.resolve(
+    withBundle("meals", () => {
+      if (token !== pollToken) return;
+      view.innerHTML = CairnMealJournal.menuPageHtml();
+      view.querySelector("[data-mmenu-back]")?.addEventListener("click", () => openFuel());
+      view.querySelector("[data-mmenu-history]")?.addEventListener("click", () => openFuel(true));
+      const slot = view.querySelector<HTMLElement>("#mealMenuSlot");
+      return slot && CairnMealJournal.paintMenu(token, slot, peekCached<CoachMealPlan[]>(MEALS_KEY), focus);
+    })
+  );
 }
 
-// The meal-plan journal, as history inside Fuel's fold (render helpers in
-// /js/meal-plan-client.js): it paints instantly from a warm peek and upgrades on change. Meal prefs ride along from /settings (peeked,
-// revalidated in the background).
+function paintMealMenu(token: number, focus: "today" | "week"): Promise<unknown> {
+  const slot = view.querySelector<HTMLElement>("#mealMenuSlot");
+  if (!slot) return Promise.resolve();
+  const peek = peekCached<CoachMealPlan[]>(MEALS_KEY);
+  return Promise.resolve(withBundle("meals", () => CairnMealJournal.paintMenu(token, slot, peek, focus)));
+}
+
+// Past weeks, inside Fuel's fold (render helpers in /js/meal-plan-client.js): painted
+// instantly from a warm peek and upgraded on change.
 function paintMealHistory(token: number): Promise<unknown> {
   const fold = view.querySelector<HTMLElement>("#fuelHistory");
   const slot = view.querySelector<HTMLElement>("#fuelHistorySlot");
@@ -290,9 +233,9 @@ function paintMealHistory(token: number): Promise<unknown> {
   fold.dataset.painted = "1";
   const peek = peekCached<CoachMealPlan[]>(MEALS_KEY);
   if (!peek) slot.innerHTML = skelLines(3);
-  // The planner renders from the lazy meals bundle; the fold is closed on arrival
-  // unless Plan -> Meals opened it, so this is never Fuel's first paint.
-  return Promise.resolve(withBundle("meals", () => CairnMealJournal.paint(token, slot, peek)));
+  // The history renders from the lazy meals bundle; the fold is closed on arrival
+  // unless the week menu's "Earlier meal plans" opened it.
+  return Promise.resolve(withBundle("meals", () => CairnMealJournal.paintHistory(token, slot, peek)));
 }
 
 // SWR over the derived expenditure (key shared with the old Energy view), painted
@@ -323,9 +266,10 @@ function loadMealsEnergy(token: number): void {
 Object.assign(globalThis, {
   MEALS_KEY,
   MEALS_SETTINGS_KEY,
-  renderCoach,
+  renderCoachMealPlans,
   renderFoodJournal,
   renderMeals,
   repaintMealHistory,
   rerenderFoodSurface,
+  runMealPlan,
 });

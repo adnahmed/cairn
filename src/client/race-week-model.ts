@@ -1,10 +1,11 @@
 // @ts-check
 // The race's running words, the model: the athlete's run units (settings.run_units)
-// over the engine's kilometres, a week's stage in one word, THIS WEEK at a glance, the
-// "With your lifting" rows, and a runner's closed weeks. Pure shaping over GET
-// /api/race-build: the engine stays in km, every figure is the server's, and the only
-// arithmetic is the unit change and a bar's fraction. Loaded before race-view-model,
-// which re-exports all of it; Horizon's race lane and the race page both read here.
+// over the engine's kilometres, a week's stage in one word, the "With your lifting"
+// rows, and a runner's closed weeks (THIS WEEK itself is race-week-runs-model's). Pure
+// shaping over GET /api/race-build: the engine stays in km, every figure is the
+// server's, and the only arithmetic is the unit change and a bar's fraction. Loaded before race-week-runs-model
+// and race-view-model, which re-exports all of it; Horizon's race lane and the race
+// page both read here.
 {
   type RaceBuild = import("../contracts/client-api.js").ClientRaceBuild;
   type RaceWeek = import("../contracts/client-api.js").ClientRaceBuildWeek;
@@ -88,36 +89,6 @@
   }
 
   /**
-   * This week at a glance: its stage, what the log holds against the week's volume (a
-   * quiet bar, never a grade), the long run and the week's one coaching sentence. The
-   * volume is the engine's (`this_week.km`, the week as planned) and the logged figure
-   * the log's; nothing is re-derived. Works without a race too (a runner with no race
-   * set): the stage and the focus are then simply absent. Null with no running week.
-   */
-  function thisWeekModel(build: RaceBuild | null | undefined, units?: unknown): ClientRaceThisWeek | null {
-    const week = build?.this_week || null;
-    const rung = (Array.isArray(build?.weeks) ? build.weeks : []).find((w) => w.current === true) || null;
-    const target = Math.max(0, num(week?.km ?? rung?.km) ?? 0);
-    if (!week && !rung) return null;
-    if (target <= 0 && !rung) return null;
-    const done = Math.max(0, num(week?.logged_km) ?? 0);
-    const unit = unitsOf(units);
-    const long = num(week?.long_km ?? rung?.long_km);
-    return {
-      stage_word: rung ? stageWord(rung) : "",
-      done_km: done,
-      target_km: target,
-      // Nothing run yet says the week's volume alone, never a zero against it.
-      done_text: done > 0 ? (target > 0 ? distNum(done, unit) : kmText(done, unit)) : "",
-      target_text: target > 0 ? kmText(target, unit) : "",
-      frac: target > 0 ? Math.round(Math.min(1, done / target) * 1000) / 1000 : null,
-      banked: target > 0 && done >= target,
-      long_text: long != null && long > 0 && rung?.kind !== "race" ? `Long run ${kmText(long, unit)}` : "",
-      focus: String(rung?.focus || "").trim(),
-    };
-  }
-
-  /**
    * "With your lifting": the server's one line per week, with a run of weeks that say the
    * same thing folded into one row ("This week – Oct 12"), so three identical build
    * weeks never read as three rows of the same sentence. [] when no week has one (a
@@ -172,7 +143,6 @@
     kmText,
     distNum,
     runWords,
-    thisWeekModel,
     liftingModel,
     volumeWeeks,
   };

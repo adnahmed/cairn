@@ -1076,6 +1076,117 @@ tracks the reseat separately — and `planItemToRaw` now carries `superset_group
 pairing reaches the card; a stand-in substitution clears it (a substitute is not the movement its slot
 was paired for).
 
+### The whole-week load read (`src/repo/week-training-load.ts`, 2026-10-04)
+
+`weekTrainingLoad(asOf)` is the ONE whole-week picture: every sport plus the lifting, so the brain
+reads a Saturday ride, a Sunday long run and a Monday leg day as one week instead of assembling it from
+fragments (raw activity rows, a week of runs, the two-day muscle list, the gates, the agenda). It is a
+read over reads and re-derives nothing — no SQL, no type regexes, no TE/zone/HR thresholds
+(`test/weekTrainingLoad.test.js` asserts its import list):
+
+- `days[]` — the rolling seven days (`as_of − 6 … as_of`). Each day's `runs[]` come from the week's
+  run closures (`weekRunClosures`: the agenda's own matcher), with the CURRENT ISO week's verdict taken
+  from `flexibleTrainingAgenda` itself, so `closed` (`easy`/`quality`/`long`, null for an extra) can
+  never disagree with the agenda; `effort_word`/`basis` are the agenda's grading (stated effort, then
+  the personal model and title, then the watch). `cross[]` is every non-run impact from
+  `recentEnduranceImpacts` (family, load band, intensity). `strength` is the logged session's title and
+  `sessionLoad`, with a leg/upper split from the groups it trained: a region the session touched reads
+  at least `loaded`, and `saturated` is the shared gate's own answer that day (`strengthLegLoad` for the
+  legs, `acuteGates` for the rest). `day_load` is `dayLoad(date, {countsCardio:true})`.
+- `week` — the ISO week of `as_of`: the agenda's intents (completion date, else its suggested date),
+  `extras_count`, and plain totals summed off `days` (run km, cross minutes per family, strength
+  sessions, loading and hard days). Run km stays run km: cross-training never enters ACWR or capacity.
+- `spacing` — the week's key runs (quality/long) with the fewest days between them, and any two
+  consecutive hard days.
+- `cross_training_day` — `crossTrainingDays(asOf)[0]`: the stated optional day, else the observed
+  pattern. A known pattern of the athlete's week, never a conflict.
+- `next_48h` — the next two dates: the agenda's open intents by suggested date inside its week, the
+  stated calendar (`calendarDayRead`, else the stated run days alone when no lifting week is known)
+  past it, the lifting map (`thisWeekPlanDayMap`), and whether the
+  cross-training day lands there; `legs` is the worst `acuteGate` band over `RUN_PRIME_GROUPS`; and one
+  `implication_code` (`legs_loaded_before_key_run` → `key_run_after_hard_day` → `back_to_back_hard` →
+  `clear`) with an athlete-facing `line` that rotates through `pickDayVariant` (`NEXT_48H_LINES`, three
+  phrasings per code, no numbers).
+
+It carries no scores and no internal magnitudes (no residual, bar or `heavy_ratio`). The coach context
+key `week_training_load` is built once per snapshot with the context's own agenda threaded in.
+At the prompt boundary it REPLACES `recent_load` in `TRAINING_FULL` (so it reaches `day_read`,
+`session`, `weekly_read`, `week_ahead`, `insight`, the plan sites and `chat`) and is added to
+`daily_composition`; `recent_load` stays in `getCoachContext` for routes and MCP, and
+`case_conference` is unchanged (its 50-key bound). `recent_cardio` stays the per-run detail beside it.
+The Brief gets a compacted copy (`compactWeekTrainingLoad`): days with nothing logged, row ids, the
+grading basis, run minutes, the window bounds and the week's intents (the agenda's own list rides in
+`flexible_training_agenda`) go, and only a key run keeps its title; `next_48h` passes whole. One prose
+pointer (`renderWeekTrainingLoadPointer`, rendered with the program-state block and the recent-runs
+block) names it as the whole-week picture. Surfaces: `GET /api/week-training-load?date=` and MCP
+`get_week_training_load {date?}` return the same payload (`test/mcpRestPayloadParity.test.js`).
+
+### A moved key run is still the planned run (`flexible-training-agenda.ts`, 2026-10-04)
+
+Which logged run was the week's quality or long run is the week's own completion, never its raw
+weekday. `weekRunClosures(weekStart, through, {prescriptions?})` is the ONE week matcher: the agenda
+calls it with its live prescriptions; without them it matches the stated schedule's shape (one slot per
+stated run day, no targets — with no targets a long-vs-quality tie goes by the nearer stated weekday).
+`closedRunIntentOn(date)` reads the kinds closed on a date. The quality slot goes to the strongest
+evidence (a quality title or a structured interval session, then the personal model, then the watch),
+then the run nearest the stated quality weekday, then the bigger dose. A slot this morning re-decided is
+judged against what the week planned when the run came on an earlier day. While the long run's own day
+is still ahead, a run on another stated run day answers THAT day's slot unless it already reached the
+whole long target (`heldForOwnDay`): Tuesday's 9.7 km easy run is the easy run, and Sunday's long run
+stays open on Saturday; once the long day has passed, the biggest-dose rule decides. The harm law's
+"the build's own prescription is not harm" exemption (`plannedDoseOn`, read-adherence.ts) asks
+`closedRunIntentOn` and falls back to the stated weekday only if that read throws, so capacity,
+`closedWeekRunHarm` and adherence follow automatically — and a watch-hard EXTRA run with no stated
+effort is still harm. The matcher is cycle-free by contract: it never calls `weeklyRunPlan`,
+`flexibleTrainingAgenda`, `harmEvidenceOnDay` or `demonstratedRunCapacity` (the harm read sits under the
+run plan). `test/movedKeyRunLiveWeek.test.js`, `test/liveWeekReplay.test.js`.
+
+### The cross-training day: stated, then observed (`src/repo/cross-training-day.ts`, 2026-10-04)
+
+A recurring non-run day lives in `endurance_schedule.cross_training` (`{dow, sport, optional:true}`, at
+most three) — never in `days[]`, so no run-day consumer reads it as a run. A `{dow, kind:'ride',
+optional:true}` arriving inside `days[]` is moved there; a run-days-only update keeps the stored ones and
+an explicit `cross_training: []` clears them (every setter: `set_profile`, `set_endurance_schedule`,
+PUT /profile, the chat action). `crossTrainingDays(asOf)` returns the stated days, else the OBSERVED
+pattern: one load family (`impact.family`), moderate or heavier, on the same weekday in at least 2 of
+the last 6 ISO weeks, labelled `source:'observed'` — inferred from the log, never asked. The race
+build's `ride` (with `source`, `sport_family`), its leg map and the placement copy (rotated through
+`pickDayVariant`) read it. A ride on a known day blocks only its OWN date for key runs and leaves the
+stated long-run weekday after it open with a leg-load caveat; an unpatterned hard ride still blocks the
+next day. `fuelDemand` reads an upcoming known day big when it typically runs 90 min or more, or heavy.
+The known day's OWN sport is the habitual dose, like a planned key run: the harm read's hard-cardio arm
+excuses it (`knownCrossTrainingDose`, `read-adherence.ts`), so a hard MTB on the MTB Saturday never
+reaches Sunday's morning as `harm_yesterday` by intensity alone. A hard run that day, or another sport,
+still counts, and the next-morning physiology arm still judges what it cost. Run km stays run km: cross-training is in the whole-week read, the muscle dose and fuel, never ACWR,
+capacity or the ladder.
+
+### Every logged activity is a dose (`endurance-sports.ts`, `heavy-load.ts`, 2026-10-04)
+
+No Garmin type reads as dose 0 except an empty row or a strength row (a lift is a Cairn session).
+`activityLoadFamily(type, text?)` guesses a `LoadFamily` from the type key (Garmin `_v2` dropped; the
+type outranks the name, read only when the type is generic): paddle/row → back, shoulders, core,
+forearms (`paddle`); ball/racket → legs and core (`court sport`); snow/skate → legs and core,
+eccentric (`snow sport`); anything else → a light whole-body read (`activity`, `known_sport:false`).
+`matchEnduranceModality` tries a paddle/court/snow type, the classifier, the text regexes, then the
+family guess, then whole-body. A whole-body activity is moderate only when the watch saw effort, and a
+light one is never load-relevant (it never moves a lift; its small dose reaches the residual from
+25 min / 4 km). Stated effort (`activities.rpe <= 4`) outranks the watch for rides and every other
+sport exactly as for runs; the personal HR model judges runs only. `EnduranceImpact` carries
+`activity_id`, `family`, `known_sport` and `stated_easy`. `recentMuscleLoad` names a group by its
+NEWEST contributor (an older ride never relabels a newer run). `shadowModality()` buckets every paddle
+type for shadow detection only; the stored type is unchanged. `test/unknownSportLoad.test.js`,
+`test/crossTrainingStatedEffort.test.js`, `test/recentMuscleLoadLabel.test.js`.
+
+### One week, one prescription (`run-progression.ts`, 2026-10-04)
+
+The run plan is a property of the week, not of the as-of morning. Besides the volume anchors,
+`spiking` reads the closed week's own status at the volume anchor (`getProgramState(volumeAnchor)`), so
+a spike in the closed week holds every morning of the new week; the live trailing-7-day read is only the
+downward brake inside the week. `get_run_plan` and `get_race_build` therefore agree on the week whatever
+day they are asked (`test/runPlanAsOfStability.test.js`). A held week's long run never takes the easy
+days' leftover km past its hold ceiling (`HOLD_WEEK_LONG_OF_LONGEST` of the longest); the extra stays
+off the card. Still per-day by design: a low readiness or HRV/RHR/sleep dip on the plan date.
+
 ### Run/lift stress budget (`src/repo/stress-budget.ts`, 2026-09-24)
 
 One weekly stress budget for the legs, across running and lifting, for a hybrid athlete building to a
@@ -3596,9 +3707,9 @@ regenerate and when enrichment lands so a better prompt gets its attempt. The ci
 (`src/artCircuit.ts`) is unchanged.
 
 **Spend telemetry.** Every paid call (and every avoided generation) is recorded via
-`repo.recordArtUsage` into `art_usage` — actions `generate` (flat `ART_IMAGE_COST_USD`, default
-$0.067/image), `canonicalize` (token-priced via `usageMetadata` at
-`ART_TEXT_IN_USD_PER_M`/`ART_TEXT_OUT_USD_PER_M`), `reuse` (carries `est_saved_usd`), `fail`.
+`repo.recordArtUsage` into `art_usage` — actions `generate` (per-image cost from a model-keyed price table, `IMAGE_COST_USD_BY_MODEL` in
+`src/art.ts`: lite $0.0336, flash $0.067, pro $0.134; `ART_IMAGE_COST_USD` overrides), `canonicalize` (token-priced via `usageMetadata` at
+`ART_TEXT_IN_USD_PER_M`/`ART_TEXT_OUT_USD_PER_M`, defaulting from `TEXT_USD_PER_M_BY_MODEL`), `reuse` (carries `est_saved_usd`), `fail`.
 Surfaced by `GET /api/art/stats` / MCP `get_art_stats` with a since-`art_enabled_at` window plus
 all-time.
 
@@ -3614,7 +3725,7 @@ parts: sending them would change a working request shape for every user. `pregen
 seed-pack builder) always forces the base model with no references, so the shipped pack stays
 reproducible regardless of one builder's local env. Cost follows the model: `imageCostFor(kind)`
 bills exercise images at `ART_EXERCISE_IMAGE_COST_USD` when the override is set (falling back to
-`ART_IMAGE_COST_USD`), so a mixed-model install isn't estimated at one flat rate.
+the override model's table price), so a mixed-model install isn't estimated at one flat rate.
 
 **Failure is diagnosable and bounded.** A non-OK Gemini response no longer collapses into "gemini
 responded 400". `geminiFailure()` captures the status plus a 500-char body, derives a groupable code
@@ -4720,6 +4831,35 @@ new profile fields, and `{available:false, reason}` for everyone else. `raceBuil
   the long/quality run, on the heavy-lower day, the day after the long run (a loaded weekend: keep
   it the recovery spin), or clear of all of them. A ride in a clean slot is never asked to move;
   the clear-slot sentence rotates through `pickDayVariant` like every other athlete-facing line.
+- **This week, actual first (2026-10-04).** `this_week.runs` is every run logged Monday→`as_of`
+  off the rolling agenda — the runs that closed a slot (`kind`, `planned` = the WEEK's plan, never a
+  morning label the run went past, `adjustment` = what the morning made of it) and the runs that
+  closed none (`extra: true`, from the agenda's `extras`; the log is truth, a run is never dropped).
+  Each carries `intensity` / `intensity_word` from the agenda's law grade (below), `actual_line`
+  ("13.5 km · 6:11/km · easy") and a quiet `plan_line`. `headline` + `detail` are the week's recap,
+  written here from actual vs plan, a new high against the biggest week BEFORE this one, the
+  easy/steady/hard mix and the long run — variant sets, reading-grammar clean, never a renderer's.
+- **The week closed early** (`currentWeekClosedEarly`, `src/repo/week-layout-closed.ts`): on the
+  week's Sunday, with stated run days and the last one run (or every agenda intent completed), the
+  week is closed TODAY rather than next Monday. Never before Sunday: a week closed on a Thursday
+  would count as harm-free capacity before its last run's next morning exists. No stated calendar
+  never closes early. Closed, the current rung IS the week as run (`km` logged, `planned_km` the
+  prescription), `review` ends with it (`includes_this_week`), `capacity` reads at its own Sunday,
+  and next week is the engine's own. The walk then steps off the logged week exactly as Monday's
+  engine will — the ladder has no hold or rule of its own after a big or harmed week (that would
+  be a second engine, holding Sunday and gone Monday). The engine's feasibility read
+  (race-ladder-hook) reads the same closed week, so both name one peak. `adapted` is the one calm
+  sentence saying how the ladder moved (`adaptedLine`), and names only rungs the ladder draws; a
+  harmed new high is recapped as a big week that asked a lot, never celebrated beside a capacity
+  note that sets it aside.
+- **A peak within 5% of the biggest week is about it** (`PEAK_HOLDS_HIGH_SHARE`, `markNewHighs`):
+  either side, it is `holds_high`, says "About your biggest week", and is never a "new weekly high"
+  by half a km.
+
+The rolling agenda grades runs by the law (`gradeRunRow`, `flexible-training-agenda.ts`): a
+stated-easy RPE first, then `personalRunReadForRow` (his own zones, his own title, a structured
+interval workout), and the watch's label / Garmin zone time / training effect only when the
+personal model cannot judge (`intensity_basis: "watch"`). `qualityRunLoggedBefore` reads the same.
 
 Surfaces: `GET /api/race-build`, MCP `get_race_build`, the "Race build" card on Progress →
 Endurance (`raceBuildCard`, fetched into the endurance snapshot v4), Horizon's race view (a glance:

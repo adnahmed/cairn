@@ -41,8 +41,12 @@ import {
   isConclusiveDayReadCall,
 } from "./day-read-call.js";
 import { getEnduranceGoal, getEnduranceSchedule, isoDow } from "../profile.js";
+import { closedRunIntentOn, type FlexibleRunKind } from "../flexible-training-agenda.js";
 import { withoutShadowActivities } from "../activity-shadow.js";
 import { activeRecoveryWeek } from "../recovery-week.js";
+import { impactFamily, isKnownCrossTrainingDate } from "../cross-training-day.js";
+import { recentEnduranceImpacts } from "../hybrid-load.js";
+import { isEnduranceHoldDirective, listActiveDirectives } from "../directives-read.js";
 import { longPeakTargetKm } from "../run-ramp.js";
 import { readinessBand, readsRestGradeReadiness, SUPPORTIVE_READINESS } from "../readiness-bands.js";
 import { nightPastBand, overnightBrakes, personalBand, type PersonalBand } from "../overnight-band.js";
@@ -2059,6 +2063,52 @@ export function nextMorningClean(date: string): boolean {
 // bounds a planned long run. The step is read off the raw previous longest, not the
 // harm-filtered one, so this law never asks itself. Outside a dated race build there is
 // no build ceiling, so the arm stands.
+//
+// WHICH run was the planned quality or long run is the week's own completion, never the
+// raw weekday (2026-10-04): a quality session moved from Thursday to Friday on purpose
+// ("Hill Sprints", to leave room before Sunday) is still the quality session, and a long
+// run taken on Saturday is still the long run. `closedRunIntentOn` reads it off the same
+// matcher the agenda runs (weekRunClosures, cycle-free — this law sits under
+// weeklyRunPlan, so it can never ask for the live week). The stated weekday is the
+// fallback only when that read fails. A watch-hard EXTRA run that closed nothing stays
+// eligible as harm: only the athlete's stated effort and the completion excuse a run.
+// weeklyRunPlan drops the quality slot in an applied recovery week and under an
+// endurance-limiting directive. The stated shape still holds the slot (it must stay
+// cycle-free, so it cannot ask the plan), and the exemption has to drop it too —
+// otherwise a hard run in a week that planned no quality is "the build's own dose".
+function qualityDropped(date: string): boolean {
+  try {
+    if (activeRecoveryWeek(date)) return true;
+  } catch {
+    /* an unreadable recovery stamp is not a hold */
+  }
+  try {
+    if (listActiveDirectives().some(isEnduranceHoldDirective)) return true;
+  } catch {
+    /* an unreadable directive set is not a hold */
+  }
+  return false;
+}
+
+// The athlete's own recurring cross-training day (stated, else observed 2 of 6 weeks —
+// crossTrainingDays) is part of the week the same way a planned key run is (2026-10-04):
+// a hard Saturday MTB on the MTB Saturday is the habitual dose, not news about the body,
+// so it never reaches the next morning as `harm_yesterday` by its intensity alone. Only
+// that sport is excused (a hard run, or another sport, on that weekday still counts), and
+// the next-morning physiology arm below still judges what it cost.
+function knownCrossTrainingDose(date: string): boolean {
+  try {
+    const known = isKnownCrossTrainingDate(date);
+    if (!known) return false;
+    if (hardCardioDayIntense(date, undefined, { sport: "run" })) return false;
+    return recentEnduranceImpacts(1, date).some(
+      (impact) => impact.date === date && impact.family !== "run" && impactFamily(impact) === known.sport_family
+    );
+  } catch {
+    return false;
+  }
+}
+
 function plannedDoseOn(
   date: string,
   previousLongestKm?: number | null
@@ -2067,14 +2117,19 @@ function plannedDoseOn(
   try {
     const days = getEnduranceSchedule()?.days ?? [];
     if (!days.length) return none;
-    const dow = isoDow(date);
-    const kinds = new Set(days.filter((day) => day.dow === dow).map((day) => day.kind));
+    let kinds: Set<string>;
+    try {
+      kinds = new Set<FlexibleRunKind>(closedRunIntentOn(date));
+    } catch {
+      const dow = isoDow(date);
+      kinds = new Set(days.filter((day) => day.dow === dow).map((day) => day.kind));
+    }
     const goal = getEnduranceGoal(date);
     const distance = Number(goal?.distance_km);
     const building = goal?.is_race === true && goal.phase !== "past" && distance > 0;
     return {
       long: kinds.has("long"),
-      quality: kinds.has("quality"),
+      quality: kinds.has("quality") && !qualityDropped(date),
       long_ceiling_km: building ? longPeakTargetKm(distance, previousLongestKm) : null,
     };
   } catch {
@@ -2155,7 +2210,8 @@ function harmEvidenceOnDayRead(date: string, running: boolean): HarmEvidence | n
       !planned.quality &&
       !plannedLong &&
       hardCardioDayIntense(date, undefined, running ? { sport: "run" } : undefined) &&
-      !nextMorningAbsorbedIt(date)
+      !nextMorningAbsorbedIt(date) &&
+      !(!running && knownCrossTrainingDose(date))
     )
       return { date, kind: "hard_cardio", detail: "cardio graded hard on intensity" };
   } catch {

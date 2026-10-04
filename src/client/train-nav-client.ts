@@ -29,7 +29,8 @@ const TRAIN_NAV_GROUPS: readonly TrainNavSegment[] = [
 const TRAIN_NAV_GROUP_LEAVES: Record<string, readonly string[]> = {
   train: ["overview", "sessions", "trend", "volume", "endurance", "calendar"],
   program: ["program", "plan"],
-  fuel: ["intake", "energy"],
+  // "menu" is a cross-view row (like Program's "plan"): it opens the week menu on Today.
+  fuel: ["intake", "energy", "menu"],
   body: ["weight", "measurements"],
 };
 // A deeper leaf's row on its landing: a plain name and one muted line on what sits
@@ -40,8 +41,9 @@ const TRAIN_NAV_DEEPER_ROWS: Record<string, readonly [string, string]> = {
   volume: ["Volume", "Working sets by muscle, the last 30 days"],
   endurance: ["Endurance", "Runs and rides, the week and the build"],
   calendar: ["Calendar", "Twelve weeks of training at a glance"],
-  plan: ["The plan", "Edit the days, the lifts and their targets"],
+  plan: ["Edit the plan", "The days, the lifts and their targets"],
   energy: ["Energy balance", "What you burn against what you eat"],
+  menu: ["This week's menu", "The team's meal ideas, day by day, with recipes"],
   measurements: ["Measurements", "Tape sites and what they add up to"],
 };
 

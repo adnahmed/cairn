@@ -30,8 +30,10 @@ import {
   ENDURANCE_MODALITIES,
   matchEnduranceModality,
   regionWeight,
+  sawSessionEffort,
 } from "./heavy-load.js";
 import { copyDeep, requestMemo } from "./request-memo.js";
+import type { LoadFamily } from "./endurance-sports.js";
 
 export interface RecentLoad {
   group: MuscleGroup;
@@ -44,10 +46,16 @@ export interface RecentLoad {
 }
 
 export interface EnduranceImpact {
+  /** The logged activities row this impact reads (null only for a synthetic impact). */
+  activity_id: number | null;
   date: string;
   days_ago: number;
   type: string;
   label: string;
+  /** The load family the effort reads as (endurance-sports.activityLoadFamily). */
+  family: LoadFamily;
+  /** false when the type named no sport Cairn can place: a light whole-body read. */
+  known_sport: boolean;
   duration_min: number | null;
   distance_km: number | null;
   aerobic_te: number | null;
@@ -57,6 +65,8 @@ export interface EnduranceImpact {
   elevation_loss_m: number | null;
   intensity: "easy" | "moderate" | "hard";
   load: "light" | "moderate" | "heavy";
+  /** The athlete's own word (activities.rpe <= 4, stated-effort.ts) graded it easy. */
+  stated_easy: boolean;
   load_character: EnduranceModality["loadCharacter"];
   aerobic_volume: "full" | "mixed" | "limited";
   regions: MuscleGroup[];
@@ -74,6 +84,9 @@ export interface EnduranceImpact {
 export function isLoadRelevantEnduranceImpact(impact: EnduranceImpact): boolean {
   if (impact.load === "moderate" || impact.load === "heavy") return true;
   if (impact.label === "hike") return false;
+  // A light activity of no known sport (fishing, a stroll Garmin filed oddly) is a
+  // small dose on the residual (enduranceDose), never a reason to move a lift.
+  if (impact.family === "whole_body") return false;
   if (impact.aerobic_volume === "limited") return false;
   return (
     (impact.duration_min != null && impact.duration_min >= CARDIO_GRADE.moderateMin) ||
@@ -119,6 +132,8 @@ function classifyImpactLoad(
   athlete: {
     stated_easy: boolean;
     personal: PersonalRunRead | null;
+    /** Stated effort (activities.rpe). Silence is not easy. */
+    rpe?: unknown;
     /** A run's long bar, drawn from his own recent running (run-intensity.ts). */
     run_length?: { bars: RunLengthBars; date: string } | null;
   } = { stated_easy: false, personal: null },
@@ -141,6 +156,15 @@ function classifyImpactLoad(
     (dur != null && dur >= CARDIO_GRADE.moderateMin) || (km != null && km >= CARDIO_GRADE.moderateKm);
   let hard: boolean;
   let moderate: boolean;
+  // An activity of no known sport is graded by the watch's generic bars only. With no
+  // effort evidence (or the athlete's word that it was easy) it is a light exposure
+  // whatever its length: three hours of fishing is not three hours of exercise.
+  const generic = region.family === "whole_body";
+  const watchEffort =
+    ate != null || anate != null || trainingLoad != null || zones45 > 0 || HARD_EFFORT.label.test(String(label ?? ""));
+  if (generic && (athlete.stated_easy || !watchEffort)) {
+    return { intensity: "easy", load: "light", why: "light general activity, no sport-specific load" };
+  }
   if (athlete.stated_easy) {
     // The athlete said it was easy (stated-effort.ts): no intensity from the watch;
     // the dose is its length alone — a long easy run still loads the legs.
@@ -165,18 +189,37 @@ function classifyImpactLoad(
       zones45 >= HARD_EFFORT.z4Seconds;
     moderate = hard || substantial || (ate != null && ate >= 2);
   }
+  // A generic activity's length counts only once the watch saw real effort in it.
+  if (generic && !(hard || (ate != null && ate >= 2))) moderate = false;
   const intensity: EnduranceImpact["intensity"] = hard ? "hard" : moderate ? "moderate" : "easy";
   // `load` is the MUSCULAR dose, `intensity` the metabolic one. Hard alone used to
   // make any effort heavy, so a 25-minute run that drifted into Z4 read as a full leg
   // session — and for an athlete who runs most days, legs never read fresh. Heavy now
   // needs duration: long, or hard AND most of the way to the modality's long bar.
-  const load: EnduranceImpact["load"] = long || (hard && substantial) ? "heavy" : moderate ? "moderate" : "light";
+  // Paddle, court and snow reach that heavy bar on length only when the session
+  // showed effort (sawSessionEffort). Time alone stays moderate: an easy paddle is
+  // not a full back day, and a round of stop-start play is not a leg day by the clock.
+  const lengthNeedsEffort = region.family === "paddle" || region.family === "court" || region.family === "snow";
+  const sessionEffort = sawSessionEffort({
+    aerobicTe: ate,
+    zones45Sec: zones45,
+    trainingLoad,
+    rpe: athlete.rpe,
+  });
+  const effortLimited = lengthNeedsEffort && !sessionEffort;
+  const heavyLong = long && !effortLimited;
+  const load: EnduranceImpact["load"] =
+    (heavyLong && (!generic || moderate)) || (hard && substantial && !effortLimited)
+      ? "heavy"
+      : moderate
+        ? "moderate"
+        : "light";
   const whyParts: string[] = [];
-  if (long && region.loadCharacter === "technical-eccentric") {
+  if (heavyLong && region.loadCharacter === "technical-eccentric") {
     whyParts.push("long enough for sustained braking, handling and trunk demand");
-  } else if (long && region.loadCharacter === "eccentric") {
+  } else if (heavyLong && region.loadCharacter === "eccentric") {
     whyParts.push("long enough for sustained turning, braking and leg-control demand");
-  } else if (long) {
+  } else if (heavyLong) {
     whyParts.push("long enough to fatigue the prime movers");
   }
   if (hard) whyParts.push("hard enough to count as quality stress");
@@ -210,6 +253,14 @@ function classifyImpactLoad(
     whyParts.push("Nordic skiing carries aerobic full-body demand");
   } else if (region.mode === "ski-touring") {
     whyParts.push("touring climbs load the legs and core, with additional control on the descent");
+  } else if (region.family === "paddle") {
+    whyParts.push("paddling loads the back, shoulders, arms and trunk");
+  } else if (region.family === "court") {
+    whyParts.push("stop-start court and field play loads the legs and trunk");
+  } else if (region.family === "snow") {
+    whyParts.push("turns, balance and braking add eccentric leg and core demand");
+  } else if (generic) {
+    whyParts.push("a general activity read across the whole body");
   }
   return { intensity, load, why: whyParts.join(" and ") };
 }
@@ -228,7 +279,7 @@ function recentEnduranceImpactsRead(days: number, date: string): EnduranceImpact
   const dAgo = (iso: string): number => Math.max(0, daysBetweenISO(today, String(iso).slice(0, 10)) ?? 0);
   try {
     const acts = db.prepare(
-      `SELECT a.date AS date, a.type AS type, a.raw_text AS raw_text, a.notes AS notes,
+      `SELECT a.id AS id, a.date AS date, a.type AS type, a.raw_text AS raw_text, a.notes AS notes,
               a.duration_min AS duration_min, a.distance_km AS distance_km,
               a.source AS source, a.external_id AS external_id, a.rpe AS rpe,
               ga.avg_hr AS avg_hr, COALESCE(ga.moving_min, ga.duration_min, a.duration_min) AS hr_minutes,
@@ -290,6 +341,7 @@ function recentEnduranceImpactsRead(days: number, date: string): EnduranceImpact
             return {
               run_length: region.mode === "run" ? { bars: barsFor(day, region), date: day } : null,
               stated_easy: statedEasy,
+              rpe: a.rpe,
               personal:
                 statedEasy || region.mode !== "run"
                   ? null
@@ -305,10 +357,13 @@ function recentEnduranceImpactsRead(days: number, date: string): EnduranceImpact
               ? "mixed"
               : "full";
         return {
+          activity_id: a.id != null && Number.isFinite(Number(a.id)) ? Number(a.id) : null,
           date: String(a.date),
           days_ago: dAgo(String(a.date)),
           type: String(a.type || region.label),
           label: region.label,
+          family: region.family,
+          known_sport: region.family !== "whole_body",
           duration_min: Number.isFinite(dur) ? dur : null,
           distance_km: Number.isFinite(km) ? km : null,
           aerobic_te: Number.isFinite(ate) ? ate : null,
@@ -318,6 +373,7 @@ function recentEnduranceImpactsRead(days: number, date: string): EnduranceImpact
           elevation_loss_m: Number.isFinite(descent) ? descent : null,
           intensity: load.intensity,
           load: load.load,
+          stated_easy: isStatedEasyRpe(a.rpe),
           load_character: region.loadCharacter,
           aerobic_volume: aerobicVolume,
           regions: region.regions,
@@ -383,10 +439,21 @@ const ENDURANCE_DOSE: Record<EnduranceImpact["load"], number> = { heavy: 1, mode
 // definition, and inflating them would re-introduce the flatness this replaces.
 const MAX_ENDURANCE_MAGNITUDE = 2.5;
 
+// A light effort of a family the legacy table never knew (a light whole-body
+// activity, a short snow session) still lays down its small light dose once it ran
+// an ordinary length: decision 2026-10-04, no logged activity is ever nothing.
+function lightGenericCounts(impact: EnduranceImpact): boolean {
+  if (impact.family !== "whole_body" && impact.family !== "snow") return false;
+  return (
+    (impact.duration_min != null && impact.duration_min >= CARDIO_GRADE.moderateMin) ||
+    (impact.distance_km != null && impact.distance_km >= CARDIO_GRADE.moderateKm)
+  );
+}
+
 export function enduranceDose(impact: EnduranceImpact): number {
   const base = ENDURANCE_DOSE[impact.load];
   if (!(base > 0)) return 0;
-  if (impact.load === "light" && !isLoadRelevantEnduranceImpact(impact)) return 0;
+  if (impact.load === "light" && !isLoadRelevantEnduranceImpact(impact) && !lightGenericCounts(impact)) return 0;
   if (impact.load !== "heavy") return base;
   const ratio = Number.isFinite(impact.heavy_ratio) ? Math.max(1, impact.heavy_ratio) : 1;
   return base * Math.min(ratio, MAX_ENDURANCE_MAGNITUDE);
@@ -888,15 +955,21 @@ export function recentMuscleLoad(days = 2, date = localDateISO()): Map<MuscleGro
       out.set(g, { group: g, last_date: when, days_ago: dAgo(when), heavy, source: src, activity, detail });
       return;
     }
+    // The name always describes the MOST RECENT contributor: a newer one takes it
+    // (a newer strength day clears an endurance name to null), an older one never
+    // does, and on the same date an endurance effort names the group when nothing
+    // has yet — impacts arrive heaviest-first, so the heavier same-day effort keeps it.
     const newer = when > prev.last_date;
+    const sameDay = when === prev.last_date;
+    const takeName = newer || (sameDay && src === "endurance" && !prev.activity);
     out.set(g, {
       group: g,
       last_date: newer ? when : prev.last_date,
       days_ago: Math.min(prev.days_ago, dAgo(when)),
       heavy,
       source: prev.source === src ? src : "both",
-      activity: src === "endurance" ? activity : prev.activity,
-      detail: src === "endurance" && detail ? detail : prev.detail,
+      activity: takeName ? activity : prev.activity,
+      detail: takeName ? detail : prev.detail,
     });
   };
 

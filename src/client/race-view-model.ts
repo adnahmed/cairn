@@ -2,29 +2,21 @@
 // The race view, the model (docs/V2-PLAN.md wave 4, "race-ladder" / "race-estimate").
 // Pure shaping from GET /api/race-build onto what the race view prints. It is a READ
 // over raceBuild() and never a second engine: every week, kind and kilometre comes
-// from the server's ladder as given, the fit is the server's word, and the only
-// arithmetic here is scaling a bar against the ladder's own longest week, and turning
-// the engine's kilometres into the athlete's run units (settings.run_units) for the
-// words; bars still scale on kilometres. Nothing is a score.
+// from the server's ladder as given (race-ladder-model), the fit is the server's word,
+// and the only arithmetic is turning the engine's kilometres into the athlete's run
+// units (settings.run_units) for the words and an estimate clock to the minute for the
+// head. Nothing is a score.
 {
   type RaceBuild = import("../contracts/client-api.js").ClientRaceBuild;
   type RaceWeek = import("../contracts/client-api.js").ClientRaceBuildWeek;
   type RaceFit = import("../contracts/client-api.js").ClientRaceFit;
-  type LadderRow = ClientRaceLadderRow;
 
-  const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
-
-  const KIND_WORD: Record<RaceWeek["kind"], string> = {
-    build: "Build",
-    down: "Down week",
-    peak: "Peak",
-    taper: "Taper",
-    race: "Race",
-  };
-
-  // Units, stage words and this week live in race-week-model (loaded first); the view
-  // model reads them from there and re-exports them for its callers.
-  const { STAGE_WORD, stageWord, unitsOf, kmText, distNum, runWords, thisWeekModel, liftingModel } = CairnRaceWeekModel;
+  // Units and stage words live in race-week-model, THIS WEEK in race-week-runs-model
+  // (both loaded first); the view model reads them there and re-exports them.
+  const { STAGE_WORD, stageWord, unitsOf, kmText, distNum, runWords, liftingModel } = CairnRaceWeekModel;
+  const { thisWeekModel } = CairnRaceWeekRuns;
+  // The ladder and the date words live in race-ladder-model (loaded just before).
+  const { KIND_WORD, dayKey, shortDate, longDate, ladderModel } = CairnRaceLadderModel;
 
   const PHASE_WORD: Record<string, string> = {
     base: "Base building",
@@ -46,6 +38,13 @@
     beyond_horizon: "Train from today's shape; the target stays the reach.",
   };
 
+  /** Where the estimate sits against the target, in a few words: a place, never a grade. */
+  const FIT_HEAD: Record<RaceFit, (target: string) => string> = {
+    fits: (target) => `inside ${target}`,
+    stretch: (target) => `a stretch to ${target}`,
+    beyond_horizon: (target) => `${target} stays the reach`,
+  };
+
   function num(value: unknown): number | null {
     if (value == null || value === "") return null;
     const n = Number(value);
@@ -62,26 +61,6 @@
     const r = s % 60;
     const mm = String(m).padStart(h > 0 ? 2 : 1, "0");
     return h > 0 ? `${h}:${mm}:${String(r).padStart(2, "0")}` : `${mm}:${String(r).padStart(2, "0")}`;
-  }
-
-  function dayKey(iso: unknown): string {
-    const key = String(iso || "").slice(0, 10);
-    return /^\d{4}-\d{2}-\d{2}$/.test(key) ? key : "";
-  }
-
-  /** "Nov 1", through the one shared date label. */
-  function shortDate(iso: unknown): string {
-    const key = dayKey(iso);
-    return key ? CairnUiChart.dateLabel(key) : "";
-  }
-
-  /** "Sunday, Nov 1". */
-  function longDate(iso: unknown): string {
-    const key = dayKey(iso);
-    if (!key) return "";
-    const d = new Date(`${key}T00:00:00Z`);
-    if (!Number.isFinite(d.getTime())) return "";
-    return `${WEEKDAYS[d.getUTCDay()]}, ${shortDate(key)}`;
   }
 
   /**
@@ -105,12 +84,6 @@
     if (event) return event;
     const km = num(race.distance_km);
     return km != null && km >= 20.5 && km <= 21.5 ? "Your half marathon" : "Your race";
-  }
-
-  function soFarText(rung: number, logged: number | null, units?: unknown): string {
-    if (logged == null || logged <= 0) return "";
-    if (logged >= rung && rung > 0) return `${kmText(logged, units)} run, the week's ${kmText(rung, units)} is in.`;
-    return `${kmText(logged, units)} run so far of ${kmText(rung, units)}.`;
   }
 
   /** The race's short name on the chart: "Half", "Marathon", "10K", else "Race". */
@@ -218,66 +191,11 @@
     return `${count} ${n === 1 ? "week" : "weeks"} of build, then ${noun}.`;
   }
 
-  /** The ladder: the server's weeks as rows, each bar against the ladder's longest week. */
-  function ladderModel(build: RaceBuild | null | undefined, units?: unknown): ClientRaceLadderModel {
-    const weeks = Array.isArray(build?.weeks) ? build.weeks : [];
-    const kms = weeks.map((week) => Math.max(0, num(week.km) ?? 0));
-    const maxKm = kms.length ? Math.max(...kms) : 0;
-    const scale = CairnUiChart.linearScale(0, maxKm, 0, 1);
-    const frac = (km: number): number => Math.round(Math.min(1, Math.max(0, scale(km))) * 1000) / 1000;
-    const logged = num(build?.this_week?.logged_km);
-    const raceDay = longDate(build?.race?.date);
-    const rows: LadderRow[] = weeks.map((week, index) => {
-      const km = kms[index];
-      const current = week.current === true;
-      const out = Math.max(0, Math.round(num(week.weeks_to_race) ?? 0));
-      const long = num(week.long_km);
-      const loggedKm = current && logged != null && logged > 0 ? logged : null;
-      return {
-        week_start: dayKey(week.week_start),
-        weeks_to_race: out,
-        kind: week.kind,
-        kind_word: KIND_WORD[week.kind] || "Build",
-        out_word: out === 0 ? "Race week" : `${out} wk out`,
-        date_word: shortDate(week.week_start),
-        km,
-        km_text: kmText(km, units),
-        stage_word: stageWord(week),
-        long_km: long != null && long > 0 && week.kind !== "race" ? long : null,
-        long_text: long != null && long > 0 && week.kind !== "race" ? `long ${kmText(long, units)}` : "",
-        frac: frac(km),
-        current,
-        logged_km: loggedKm,
-        logged_frac: loggedKm != null && maxKm > 0 ? frac(loggedKm) : null,
-        so_far_text: current ? soFarText(km, loggedKm, units) : "",
-        race_day_text: week.kind === "race" && raceDay ? `Race day, ${raceDay}` : "",
-        focus_text: String(week.focus || "").trim(),
-        focus_short: String(week.focus_short || "").trim(),
-        lifting_text: String(week.with_lifting || "").trim(),
-      };
-    });
-    const taper = rows.find((row) => row.kind === "taper");
-    const taperText = !taper
-      ? ""
-      : taper.current
-        ? "This week is the taper: the volume comes down so race day finds you fresh."
-        : `The taper starts the week of ${taper.date_word}, the week before race week.`;
-    // A bigger recent week the build does not climb from, and why — the server's one
-    // sentence, its figures restated in the run units. "" when nothing is set aside.
-    const capacityText = runWords(String(build?.capacity?.note || "").trim(), units);
-    return { rows, max_km: maxKm, taper_text: taperText, capacity_text: capacityText, units: unitsOf(units) };
-  }
-
   /** The finish estimate against the target: the server's fit word, never a gap as a grade. */
   function estimateModel(build: RaceBuild | null | undefined, units?: unknown): ClientRaceEstimateModel {
     const p = build?.prediction || null;
     const target = build?.race?.target || null;
     const fit = p && target && p.fit && FIT_WORD[p.fit] ? p.fit : null;
-    const trend = p?.trend
-      ? p.trend.word === "steady"
-        ? "Holding steady over the last month."
-        : `${Math.max(1, Math.round(Math.abs(num(p.trend.delta_sec) ?? 0) / 60))} min ${p.trend.word} over the last month.`
-      : "";
     const basis = p && String(p.basis_detail || "").trim() ? `From ${runWords(p.basis_detail, units)}.` : "";
     let line = fit ? FIT_LINE[fit] : "";
     if (p && !target) line = "No target time on the race, so the estimate is where today's running reads.";
@@ -286,12 +204,53 @@
       fit,
       fit_word: fit ? FIT_WORD[fit] : "",
       fit_line: line,
-      estimate_clock: clock(p?.estimate_sec),
-      target_clock: clock(target?.sec),
       basis_text: basis,
-      trend_text: trend,
       empty: !p,
     };
+  }
+
+  /** A finish clock to the minute for the head ("1:54"; "58 min" under the hour); "". */
+  function headClock(sec: unknown): string {
+    const n = num(sec);
+    if (n == null || n <= 0) return "";
+    const m = Math.round(n / 60);
+    return m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}` : `${m} min`;
+  }
+
+  /**
+   * The target as the athlete set it: to the minute when it is on one ("2:00"), to the
+   * second when it is not ("1:52:30") — never rounded to a goal they did not set. A
+   * stored bound a second or two off its minute (a "sub-2:00" kept strictly under) is
+   * that minute.
+   */
+  function targetClock(sec: unknown): string {
+    const n = num(sec);
+    if (n == null || n <= 0) return "";
+    const off = Math.round(n) % 60;
+    return off <= 2 || off >= 58 ? headClock(n) : clock(n);
+  }
+
+  /**
+   * The head's one estimate line: "Reads about 1:54 · inside sub-2:00 · 13 min faster in
+   * the last month". The estimate is rounded to the minute; the target is said as set.
+   * The fit is the server's word, said as a place against the target, never a gap or a
+   * grade. "" with no estimate.
+   */
+  function fitHeadText(build: RaceBuild | null | undefined): string {
+    const p = build?.prediction || null;
+    const reads = headClock(p?.estimate_sec);
+    if (!p || !reads) return "";
+    const target = build?.race?.target || null;
+    const goal = targetClock(target?.sec);
+    const named = goal ? `${/^\s*sub/i.test(String(target?.raw || "")) ? "sub-" : ""}${goal}` : "";
+    const fit = named && p.fit ? FIT_HEAD[p.fit](named) : "";
+    const delta = Math.round(Math.abs(num(p.trend?.delta_sec) ?? 0) / 60);
+    const trend = !p.trend
+      ? ""
+      : p.trend.word === "steady" || delta < 1
+        ? "holding steady"
+        : `${delta} min ${p.trend.word} in the last month`;
+    return [`Reads about ${reads}`, fit, trend].filter(Boolean).join(" · ");
   }
 
   function pacesModel(build: RaceBuild | null | undefined, units?: unknown): Array<{ label: string; text: string }> {
@@ -324,17 +283,23 @@
   }
 
   /** The whole view, or null when the build has nothing to show (the empty state). */
-  function viewModel(value: unknown, opts: { units?: unknown } = {}): ClientRaceViewModel | null {
+  function viewModel(
+    value: unknown,
+    opts: { units?: unknown; agenda?: import("../contracts/client-api.js").ClientFlexibleTrainingAgenda | null } = {}
+  ): ClientRaceViewModel | null {
     if (!isShowable(value)) return null;
     const race = value.race as NonNullable<RaceBuild["race"]>;
     const ladder = ladderModel(value, opts.units);
+    const countdown = countdownText(race, Array.isArray(value.weeks) ? value.weeks : []);
     return {
       event: eventName(race),
-      countdown: countdownText(race, Array.isArray(value.weeks) ? value.weeks : []),
+      countdown,
       race_day: longDate(race.date),
       phase_word: PHASE_WORD[race.phase] || "",
+      fit_text: fitHeadText(value),
       estimate: estimateModel(value, opts.units),
-      this_week: thisWeekModel(value, opts.units),
+      // The head prints the countdown; THIS WEEK's kicker does not say it again.
+      this_week: thisWeekModel(value, opts.units, { agenda: opts.agenda, countdownShown: !!countdown }),
       lifting: liftingModel(ladder),
       ladder,
       terrain: terrainModel(value, ladder, opts.units),
@@ -361,6 +326,7 @@
     raceShortName,
     buildVoice,
     estimateModel,
+    fitHeadText,
     viewModel,
   };
 

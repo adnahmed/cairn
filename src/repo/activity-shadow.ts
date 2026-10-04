@@ -4,7 +4,8 @@
 // (deriveSessionTitle), and training-read.ts is deliberately kept leaf so
 // sessions/activities/intelligence (which import each other) never cycle through
 // it. A COUNTING read of `activities` inside training-read.ts (or any other leaf
-// consumer) can safely import from HERE without reopening that cycle.
+// consumer) can safely import from HERE without reopening that cycle. Its one
+// import, endurance-sports.ts, is itself import-free.
 //
 // A SHADOW is a hand log (no source, no external id) written AFTER a synced row
 // already holds the same effort — "morning run (fasted)" typed into chat an hour
@@ -17,6 +18,8 @@
 // tolerances the soft-dedup uses; a row that carries none adds no volume and no
 // pace, only a phantom second outing. A metric that DISAGREES keeps it a real
 // effort (a genuine second run the same day).
+
+import { activityLoadFamily } from "./endurance-sports.js";
 
 export function positiveNumber(value: unknown): number | null {
   const n = Number(value);
@@ -47,6 +50,18 @@ export function normalizeGarminType(t: unknown): string {
   return s || "other";
 }
 
+// The modality a shadow is compared within: normalizeGarminType's coarse bucket, with
+// paddle sports folded to one stable "paddle" bucket so a hand-typed "kayak" and the
+// watch's "kayaking_v2" read as the same outing. Shadow detection only: the STORED
+// type (normalizeGarminType) keeps the provider's own key.
+export function shadowModality(t: unknown): string {
+  const bucket = normalizeGarminType(t);
+  if (["run", "ride", "swim", "hike"].includes(bucket)) return bucket;
+  return activityLoadFamily(t).family === "paddle" ? "paddle" : bucket;
+}
+
+const SHADOW_MODALITIES = ["run", "ride", "swim", "hike", "paddle"];
+
 export interface ShadowCheckActivity {
   id?: unknown;
   date: unknown;
@@ -68,12 +83,12 @@ function isSourcedActivity(row: ShadowCheckActivity): boolean {
  */
 export function shadowedActivity<T extends ShadowCheckActivity>(row: ShadowCheckActivity, sameDay: T[]): T | null {
   if (isSourcedActivity(row) || (row.external_id != null && String(row.external_id).trim() !== "")) return null;
-  const modality = normalizeGarminType(row.type);
-  if (!["run", "ride", "swim", "hike"].includes(modality)) return null;
+  const modality = shadowModality(row.type);
+  if (!SHADOW_MODALITIES.includes(modality)) return null;
   const match = sameDay.find((other) => {
     if (other === row || !isSourcedActivity(other)) return false;
     if (String(other.date).slice(0, 10) !== String(row.date).slice(0, 10)) return false;
-    if (normalizeGarminType(other.type) !== modality) return false;
+    if (shadowModality(other.type) !== modality) return false;
     const durationError = duplicateMetricError(row.duration_min, other.duration_min, 3, 0.08);
     const distanceError = duplicateMetricError(row.distance_km, other.distance_km, 0.3, 0.05);
     // A metric the hand log carries but the synced row lacks cannot be vouched for.

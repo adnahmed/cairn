@@ -47,4 +47,5 @@ export * from "../../repo/training-read.js";
 export * from "./week-layout.js";
 export * from "./plan-item-order.js";
 export * from "./plan-week.js";
+export * from "./plan-look-ahead.js";
 export * from "../../repo/training-symptoms.js";

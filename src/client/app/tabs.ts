@@ -63,11 +63,25 @@ type TabSwitchOptions = {
       if (isActive) el.setAttribute("aria-current", "page");
       else el.removeAttribute("aria-current");
     });
-    const moved = (globalThis as { CairnMovedNote?: { sync(view: string, home: string): unknown } }).CairnMovedNote;
+    const moved = (
+      globalThis as { CairnMovedNote?: { sync(view: string, home: string, section?: string | null): unknown } }
+    ).CairnMovedNote;
     try {
-      moved?.sync(normalizeTabName(tab), home);
+      const view = normalizeTabName(tab);
+      moved?.sync(view, home, sectionOfView(view));
     } catch {}
     return home;
+  }
+
+  // The section a view is showing, for the moved-here line: Train's Program,
+  // Fuel and Body groups are all sections of the one "progress" view, and a stone
+  // detail / Horizon's goal line are sections of their homes' views. null = the
+  // view's bare landing (or a view with no sections).
+  function sectionOfView(view: ClientTabName): string | null {
+    if (view === "progress") return defaultProgressSeg();
+    if (view === "horizon") return state.horizonSeg || null;
+    if (view === "you") return state.youSeg || null;
+    return null;
   }
 
   // The Progress sub-view to land on. Endurance athletes default to the Endurance

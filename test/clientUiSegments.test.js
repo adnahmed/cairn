@@ -236,6 +236,41 @@ test("Train's Plan leaf and the editor's Progress leaves are cross-view navigati
   assert.equal(Object.hasOwn(controller.progressLinkHandlers, "plan"), true);
 });
 
+test("Train → Fuel lists This week's menu, a cross-view row into the week menu on Today", async () => {
+  const context = loadSegments();
+  const api = context.CairnUiSegments;
+  const rows = api.progressDeeperHtml("intake");
+  assert.match(rows, /data-train-leaf="energy"/);
+  assert.match(rows, /data-train-leaf="menu"/);
+  assert.match(rows, /This week's menu/);
+  assert.ok(rows.indexOf('data-train-leaf="energy"') < rows.indexOf('data-train-leaf="menu"'), "the trends first");
+  assert.equal(api.progressGroupOf("menu"), "fuel");
+  assert.equal(api.progressIsLanding("menu"), false);
+  // Only the Fuel group carries it.
+  for (const landing of ["overview", "program", "weight"]) assert.doesNotMatch(api.progressDeeperHtml(landing), /data-train-leaf="menu"/);
+
+  const state = { planSeg: "edit", planJump: null, progressSeg: "intake" };
+  const row = {
+    dataset: { trainLeaf: "menu" },
+    listeners: {},
+    addEventListener(type, fn) {
+      this.listeners[type] = fn;
+    },
+    closest() {
+      return null;
+    },
+  };
+  const view = { querySelectorAll: (selector) => (selector === "[data-train-leaf]" ? [row] : []) };
+  const { calls, controller } = createController(context, { view, state });
+  controller.wireSeg(controller.progressHandlers);
+  row.listeners.click();
+  await flush();
+  // A cross-view navigation: activateTab owns the transition and the route sync.
+  assert.equal(state.planSeg, "meals");
+  assert.equal(state.planJump, "meals");
+  assert.deepEqual(plain(calls), [["activateTab", "plan"]]);
+});
+
 test("Train nav is one level: landings wear the group bar, deeper leaves a step back", () => {
   const context = loadSegments();
   const { controller } = createController(context);

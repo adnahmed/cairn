@@ -161,11 +161,22 @@ test("a longest run past the build's ceiling, or off the stated day, is still no
   seedRun(YESTERDAY, 24);
   assert.equal(harmEvidenceOnDay(YESTERDAY)?.kind, "longest_run", "past the ceiling the build climbs to");
 
+  // Off the stated long-run day it is still the week's long run when it CLOSED that
+  // intention (a moved long run is the planned run, 2026-10-04: closedRunIntentOn)…
   resetTables("activities");
   statePlannedWeek({ longDow: (dow + 1) % 7, qualityDow: (dow + 3) % 7 });
   seedRunHistory(REF, [10, 11, 12, 12.9]);
   seedRun(YESTERDAY, 17.7);
-  assert.equal(harmEvidenceOnDay(YESTERDAY)?.kind, "longest_run", "not the athlete's long-run day");
+  assert.equal(harmEvidenceOnDay(YESTERDAY), null, "the long run, moved a day");
+
+  // …and with no long run stated at all there is no planned long run to be.
+  resetTables("activities");
+  repo.setProfile({
+    endurance_schedule: { days: [{ dow: (dow + 3) % 7, kind: "quality" }], source: "athlete" },
+  });
+  seedRunHistory(REF, [10, 11, 12, 12.9]);
+  seedRun(YESTERDAY, 17.7);
+  assert.equal(harmEvidenceOnDay(YESTERDAY)?.kind, "longest_run", "no long run was planned");
 });
 
 test("a hard effort on the stated quality day is planned dose", () => {
@@ -175,8 +186,19 @@ test("a hard effort on the stated quality day is planned dose", () => {
   seedHardRun(YESTERDAY, 7, 45);
   assert.equal(harmEvidenceOnDay(YESTERDAY), null);
 
+  // Moved a day off the stated quality day, it is still the week's quality session
+  // (2026-10-04: the completion says which run it was, never the raw weekday)…
   statePlannedWeek({ longDow: (dow + 3) % 7, qualityDow: (dow + 1) % 7 });
-  assert.equal(harmEvidenceOnDay(YESTERDAY)?.kind, "hard_cardio", "the same effort on another day still counts");
+  assert.equal(harmEvidenceOnDay(YESTERDAY), null, "the quality session, moved a day");
+
+  // …but once the week's quality is a session the athlete named, on its stated day, the
+  // same untitled effort is an EXTRA hard run, and an extra still counts.
+  seedHardRun(REF, 7, 45);
+  db.prepare(
+    `UPDATE garmin_activities SET name = 'Tempo Intervals' WHERE activity_id =
+       (SELECT id FROM activities WHERE date = ? ORDER BY id DESC LIMIT 1)`
+  ).run(REF);
+  assert.equal(harmEvidenceOnDay(YESTERDAY)?.kind, "hard_cardio", "the extra hard run still counts");
 });
 
 // ---- a duration-only "hard" grade is NOT harm (ruling, 2026-08-28) ----

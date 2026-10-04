@@ -72,6 +72,7 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/agent-job-client.ts", output: "public/js/agent-job-client.js" },
   { source: "src/client/pwa-install-coach.ts", output: "public/js/pwa-install-coach.js" },
   { source: "src/client/rest-timer.ts", output: "public/js/rest-timer.js" },
+  { source: "src/client/coaching-focus-render-client.ts", output: "public/js/coaching-focus-render-client.js" },
   { source: "src/client/coaching-focus-client.ts", output: "public/js/coaching-focus-client.js" },
   { source: "src/client/today-activity-client.ts", output: "public/js/today-activity-client.js" },
   { source: "src/client/save-bar.ts", output: "public/js/save-bar.js" },
@@ -170,6 +171,10 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/progress-test-week-client.ts", output: "public/js/progress-test-week-client.js" },
   { source: "src/client/progress-program-summary-client.ts", output: "public/js/progress-program-summary-client.js" },
   { source: "src/client/progress-program-block-client.ts", output: "public/js/progress-program-block-client.js" },
+  { source: "src/client/program-week-model.ts", output: "public/js/program-week-model.js" },
+  { source: "src/client/program-week-client.ts", output: "public/js/program-week-client.js" },
+  { source: "src/client/program-week-controller.ts", output: "public/js/program-week-controller.js" },
+  { source: "src/client/progress-exercise-suggestions-client.ts", output: "public/js/progress-exercise-suggestions-client.js" },
   { source: "src/client/progress-program-controller.ts", output: "public/js/progress-program-controller.js" },
   { source: "src/client/journey-progress-client.ts", output: "public/js/journey-progress-client.js" },
   { source: "src/client/journey-timeline-client.ts", output: "public/js/journey-timeline-client.js" },
@@ -232,6 +237,8 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/plan-endurance-client.ts", output: "public/js/plan-endurance-client.js" },
   { source: "src/client/plan-endurance-briefing-client.ts", output: "public/js/plan-endurance-briefing-client.js" },
   { source: "src/client/race-week-model.ts", output: "public/js/race-week-model.js" },
+  { source: "src/client/race-week-runs-model.ts", output: "public/js/race-week-runs-model.js" },
+  { source: "src/client/race-ladder-model.ts", output: "public/js/race-ladder-model.js" },
   { source: "src/client/race-view-model.ts", output: "public/js/race-view-model.js" },
   { source: "src/client/race-estimate-client.ts", output: "public/js/race-estimate-client.js" },
   { source: "src/client/race-ladder-client.ts", output: "public/js/race-ladder-client.js" },
@@ -255,6 +262,7 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/chat-screen.ts", output: "public/js/09-plan-chat.js" },
   { source: "src/client/meal-fuel-context-client.ts", output: "public/js/meal-fuel-context-client.js" },
   { source: "src/client/meal-row-client.ts", output: "public/js/meal-row-client.js" },
+  { source: "src/client/meal-plan-upcoming-client.ts", output: "public/js/meal-plan-upcoming-client.js" },
   { source: "src/client/meal-plan-client.ts", output: "public/js/meal-plan-client.js" },
   { source: "src/client/meal-planner-jobs-client.ts", output: "public/js/meal-planner-jobs-client.js" },
   { source: "src/client/meal-recipe-client.ts", output: "public/js/meal-recipe-client.js" },
@@ -265,8 +273,11 @@ export const CLIENT_OUTPUTS = [
   { source: "src/client/meal-planner-actions-controller.ts", output: "public/js/meal-planner-actions-controller.js" },
   { source: "src/client/meal-planner-controller.ts", output: "public/js/meal-planner-controller.js" },
   { source: "src/client/meal-journal-client.ts", output: "public/js/meal-journal-client.js" },
+  { source: "src/client/meal-menu-card-client.ts", output: "public/js/meal-menu-card-client.js" },
+  { source: "src/client/meal-menu-card-controller.ts", output: "public/js/meal-menu-card-controller.js" },
   { source: "src/client/coach-proposal-controller.ts", output: "public/js/coach-proposal-controller.js" },
   { source: "src/client/coach-meals-screen.ts", output: "public/js/06-coach-meals.js" },
+  { source: "src/client/coach-changes-screen.ts", output: "public/js/coach-changes-screen.js" },
   { source: "src/client/food-note-client.ts", output: "public/js/food-note-client.js" },
   { source: "src/client/meal-card-model.ts", output: "public/js/meal-card-model.js" },
   { source: "src/client/meal-card-client.ts", output: "public/js/meal-card-client.js" },
@@ -466,6 +477,7 @@ export const BUNDLES = [
       "public/js/agent-job-records-client.js",
       "public/js/agent-job-client.js",
       "public/js/rest-timer.js",
+      "public/js/coaching-focus-render-client.js",
       "public/js/coaching-focus-client.js",
       "public/js/today-activity-client.js",
       "public/js/save-bar.js",
@@ -749,6 +761,10 @@ export const BUNDLES = [
       "public/js/progress-test-week-client.js",
       "public/js/progress-program-summary-client.js",
       "public/js/progress-program-block-client.js",
+      "public/js/program-week-model.js",
+      "public/js/program-week-client.js",
+      "public/js/program-week-controller.js",
+      "public/js/progress-exercise-suggestions-client.js",
       "public/js/progress-program-controller.js",
       "public/js/journey-progress-client.js",
       "public/js/journey-timeline-client.js",
@@ -775,6 +791,8 @@ export const BUNDLES = [
       "public/js/plan-endurance-client.js",
       "public/js/plan-endurance-briefing-client.js",
       "public/js/race-week-model.js",
+      "public/js/race-week-runs-model.js",
+      "public/js/race-ladder-model.js",
       "public/js/race-view-model.js",
       "public/js/race-estimate-client.js",
       "public/js/race-ladder-client.js",
@@ -801,12 +819,13 @@ export const BUNDLES = [
       "public/js/markdown-client.js",
       "public/js/capture-macros-client.js",
       "public/js/chat-client.js",
-      // Ask → Changes (the calm asks + the history-first feed with Undo). renderCoach
-      // stays in the eager bundle-04 and is dispatched through withBundle("ask").
+      // Ask → Changes (the calm asks + the history-first feed with Undo, and the
+      // screen itself: renderCoach, dispatched through lazy("ask")/withLatestRender).
       "public/js/changes-feed-client.js",
       "public/js/changes-feed-controller.js",
       "public/js/ask-card-client.js",
       "public/js/ask-card-controller.js",
+      "public/js/coach-changes-screen.js",
       "public/js/chat-composer-controller.js",
       "public/js/chat-speaker-client.js",
       "public/js/chat-message-client.js",
@@ -861,16 +880,17 @@ export const BUNDLES = [
   },
   {
     output: "public/js/bundle-13-meals.js",
-    label: "Meal planner (the meal-plan journal, swaps, recipes)",
-    // LAZY: the weekly meal plan is ideation, kept as history in a CLOSED fold at the
-    // foot of Fuel (Plan -> Meals opens Fuel with it open). coach-meals-screen (eager)
-    // paints the fold and reaches the journal through withBundle("meals"); the
-    // meal_plan / meal_swap / recipe reconnectors register when this lands.
+    label: "Meal planner (the week menu, Fuel's menu card, swaps, recipes, past weeks)",
+    // LAZY: the weekly meal plan is ideation. Its own route is the week menu
+    // (/app/today/menu, plan:meals); Fuel (eager) mounts the "This week's menu" card
+    // and paints its past-weeks fold through withBundle("meals"); the meal_plan /
+    // meal_swap / recipe reconnectors register when this lands.
     lazy: "meals",
     views: ["plan:meals"],
     inputs: [
       "public/js/meal-fuel-context-client.js",
       "public/js/meal-row-client.js",
+      "public/js/meal-plan-upcoming-client.js",
       "public/js/meal-plan-client.js",
       "public/js/meal-planner-jobs-client.js",
       "public/js/meal-recipe-client.js",
@@ -881,6 +901,8 @@ export const BUNDLES = [
       "public/js/meal-planner-actions-controller.js",
       "public/js/meal-planner-controller.js",
       "public/js/meal-journal-client.js",
+      "public/js/meal-menu-card-client.js",
+      "public/js/meal-menu-card-controller.js",
     ],
   },
   {

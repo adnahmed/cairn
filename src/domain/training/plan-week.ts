@@ -61,6 +61,8 @@ export interface PlanWeekRun {
   completion_date: string | null;
   /** The engine's prescribed distance, or the logged distance once completed. */
   km: number | null;
+  /** An open run the day read rested ("Rest or an easy walk"): no run is prescribed. */
+  rested?: true;
 }
 
 /**
@@ -327,6 +329,7 @@ function toPlanWeekRun(intent: AgendaIntent): PlanWeekRun {
     suggested_date: intent.suggested_date ? String(intent.suggested_date) : null,
     completion_date: intent.completion?.date ? String(intent.completion.date) : null,
     km,
+    ...(!completed && intent.adjustment?.dose === "rest" ? { rested: true as const } : {}),
   };
 }
 

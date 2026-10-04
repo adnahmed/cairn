@@ -14,6 +14,7 @@ import type {
   ClientProgressSection as ContractClientProgressSection,
   ClientApiResponse,
   ClientCoachingFocus,
+  ClientCoachingFocusItem,
   ClientRoute,
   ClientRoutesApi,
   ClientSettingsSection as ContractClientSettingsSection,
@@ -1799,6 +1800,85 @@ declare global {
   declare function activeBlockHtml(block: ClientProgramBlock | null | undefined): string;
   declare function startBlockHtml(): string;
   declare function loadProgramBlock(): Promise<void>;
+  type ClientCoachingFocusVariant = "full" | "compact" | "hero" | "overview";
+  type CoachingFocusRenderOptions = {
+    variant?: ClientCoachingFocusVariant;
+    // `full` only: false omits the block calendar line — the Program view already
+    // owns block truth via its own "Current block · week N of M" card.
+    blockLine?: boolean;
+    // `full` only: render the [data-cfocus-act] buttons. Only Program wires them;
+    // every navigate-only surface keeps the default so a button never renders dead.
+    actions?: boolean;
+    headline?: boolean; // `full` only: false = Train says the headline; this card is the plan beneath it
+    // Inline style for the wrapper (the Progress overview's reveal stagger).
+    style?: string;
+  };
+  type CfocusVariantSpec = {
+    wrap: string;
+    mastClass: string;
+    // The masthead's own element. Block-level where the surface's label is a row
+    // of its own (the Progress-overview well), inline where the class supplies it.
+    mastTag: "span" | "div";
+    headlineClass: string;
+    headlineTag: "p" | "h2";
+    // "option" honours options.blockLine; "domain" gates on the training family
+    // (a lifting calendar under a lab lever would imply the lab work is
+    // block-scoped volume work); "never" omits it.
+    blockLine: "option" | "domain" | "never";
+    // "route" = the navigable lead block with domain tag + arrow;
+    // "flat" = title/why/move with no route chrome (the surface links out itself);
+    // "line" = headline + one line only, no lead block at all.
+    lead: "route" | "flat" | "line";
+    leadWrap: string;
+    leadTitleClass: string;
+    leadWhyClass: string;
+    // "" omits the Move line.
+    moveClass: string;
+    // The lead's title is required for this variant to render at all.
+    requireTitle: boolean;
+    fold?: boolean; // the flat lead's why, move and retest fold under one tap (Train overview)
+    // Renders even when the server says the focus is not available (hero only).
+    allowUnavailable: boolean;
+    parallel: boolean;
+    later: boolean;
+    connections: boolean;
+    retest: "card" | "line" | "never";
+    footer: string;
+  };
+  type ExerciseMergeSuggestion = { from: string; into: string; why: string; confidence: string };
+  type ExerciseRenameSuggestion = { id: number; from: string; into: string };
+  declare function cfocusSwapButtonsHtml(item: ClientCoachingFocusItem): string;
+  declare function cfocusText(value: unknown): string;
+  declare function cfocusHeadlineWithoutLead(headline: string, title: string): string;
+  declare function cfocusRouteLeadHtml(
+    lead: ClientCoachingFocusItem,
+    spec: CfocusVariantSpec,
+    options: CoachingFocusRenderOptions,
+    acts: boolean
+  ): string;
+  declare function cfocusFlatLeadHtml(
+    lead: ClientCoachingFocusItem,
+    spec: CfocusVariantSpec,
+    after?: string
+  ): string;
+  declare function cfocusRetestHtml(focus: ClientCoachingFocus, spec: CfocusVariantSpec): string;
+  declare function scheduledMealPlan(plan: unknown): Record<string, unknown> | null;
+  declare function mealBoundaryLabel(value: unknown): string;
+  declare function mealPlanUpcomingHtml(plan: unknown, current?: unknown): string;
+  declare function mergeSuggestionsInnerHtml(
+    pairs: ExerciseMergeSuggestion[],
+    renames?: ExerciseRenameSuggestion[]
+  ): string;
+  declare function wireMergeSuggestions(
+    slot: Element,
+    pairs: ExerciseMergeSuggestion[],
+    deps: ClientProgressProgramControllerDeps
+  ): void;
+  declare function wireRenameSuggestions(
+    slot: Element,
+    pairs: ExerciseRenameSuggestion[],
+    deps: ClientProgressProgramControllerDeps
+  ): void;
   declare function cfocusDomainTag(domain: unknown): string;
   declare function coachingFocusCardHtml(
     focus: ClientCoachingFocus | null | undefined,
@@ -3231,6 +3311,10 @@ declare global {
       MEAL_PREF_CHIPS: string[];
       mealSlotFor(name: unknown, index: unknown): string;
       currentMealPlan(plans: unknown): Record<string, unknown> | null;
+      /** The planner's own adequacy rule (a parsed 5–7 day week on its daily targets). */
+      mealPlanIsAdequate(plan: unknown): boolean;
+      /** The week's saved food constraints changed under it: none of its meals read as current. */
+      needsRefresh(plan: unknown): boolean;
       mealsCtxFor(plan: unknown, now?: unknown): { weekOf: string; targetKcal: number; todayName: string };
       mealRowHtml(meal: unknown, mealIndex?: number, options?: { di?: number; count?: number }): string;
       mealPlanCardHtml(plan: unknown, index: number): string;
@@ -5026,11 +5110,52 @@ declare global {
     };
 
     CairnMealJournal: {
-      paint(
+      /** The week menu's page frame: back link, lede, the menu slot, the history link. */
+      menuPageHtml(): string;
+      /** The week menu (/app/today/menu) into its slot; "today" scrolls to today's day once. */
+      paintMenu(
+        token: number,
+        slot: HTMLElement,
+        peek: SwrPeek<import("./client-api.js").ClientMealPlan[]> | null,
+        focus?: "today" | "week",
+      ): Promise<unknown>;
+      /** Past weeks (every week but the current menu, the scheduled one and the fresh draft it offers) into Fuel's fold. */
+      paintHistory(
         token: number,
         slot: HTMLElement,
         peek: SwrPeek<import("./client-api.js").ClientMealPlan[]> | null,
       ): Promise<unknown>;
+      /** One reading of the plan list: the current week, the scheduled one, fresh drafts the menu offers, the past. */
+      weeks(plans: unknown): {
+        current: Record<string, unknown> | null;
+        upcoming: Record<string, unknown> | null;
+        drafts: Record<string, unknown>[];
+        past: Record<string, unknown>[];
+      };
+    };
+
+    CairnMealMenuCard: {
+      model(
+        plans: unknown,
+        now?: unknown,
+      ):
+        | { kind: "empty" }
+        | {
+            kind: "week";
+            status: "review" | "coming" | "kept";
+            needsRefresh: boolean;
+            dayName: string;
+            meals: Array<{ slot: string; name: string; items: string; kcal: number | null; query: string }>;
+          };
+      cardHtml(model: ReturnType<Window["CairnMealMenuCard"]["model"]>): string;
+      skeletonHtml(): string;
+    };
+
+    CairnMealMenuCardController: {
+      mount(
+        host: HTMLElement,
+        deps: { isCurrent(): boolean; openMenu(focus: "today" | "week"): void },
+      ): (() => void) & { refresh(): Promise<void>; ready: Promise<void> };
     };
 
     CairnCaptureCheckin: {
@@ -5470,6 +5595,8 @@ declare global {
   declare const CairnCaptureReads: Window["CairnCaptureReads"];
   declare const CairnCaptureVoice: Window["CairnCaptureVoice"];
   declare const CairnMealJournal: Window["CairnMealJournal"];
+  declare const CairnMealMenuCard: Window["CairnMealMenuCard"];
+  declare const CairnMealMenuCardController: Window["CairnMealMenuCardController"];
   declare const CairnTodaySessionSuggest: Window["CairnTodaySessionSuggest"];
   declare const CairnTodaySessionSuggestController: Window["CairnTodaySessionSuggestController"];
   declare const CairnProgressData: Window["CairnProgressData"];
@@ -5654,6 +5781,8 @@ declare global {
       mealCardHtml(model: ClientMealCardModel, opts?: { totals?: boolean; editing?: boolean }): string;
       readRowHtml(row: ClientMealCardRow): string;
       rowKcalText(row: ClientMealCardRow): string;
+      rowMacroText(row: ClientMealCardRow): string;
+      macroSplitHtml(totals: ClientMealCardTotals): string;
       rowHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
       rowMainHtml(row: ClientMealCardRow, opts?: { mealBasis?: unknown }): string;
       rowNutriText(row: ClientMealCardRow): string;
@@ -6174,7 +6303,6 @@ declare global {
     current: boolean;
     logged_km: number | null;
     logged_frac: number | null;
-    so_far_text: string;
     race_day_text: string;
     /** The server's one coaching sentence for the week. */
     focus_text: string;
@@ -6182,6 +6310,23 @@ declare global {
     focus_short: string;
     /** How lifting and running fit this week, in the server's words ("" with no lifting). */
     lifting_text: string;
+    /** This week, once the server closes it: the row's figure is the actual alone. */
+    closed?: boolean;
+    /** A closed week's recap in place of its plan focus ("35.8 km over 4 runs"); "". */
+    recap_text?: string;
+    /** The bar in words, for its aria-label ("Week of Sep 28: 35.8 km run of 19.5 km planned"). */
+    bar_label?: string;
+  };
+  /** A closed week above this one on the ladder: an actual, drawn solid. */
+  type ClientRaceLadderPastRow = {
+    week_start: string;
+    date_word: string;
+    km: number;
+    km_text: string;
+    /** "3 runs"; "" with no count. */
+    runs_text: string;
+    frac: number;
+    bar_label: string;
   };
   /** This week at a glance: stage, logged against the week's volume, long run, the focus. */
   type ClientRaceThisWeek = {
@@ -6197,7 +6342,52 @@ declare global {
     banked: boolean;
     long_text: string;
     focus: string;
+    /** "This week · Sharpen · 4 wk out". */
+    kicker?: string;
+    /** The server's sentence for the week (`this_week.headline`), else the stage word. */
+    headline?: string;
+    /** One detail line: the server's (`this_week.detail`), else the rung's focus while the week is open. */
+    detail?: string;
+    /** The server says the week is behind the athlete (`this_week.closed`). */
+    closed?: boolean;
+    /** "35.8 km" once something is run; "" before. */
+    logged_text?: string;
+    /** "plan 19.5" beside a logged figure, or "19.5 km planned" alone; "" with no plan. */
+    plan_text?: string;
+    /** The week's runs as logged, oldest first. */
+    runs?: ClientRaceWeekRun[];
+    /** One bar segment per run, scaled to max(plan, logged). */
+    segments?: ClientRaceWeekSegment[];
+    /** Where the plan's tick sits on that bar, 0..1; null with no plan. */
+    plan_frac?: number | null;
+    /** The log is past the plan: the bar shows the overflow beyond the tick. */
+    over?: boolean;
   };
+  /** One run of this week as the THIS WEEK card prints it: what was run first, the plan second. */
+  type ClientRaceWeekRun = {
+    date: string;
+    /** "Tue". */
+    when: string;
+    km: number | null;
+    km_text: string;
+    /** The run's own pace ("5:34/km"); "" when the read has none. */
+    pace_text: string;
+    /** The server's grade of the run in words (easy / steady / hard); "" when it sent none. */
+    effort_word: string;
+    /** What was run, in one line: the server's `actual_line`, else "13.5 km · 6:11/km · easy". */
+    actual_text: string;
+    /** The activity's own title ("Hill Sprints"); "" with none. */
+    title: string;
+    /** The bar's tone: the intent it closed, or an extra's own grade. */
+    tone: "easy" | "quality" | "long";
+    /** A run no intent took: shown as "Extra", never dropped. */
+    extra: boolean;
+    /** The server's `plan_line`, else "planned: easy 4.8 km"; "" for an extra. */
+    planned_text: string;
+    /** What the day's call did to the plan ("shortened to 8 km this morning"); "". */
+    adjust_text: string;
+  };
+  type ClientRaceWeekSegment = { tone: "easy" | "quality" | "long"; extra: boolean; frac: number; label: string };
   /** One "With your lifting" row: a week, or a run of weeks that say the same thing. */
   type ClientRaceLiftingLine = { when: string; stage: string; text: string; current: boolean };
   type ClientRaceLadderModel = {
@@ -6209,6 +6399,10 @@ declare global {
      * in the run units; "" when nothing is set aside.
      */
     capacity_text?: string;
+    /** The last few closed weeks, oldest first, above this week ([] with none). */
+    past?: ClientRaceLadderPastRow[];
+    /** The server's sentence on how the ladder moved with what was run; "" with none. */
+    adapted_text?: string;
     /** The run units the row words are written in; the numbers (`km`, `max_km`) stay kilometres. */
     units?: "km" | "mi";
   };
@@ -6217,10 +6411,7 @@ declare global {
     /** "Fits", "Stretch" or "Beyond horizon" — the whole vocabulary; "" without a target. */
     fit_word: string;
     fit_line: string;
-    estimate_clock: string;
-    target_clock: string;
     basis_text: string;
-    trend_text: string;
     empty: boolean;
   };
   type ClientRaceViewModel = {
@@ -6228,6 +6419,8 @@ declare global {
     countdown: string;
     race_day: string;
     phase_word: string;
+    /** The head's estimate line ("Reads about 1:54 · inside sub-2:00 · …"); "" with none. */
+    fit_text?: string;
     estimate: ClientRaceEstimateModel;
     this_week: ClientRaceThisWeek | null;
     lifting: ClientRaceLiftingLine[];
@@ -6246,12 +6439,18 @@ declare global {
     units?: "km" | "mi";
     /** This week's runs, by weekday (the page's briefing rows), for the THIS WEEK card. */
     sessionsHtml?: string;
+    /** Next week's runs, its own section after the card (the briefing's). */
+    nextWeekHtml?: string;
+    /** This week's training agenda: the runs behind the bar when the build carries none. */
+    agenda?: import("./client-api.js").ClientFlexibleTrainingAgenda | null;
     reducedMotion?(): boolean;
   };
   interface Window {
     CairnPlanEnduranceBriefing: {
       /** This week's runs by weekday: done ticked, the next in full, the rest as rows. */
-      sessionsHtml(briefing: unknown): string;
+      sessionsHtml(briefing: unknown, opts?: { runs?: ClientRaceWeekRun[] | null; today?: string }): string;
+      /** Next week's runs as their own section; detail only on the first upcoming run. */
+      nextWeekHtml(briefing: unknown, opts?: { figure?: string; today?: string }): string;
     };
     CairnRaceWeekModel: {
       STAGE_WORD: Record<string, string>;
@@ -6260,16 +6459,46 @@ declare global {
       kmText(km: unknown, units?: unknown): string;
       distNum(km: unknown, units?: unknown): string;
       runWords(value: unknown, units?: unknown): string;
-      thisWeekModel(build: ClientRaceBuild | null | undefined, units?: unknown): ClientRaceThisWeek | null;
       liftingModel(ladder: ClientRaceLadderModel): ClientRaceLiftingLine[];
       volumeWeeks(build: ClientRaceBuild | null | undefined, units?: unknown): ClientHorizonVolumeWeek[];
+    };
+    CairnRaceWeekRuns: {
+      thisWeekModel(
+        build: ClientRaceBuild | null | undefined,
+        units?: unknown,
+        opts?: { agenda?: ClientFlexibleTrainingAgenda | null; countdownShown?: boolean }
+      ): ClientRaceThisWeek | null;
+      /** This week's runs as logged, actual first: the build's own reads, else the agenda's. */
+      weekRuns(
+        build: ClientRaceBuild | null | undefined,
+        agenda?: ClientFlexibleTrainingAgenda | null,
+        units?: unknown
+      ): ClientRaceWeekRun[];
+      /** Next week's planned volume from the ladder ("32.1 km planned"); "". */
+      nextWeekText(build: ClientRaceBuild | null | undefined, units?: unknown): string;
+      /** A run's own pace ("5:34/km"); "". */
+      paceText(secPerKm: unknown, units?: unknown): string;
+    };
+    CairnRaceLadderModel: {
+      KIND_WORD: Record<ClientRaceLadderRow["kind"], string>;
+      WEEKDAYS: readonly string[];
+      dayKey(iso: unknown): string;
+      /** "Nov 1". */
+      shortDate(iso: unknown): string;
+      /** "Sunday, Nov 1". */
+      longDate(iso: unknown): string;
+      ladderModel(build: ClientRaceBuild | null | undefined, units?: unknown): ClientRaceLadderModel;
     };
     CairnRaceViewModel: {
       FIT_WORD: Record<import("./client-api.js").ClientRaceFit, string>;
       KIND_WORD: Record<ClientRaceLadderRow["kind"], string>;
       STAGE_WORD: Record<string, string>;
       stageWord(week: Pick<import("./client-api.js").ClientRaceBuildWeek, "kind" | "phase">): string;
-      thisWeekModel(build: ClientRaceBuild | null | undefined, units?: unknown): ClientRaceThisWeek | null;
+      thisWeekModel(
+        build: ClientRaceBuild | null | undefined,
+        units?: unknown,
+        opts?: { agenda?: ClientFlexibleTrainingAgenda | null; countdownShown?: boolean }
+      ): ClientRaceThisWeek | null;
       liftingModel(ladder: ClientRaceLadderModel): ClientRaceLiftingLine[];
       /** The distance's number alone in the run units ("12.5"). */
       distNum(km: unknown, units?: unknown): string;
@@ -6290,17 +6519,25 @@ declare global {
       /** The race build's one serif line ("Five weeks of build, then the half."). */
       buildVoice(ladder: ClientRaceLadderModel, race: ClientRaceBuild["race"] | null | undefined): string;
       estimateModel(build: ClientRaceBuild | null | undefined, units?: unknown): ClientRaceEstimateModel;
-      viewModel(value: unknown, opts?: { units?: unknown }): ClientRaceViewModel | null;
+      /** The head's estimate line ("Reads about 1:54 · inside sub-2:00 · …"); "". */
+      fitHeadText(build: ClientRaceBuild | null | undefined): string;
+      viewModel(
+        value: unknown,
+        opts?: { units?: unknown; agenda?: ClientFlexibleTrainingAgenda | null }
+      ): ClientRaceViewModel | null;
     };
     CairnRaceLadder: {
       ladderHtml(model: ClientRaceLadderModel, opts?: { reveal?: boolean }): string;
       rowHtml(row: ClientRaceLadderRow, index: number, opts: { reveal?: boolean }): string;
     };
     CairnRaceEstimate: {
-      estimateHtml(model: ClientRaceEstimateModel): string;
+      estimateHtml(model: ClientRaceEstimateModel, opts?: { paces?: Array<{ label: string; text: string }> }): string;
     };
     CairnRaceView: {
-      viewHtml(model: ClientRaceViewModel, opts?: { enter?: boolean; sessionsHtml?: string; units?: "km" | "mi" }): string;
+      viewHtml(
+        model: ClientRaceViewModel,
+        opts?: { enter?: boolean; sessionsHtml?: string; nextWeekHtml?: string; units?: "km" | "mi" }
+      ): string;
       thisWeekHtml(week: ClientRaceThisWeek | null, opts?: { sessionsHtml?: string; focus?: string; units?: "km" | "mi" }): string;
       /** "9.7 of 19.5 km", or the week's volume alone before anything is run; never a zero. */
       volumeFigureHtml(week: ClientRaceThisWeek | null | undefined, cls: string): string;
@@ -6316,6 +6553,8 @@ declare global {
   }
   declare const CairnPlanEnduranceBriefing: Window["CairnPlanEnduranceBriefing"];
   declare const CairnRaceWeekModel: Window["CairnRaceWeekModel"];
+  declare const CairnRaceWeekRuns: Window["CairnRaceWeekRuns"];
+  declare const CairnRaceLadderModel: Window["CairnRaceLadderModel"];
   declare const CairnRaceViewModel: Window["CairnRaceViewModel"];
   declare const CairnRaceLadder: Window["CairnRaceLadder"];
   declare const CairnRaceEstimate: Window["CairnRaceEstimate"];
@@ -6624,4 +6863,60 @@ declare global {
   declare const CairnArtMemory: Window["CairnArtMemory"];
   declare const CairnArtInflight: Window["CairnArtInflight"];
   declare const CairnUpdateGate: Window["CairnUpdateGate"];
+  // ---- The Program look-ahead (program-week-{model,client,controller}.ts) ----
+  type ClientProgramWeekRow = {
+    date: string;
+    /** "MON" */
+    weekday: string;
+    /** Day of the month ("6"). */
+    day: string;
+    today: boolean;
+    hard: boolean;
+    /** Today only: the server's one strength line, printed verbatim in place of the plan day's name. */
+    line: import("./client-api.js").ClientTodayStrengthLine | null;
+    lift: { title: string; lifts: string; done: boolean } | null;
+    run: { text: string; done: boolean; kind: string } | null;
+    rest: boolean;
+  };
+  type ClientProgramWeekGroup = {
+    label: string;
+    markers: Array<{ kind: string; word: string; note: string }>;
+    rows: ClientProgramWeekRow[];
+  };
+  type ClientProgramWeekView = {
+    mode: "calendar" | "order" | "empty";
+    groups: ClientProgramWeekGroup[];
+    order: Array<{ title: string; lifts: string }>;
+  };
+  type ClientProgramWeekDeps = {
+    peekCached<T = unknown>(key: string): { data: T; fresh: boolean } | null;
+    cachedApi(
+      path: string,
+      options?: { key?: string; onUpgrade?(data: unknown, meta: { changed: boolean }): void }
+    ): Promise<unknown>;
+    /** Open the plan editor. */
+    editPlan(): unknown;
+    /** Open Ask, with `text` in the composer when the door carries words. */
+    ask(text?: string): unknown;
+  };
+  interface Window {
+    CairnProgramWeekModel: {
+      programWeekModel(read: unknown): ClientProgramWeekView | null;
+      liftsText(lift: import("./client-api.js").ClientPlanLookAheadLift | null | undefined): string;
+      runText(run: import("./client-api.js").ClientPlanLookAheadRun | null | undefined, units: unknown): string;
+    };
+    CairnProgramWeek: {
+      sectionHtml(body: string): string;
+      skeletonHtml(): string;
+      bodyHtml(view: ClientProgramWeekView | null): string;
+    };
+    CairnProgramWeekController: {
+      KEY: string;
+      PATH: string;
+      mount(host: Element, deps: ClientProgramWeekDeps): () => void;
+    };
+  }
+  declare const CairnProgramWeekModel: Window["CairnProgramWeekModel"];
+  declare const CairnProgramWeek: Window["CairnProgramWeek"];
+  declare const CairnProgramWeekController: Window["CairnProgramWeekController"];
 }

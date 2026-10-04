@@ -57,5 +57,16 @@
 .meal-card-row.is-read .meal-card-amount::before{content:"· "}
 .meal-card-row.is-read .meal-card-nutri{flex:0 0 auto;margin-left:auto;white-space:nowrap;
   font-variant-numeric:lining-nums tabular-nums}
+.meal-card-row.is-read{flex-wrap:wrap}
+.meal-card-row.is-read .meal-card-macros{flex:1 1 100%;font-size:var(--text-xs);color:var(--muted);
+  line-height:var(--leading-normal);font-variant-numeric:lining-nums tabular-nums}
+.meal-card-split{display:flex;flex-direction:column;gap:var(--space-2)}
+.meal-card-split-bar{display:flex;gap:var(--space-1);height:5px;border-radius:var(--radius-pill);overflow:hidden}
+.meal-card-split-seg{flex-basis:0;min-width:3px;height:100%;flex-grow:var(--frac,1)}
+.meal-card-split-seg.is-p{background:var(--ink)}
+.meal-card-split-seg.is-c{background:var(--muted)}
+.meal-card-split-seg.is-f{background:var(--line-strong)}
+.meal-card-split-text{margin:0;font-size:var(--text-sm);color:var(--ink-2);line-height:var(--leading-normal);
+  font-variant-numeric:lining-nums tabular-nums}
 .meal-card-done{min-height:44px;display:inline-flex;align-items:center;font-size:var(--text-sm)}
 

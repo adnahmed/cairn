@@ -1181,8 +1181,25 @@ export function renderCoachingFocus(ctx: PartialCoachContext, opts: { brief?: bo
   // The work-around caveat: a training lever that runs into a flagged constraint is
   // worked AROUND, never pushed through — plain words, a suggestion not a gate.
   if (caveat) lines.push(`  ▸ ${caveat}`);
-  if (cf.retest) lines.push(`  ▸ NEXT CHECK-IN${cf.retest.in_weeks === 0 ? " (due now)" : ""}: re-test ${cf.retest.focus.join(", ")} — ${cf.retest.why}`);
+  if (cf.retest) {
+    // Lifts and labs are two lists in one window; a marker inside the lift list
+    // would read to the model as one more lift to re-test.
+    const lifts: string[] = Array.isArray(cf.retest.focus) ? cf.retest.focus : [];
+    const labs: string[] = Array.isArray(cf.retest.labs) ? cf.retest.labs : [];
+    const parts = [lifts.length ? `re-test ${lifts.join(", ")}` : "", labs.length ? `labs/scans ${labs.join(", ")}` : ""].filter(Boolean);
+    if (parts.length) lines.push(`  ▸ NEXT CHECK-IN${cf.retest.in_weeks === 0 ? " (due now)" : ""}: ${parts.join("; ")} — ${cf.retest.why}`);
+  }
   return `${lines.join("\n")}\n\n`;
+}
+
+// The pointer to the whole-week load read (src/repo/week-training-load.ts). One short
+// line, rendered with the program-state block (and with the recent-runs block at the
+// sites that do not render program state), only when the context carries the read. It
+// names the key conditionally because a builder renders off the FULL context while its
+// DATA block carries only the site's allowlist.
+export function renderWeekTrainingLoadPointer(ctx: PartialCoachContext): string {
+  if (!ctx?.week_training_load) return "";
+  return `WHOLE WEEK: when DATA carries week_training_load, it is the one whole-week load picture — every sport (runs with the intention each closed, rides, paddles, walks, anything the watch logged) plus the lifting with its leg/upper split, the key-run spacing, and the next 48 hours. Read the week from it rather than assembling it from the raw activity rows. Its cross_training_day is a known pattern of the athlete's week (a ride the day before the long run is their week), not a conflict to plan around.\n`;
 }
 
 export function renderProgramState(ctx: PartialCoachContext, opts: { brief?: boolean } = {}): string {
@@ -1196,8 +1213,10 @@ export function renderProgramState(ctx: PartialCoachContext, opts: { brief?: boo
   // prompt does not bloat with every residual.
   const gates: any[] = Array.isArray(ctx?.acute_gates) ? (ctx.acute_gates as any[]) : [];
   const recovering = gates.filter((g: any) => g?.saturated);
-  if (!st && !bal && !adj.length && !recovering.length) return "";
+  const weekPointer = renderWeekTrainingLoadPointer(ctx);
+  if (!st && !bal && !adj.length && !recovering.length) return weekPointer ? `\n${weekPointer}` : "";
   const lines: string[] = [];
+  if (weekPointer) lines.push(weekPointer.trimEnd());
 
   // Headline — the one-sentence program read, always safe to show.
   if (st?.headline) lines.push(`PROGRAM STATE (deterministic read of the logged history — evidence for the block focus above; plain words, no scores): ${st.headline}`);
@@ -1369,6 +1388,12 @@ export function renderRunZones(ctx: PartialCoachContext): string {
 export function renderRecentCardio(ctx: PartialCoachContext, focus: "chat" | "weekly"): string {
   const read = ctx?.recent_cardio as any;
   if (!read || !Array.isArray(read.rows)) return "";
+  const rows = renderRecentCardioRows(read, focus);
+  const pointer = renderWeekTrainingLoadPointer(ctx);
+  return rows ? `${rows}${pointer}` : pointer ? `\n${pointer}` : "";
+}
+
+function renderRecentCardioRows(read: any, focus: "chat" | "weekly"): string {
   const days = Number(read.window_days) || 7;
   if (!read.rows.length) {
     return focus === "chat"

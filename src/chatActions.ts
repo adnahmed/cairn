@@ -107,7 +107,9 @@ export interface SetEnduranceGoalAction extends ChatActionBase {
 
 export interface SetEnduranceScheduleAction extends ChatActionBase {
   type: "set_endurance_schedule";
-  days: Array<{ dow: number; kind: string }>;
+  // A stated cross-training day rides here as {dow, kind: <sport>, optional: true}: the
+  // schedule parser moves it into `cross_training`, never onto a run day.
+  days: Array<{ dow: number; kind: string; optional?: true }>;
   note?: unknown;
 }
 
@@ -501,11 +503,15 @@ export const CHAT_ACTION_PROMPT_SPECS = {
     // dow: 0=Sunday … 6=Saturday. kind: easy | quality | long | any.
     // ONLY days they named — never invent a weekday they did not say. "Weekend"
     // without Sat/Sun → Saturday (dow 6) as the long-run day.
+    // A recurring NON-RUN day they name ("Saturday optional MTB") is an entry with
+    // kind = the sport (ride | swim | walk | row | paddle | other) and optional: true.
     { "type": "set_endurance_schedule",
-      "days": [{ "dow": 2, "kind": "quality" }, { "dow": 4, "kind": "easy" }, { "dow": 6, "kind": "long" }],
+      "days": [{ "dow": 2, "kind": "quality" }, { "dow": 4, "kind": "easy" }, { "dow": 0, "kind": "long" },
+               { "dow": 6, "kind": "ride", "optional": true }],
       "note": "<optional short restatement of their words>" }`,
     guidance: [
       `Emit set_endurance_schedule when the athlete states which days they run. Map named weekdays only; do not fill in a third day they did not mention. Duplicate weekdays keep the first kind.`,
+      `A ride, swim, walk, paddle or other sport they keep on a weekday ("Saturday optional, MTB or other") is a cross-training day, NEVER a run day: send it as {"dow": 6, "kind": "ride", "optional": true} beside the run days. The engine plans the runs around it (a ride the day before the long run is a known pattern, not a conflict). Never turn it into an easy or "any" run. A cross-training day already stated is kept when you resend only the run days.`,
     ],
   },
   set_strength_schedule: {
@@ -934,9 +940,14 @@ export function normalizeChatAction(value: unknown): ChatAction | null {
     case "set_endurance_schedule": {
       const schedule = normalizeEnduranceSchedule({ ...value, source: "chat" });
       if (!schedule) return null;
+      // Cross-training days travel back inside days[] in the shape the parser moves
+      // into `cross_training` again, so the apply step (days + note) keeps them.
       return {
         type: "set_endurance_schedule",
-        days: schedule.days,
+        days: [
+          ...schedule.days,
+          ...(schedule.cross_training ?? []).map((c) => ({ dow: c.dow, kind: c.sport, optional: true as const })),
+        ],
         note: schedule.note,
       };
     }

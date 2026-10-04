@@ -289,7 +289,11 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   `weeklyRunPlan` and `flexibleTrainingAgenda` honor those dows and never spill a suggestion onto
   an unscheduled day. A named day still fires when the hard session sits out — it becomes easy; the
   supporting-constrained drop to two runs applies only with no stated calendar. A logged run on an
-  unscheduled day still counts (the log is truth). **Stated
+  unscheduled day still counts (the log is truth). **A moved key run is still the planned run**: which
+  run was the quality/long one is the week's completion (`closedRunIntentOn`/`weekRunClosures`, the
+  agenda's one matcher, cycle-free — never call weeklyRunPlan/agenda/harm from it), never the raw
+  weekday. A recurring non-run day is `endurance_schedule.cross_training` (never in `days[]`), else
+  the observed 2-of-6-weeks pattern (`crossTrainingDays`, `src/repo/cross-training-day.ts`). **Stated
   LIFTING weekdays are the same fact for strength** — `strength_schedule`
   (`profile.strength_schedule_json`, `{days:[{dow}]}`, no `kind`): when set, `weekdayPlanDayMap`
   (`src/repo/plan-selection.ts`) lays the plan's strength days onto exactly those weekdays and an
@@ -301,7 +305,7 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   so every named weekday still lifts, a surplus rotates across weeks onto the named weekdays only,
   and the scorer then adapts among strength days alone. **Never said is not the end of it** —
   `strengthScheduleRead()` (`src/repo/strength-schedule.ts`) falls back to the weekdays a real
-  strength session landed on in 3 of the last 6 weeks (the race-build ride law), labelled
+  strength session landed on in 3 of the last 6 weeks, labelled
   `source:"observed"` everywhere it is spoken; an explicitly EMPTIED stated schedule stays silent
   rather than reopening the log. Chat is the only setter UI — there is no settings form, by design.
 - **The race build is a read OVER the run engine, never a second engine** — `raceBuild()`
@@ -316,10 +320,13 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   target one ~10% step past it and a lighter week resumes toward it inside the ACWR ceiling
   (`capacityResumeKm`); a harmed week falls back, never pushed through (the reset resume takes the
   same guard) — unless a LATER stated key run that week was taken clean (`nextMorningClean`: the body
-  answered). A set-aside week is SAID on the plan (`capacitySetAsideLine`, race build `capacity.note`). Finish estimates prefer the watch's
+  answered). A set-aside week is SAID on the plan (`capacitySetAsideLine`, race build `capacity.note`). The
+  week's prescription is a property of the WEEK: a spike in the CLOSED week holds every morning of it
+  (`spiking` reads the volume anchor too), so no as-of date re-plans it. Finish estimates prefer the watch's
   predictor (≤3 weeks old, Riegel-adjusted) over a Riegel off a training run, and every comparison
-  is a `fits`/`stretch`/`beyond_horizon` FIT, never a grade. The weekly ride is a PATTERN read off
-  the log (3 of 6 weeks) — no new field. Details in `docs/ARCHITECTURE.md`.
+  is a `fits`/`stretch`/`beyond_horizon` FIT, never a grade. The weekly ride (`ride`, any non-run family)
+  is the cross-training day: stated first, else observed (2 of 6 weeks); a known one the day before
+  the long run never strips the long run's date. Details in `docs/ARCHITECTURE.md`.
 - **Today's lift has ONE server line** — `todayStrengthLine()` (`src/repo/today-strength-line.ts`): plan
   day NAME, state off the log, a rest/easy read as a caveat (never a replacement title). The Brief,
   Session header, week strip and Train overview print it verbatim; never derive a today state in a
@@ -330,6 +337,11 @@ optionally `===CAIRN_ACTIONS===` + `{"actions":[…]}`. Everything before the re
   / the agenda; a non-lifting weekday is a run or rest day (`calendarDayRead`, plan-selection) and
   `selectAdaptivePlanDay` answers it with `day_number:null`. An empty editor scaffold is never
   startable. Details in `docs/ARCHITECTURE.md`.
+- **No logged activity is ever dose 0, and none needs a modality of its own.** An unmapped Garmin type
+  gets a family guess off its type key (`activityLoadFamily`, `src/repo/endurance-sports.ts`: paddle,
+  court, snow, else a light whole-body read) — extend the family table, never add a one-sport branch.
+  The whole week across every sport is ONE read, `weekTrainingLoad` (`src/repo/week-training-load.ts`),
+  a read over reads. Details: `docs/ARCHITECTURE.md` "Every logged activity is a dose".
 - **Garmin strength is a session, not an activity.** `upsertGarminActivity` deliberately skips the
   generic `activities` row for a strength type (no duplicate). `reconcileGarminStrength()` does the
   deterministic merge (physiology onto `sessions.garmin_json`, link, delete stale row) *always*, even

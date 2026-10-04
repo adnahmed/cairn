@@ -80,30 +80,55 @@ export function registerTrainingStatusTools(server: McpToolRegistrar) {
 
   server.tool(
     "set_endurance_schedule",
-    "Set or clear the athlete's stated run days. Only weekdays they named — never invent a day. days is [{dow: 0-6 (0=Sunday), kind: easy|quality|long|any}]. Pass days: null to clear. A duplicate weekday keeps the first kind.",
+    "Set or clear the athlete's stated run days. Only weekdays they named — never invent a day. days is [{dow: 0-6 (0=Sunday), kind: easy|quality|long|any}]. Pass days: null to clear. A duplicate weekday keeps the first kind. A stated recurring NON-RUN day ('Saturday optional, MTB or other') goes in cross_training as {dow, sport}, never as a run day; omit cross_training to keep what is stored, [] clears it.",
     {
       days: z
         .array(
           z.object({
             dow: z.number().int().min(0).max(6).describe("0=Sunday … 6=Saturday"),
-            kind: z.enum(["easy", "quality", "long", "any"]),
+            kind: z
+              .string()
+              .describe(
+                "easy|quality|long|any for a run day. A non-run sport here (ride, swim, walk, row, paddle, other) with optional: true is moved into cross_training, never kept as a run day"
+              ),
+            optional: z.boolean().optional(),
           })
         )
         .nullable()
         .optional()
         .describe("omit or pass null to clear the whole schedule"),
+      cross_training: z
+        .array(
+          z.object({
+            dow: z.number().int().min(0).max(6).describe("0=Sunday … 6=Saturday"),
+            sport: z.string().describe("ride|swim|walk|row|paddle|other"),
+            optional: z.literal(true).optional(),
+          })
+        )
+        .optional()
+        .describe("stated recurring non-run days, at most three; omit to keep what is stored, [] clears"),
       note: z.string().optional(),
     },
     async (input) => {
       if (input.days == null) return asText(setProfile({ endurance_schedule: null }));
-      const schedule = normalizeEnduranceSchedule({ days: input.days, note: input.note, source: "athlete" });
+      const schedule = normalizeEnduranceSchedule({
+        days: input.days,
+        ...(input.cross_training !== undefined ? { cross_training: input.cross_training } : {}),
+        note: input.note,
+        source: "athlete",
+      });
       if (!schedule) {
         return asText({
           ok: false,
-          error: "endurance_schedule requires at least one valid day (dow 0-6, kind easy|quality|long|any)",
+          error:
+            "endurance_schedule requires at least one valid day (dow 0-6, kind easy|quality|long|any, or a cross-training sport)",
         });
       }
-      return asText(setProfile({ endurance_schedule: schedule }));
+      // An explicit cross_training (even []) is passed on as said, so [] clears the stored
+      // days; omitted, setProfile keeps them (profile.ts serializeEnduranceSchedule).
+      const stated =
+        input.cross_training !== undefined ? { ...schedule, cross_training: schedule.cross_training ?? [] } : schedule;
+      return asText(setProfile({ endurance_schedule: stated }));
     }
   );
 

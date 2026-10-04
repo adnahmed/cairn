@@ -165,10 +165,42 @@ test("every home's moved-here line is calm prose on that home's landing view", (
   const routes = loadRoutes();
   const notes = win.CairnMovedNote.NOTES;
   assert.deepEqual(Object.keys(notes), [...routes.homes]);
-  for (const [home, { view, text }] of Object.entries(notes)) {
+  for (const [home, { view, section, text }] of Object.entries(notes)) {
     assert.equal(routes.viewFor(home), view, `${home}'s line sits on its landing view`);
+    if (section) assert.ok(routes.routeDefinitions.sections[view].includes(section), `${home}'s section is one ${view} knows`);
     assert.doesNotMatch(text, /\d|%|score|must|!/i, `${home}: no numbers, no gate, no shouting`);
   }
+  // Train's line is about Program, so it names that section of the progress view.
+  assert.equal(notes.train.section, "program");
+});
+
+test("the moved-here line sits on the one section it is about, never its siblings in the same view", () => {
+  const { win, el } = loadMovedNote({ "cairn.brief.v1": "{}" });
+  const note = win.CairnMovedNote;
+
+  // Train: Program, Fuel and Body are all sections of the one "progress" view. The
+  // plan line belongs to Program only; on Fuel it would point at the wrong thing.
+  note.sync("progress", "train", "program");
+  assert.equal(el.hidden, false);
+  assert.match(el.textContent, /Your plan now lives in Train, under Program\./);
+  for (const section of ["overview", "intake", "energy", "weight", "measurements", "sessions", null]) {
+    note.sync("progress", "train", section);
+    assert.equal(el.hidden, true, `no plan line on Train's ${section ?? "bare"} section`);
+  }
+
+  // A home whose line names no section shows it on the bare landing only: a stone
+  // detail under You, or Horizon's goal line, is not the landing.
+  note.sync("you", "you", "stone");
+  assert.equal(el.hidden, true);
+  note.sync("you", "you", null);
+  assert.equal(el.hidden, false);
+  note.sync("horizon", "horizon", "goal");
+  assert.equal(el.hidden, true);
+  note.sync("horizon", "horizon");
+  assert.equal(el.hidden, false);
+  assert.match(el.textContent, /race build now lives in Horizon/);
+
+  assert.equal(note.noteFor("progress", "train", null, "program"), null, "no storage still reads as a new device");
 });
 
 function loadYou() {

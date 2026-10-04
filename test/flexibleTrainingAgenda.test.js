@@ -642,3 +642,71 @@ test("sport context preserves terrain and seasonal identity without inventing we
   );
   assert.doesNotMatch(unrelated, /SPORT CONTEXT|PLACE & WEATHER/i);
 });
+
+// ---- the week matcher, one source (2026-10-04, "intent" stream) ----
+
+test("an earlier run is judged against the week's long run, not the long run this morning shortened", () => {
+  // The week planned a 14.8 km long run on Sunday; Sunday's morning shortened it to 11.1.
+  // Tuesday's 9.7 km easy run meets 75% of the morning's 11.1 — it is still not the long run.
+  const SUNDAY = "2026-04-26";
+  repo.addActivity({ type: "run", date: TUESDAY, duration_min: 54, distance_km: 9.7, rpe: 3 });
+  const planned = [run(2, "easy", 9.2), run(7, "long", 14.8)];
+  const live = {
+    ...plan([
+      planned[0],
+      { ...planned[1], label: "Long run · shorter", target_distance_km: 11.1, planned_kind_label: "long" },
+    ]),
+    planned_runs: planned,
+    today_adjustment: {
+      date: SUNDAY,
+      planned_kind: "long",
+      kind: "long",
+      dose: "shortened",
+      target_distance_km: 11.1,
+      changed: true,
+      locks: [],
+    },
+  };
+  const agenda = repo.flexibleTrainingAgenda(SUNDAY, { runPlan: live });
+  const long = agenda.intents.find((intent) => intent.kind === "long");
+  assert.equal(long.status, "open", "Sunday's long run is still to run");
+  assert.equal(long.suggested_date, SUNDAY);
+  const easy = agenda.intents.find((intent) => intent.kind === "easy");
+  assert.equal(easy.completion?.date, TUESDAY);
+
+  // A run TODAY is judged against the morning's own dose: 11 km closes the shortened run.
+  repo.addActivity({ type: "run", date: SUNDAY, duration_min: 68, distance_km: 11, rpe: 3 });
+  const after = repo.flexibleTrainingAgenda(SUNDAY, { runPlan: live });
+  assert.equal(after.intents.find((intent) => intent.kind === "long").completion?.date, SUNDAY);
+});
+
+test("the stated-shape closure read and the agenda name the same run for every slot", () => {
+  repo.setProfile({
+    endurance_schedule: {
+      days: [
+        { dow: 0, kind: "long" },
+        { dow: 2, kind: "easy" },
+        { dow: 4, kind: "quality" },
+      ],
+      source: "athlete",
+    },
+  });
+  const SUNDAY = "2026-04-26";
+  const easy = repo.addActivity({ type: "run", date: TUESDAY, duration_min: 40, distance_km: 7, rpe: 3 });
+  const quality = repo.addActivity({ type: "run", date: "2026-04-24", duration_min: 36, distance_km: 6 });
+  addQualityEvidence(quality, { label: "VO2MAX" });
+  const long = repo.addActivity({ type: "run", date: SUNDAY, duration_min: 80, distance_km: 13, rpe: 3 });
+  const agenda = repo.flexibleTrainingAgenda(SUNDAY, {
+    runPlan: plan([run(2, "easy", 7), run(4, "quality", 6), run(7, "long", 13)]),
+  });
+  const fromAgenda = Object.fromEntries(agenda.intents.map((i) => [i.kind, i.completion?.activity_id]));
+  const fromClosures = Object.fromEntries(
+    repo
+      .weekRunClosures(MONDAY, SUNDAY)
+      .filter((c) => c.closed)
+      .map((c) => [c.closed, c.activity_id])
+  );
+  assert.deepEqual(fromAgenda, { easy: easy.id, quality: quality.id, long: long.id });
+  assert.deepEqual(fromClosures, fromAgenda);
+  assert.deepEqual(repo.closedRunIntentOn("2026-04-24"), ["quality"]);
+});

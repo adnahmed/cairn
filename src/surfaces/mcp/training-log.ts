@@ -39,6 +39,7 @@ import {
   updateSet,
   weekWins,
 } from "../../domain/training/index.js";
+import { weekTrainingLoad } from "../../repo/week-training-load.js";
 import { asText, type McpToolRegistrar } from "./shared.js";
 
 export function registerTrainingLogTools(server: McpToolRegistrar) {
@@ -141,6 +142,14 @@ export function registerTrainingLogTools(server: McpToolRegistrar) {
     "The unified 'Lately' feed: finished strength sessions and cardio activities merged newest-first, each with a real timestamp (Garmin) and body-reaction detail (HR zones, temperature, effort, VO2) when available.",
     { limit: z.number().int().optional() },
     async ({ limit }) => asText(recentTraining(limit ?? 6))
+  );
+
+  server.tool(
+    "get_week_training_load",
+    "The whole-week load picture: the rolling seven days to `date` (default today) across every sport and the lifting — each run with the week's intention it closed (easy/quality/long or an extra) and its effort in the athlete's words, rides/paddles/walks/any other sport with its load band, each lift day's leg/upper split — plus the ISO week's intentions and totals, key-run spacing, the recurring cross-training day and the next 48 hours with one plain line. Plain words, no scores.",
+    { date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("YYYY-MM-DD; defaults to today") },
+    // Mirrors GET /api/week-training-load.
+    async ({ date }) => asText(weekTrainingLoad(date))
   );
 
   server.tool(

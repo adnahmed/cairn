@@ -51,6 +51,7 @@ export const CLIENT_API_CONTRACT_PATHS = [
   "/plan",
   "/plan/redraw",
   "/plan/week",
+  "/plan/look-ahead",
   "/plan/:day",
   "/plan/:day/order-for-effect",
   "/plan/:day/target",

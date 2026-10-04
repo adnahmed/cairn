@@ -6,9 +6,13 @@
 //
 import type { MuscleGroup } from "./exercise-canon.js";
 import {
+  activityLoadFamily,
   classifyEnduranceActivity,
+  isStrengthActivityType,
   type EnduranceSportMode,
+  type LoadFamily,
 } from "./endurance-sports.js";
+import { STATED_EASY_RPE_MAX } from "./stated-effort.js";
 
 // A logged strength effort counts as a heavy dose on a muscle at this many sets.
 export const HEAVY_SETS = 4;
@@ -18,7 +22,10 @@ export const HEAVY_SETS = 4;
 // does not block lower-body training). heavyMin = minutes, heavyKm = distance km.
 export interface EnduranceModality {
   re: RegExp;
-  mode: EnduranceSportMode;
+  /** The classifier's mode, or a load family that has no legacy mode of its own. */
+  mode: EnduranceSportMode | "paddle" | "court" | "snow" | "whole_body";
+  /** The load family (endurance-sports.activityLoadFamily) this modality reads as. */
+  family: LoadFamily;
   label: string;
   regions: MuscleGroup[];
   heavyMin: number;
@@ -32,11 +39,65 @@ export interface EnduranceModality {
   regionWeights?: Partial<Record<MuscleGroup, number>>;
 }
 
+// Families with no legacy mode, matched from the type key (activityLoadFamily)
+// rather than the text regex loop above.
+export const COURT_MODALITY: EnduranceModality = {
+  re: /\b(tennis|padel|pickleball|squash|badminton|racquet\w*|soccer|football|basketball|volleyball|hockey|rugby)\b/,
+  mode: "court",
+  family: "court",
+  label: "court sport",
+  regions: ["quads", "hamstrings", "glutes", "calves", "core"],
+  heavyMin: 75,
+  heavyKm: 12,
+  loadCharacter: "mixed-terrain",
+  regionWeights: { hamstrings: 0.6, calves: 0.6, core: 0.4 },
+};
+
+export const SNOW_MODALITY: EnduranceModality = {
+  re: /\b(snowboard\w*|skat\w*|inline\w*|snowshoe\w*)\b/,
+  mode: "snow",
+  family: "snow",
+  label: "snow sport",
+  regions: ["quads", "hamstrings", "glutes", "calves", "core"],
+  heavyMin: 90,
+  heavyKm: 20,
+  loadCharacter: "eccentric",
+  regionWeights: { hamstrings: 0.6, calves: 0.6, core: 0.5 },
+};
+
+// The GENERIC fallback: an activity whose type names no sport Cairn can place
+// (fishing, bouldering, yoga, whatever Garmin adds next). It is never nothing — a
+// light whole-body exposure, every region at a low weight — and it is graded only
+// by the watch's generic bars: length alone never makes it more than light
+// (hybrid-load.classifyImpactLoad), because three hours of fishing is not three
+// hours of exercise.
+export const WHOLE_BODY_MODALITY: EnduranceModality = {
+  re: /(?!)/,
+  mode: "whole_body",
+  family: "whole_body",
+  label: "activity",
+  regions: ["quads", "hamstrings", "glutes", "calves", "back", "shoulders", "core", "forearms"],
+  heavyMin: 120,
+  heavyKm: 15,
+  loadCharacter: "full-body-aerobic",
+  regionWeights: {
+    quads: 0.3,
+    hamstrings: 0.3,
+    glutes: 0.3,
+    calves: 0.3,
+    back: 0.3,
+    shoulders: 0.3,
+    core: 0.3,
+    forearms: 0.3,
+  },
+};
+
 // Conservative prime movers only, matched by keyword against the activity text.
 export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(downhill|lift served|bike park|gravity mtb|dh mtb)\b/,
     mode: "ride-downhill-mtb",
+    family: "ride",
     label: "downhill MTB",
     regions: ["quads", "hamstrings", "glutes", "calves", "core", "back", "forearms"],
     heavyMin: 120,
@@ -46,6 +107,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(mountain bik|mtb|trail rid|trail bik|single ?track|xc mtb)\b/,
     mode: "ride-trail-mtb",
+    family: "ride",
     label: "trail MTB",
     regions: ["quads", "hamstrings", "glutes", "calves", "core", "back", "forearms"],
     heavyMin: 75,
@@ -56,6 +118,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(gravel|cyclocross)\b/,
     mode: "ride-gravel",
+    family: "ride",
     label: "gravel ride",
     regions: ["quads", "hamstrings", "glutes", "calves", "core"],
     heavyMin: 75,
@@ -66,6 +129,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(road bik|road cycl|road rid)\b/,
     mode: "ride-road",
+    family: "ride",
     label: "road ride",
     regions: ["quads", "hamstrings", "glutes", "calves", "core"],
     heavyMin: 75,
@@ -76,6 +140,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(ride|cycl|bik|spin|peloton)\b/,
     mode: "ride",
+    family: "ride",
     label: "ride",
     regions: ["quads", "hamstrings", "glutes", "calves", "core"],
     heavyMin: 75,
@@ -86,6 +151,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(run|jog|sprint|tempo|interval)\b/,
     mode: "run",
+    family: "run",
     label: "run",
     regions: ["quads", "hamstrings", "glutes", "calves", "core"],
     heavyMin: 55,
@@ -96,6 +162,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(hik|walk|ruck|trek|stair|stepper|elliptical)\b/,
     mode: "walk",
+    family: "walk",
     label: "hike",
     regions: ["quads", "glutes", "calves", "hamstrings"],
     heavyMin: 120,
@@ -103,8 +170,23 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
     loadCharacter: "aerobic",
   },
   {
-    re: /\b(row|erg|kayak|paddle)\b/,
+    // Paddle sports read as their own family (activityLoadFamily): Garmin's
+    // "kayaking_v2" / "stand_up_paddleboarding_v2" never matched a bare \bkayak\b
+    // or \bpaddle\b, so every paddle outing used to be dropped as dose 0.
+    re: /\b(kayak\w*|canoe\w*|paddl\w*|sup|stand up paddle\w*|rafting|dragon boat\w*|whitewater)\b/,
+    mode: "paddle",
+    family: "paddle",
+    label: "paddle",
+    regions: ["back", "shoulders", "core", "forearms", "biceps"],
+    heavyMin: 60,
+    heavyKm: 10,
+    loadCharacter: "full-body-aerobic",
+    regionWeights: { core: 0.6, forearms: 0.5, biceps: 0.4 },
+  },
+  {
+    re: /\b(row\w*|erg)\b/,
     mode: "row",
+    family: "row",
     label: "row",
     regions: ["back", "hamstrings", "glutes", "core"],
     heavyMin: 45,
@@ -114,6 +196,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(swim)\b/,
     mode: "swim",
+    family: "swim",
     label: "swim",
     regions: ["back", "shoulders", "chest", "core"],
     heavyMin: 45,
@@ -123,6 +206,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(backcountry|ski tour|alpine tour|uphill ski|skimo)\b/,
     mode: "ski-touring",
+    family: "ski",
     label: "ski touring",
     regions: ["quads", "hamstrings", "glutes", "calves", "core", "back"],
     heavyMin: 75,
@@ -132,6 +216,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(nordic|cross country ski|xc ski|skate ski|classic ski)\b/,
     mode: "ski-nordic",
+    family: "ski",
     label: "Nordic ski",
     regions: ["quads", "hamstrings", "glutes", "calves", "core", "back", "shoulders", "triceps"],
     heavyMin: 60,
@@ -141,6 +226,7 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(alpine|downhill ski|lift served ski|resort ski)\b/,
     mode: "ski-alpine",
+    family: "ski",
     label: "alpine ski",
     regions: ["quads", "hamstrings", "glutes", "calves", "core"],
     heavyMin: 120,
@@ -150,13 +236,34 @@ export const ENDURANCE_MODALITIES: EnduranceModality[] = [
   {
     re: /\b(ski|skiing|skied)\b/,
     mode: "ski",
+    family: "ski",
     label: "skiing",
     regions: ["quads", "hamstrings", "glutes", "calves", "core"],
     heavyMin: 90,
     heavyKm: 15,
     loadCharacter: "mixed-terrain",
   },
+  COURT_MODALITY,
+  SNOW_MODALITY,
+  WHOLE_BODY_MODALITY,
 ];
+
+
+const FAMILY_MODALITY: Partial<Record<LoadFamily, EnduranceModality>> = {
+  paddle: ENDURANCE_MODALITIES.find((m) => m.mode === "paddle"),
+  court: COURT_MODALITY,
+  snow: SNOW_MODALITY,
+  whole_body: WHOLE_BODY_MODALITY,
+};
+
+/** The generic modality a load family reads as, for a type the classifier cannot place. */
+export function modalityForLoadFamily(family: LoadFamily): EnduranceModality | null {
+  return (
+    FAMILY_MODALITY[family] ??
+    ENDURANCE_MODALITIES.find((m) => m.family === family && m.mode === family) ??
+    null
+  );
+}
 
 export function regionWeight(modality: Pick<EnduranceModality, "regionWeights">, group: MuscleGroup): number {
   return modality.regionWeights?.[group] ?? 1;
@@ -166,15 +273,27 @@ export function normalizeActivityText(text: string): string {
   return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+// The modality one activity loads. Null ONLY for empty input and for a strength
+// activity (a lift is a Cairn session; dosing it here too would count it twice):
+// every other logged activity reads as SOME modality, so no outing is ever dose 0.
 export function matchEnduranceModality(structuredType: string, supportingText = ""): EnduranceModality | null {
   const norm = normalizeActivityText(`${structuredType} ${supportingText}`);
   if (!norm) return null;
+  if (isStrengthActivityType(structuredType, supportingText)) return null;
+  // A structured type in a family the classifier has no mode for (paddle, court,
+  // snow) is authoritative: a kayak named "lake run" is still a paddle.
+  const typed = activityLoadFamily(structuredType);
+  if (typed.family === "paddle" || typed.family === "court" || typed.family === "snow") {
+    const familyModality = modalityForLoadFamily(typed.family);
+    if (familyModality) return familyModality;
+  }
   const classified = classifyEnduranceActivity(structuredType, supportingText);
   const exact = ENDURANCE_MODALITIES.find((modality) => modality.mode === classified.mode);
   if (exact) return exact;
   // Keep support for non-canonical modalities historically handled here.
   for (const modality of ENDURANCE_MODALITIES) if (modality.re.test(norm)) return modality;
-  return null;
+  // Nothing named a sport: the family guess, else light whole-body activity.
+  return modalityForLoadFamily(activityLoadFamily(structuredType, supportingText).family) ?? WHOLE_BODY_MODALITY;
 }
 
 // ---- what makes ONE endurance effort "hard" (the single source of truth) ----
@@ -209,6 +328,33 @@ export const HARD_EFFORT = {
   /** The coarser single bar the day grade takes across both axes. */
   dayGradeTe: 4,
 } as const;
+
+function finiteNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Did this session show muscular effort, rather than only time on the clock?
+ * Aerobic training effect at 2 or above, any time in Z4/Z5, a training load above
+ * zero, or a stated effort past easy. A missing RPE is silence, not an easy day.
+ */
+export function sawSessionEffort(input: {
+  aerobicTe?: unknown;
+  zones45Sec?: unknown;
+  trainingLoad?: unknown;
+  rpe?: unknown;
+}): boolean {
+  const ate = finiteNumber(input.aerobicTe);
+  if (ate != null && ate >= 2) return true;
+  const zones = finiteNumber(input.zones45Sec);
+  if (zones != null && zones > 0) return true;
+  const load = finiteNumber(input.trainingLoad);
+  if (load != null && load > 0) return true;
+  const rpe = finiteNumber(input.rpe);
+  return rpe != null && rpe > STATED_EASY_RPE_MAX;
+}
 
 // Generic cardio day-grade thresholds (training-read.cardioEffort): coarser than the
 // per-modality table above — they grade ONE effort easy/moderate/hard for the day's

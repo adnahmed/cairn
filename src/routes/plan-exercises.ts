@@ -25,6 +25,7 @@ import {
   listGuideSuggestions,
   mergeExercises,
   orderPlanDayForEffect,
+  planLookAhead,
   planUpcomingNote,
   planWeek,
   reconcileExerciseGroups,
@@ -53,6 +54,11 @@ planExercisesRouter.get("/plan", (_req, res) => res.json(getPlanWithPurpose()));
 // Connected week for the Plan tab (did / today / upcoming). Separate from GET /plan
 // so the editor still receives the raw template ring for save.
 planExercisesRouter.get("/plan/week", (_req, res) => res.json(planWeek()));
+// The Program landing's look-ahead: today through the end of next week, a row a day
+// (the lift day's name and key movements, the calendar's runs and rest), with the
+// week's context (race-build rung, recovery or deload week). Read-only; registered
+// ahead of /plan/:day, which would otherwise take "look-ahead" for a day number.
+planExercisesRouter.get("/plan/look-ahead", (_req, res) => res.json(planLookAhead()));
 planExercisesRouter.get("/plan/quality", (_req, res) => res.json(getPlanQuality()));
 
 // The recovery-week story for the Plan surface: a waiting draft ('drafted'), the

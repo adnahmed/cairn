@@ -39,6 +39,7 @@ function loadMealPlan() {
   vm.runInNewContext(readFileSync(join(root, "public/js/ui-components.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/decision-undo-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/meal-row-client.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/meal-plan-upcoming-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/meal-plan-client.js"), "utf8"), context);
   return context.CairnMealPlan;
 }
@@ -160,6 +161,17 @@ test("meal-plan helper renders planner days with totals and target bar", () => {
   assert.match(html, /data-di="1" data-mi="1"/);
 });
 
+test("each planner day carries its own date, never the draft date repeated over every day", () => {
+  const meals = loadMealPlan();
+  // Drafted Sunday 4 Oct: the plan's days are that calendar week, Monday 28 Sep to Sunday 4 Oct.
+  const ctx = { weekOf: "2026-10-04", targetKcal: 0, todayName: "sun" };
+  const dateOf = (day) => meals.mealDayHtml({ day, meals: [] }, 0, ctx).match(/<div class="lbl">(.*?)<\/div>/)[1];
+  assert.equal(dateOf("Monday"), "2026-09-28");
+  assert.equal(dateOf("Wed"), "2026-09-30");
+  assert.equal(dateOf("Sunday"), '<span class="mealday-now">Today</span> · 2026-10-04');
+  assert.equal(dateOf("Day 3"), "", "a day not named by a weekday carries no date");
+});
+
 test("meal-plan helper caps the target bar at 100% width but flags a meaningfully over-target day", () => {
   const meals = loadMealPlan();
 
@@ -203,10 +215,10 @@ test("meal-plan helper renders planner preferences and empty state safely", () =
   assert.match(prefsHtml, /Fasted &lt;AM&gt;/);
   assert.match(prefsHtml, /data-pref="Fasted AM training"/);
   assert.doesNotMatch(prefsHtml, /Fasted <AM>/);
-  assert.match(emptyHtml, /No week of meal ideas yet/);
+  assert.match(emptyHtml, /No menu this week yet/);
   assert.match(emptyHtml, /id="mealDraftBtn"/);
   assert.match(emptyHtml, /class="pillbtn pill-accent"/);
-  assert.match(emptyHtml, /Ask the team for a week of ideas/);
+  assert.match(emptyHtml, /Ask the team for a week of meals/);
   assert.doesNotMatch(emptyHtml, /ASK THE TEAM|logbtn meals-cta/);
   assert.match(emptyHtml, /fish &amp; rice/);
 });
@@ -311,8 +323,10 @@ test("meal-plan helper explains a hard-constraint conflict and suppresses action
 
   assert.match(painted.html, /MEALS NEED A REFRESH/);
   assert.match(painted.html, /contains &lt;chicken&gt;/);
-  assert.match(painted.html, /Ask the team to refresh meals/);
+  assert.match(painted.html, /Ask the team for a fresh week/);
   assert.doesNotMatch(painted.html, /Chicken bowl|Prep the chicken tonight|data-shop/);
+  assert.equal(meals.needsRefresh(plan), true, "the week menu card reads the same rule");
+  assert.equal(meals.needsRefresh({ ...plan, constraint_state: null, parsed: { ...parsed, constraint_state: null } }), false);
 
   const staleDraft = meals.mealPlanHeroHtml({ ...plan, id: "draft<7>", status: "draft" });
   assert.match(staleDraft, /REFRESH REQUIRED/);

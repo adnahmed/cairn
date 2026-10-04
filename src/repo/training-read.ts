@@ -13,7 +13,12 @@
 // a cycle.
 import { db } from "../db.js";
 import { withoutShadowActivities } from "./activity-shadow.js";
-import { activitySportWhere, canonicalEnduranceSport, RUN_SPORT_PATTERNS } from "./endurance-sports.js";
+import {
+  activityLoadFamily,
+  activitySportWhere,
+  canonicalEnduranceSport,
+  RUN_SPORT_PATTERNS,
+} from "./endurance-sports.js";
 import {
   canonicalGroup,
   classifyMuscleGroup,
@@ -22,7 +27,7 @@ import {
   normalizedExerciseKey,
   resolveExerciseName,
 } from "./exercise-canon.js";
-import { CARDIO_GRADE, HARD_EFFORT } from "./heavy-load.js";
+import { CARDIO_GRADE, HARD_EFFORT, sawSessionEffort } from "./heavy-load.js";
 import { activeRecoveryWeekLedger } from "./recovery-week-ledger.js";
 import type { HrModel } from "./hr-model.js";
 import {
@@ -573,6 +578,7 @@ const LOAD_RANK: Record<TrainingLoad, number> = { easy: 1, moderate: 2, hard: 3 
 export function cardioEffort(
   a: {
     type?: string | null;
+    raw_text?: string | null;
     duration_min?: number | null;
     distance_km?: number | null;
     training_effect?: number | null;
@@ -588,12 +594,17 @@ export function cardioEffort(
   const dur = a.duration_min != null ? Number(a.duration_min) : null;
   const dist = a.distance_km != null ? Number(a.distance_km) : null;
   if (dur == null && dist == null) return null;
-  if (/walk|hike/.test(type)) {
-    return (dur != null && dur >= CARDIO_GRADE.walkHikeModerateMin) ||
-      (dist != null && dist >= CARDIO_GRADE.walkHikeModerateKm)
+  // The load family (endurance-sports.activityLoadFamily): a walk, and an activity of
+  // no known sport (fishing, bouldering, whatever Garmin adds), take the walk/hike
+  // length bars — moderate when genuinely long, never hard on length alone. Paddle,
+  // court and snow sports take the generic bars below.
+  const family = activityLoadFamily(type, a.raw_text).family;
+  const walkBarsOnly =
+    (dur != null && dur >= CARDIO_GRADE.walkHikeModerateMin) || (dist != null && dist >= CARDIO_GRADE.walkHikeModerateKm)
       ? "moderate"
       : "easy";
-  }
+  if (/walk|hike/.test(type) || family === "walk") return walkBarsOnly;
+  const lengthOnly = family === "whole_body";
   if (isStatedEasyRpe(a.rpe)) {
     // Their word on the intensity; only the length below still speaks.
   } else if (personal) {
@@ -610,6 +621,7 @@ export function cardioEffort(
       return "hard";
     if (trainingEffect >= 3 || /\btempo\b/.test(label)) return "moderate";
   }
+  if (lengthOnly) return walkBarsOnly;
   // A run is hard on its length only when it is clearly past HIS ordinary run
   // (runLengthBars: never easier than the fixed bar, his long-run day kept long).
   if (
@@ -796,6 +808,16 @@ function hardCardioDayCore(
   const personalModel = (): HrModel | null => (model === undefined ? (model = usablePersonalHrModel(date)) : model);
   let sustainedRunBars: RunLengthBars | undefined;
   for (const r of rows) {
+    // Zones are read once: the intensity bars below, and the duration bar, which
+    // asks whether a paddle, court or snow session showed any effort at all.
+    let z4 = 0;
+    try {
+      const z = r.zones ? JSON.parse(r.zones) : null;
+      if (Array.isArray(z))
+        for (const it of z) if (Number(it?.zone) >= 4) z4 += Number(it?.secs ?? it?.seconds ?? 0) || 0;
+    } catch {
+      /* malformed zone blob → ignore */
+    }
     // The athlete SAID it was easy (a stated effort in the talk-test band): the
     // watch's intensity bars do not get to overrule them. Only (d), the plain
     // duration bar, still reads the day as loading — a long easy run still costs
@@ -809,25 +831,22 @@ function hardCardioDayCore(
       const te = Math.max(Number(r.aerobic_te) || 0, Number(r.anaerobic_te) || 0);
       const label = String(r.te_label || "").toLowerCase();
       if (te >= HARD_EFFORT.dayGradeTe || HARD_CARDIO_LABEL.test(label)) return true;
-      let z4 = 0;
-      try {
-        const z = r.zones ? JSON.parse(r.zones) : null;
-        if (Array.isArray(z))
-          for (const it of z) if (Number(it?.zone) >= 4) z4 += Number(it?.secs ?? it?.seconds ?? 0) || 0;
-      } catch {
-        /* malformed zone blob → ignore */
-      }
       if (z4 >= HARD_CARDIO_Z4_SEC) return true;
       const load = r.load != null ? Number(r.load) : null;
       if (load != null && median != null && median > 0 && load >= median * HARD_CARDIO_LOAD_MULT) return true;
     }
     if (intensityOnly) continue;
     // (d) SPORT-AWARE duration bar: a run/ride/swim/row loads at ≥ 40 min; a walk/hike
-    // or unknown "other" type needs a much longer effort (~90 min) so an easy hike of
-    // ~40 min never grades as a loading day. Distance is deliberately not a trigger.
+    // or ski needs a much longer effort (~90 min) so an easy hike of ~40 min never
+    // grades as a loading day. Distance is deliberately not a trigger.
     // A RUN's bar is his own (runLengthBars: 1.5× his six-week median run, never under
     // the 40 minutes, capped; his long-run-day run stays loading): for a runner whose
     // ordinary run is ~40 minutes, every run was a loading day.
+    // Paddle, court and snow take the short bar only when the session showed effort
+    // (sawSessionEffort: aerobic TE, time in Z4/Z5, a training load, or a non-easy
+    // RPE — a watch TE still counts when the athlete called it easy). Length alone
+    // uses the walk bar. An unknown sport (`whole_body`) is never hard on length;
+    // intensity above already had its say.
     const dur = r.duration_min != null ? Number(r.duration_min) : null;
     if (dur == null) continue;
     const sport = canonicalEnduranceSport(r.type).key;
@@ -837,8 +856,20 @@ function hardCardioDayCore(
         return true;
       continue;
     }
-    const isEnduranceSession = sport === "ride" || sport === "swim" || sport === "row";
-    if (dur >= (isEnduranceSession ? HARD_CARDIO_MIN : CARDIO_GRADE.walkHikeModerateMin)) return true;
+    const family = activityLoadFamily(r.type, r.raw_text).family;
+    if (family === "whole_body") continue;
+    const sessionEffort = sawSessionEffort({
+      aerobicTe: r.aerobic_te,
+      zones45Sec: z4,
+      trainingLoad: r.load,
+      rpe: r.rpe,
+    });
+    const shortBar =
+      sport === "ride" ||
+      sport === "swim" ||
+      sport === "row" ||
+      ((family === "paddle" || family === "court" || family === "snow") && sessionEffort);
+    if (dur >= (shortBar ? HARD_CARDIO_MIN : CARDIO_GRADE.walkHikeModerateMin)) return true;
   }
   return false;
 }

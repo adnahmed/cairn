@@ -169,6 +169,8 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
       if (section === "session") return target("session");
       if (section === "day") return target("day");
       if (section === "fuel") return target("plan", "food");
+      // The week menu (Plan view, meals section); v1's /app/plan/meals lands here.
+      if (section === "menu") return target("plan", "meals");
       return target("today");
     }
     if (home === "train") {
@@ -297,7 +299,8 @@ type CairnRouteRoot = typeof globalThis & { CairnRoutes?: CairnRoutesApi };
         const s =
           oneOf(section, PLAN_SECTIONS, null) || oneOf(r.jump, PLAN_SECTIONS, null) || DEFS.defaults.planSection;
         if (s === "endurance") return `${base}/horizon/race`;
-        if (s === "food" || s === "meals") return `${base}/today/fuel`;
+        if (s === "food") return `${base}/today/fuel`;
+        if (s === "meals") return `${base}/today/menu`;
         if (s === "coach") return `${base}/ask/changes`;
         return `${base}/train/plan`;
       }

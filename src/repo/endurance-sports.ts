@@ -292,3 +292,92 @@ function activityTypeWordsSql(alias: string): string {
   }
   return `(' ' || ${expr} || ' ')`;
 }
+
+// ---- the LOAD family: every activity gets a sensible read, never zero ----------
+// `EnduranceSportFamily` above is the legacy family other modules switch on, and an
+// unknown type falls through it as "other". The load readers (per-muscle dose, the
+// day grade) need more than that: Garmin logs sports Cairn has never heard of
+// (kayaking_v2, stand_up_paddleboarding_v2, fishing_v2, padel_v2, whatever comes
+// next), and an athlete's real activity must never read as nothing just because
+// its key is new. So the load family is a GUESS from the type key: paddle sports
+// load the back, shoulders and trunk; court and ball sports load legs and trunk;
+// snow and skate sports load the legs; anything else is light whole-body activity.
+// Strength types read `whole_body` with `known:false` for grading only: a lift is a
+// Cairn session and is never dosed as endurance (heavy-load.matchEnduranceModality).
+export type LoadFamily =
+  | "run"
+  | "ride"
+  | "swim"
+  | "row"
+  | "walk"
+  | "ski"
+  | "paddle"
+  | "court"
+  | "snow"
+  | "whole_body";
+
+export interface ActivityLoadFamily {
+  family: LoadFamily;
+  label: string;
+  /** false only for `whole_body`: the type named no sport Cairn can place. */
+  known: boolean;
+}
+
+const PADDLE_TYPE = /\b(?:kayak\w*|canoe\w*|paddl\w*|sup|stand up paddle\w*|rafting|dragon boat\w*|whitewater)\b/;
+const COURT_TYPE =
+  /\b(?:tennis|padel|pickleball|squash|badminton|racquet\w*|racket\w*|soccer|football|futsal|basketball|volleyball|hockey|rugby|ultimate|cricket|baseball|softball|handball|lacrosse|netball)\b/;
+// A round of golf is a long walk, not stop-start court play.
+const GOLF_TYPE = /\bgolf\w*\b/;
+const SNOW_TYPE = /\b(?:snowboard\w*|skat\w*|inline\w*|snowshoe\w*|sledg\w*|sled\w*)\b/;
+const STRENGTH_TYPE = /strength|weight|lifting/;
+
+/** The type key as words, Garmin's version suffixes (`_v2`) dropped. */
+function loadFamilyText(input: unknown): string {
+  return normalizeSportText(input).replace(/\bv\d+\b/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function prettySportName(text: string): string {
+  return text ? text.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "Activity";
+}
+
+/**
+ * Is this a STRENGTH activity type (a lift, which Cairn reads as a session, never
+ * as an endurance dose)? Same test as activities.isStrengthGarminType on the type;
+ * a generic type ("other", empty) also yields to text that names lifting.
+ */
+export function isStrengthActivityType(type: unknown, text?: unknown): boolean {
+  const t = String(type ?? "").toLowerCase();
+  if (STRENGTH_TYPE.test(t)) return true;
+  const generic = !t.trim() || /^(?:other|activity|workout)$/.test(t.trim());
+  return generic && text != null && /\b(?:strength|weights|weight training|lifting|lifted)\b/i.test(String(text));
+}
+
+function familyFromText(text: string): ActivityLoadFamily | null {
+  if (!text) return null;
+  if (PADDLE_TYPE.test(text)) return { family: "paddle", label: prettySportName(text), known: true };
+  const canonical = canonicalEnduranceSport(text);
+  if (["run", "ride", "swim", "row", "walk", "ski"].includes(canonical.key)) {
+    return { family: canonical.key as LoadFamily, label: canonical.label, known: true };
+  }
+  if (GOLF_TYPE.test(text)) return { family: "walk", label: prettySportName(text), known: true };
+  if (COURT_TYPE.test(text)) return { family: "court", label: prettySportName(text), known: true };
+  if (SNOW_TYPE.test(text)) return { family: "snow", label: prettySportName(text), known: true };
+  return null;
+}
+
+/**
+ * The load family of one activity, guessed from its type key (Garmin `_v2`
+ * suffixes stripped). The structured type is authoritative; `text` (a name, a
+ * note) is consulted only when the type itself places nothing, so incidental prose
+ * never moves a known sport into another family.
+ */
+export function activityLoadFamily(type: unknown, text?: unknown): ActivityLoadFamily {
+  const typed = loadFamilyText(type);
+  if (STRENGTH_TYPE.test(typed)) return { family: "whole_body", label: prettySportName(typed), known: false };
+  const fromType = familyFromText(typed);
+  if (fromType) return fromType;
+  const generic = !typed || /^(?:other|activity|workout)$/.test(typed);
+  const fromText = text != null ? familyFromText(loadFamilyText(text)) : null;
+  if (fromText && !(generic && isStrengthActivityType(type, text))) return fromText;
+  return { family: "whole_body", label: generic ? "Activity" : prettySportName(typed), known: false };
+}

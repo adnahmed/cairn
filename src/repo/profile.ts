@@ -175,7 +175,9 @@ export function setProfile(p: any) {
       p.endurance_schedule !== undefined
         ? p.endurance_schedule == null
           ? null
-          : (serializeEnduranceSchedule(p.endurance_schedule) ?? cur.endurance_schedule_json ?? null)
+          : (serializeEnduranceSchedule(p.endurance_schedule, "athlete", cur.endurance_schedule_json) ??
+            cur.endurance_schedule_json ??
+            null)
         : (cur.endurance_schedule_json ?? null),
     // Stated LIFTING weekdays (v102). Identical contract to its run-day sibling above:
     // undefined leaves intact, null clears, else it's normalized (dow 0-6) and
@@ -544,8 +546,22 @@ export type EnduranceScheduleDay = {
   dow: 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Sunday
   kind: EnduranceScheduleKind;
 };
+/**
+ * A recurring NON-RUN day the athlete named ("Saturday optional, MTB or other"). It lives
+ * in its own field so no run-day consumer (isStatedRunDay, the run engine's slots, the
+ * agenda's scheduled weekdays) can ever read it as a run. `sport` is a family key.
+ */
+export const CROSS_TRAINING_SPORTS = ["ride", "swim", "walk", "row", "paddle", "other"] as const;
+export type CrossTrainingSport = (typeof CROSS_TRAINING_SPORTS)[number];
+export type EnduranceScheduleCrossTraining = {
+  dow: 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Sunday
+  sport: CrossTrainingSport;
+  optional: true;
+};
 export type EnduranceSchedule = {
   days: EnduranceScheduleDay[];
+  /** Stated recurring non-run days, at most one per weekday and three in all. */
+  cross_training?: EnduranceScheduleCrossTraining[];
   note?: string;
   source: EnduranceScheduleSource;
   updated_at: string;
@@ -559,6 +575,47 @@ export function isoDow(dateISO: string): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
 }
 export function dowToDayNumber(dow: number): number {
   return dow === 0 ? 7 : dow;
+}
+
+const MAX_CROSS_TRAINING_DAYS = 3;
+
+// A sport word as the athlete or a model writes it, to its family key. Null for a word
+// that names no non-run sport at all (a run kind, a typo).
+function crossTrainingSportKey(raw: unknown): CrossTrainingSport | null {
+  const word = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (!word) return null;
+  if ((CROSS_TRAINING_SPORTS as readonly string[]).includes(word)) return word as CrossTrainingSport;
+  if (/\b(?:mtb|ride|riding|bike|biking|cycl\w*|gravel|e-?bike|mountain[\s_-]*bik\w*|spin\w*)\b/.test(word))
+    return "ride";
+  if (/\bswim\w*\b/.test(word)) return "swim";
+  if (/\b(?:walk\w*|hik\w*|trek\w*)\b/.test(word)) return "walk";
+  if (/\b(?:row\w*|erg)\b/.test(word)) return "row";
+  if (/\b(?:paddl\w*|kayak\w*|canoe\w*|sup|stand[\s_-]*up)\b/.test(word)) return "paddle";
+  return null;
+}
+
+// One stated cross-training entry, or null. `kind` is accepted beside `sport` so the
+// decision's own shape ({dow: 6, kind: "ride", optional: true}) reads the same.
+function crossTrainingEntry(entry: any, fromDays: boolean): EnduranceScheduleCrossTraining | null {
+  if (!entry || typeof entry !== "object") return null;
+  const dow = Number(entry.dow);
+  if (!Number.isInteger(dow) || dow < 0 || dow > 6) return null;
+  const word = entry.sport ?? entry.kind;
+  // Inside days[], a run kind is a run day, never a cross-training day.
+  if (
+    fromDays &&
+    SCHEDULE_KIND_SET.has(
+      String(word ?? "")
+        .trim()
+        .toLowerCase()
+    )
+  )
+    return null;
+  const sport = crossTrainingSportKey(word) ?? (entry.optional === true || !fromDays ? "other" : null);
+  if (!sport) return null;
+  return { dow: dow as EnduranceScheduleCrossTraining["dow"], sport, optional: true };
 }
 
 export function normalizeEnduranceSchedule(
@@ -582,10 +639,27 @@ export function normalizeEnduranceSchedule(
   const explicitlyCleared = raw.days.length === 0;
   const days: EnduranceScheduleDay[] = [];
   const seen = new Set<number>();
+  // Stated cross-training days: the field itself first, then any non-run entry that
+  // arrived inside days[] ({dow: 6, kind: "ride", optional: true}) — moved here, never
+  // kept as a run day and never dropped.
+  const cross: EnduranceScheduleCrossTraining[] = [];
+  const crossSeen = new Set<number>();
+  const pushCross = (entry: EnduranceScheduleCrossTraining | null): void => {
+    if (!entry || crossSeen.has(entry.dow) || cross.length >= MAX_CROSS_TRAINING_DAYS) return;
+    crossSeen.add(entry.dow);
+    cross.push(entry);
+  };
+  if (Array.isArray(raw.cross_training))
+    for (const entry of raw.cross_training) pushCross(crossTrainingEntry(entry, false));
   for (const entry of raw.days) {
     // Drop the one bad entry, not the whole schedule — a typo'd day must never
     // erase every day the athlete named correctly alongside it.
     if (!entry || typeof entry !== "object") continue;
+    const crossDay = crossTrainingEntry(entry, true);
+    if (crossDay) {
+      pushCross(crossDay);
+      continue;
+    }
     const dow = Number(entry.dow);
     if (!Number.isInteger(dow) || dow < 0 || dow > 6) continue;
     const kind = String(entry.kind ?? "")
@@ -596,8 +670,11 @@ export function normalizeEnduranceSchedule(
     seen.add(dow);
     days.push({ dow: dow as EnduranceScheduleDay["dow"], kind: kind as EnduranceScheduleKind });
   }
-  if (!explicitlyCleared && !days.length) return null; // nothing named was understood -> reject, not a clear
+  // Nothing named was understood -> reject, not a clear. A days[] that held only a
+  // cross-training day was understood: it states no run day, and that cross day.
+  if (!explicitlyCleared && !days.length && !cross.length) return null;
   days.sort((a, b) => a.dow - b.dow);
+  cross.sort((a, b) => a.dow - b.dow);
   const sourceRaw = String(raw.source ?? opts?.source ?? "athlete")
     .trim()
     .toLowerCase();
@@ -607,13 +684,68 @@ export function normalizeEnduranceSchedule(
   const note = capStr(raw.note, 240);
   const updatedRaw = typeof raw.updated_at === "string" ? raw.updated_at.trim().slice(0, 40) : "";
   const updated_at = updatedRaw || new Date().toISOString();
-  return { days, ...(note ? { note } : {}), source, updated_at };
+  return { days, ...(cross.length ? { cross_training: cross } : {}), ...(note ? { note } : {}), source, updated_at };
 }
 
-function serializeEnduranceSchedule(input: any, sourceDefault: EnduranceScheduleSource = "athlete"): string | null {
+function scheduleInput(input: any): any {
+  let raw: any = input;
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  return raw && typeof raw === "object" ? raw : null;
+}
+
+// Did this input SAY anything about cross-training days? An explicit `cross_training`
+// key (even []) or a non-run entry inside days[] does; a plain run-day update does not.
+function statesCrossTraining(input: any): boolean {
+  const raw = scheduleInput(input);
+  if (!raw) return false;
+  if (Object.hasOwn(raw, "cross_training")) return true;
+  return Array.isArray(raw.days) && raw.days.some((entry: any) => crossTrainingEntry(entry, true) != null);
+}
+
+// Did this input name a run day (easy / quality / long / any)? A days[] that holds
+// only a cross-training sport did not, and neither did days:[] beside cross_training.
+function statesRunKind(input: any): boolean {
+  const raw = scheduleInput(input);
+  if (!raw || !Array.isArray(raw.days)) return false;
+  return raw.days.some((entry: any) => {
+    if (!entry || typeof entry !== "object") return false;
+    const kind = String(entry.kind ?? "")
+      .trim()
+      .toLowerCase();
+    return SCHEDULE_KIND_SET.has(kind);
+  });
+}
+
+function serializeEnduranceSchedule(
+  input: any,
+  sourceDefault: EnduranceScheduleSource = "athlete",
+  current?: string | null
+): string | null {
   if (input == null) return null;
   const g = normalizeEnduranceSchedule(input, { source: sourceDefault });
-  return g ? JSON.stringify({ ...g, updated_at: new Date().toISOString() }) : null;
+  if (!g) return null;
+  // A run-day update that says nothing about cross-training keeps the stated ones: the
+  // run-day setters (set_endurance_schedule) carry no such field, and re-stating the
+  // run week must not silently erase "Saturday is my optional MTB".
+  if (!statesCrossTraining(input)) {
+    const kept = normalizeEnduranceSchedule(current)?.cross_training;
+    if (kept?.length) g.cross_training = kept;
+  }
+  // The mirror. A cross-training update that names no run day keeps the stored run
+  // week: chat and MCP both send a ride-only days[] (or days:[] plus cross_training),
+  // and that must not wipe Tue/Thu/Sun. days:[] with no cross-training never reaches
+  // here — statesCrossTraining is false — and stays the explicit clear of the run days.
+  if (!statesRunKind(input) && statesCrossTraining(input)) {
+    const kept = normalizeEnduranceSchedule(current)?.days;
+    if (kept?.length) g.days = kept.map((day) => ({ ...day }));
+  }
+  return JSON.stringify({ ...g, updated_at: new Date().toISOString() });
 }
 
 export function getEnduranceSchedule(): EnduranceSchedule | null {

@@ -669,6 +669,8 @@
 .cfocus-retest-lbl{display:block;color:var(--muted);margin-bottom:var(--space-2)}
 .cfocus-retest-body{font-size:var(--text-md);line-height:var(--leading);color:var(--ink)}
 .cfocus-retest-when{color:var(--sage);font-weight:var(--weight-semibold)}
+/* the labs in the same window: their own line, never one more name in the lift list */
+.cfocus-retest-labs{display:block;margin-top:var(--space-2);font-size:var(--text-sm);line-height:var(--leading-normal);color:var(--ink-2)}
 .cfocus-retest-why{display:block;margin-top:var(--space-2);font-size:var(--text-sm);line-height:var(--leading-normal);color:var(--muted)}
 
 /* interconnection: a focus row taps through to where the work happens (Program,

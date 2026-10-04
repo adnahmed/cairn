@@ -9,7 +9,7 @@ Health's short-lived pairing exchange is public and passes through the instance-
 when that limiter is enabled; its resulting credential is scoped only to `POST /api/health-metrics`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
-**365 routes** across 127 groups.
+**367 routes** across 128 groups.
 
 ## `/activities`
 
@@ -608,6 +608,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | PUT | `/api/plan/:day` |  |
 | POST | `/api/plan/:day/order-for-effect` | Quiet "Order for effect" — rewrite one day's items into compounds → accessories → finishers → cardio. Returns the day (unchanged when already ordered). 200 + null when the day number is absent — same absence shape as other single-row lookups. |
 | PUT | `/api/plan/:day/target` |  |
+| GET | `/api/plan/look-ahead` | The Program landing's look-ahead: today through the end of next week, a row a day (the lift day's name and key movements, the calendar's runs and rest), with the week's context (race-build rung, recovery or deload week). Read-only; registered ahead of /plan/:day, which would otherwise take "look-ahead" for a day number. |
 | GET | `/api/plan/quality` |  |
 | GET | `/api/plan/recovery-status` | The recovery-week story for the Plan surface: a waiting draft ('drafted'), the applied lighter week in flight ('applied', ~a week from the apply stamp), or null. The Plan tab's banner reads this so a reshaped week announces itself — heads-up + what changed — instead of arriving silently. |
 | GET | `/api/plan/redraw` | What is standing right now, so a reload repaints the in-flight state instead of losing it, and a build the coach could not do is visible rather than silent. |
@@ -676,7 +677,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/race-build` | The RACE-BUILD layer over the run plan: an estimated finish/pace for the dated race and how it is moving, per-session pace bands off the target, the week-by-week ladder to race week, and the seven-day leg map (runs + heavy-lower days + the habitual ride) with where heavy squats belong in this phase. Suggestion only; {available:false, reason} without a dated race with a distance. |
+| GET | `/api/race-build` | The RACE-BUILD layer over the run plan: an estimated finish/pace for the dated race and how it is moving, per-session pace bands off the target, the week-by-week ladder to race week, and the seven-day leg map (runs + heavy-lower days + the habitual ride) with where heavy squats belong in this phase; this week actual-first (every run logged, extras included, a server recap, and whether the week is already closed). Suggestion only; {available:false, reason} without a dated race with a distance. |
 
 ## `/reaction-model`
 
@@ -924,7 +925,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/training-agenda` | Rolling weekly run intentions: actual compatible logs close intentions and suggested openings move around real strength/endurance load. Any completed run occupies its actual date; moderate/hard cross-training also reserves its date, while light cross-training may still share a clean easy-run opening. Read-only; unfinished work creates no catch-up debt. |
+| GET | `/api/training-agenda` | Rolling weekly run intentions: actual compatible logs close intentions and suggested openings move around real strength/endurance load. Any completed run occupies its actual date; moderate/hard cross-training also reserves its date, while light cross-training may still share a clean easy-run opening. Runs that closed no intention ride out as `extras`. Read-only; unfinished work creates no catch-up debt. |
 
 ## `/training-intent`
 
@@ -985,6 +986,12 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and [SANDBOX.md](SANDBOX.md).
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/week-ahead` | The week ahead — a calm forward look (lift / run / mixed / rest across the next several days). Agentic with a deterministic plan-rotation floor, so it always returns a usable shape even with no agent. Cached per day+plan+goal.  This GET never spawns a CLI inline: weekAheadServe reads the cache synchronously (fresh cache / stale cache / the deterministic floor) and, on a miss or a stale hit, ensureWeekAheadJob kicks (or joins) a durable background job that runs the real agentic read and refreshes the cache for next time — deduplicated so a burst of opens never spawns more than one CLI per day.  Memoized on the response freshness key: the served body is remembered, and the refresh kick still runs on EVERY serve that needs one (ensureWeekAheadJob dedupes), so a remembered "computing" floor never strands the agentic read. |
+
+## `/week-training-load`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/week-training-load` | The whole-week load read: the rolling seven days to `date` (default today) across every sport plus the lifting, the ISO week's intentions and totals, key-run spacing, the cross-training day and the next 48 hours (src/repo/week-training-load.ts). |
 
 ## `/week-wins`
 

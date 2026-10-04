@@ -60,13 +60,13 @@ const run = (date, distance) =>
 
 let garminSeq = 0;
 // A watch run: the Garmin row and its activities mirror, linked.
-function watchRun({ date, km = 9.68, minutes = 53.9, avgHr = 157, maxHr = 176, te = 4.5, load = 219 }) {
+function watchRun({ date, km = 9.68, minutes = 53.9, avgHr = 157, maxHr = 176, te = 4.5, load = 219, name = "Run" }) {
   garminSeq += 1;
   repo.upsertGarminActivity({
     external_id: `stated-${garminSeq}`,
     date,
     type: "running",
-    name: "Run",
+    name,
     duration_min: minutes,
     moving_min: minutes,
     distance_km: km,
@@ -114,10 +114,13 @@ function seedAthlete() {
     ["2031-09-16", 4.9],
     ["2031-09-18", 9.9],
     ["2031-09-21", 17.7],
-    ["2031-09-25", 5.0],
     ["2031-09-28", 8.0],
   ])
     run(date, km);
+  // The closed week's quality session, on its stated Thursday and titled as one: the
+  // Tuesday below is then an EXTRA hard effort, not the week's quality run moved a day
+  // (a moved key run is the planned run — closedRunIntentOn — and never harm).
+  watchRun({ date: "2031-09-25", km: 5.0, minutes: 26, name: "Tempo Intervals" });
   // The lighter week's Tuesday: the watch graded it effect 4.5 at 157 bpm. Its length is
   // the capacity suite's own 4 km, so the closed week stays the 17 km that suite resumes
   // from — the live run's numbers are the fixtures further down.
@@ -154,6 +157,8 @@ test("stated easy, neutral next morning: no harm, and the capacity resume stands
 test("the live run itself: 9.68 km at 157, effect 4.5, stated conversational — no harm", () => {
   seedAthlete();
   const live = watchRun({ date: "2031-09-30" });
+  // That week's titled quality session, so the Tuesday is the extra it was live.
+  watchRun({ date: "2031-10-02", km: 6.0, minutes: 36, name: "Hill Sprints" });
   repo.upsertGarminDailyMetric({ date: "2031-10-01", training_readiness: 50 });
   assert.equal(harmEvidenceOnDay("2031-09-30")?.kind, "hard_cardio");
   setActivityFeltEffort(live, { rpe: 3 });

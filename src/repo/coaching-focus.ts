@@ -22,7 +22,9 @@
 // {available:false} on a thin athlete.
 // ============================================================================
 
+import { followupLabel, labRecheckLabel } from "./attention-labels.js";
 import { pickDayVariant } from "./brain/day-read-rules.js";
+import { isDoctorLoopSignal } from "./doctor-loop-items.js";
 import { movementKey } from "./exercise-canon.js";
 import { type FocusCandidate, type FocusDomain, focusScore } from "./focus-candidate.js";
 import { recoverySignalIsDecisionGrade } from "./sensor-cadence.js";
@@ -65,7 +67,11 @@ export interface FocusItem {
 
 export interface CoachingRetest {
   in_weeks: number | null; // 0 = a check-in week is due now
-  focus: string[]; // the batched things to re-test (lifts + a run test), not piecemeal
+  focus: string[]; // the batched TRAINING re-tests (lifts + a run test), never a lab
+  // The labs / scans due in the same window, by their canonical display names
+  // ("hs-CRP", "DEXA scan"). Their own list, never mixed into `focus`: a marker read
+  // inside a list of lifts reads as one more lift.
+  labs: string[];
   why: string;
 }
 
@@ -1266,8 +1272,9 @@ interface DueAttentionInput {
   domain?: unknown;
   reason?: unknown;
 }
-// A due-attention entry (listDueAttention / K5) → a short, readable checkpoint label.
-// A lab/DEXA re-check and a lift re-test batch into the SAME calm checkpoint.
+// A due TRAINING re-test entry (listDueAttention / K5) → a short, readable lift label.
+// Lab / DEXA rows never come through here: they read by their marker's own canonical
+// name (labRecheckLabel), so "marker:hs-crp" is "hs-CRP", never "Hs Crp".
 function attentionLabel(e: DueAttentionInput): string | null {
   const tail =
     String(e?.signal_key ?? "")
@@ -1302,23 +1309,50 @@ function buildRetest(inp: CoachingFocusInput): CoachingRetest | null {
   // its key as the words "Sensor Recheck" — machinery, at the athlete. It is
   // written with a forward due date and so should never reach here; excluding it
   // by key makes that a stated rule rather than a coincidence of another module.
+  // The labs and the lifts are two lists in that one window: a lab is a draw to
+  // book, a lift is a set to work up to, and a marker named inside a run of lift
+  // names reads as one more lift. Only the doctor loop's own rows (marker cadence,
+  // directive recheck, review follow-up, DEXA) are labs; only training / running rows
+  // are re-tests. Anything else on the schedule (a goal check-in, a measurement
+  // nudge) has its own quiet card and is not a test to book, so it neither lists
+  // here nor makes the window read as due.
+  const labs: string[] = [];
   const dueAttention = inputArray<DueAttentionInput>(inp.dueAttention).filter(
     (e) =>
       !String(e?.signal_key ?? "").includes(":change-check:") &&
       !String(e?.signal_key ?? "").startsWith("recovery:sensor-recheck")
   );
-  if (dueAttention.length) {
-    dueNow = true; // something is already due
-    for (const e of dueAttention) {
+  for (const e of dueAttention) {
+    if (isDoctorLoopSignal(e?.signal_key)) {
+      const label = labRecheckLabel(e?.signal_key) ?? followupLabel(e?.reason);
+      if (!label) continue;
+      dueNow = true; // something is already due
+      labs.push(label);
+    } else if (e?.domain === "training" || e?.domain === "running") {
       const label = attentionLabel(e);
-      if (label) focus.push(label);
+      if (!label) continue;
+      dueNow = true;
+      focus.push(label);
     }
   }
-  const dedup = [...new Set(focus.map((f) => f.trim()).filter(Boolean))].slice(0, 5);
-  if (!dedup.length) return null;
+  const distinct = (list: string[], max: number): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of list) {
+      const item = raw.trim();
+      if (!item || seen.has(item.toLowerCase())) continue;
+      seen.add(item.toLowerCase());
+      out.push(item);
+    }
+    return out.slice(0, max);
+  };
+  const dedup = distinct(focus, 5);
+  const dedupLabs = distinct(labs, 4);
+  if (!dedup.length && !dedupLabs.length) return null;
   return {
     in_weeks: dueNow ? 0 : 1,
     focus: dedup,
+    labs: dedupLabs,
     why: "Batch these into one check-in window so labs, scans and lift re-tests land together every ~6–8 weeks — enough to see real change, not so often it interrupts the work.",
   };
 }

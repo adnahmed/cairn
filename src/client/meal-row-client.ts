@@ -128,7 +128,7 @@ type MealRowPlannerContext = {
       : "";
     return `<section class="mealday${isToday ? " mealday-today" : ""} reveal" style="${stagger(dayIndex + 2)}" data-mday="${dayIndex}">
       <div class="mealday-head">
-        <div><div class="lbl">${isToday ? `<span class="mealday-now">Today</span> · ` : ""}${escHtml(weekOfText(String(context.weekOf ?? "")))}</div><h2 class="mealday-name">${escHtml(d.day || `Day ${dayIndex + 1}`)}</h2></div>
+        <div><div class="lbl">${isToday ? `<span class="mealday-now">Today</span> · ` : ""}${escHtml(dayDateText(d.day, String(context.weekOf ?? "")))}</div><h2 class="mealday-name">${escHtml(d.day || `Day ${dayIndex + 1}`)}</h2></div>
         ${totals}
       </div>
       ${bar}
@@ -159,6 +159,18 @@ type MealRowPlannerContext = {
   function weekOfText(weekOf: string): string {
     const chart = (globalThis as { CairnUiChart?: { dateLabel?: (value: unknown) => string } }).CairnUiChart;
     return /^\d{4}-\d{2}-\d{2}$/.test(weekOf) && chart?.dateLabel ? chart.dateLabel(weekOf) || weekOf : weekOf;
+  }
+
+  // A plan day's own date: its weekday inside the calendar week holding `week_of` (the
+  // draft date, any weekday), the same week the "Today" mark reads. A day not named by
+  // a weekday ("Day 1") carries no date rather than another day's.
+  const WEEKDAY_PREFIXES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  function dayDateText(dayName: unknown, weekOf: string): string {
+    const index = WEEKDAY_PREFIXES.findIndex((prefix) => String(dayName || "").trim().toLowerCase().startsWith(prefix));
+    const anchor = /^\d{4}-\d{2}-\d{2}$/.test(weekOf) ? new Date(`${weekOf}T00:00:00Z`) : null;
+    if (index < 0 || !anchor || Number.isNaN(anchor.getTime())) return "";
+    anchor.setUTCDate(anchor.getUTCDate() - ((anchor.getUTCDay() + 6) % 7) + index);
+    return weekOfText(anchor.toISOString().slice(0, 10));
   }
 
   function planWeekLabel(plan: unknown): string {

@@ -437,3 +437,15 @@ test("the day-read prompt says nothing about prior reads when there are none", (
   assert.doesNotMatch(prompt, /WHAT YOU ALREADY TOLD THEM/);
   assert.doesNotMatch(prompt, /WHERE TODAY SITS/);
 });
+
+test("the coach context carries the whole-week load read, built once per snapshot", () => {
+  const date = localDaysAgo(1);
+  logSet("Back Squat", date);
+  const ctx = runWithBrainSnapshot(() => repo.getCoachContext());
+  const week = ctx.week_training_load;
+  assert.ok(week && Array.isArray(week.days) && week.days.length === 7, "seven days");
+  assert.equal(week.window_end, ctx.now?.date ?? week.window_end);
+  assert.ok(week.days.some((d) => d.date === date && d.strength), "yesterday's lifting is on it");
+  assert.ok(Object.hasOwn(week, "next_48h") && typeof week.next_48h.line === "string");
+  assert.ok(Array.isArray(ctx.recent_load), "recent_load stays for routes and MCP");
+});

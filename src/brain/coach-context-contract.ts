@@ -385,6 +385,11 @@ export interface CoachContextEnvelope {
   // the residual's own window. Additive so a partial context builder never has
   // to synthesize it.
   acute_gates?: CoachRecord[];
+  // The whole-week load picture (src/repo/week-training-load.ts): the rolling seven days
+  // across every sport plus the lifting, key-run spacing, the cross-training day and the
+  // next 48 hours. The prompt sites read it in place of `recent_load`. Optional so a
+  // partial context builder never has to synthesize it.
+  week_training_load?: CoachRecord | null;
   progression: CoachRecord[];
   strength_journey: CoachRecord | null;
   program_adjustments: CoachAdjustment[];

@@ -137,6 +137,7 @@ function loadProgramController() {
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/format-utils.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-program-summary-client.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/progress-exercise-suggestions-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/progress-program-controller.js"), "utf8"), context);
   return context;
 }
@@ -700,4 +701,61 @@ test("progress program controller drafts evolved plans through runOp", async () 
   assert.deepEqual(deps.toasts, ["Ready for your review"]);
   assert.deepEqual(deps.invalidated, ["progress:program", "plan:coach", "plan:proposals"]);
   assert.equal(deps.renderedSelf, true);
+});
+
+test("the week ahead leads the Program landing; the lift count and the focus plan fold under it", async () => {
+  const context = loadProgramController();
+  const mounted = [];
+  context.CairnUiActions = {
+    mount(host, name, wire) {
+      wire({ host, signal: {}, delegate() {} });
+      mounted.push(name);
+      return () => {};
+    },
+  };
+  context.cachedApi = (path) => {
+    mounted.push(path);
+    return new Promise(() => {});
+  };
+  for (const file of ["program-week-model", "program-week-client", "program-week-controller"]) {
+    vm.runInNewContext(readFileSync(join(root, `public/js/${file}.js`), "utf8"), context);
+  }
+  const body = { innerHTML: "", firstElementChild: null };
+  const host = { isConnected: true, querySelector: (s) => (s === "[data-pahead-body]" ? body : null) };
+  const deps = depsFor(context, {
+    view: {
+      innerHTML: "",
+      querySelector: (selector) => (selector === "[data-pahead]" ? host : null),
+      querySelectorAll: () => [],
+    },
+    api: async () => ({ show: true }),
+    nextToken: () => 3,
+    isCurrent: (token) => token === 3,
+    peekCached: (key) => (key === "progress:program" ? { data: programState, fresh: true } : null),
+    paintSWR: async (options) => {
+      options.render(programState, { warm: true });
+      return programState;
+    },
+  });
+
+  await context.CairnProgressProgramController.render(deps);
+  await Promise.resolve();
+  const html = deps.view.innerHTML;
+
+  const at = (needle) => {
+    const i = html.indexOf(needle);
+    assert.ok(i >= 0, `missing ${needle}`);
+    return i;
+  };
+  // The shell header names the page "Program"; the landing adds no second title, and
+  // the lift count no longer leads it.
+  assert.doesNotMatch(html, /<section class="hero">/);
+  assert.ok(at("The week ahead") < at("The focus plan"), "the week leads");
+  assert.ok(at("The week ahead") < at("N2 lifts"), "the lift count reads under the week");
+  assert.ok(at("The focus plan") < at("FOCUS CARD"), "the focus card rides inside its fold");
+  assert.match(html, /<details class="full-read prog-focus-fold[^"]*"[^>]*>\s*<summary>The focus plan<\/summary>/);
+  assert.match(html, /data-train-leaf="plan">Edit plan<\/button>/, "the editor is the week's quiet action");
+  assert.ok(at("data-train-deeper-slot") > at("The full read"), "the deeper rows sit under the read");
+  assert.ok(mounted.includes("pahead") && mounted.includes("/plan/look-ahead"), "the week fills its own slot");
+  assert.match(body.innerHTML, /pahead-skel/, "a cold week shows its skeleton, never a blank");
 });

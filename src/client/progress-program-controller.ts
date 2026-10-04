@@ -447,6 +447,30 @@ async function renderProgressProgram(deps: ClientProgressProgramControllerDeps):
   });
 }
 
+// The week-ahead section's frame. The look-ahead modules ride the same lazy Train
+// bundle; a typeof guard keeps the landing whole wherever they are absent.
+function programWeekSectionHtml(): string {
+  return typeof CairnProgramWeek !== "undefined" ? CairnProgramWeek.sectionHtml("") : "";
+}
+
+function mountProgramWeekAhead(deps: ClientProgressProgramControllerDeps): void {
+  if (typeof CairnProgramWeekController === "undefined") return;
+  const host = deps.view.querySelector<HTMLElement>("[data-pahead]");
+  if (!host) return;
+  CairnProgramWeekController.mount(host, {
+    peekCached: (key) => deps.peekCached(key),
+    cachedApi: (path, options) => cachedApi(path, options as CachedApiOptions<unknown>),
+    // The empty state's door into the editor: the section's own "Edit plan", the
+    // Train leaf wired with the landing, so both open the editor the same way.
+    editPlan: () => host.querySelector<HTMLElement>('[data-train-leaf="plan"]')?.click(),
+    // A door with words (the lifting-weekdays ask) opens Ask with them in the composer.
+    ask: (text) => {
+      if (text && typeof gotoChatWith === "function") gotoChatWith(text);
+      else if (typeof activateTab === "function") activateTab("chat");
+    },
+  });
+}
+
 function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgressProgramControllerDeps): void {
   const head = deps.segmentHtml("program");
   const lifts = data.lifts;
@@ -457,21 +481,34 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
   const headline = data.headline || "";
   const adaptations = data.adaptations_due;
 
+  // The week ahead leads the landing: the plan, read-only, a row a day. The editor is
+  // its quiet "Edit plan" (the Train leaf the deeper row also opens). No hero: the
+  // shell header already names the page "Program", and a second title would repeat it.
+  const weekAhead = programWeekSectionHtml();
+
   if (!lifts.length && !volume.length && !meso && !endurance && !hybrid) {
     deps.view.innerHTML =
       head +
-      deps.hero("Program", []) +
+      weekAhead +
       `<div id="progStrengthJourneySlot" class="sjourney-slot"></div>` +
       deps.empty(
         deps.art("exercise", "barbell squat"),
         "Not enough data yet — log a few sessions and your program intelligence will read here."
-      );
+      ) +
+      `<div data-train-deeper-slot></div>`;
     deps.wireSegments();
+    mountProgramWeekAhead(deps);
     void loadStrengthJourney(deps);
     return;
   }
 
+  // The lift count ("Fifteen lifts, all climbing.") reads under the week, over the lifts it counts.
   const heroVoice = programHeroVoice(lifts, deps.countWord);
+  const liftsVoiceHtml = heroVoice
+    ? `<div class="prog-lifts-voice reveal" style="${stagger(3)}"><h2 class="prog-lifts-line">${escHtml(heroVoice.line)}</h2>${
+        heroVoice.fact ? `<div class="prog-lifts-fact lbl">${escHtml(heroVoice.fact)}</div>` : ""
+      }</div>`
+    : "";
 
   const conductor = CairnProgressFocus.cardHtml();
   const hasConductor = !!conductor;
@@ -506,13 +543,24 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
     <div id="progMergeSuggestSlot" class="exmerge-list"></div>
   </div>`;
 
+  // The focus plan repeats Today's Brief, so it rides folded under the week. The fold is
+  // named for what it holds: "Where to focus ›" inside it is the link that leaves.
+  const focusFold = hasConductor
+    ? `<details class="full-read prog-focus-fold reveal" style="${stagger(2)}">
+        <summary>The focus plan</summary>
+        <div class="full-read-body">${conductor}</div>
+      </details>`
+    : "";
+  const deeperSlot = `<div data-train-deeper-slot></div>`;
+
   let html = "";
   if (hasConductor) {
     html =
       head +
-      deps.hero("Program", [], heroVoice) + `<div data-train-deeper-slot></div>` +
-      conductor +
+      weekAhead +
+      focusFold +
       strengthJourneySlot +
+      liftsVoiceHtml +
       liftsHtml +
       `<details class="full-read reveal" style="${stagger(6)}">
         <summary>The full read</summary>
@@ -531,12 +579,13 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
           hybridHtml
         }</div>
       </details>` +
+      deeperSlot +
       evolveFoot;
   } else {
     html =
       head +
-      deps.hero("Program", [], heroVoice) +
-      headlineHtml + `<div data-train-deeper-slot></div>` +
+      weekAhead +
+      headlineHtml +
       strengthJourneySlot +
       testSlot +
       perfSlot +
@@ -545,16 +594,19 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
       muscleSlot +
       dexaSlot +
       adaptHtml +
+      liftsVoiceHtml +
       liftsHtml +
       volumeHtml +
       mesoHtml +
       endHtml +
       hybridHtml +
+      deeperSlot +
       evolveFoot;
   }
 
   deps.view.innerHTML = html;
   deps.wireSegments();
+  mountProgramWeekAhead(deps);
   deps.runCountUps(deps.view);
   // Every lift row (full, compact, or long-tail variant) carries data-guide;
   // wireGuides opens the exercise detail on tap.
@@ -603,147 +655,6 @@ function paintProgressProgramBody(data: ProgressProgramState, deps: ClientProgre
   loadTestWeek();
   loadMuscleTrajectory();
   loadDexaTargeting("progDexaSlot");
-}
-
-// A merge the agent found plausible but wasn't confident/structurally-related
-// enough to auto-apply (see shouldAutoApplyMerge server-side) — surfaced instead
-// as a one-tap suggestion.
-type ExerciseMergeSuggestion = { from: string; into: string; why: string; confidence: string };
-// A rename the librarian proposed that the identity guard would not land on its own
-// (it reads like a different movement). Parked on the row server-side; one tap lands
-// it, "Keep" declines it AND remembers the no, so the next Tidy never re-asks.
-type ExerciseRenameSuggestion = { id: number; from: string; into: string };
-
-function renameSuggestionCardHtml(pair: ExerciseRenameSuggestion, idx: number): string {
-  return `<div class="exmerge-card" data-exrename-card="${idx}">
-    <div class="exmerge-text">Call <b>${escHtml(pair.from)}</b> "<b>${escHtml(pair.into)}</b>"?</div>
-    <div class="exmerge-why">Same numbers, cleaner name. Keep remembers your answer.</div>
-    <div class="exmerge-actions">
-      <button class="ghostbtn" type="button" data-exrename-accept="${idx}">Rename</button>
-      <button class="ghostbtn" type="button" data-exrename-keep="${idx}">Keep</button>
-    </div>
-  </div>`;
-}
-
-async function answerRenameSuggestion(
-  btn: HTMLElement,
-  pairs: ExerciseRenameSuggestion[],
-  accept: boolean,
-  deps: ClientProgressProgramControllerDeps
-): Promise<void> {
-  const idx = Number(btn.getAttribute(accept ? "data-exrename-accept" : "data-exrename-keep"));
-  const pair = pairs[idx];
-  const card = btn.closest(".exmerge-card");
-  if (!pair || !card) return;
-  const restore = deps.busy(btn, accept ? "renaming…" : "keeping…");
-  let result: { name?: string; error?: string } | null = null;
-  try {
-    result = (await deps.api(`/exercises/${encodeURIComponent(String(pair.id))}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(accept ? { name: pair.into } : { keep_name: true }),
-    })) as { name?: string; error?: string } | null;
-  } catch {
-    result = null;
-  }
-  if (result && !result.error) {
-    deps.toast(accept ? `${pair.from} is now ${result.name || pair.into}` : `Keeping ${pair.from}`);
-    card.remove();
-    if (accept) {
-      deps.invalidate("progress:program");
-      if (deps.state.tab === "progress") deps.renderSelf();
-    }
-    return;
-  }
-  restore();
-  deps.toast(result?.error || (accept ? "Couldn't rename that — try again." : "Couldn't save that — try again."));
-}
-
-function wireRenameSuggestions(
-  slot: Element,
-  pairs: ExerciseRenameSuggestion[],
-  deps: ClientProgressProgramControllerDeps
-): void {
-  slot.querySelectorAll<HTMLElement>("[data-exrename-accept]").forEach((b) => {
-    b.addEventListener("click", () => void answerRenameSuggestion(b, pairs, true, deps));
-  });
-  slot.querySelectorAll<HTMLElement>("[data-exrename-keep]").forEach((b) => {
-    b.addEventListener("click", () => void answerRenameSuggestion(b, pairs, false, deps));
-  });
-}
-
-function mergeSuggestionCardHtml(pair: ExerciseMergeSuggestion, idx: number): string {
-  const why = String(pair.why || "").trim();
-  return `<div class="exmerge-card" data-exmerge-card="${idx}">
-    <div class="exmerge-text">Merge <b>${escHtml(pair.from)}</b> into <b>${escHtml(pair.into)}</b></div>
-    ${why ? `<div class="exmerge-why">${escHtml(why)}</div>` : ""}
-    <div class="exmerge-actions">
-      <button class="ghostbtn" type="button" data-exmerge-accept="${idx}">Accept</button>
-      <button class="ghostbtn" type="button" data-exmerge-skip="${idx}">Skip</button>
-    </div>
-  </div>`;
-}
-
-function mergeSuggestionsInnerHtml(pairs: ExerciseMergeSuggestion[], renames: ExerciseRenameSuggestion[] = []): string {
-  return (
-    `<div class="exmerge-head lbl">Cairn's not sure — take a look</div>` +
-    pairs.map((p, i) => mergeSuggestionCardHtml(p, i)).join("") +
-    renames.map((p, i) => renameSuggestionCardHtml(p, i)).join("")
-  );
-}
-
-// One tap confirms a suggested merge via the existing deterministic /exercises/merge
-// endpoint (no agent turn). A per-card busy state guards the double-tap; a failed
-// merge surfaces the server's message and leaves the card in place, unlike a
-// success which removes it and refreshes the program read.
-async function acceptMergeSuggestion(
-  acceptBtn: HTMLElement,
-  pairs: ExerciseMergeSuggestion[],
-  deps: ClientProgressProgramControllerDeps
-): Promise<void> {
-  const idx = Number(acceptBtn.getAttribute("data-exmerge-accept"));
-  const pair = pairs[idx];
-  const card = acceptBtn.closest(".exmerge-card");
-  if (!pair || !card) return;
-  const restore = deps.busy(acceptBtn, "merging…");
-  let result: { ok?: boolean; error?: string } | null = null;
-  try {
-    result = (await deps.api("/exercises/merge", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ from: pair.from, into: pair.into }),
-    })) as { ok?: boolean; error?: string } | null;
-  } catch {
-    result = null;
-  }
-  if (result?.ok) {
-    deps.toast(`Merged ${pair.from} into ${pair.into}`);
-    deps.invalidate("progress:program");
-    card.remove();
-    if (deps.state.tab === "progress") deps.renderSelf();
-    return;
-  }
-  restore();
-  deps.toast(result?.error || "Couldn't merge that — try again.");
-}
-
-// Skip just drops the card for THIS run — deliberately no server-side memory, so
-// the same suggestion can resurface on the next Tidy.
-function wireMergeSuggestions(
-  slot: Element,
-  pairs: ExerciseMergeSuggestion[],
-  deps: ClientProgressProgramControllerDeps
-): void {
-  slot.querySelectorAll<HTMLElement>("[data-exmerge-skip]").forEach((skipBtn) => {
-    skipBtn.addEventListener("click", () => {
-      skipBtn.closest(".exmerge-card")?.remove();
-    });
-  });
-  slot.querySelectorAll<HTMLElement>("[data-exmerge-accept]").forEach((acceptBtn) => {
-    acceptBtn.addEventListener("click", () => {
-      void acceptMergeSuggestion(acceptBtn, pairs, deps);
-    });
-  });
 }
 
 // "Tidy exercise names" merges duplicate movements so each lift tracks as one line.

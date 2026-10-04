@@ -19,6 +19,7 @@ type TrainFanInView = "overview" | "program" | "endurance";
       return [
         "/coaching-focus", "/program-state", "/strength-journeys", "/strength-journey", "/performance",
         "/program/blocks/active", "/program/adjustments", "/test-week", "/muscle-trajectory", "/dexa-targeting",
+        "/plan/look-ahead",
       ];
     }
     if (view === "endurance") {

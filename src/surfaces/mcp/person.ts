@@ -115,10 +115,27 @@ export function registerPersonTools(server: McpToolRegistrar) {
             .array(
               z.object({
                 dow: z.number().int().min(0).max(6).describe("0=Sunday … 6=Saturday"),
-                kind: z.enum(["easy", "quality", "long", "any"]),
+                kind: z
+                  .string()
+                  .describe(
+                    "easy|quality|long|any for a run day. A non-run sport here (ride, swim, walk, row, paddle, other) with optional: true is moved into cross_training, never kept as a run day"
+                  ),
+                optional: z.boolean().optional(),
               })
             )
             .min(1),
+          cross_training: z
+            .array(
+              z.object({
+                dow: z.number().int().min(0).max(6).describe("0=Sunday … 6=Saturday"),
+                sport: z.string().describe("ride|swim|walk|row|paddle|other"),
+                optional: z.literal(true).optional(),
+              })
+            )
+            .optional()
+            .describe(
+              "stated recurring NON-RUN days ('Saturday optional, MTB or other' → {dow: 6, sport: 'ride'}); never a run day. Omit to keep what is stored, [] clears. At most three; an unreadable entry is dropped"
+            ),
           note: z.string().optional(),
           source: z.enum(["athlete", "chat"]).optional(),
         })

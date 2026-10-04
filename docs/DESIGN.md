@@ -241,12 +241,22 @@ four weeks as small columns, with the way to set a race), and a lifting-only ath
 view at all. The race view is a **glance**: one serif line from the ladder's own count ("Five
 weeks of build, then the half."), the terrain, THIS WEEK in one row (stage, logged of planned on a
 quiet bar, the week's coaching sentence), and the finish estimate as a footnote, with the race page
-one tap away. The race page (`/app/horizon/race`) is the **depth**, top to bottom: the race and
-the km/mi switch; THIS WEEK, the page's one focal card (stage, volume, the week's runs by weekday
-with the next in full, the focus sentence); the build week by week (date, stage, long run, the
-focus in a few words, the distance as a bar); "With your lifting", one line per run of weeks; then
-the finish estimate as a fit with its basis, the paces one tap deeper. No chart there: the terrain
-is Horizon's, the ladder its table.
+one tap away. The race page (`/app/horizon/race`) is the **depth**, top to bottom: the race, the
+km/mi switch and the estimate's one line ("Reads about 1:54 · inside sub-2:00 · 13 min faster in
+the last month"); THIS WEEK, the page's one focal card (kicker "This week · Sharpen · 4 wk out",
+the server's sentence for the week and one detail line, the volume as a **segmented bar** — one
+segment per logged run in its tone, easy a plain endurance fill, long the deep endurance ink,
+quality hatched, an extra dotted, with an ink tick at the plan and the bar scaled to max(plan,
+logged) so a week run past its plan shows the overflow — then the runs actual first, "9.7 km ·
+5:34/km · steady" with the plan on a quiet second line (an unmatched run's second line is
+"Extra · <title>"), never a bare tick); next week as its own compact section ("Tue 6 · Thu 8 · Sun 11", the detail
+only on the first upcoming run); the build week by week on ONE encoding (an actual is solid, a
+plan is an outline on a pale track, this week its logged solid inside its plan outline; the last
+three closed weeks sit above it, solid, under a quiet "now"; a kind is a word and a small mark,
+never the bar's colour; this week reads "35.8 of 19.5 km" while open, its actual once closed,
+with "4 runs · plan 19.5 km" in place of the plan focus, and the server's adapted sentence under the ladder);
+"With your lifting", one line per run of weeks; then the estimate's basis and the paces. No chart
+there: the terrain is Horizon's, the ladder its table.
 
 ## Stylesheet ownership
 
@@ -878,10 +888,20 @@ tapped tile (`openDetailFrom(tile, build)`) and closed by ✕ / Escape / backdro
 The art drifts idly (`@keyframes drift`, 6.5s alternate) and parallaxes on overlay
 scroll (translate + fade, JS, reduced-motion-gated). `.prbadge` is the gold PR pill.
 
-## Meals planner (Plan tab · Meals)
+## Meals planner (the week menu · `/app/today/menu`)
 
-The journal view over the current weekly meal plan (prefers an accepted/applied/kept
-plan, falls back to the newest draft):
+The week menu over the current weekly meal plan (prefers an accepted/applied/kept
+plan, falls back to the newest adequate draft). It opens from Fuel's "This week's menu"
+card and from Train → Fuel's "This week's menu" row, steps back "‹ Fuel", and `/app/plan/meals`
+redirects to it. A second draft (a fresh week asked for while a kept one stays current)
+waits under it for Keep/Discard; every other past week lives in Fuel's "Earlier meal plans" fold.
+
+- `.mmenu` — Fuel's card (`meal-menu-card-{client,controller}.ts`, lazy meals bundle): a
+  surface card above the day's journal listing TODAY's planned meals as hairline rows
+  (44px food plate, the slot in mono `--d-fuel`, the name, one muted line of items, plain
+  kcal), a "to look over" badge on a draft, and "See the week ›". A week whose saved
+  constraints changed lists no meals; no week shows the plate and one ask, "Ask the team
+  for a week of meals" (the existing `meal_plan` job on `#mealDraftBtn`/`#mealDraftStatus`).
 
 - `.mealhero` — week-of label + `.mp-badge` status + agent, count-up `daily_kcal` /
   `daily_protein_g` numerals, summary line, Keep/Discard `.pillbtn` row for drafts.
@@ -890,7 +910,7 @@ plan, falls back to the newest draft):
   of `.meal-row`s (artImg food plate | name + items | kcal numeral + P/C/F caps).
 - `.meals-empty` — illustration plate + italic display title + an "Ask team to plan
   this week" CTA on the shared `.pillbtn pill-accent`, with `.meals-status` for run feedback.
-- `.mp-history` — `<details>` keeping the classic `.mp-card` list as collapsed history.
+- `.mp-history` — Fuel's "Earlier meal plans" `<details>`: the `.mp-card` list of past weeks only.
 - `.shop-chips` — the plan's shopping list as cream chips.
 
 ## Timed exercises
@@ -1328,7 +1348,8 @@ in each row.
 
 **Components v2 adds** (sequenced in `docs/V2-PLAN.md`): `changes-line`, `changes-feed`,
 `decision-undo`, `meal-card` (read-only portions in words; an explicit Edit opens the gram rows), `food-composer` (shared by Fuel and chat),
-`fuel-today`, `idea-card`, `records-search`, `packet-builder`, `visit-questions`, `race-ladder`,
+`fuel-today`, `idea-card`, `mmenu` (Fuel's "This week's menu" card), `pahead` (Program's "The week ahead": today through next Sunday, a row a day, from
+`program-week-{model,client,controller}.ts`), `records-search`, `packet-builder`, `visit-questions`, `race-ladder`,
 `cairn-stack`, `app-readd` (the one-time iOS re-add note) and `app-id` (Settings →
 Data's "This app" block: server build, this app's shell, Copy token), both from
 `app-identity-{model,client,controller}.ts`.

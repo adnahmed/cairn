@@ -106,12 +106,11 @@ function lazyLoader() {
 
 test("a preload names the exact url ensureBundle injects, and the worker precaches it", () => {
   const { LAZY_BUNDLE_SRC } = lazyLoader();
-  // Every lazy bundle a canonical route needs is preloadable. The meals bundle (the
-  // meal-plan journal) has no canonical route of its own: /app/plan/meals is a legacy
-  // link that lands on Fuel, which reaches it through withBundle when its fold opens.
-  // Today's lower half (today-ahead) renders inside the eager Today view, so it has no
-  // route either; it is still precached and warmed first on idle.
-  const ROUTELESS = new Set([LAZY_BUNDLE_SRC.meals, LAZY_BUNDLE_SRC["today-ahead"]]);
+  // Every lazy bundle a canonical route needs is preloadable. The meals bundle's route
+  // is the week menu (/app/today/menu). Today's lower half (today-ahead) renders inside
+  // the eager Today view, so it has no route; it is still precached and warmed first on
+  // idle.
+  const ROUTELESS = new Set([LAZY_BUNDLE_SRC["today-ahead"]]);
   assert.deepEqual(
     [...table.b].sort(),
     Object.values(LAZY_BUNDLE_SRC)
@@ -189,8 +188,9 @@ test("a Health deep link preloads Train then Me/Health and starts its leaf's one
   assert.deepEqual(Object.keys(early), reads);
 });
 
-test("Train, Horizon, Ask and Settings links preload their closure and start only the shell's reads", () => {
+test("Train, Horizon, Ask, Settings and the week menu preload their closure and start only the shell's reads", () => {
   const cases = {
+    "/app/today/menu": ["/js/bundle-13-meals.js"],
     "/APP/Train": ["/js/bundle-08-train.js"],
     "/app/horizon": ["/js/bundle-08-train.js", "/js/bundle-09-horizon.js"],
     "/app/horizon/race": ["/js/bundle-08-train.js", "/js/bundle-09-horizon.js"],

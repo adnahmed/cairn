@@ -69,11 +69,16 @@ const TRAINING_LOG = ["plan", "recent_sessions", "recent_activities", "training_
 // below), because the two answer one question between them: which weekday carries what.
 const TRAINING_CORE = [...TRAINING_LOG, "program_block", "program_state", "strength_schedule"] as const;
 // + capacity, balance, adaptations due and the long arc — the full plan-shaping set.
+// `week_training_load` is THE whole-week picture (every sport plus the lifting, key-run
+// spacing, the cross-training day, the next 48 hours) and replaces the two-day
+// `recent_load` list here: that list overlapped `acute_gates` and named one recency
+// fact per group, so it stays in getCoachContext for routes and MCP but no longer rides
+// into a prompt. `recent_cardio` (ENDURANCE) stays the per-run detail beside it.
 const TRAINING_FULL = [
   ...TRAINING_CORE,
   "program_balance",
   "program_adjustments",
-  "recent_load",
+  "week_training_load",
   "acute_gates",
   "strength_journey",
   "groups_trajectory",
@@ -262,7 +267,7 @@ export const PROMPT_CONTEXT_SITES = {
   // but the thing it is shaping does not exist yet, so the read layer that exists to
   // describe a RUNNING program is mostly empty here and is not carried:
   //   DROPPED vs the plan site — the volume/capacity read a history produces
-  //   (program_balance, program_adjustments, recent_load, strength_journey,
+  //   (program_balance, program_adjustments, week_training_load, strength_journey,
   //   groups_trajectory, test_week, performance), the whole FUEL bundle (this composes
   //   training, not food), and `garmin` (no text here rules on it; run history arrives
   //   through recent_activities and the endurance bundle, which is what a blank-slate
@@ -405,6 +410,11 @@ export const PROMPT_CONTEXT_SITES = {
       // COMPOSITION (which elements to downgrade, which sets to trim), which is
       // precisely and only what this prompt decides.
       "training_constraints",
+      // The week the session sits inside: yesterday's ride, tomorrow's long run, which
+      // regions the week's lifting already loaded. The envelope decides the muscles;
+      // this is what lets the composition pick sensibly inside them (a lighter hinge the
+      // day before a key run) instead of reading the session as if it had no week.
+      "week_training_load",
     ],
     sessions: SESSIONS_MINIMAL,
   },
@@ -420,7 +430,7 @@ export const PROMPT_CONTEXT_SITES = {
   // e.g. a caveat easing around an injury, or a fueling emphasis). DROPPED: garmin,
   // day_read, recent_decisions, insights, whole_person_trajectory, and the
   // strength-programming read layer meals never touch (balance/adjustments/
-  // recent_load/strength_journey/groups_trajectory/test_week).
+  // week_training_load/strength_journey/groups_trajectory/test_week).
   meal_plan: {
     keys: [
       ...PERSON,
@@ -555,7 +565,7 @@ export const PROMPT_CONTEXT_SITES = {
   // The lab review. Leads with its own PRIORITY MARKERS + MARKER HISTORY blocks, and
   // reasons across labs, body composition, training, nutrition, goals and life context.
   // DROPPED: the plan-shaping read layer it never renders (performance, balance,
-  // adjustments, recent_load, strength_journey, groups_trajectory, test_week,
+  // adjustments, week_training_load, strength_journey, groups_trajectory, test_week,
   // coaching_focus, signal_state), plus garmin, day_read, recent_decisions, insights.
   health_review: {
     keys: [
@@ -979,6 +989,93 @@ function compactRaceBuild(build: unknown): unknown {
   };
 }
 
+// The whole-week load read, cut for the Brief (which ships every morning under a byte
+// ceiling). The Brief reads the SHAPE of the week, not its rows — it already carries the
+// per-run detail (`recent_cardio`) and the week's intentions (`flexible_training_agenda`)
+// in their own keys, so here each day keeps its date, its load, and only what it actually
+// held: runs (distance, effort, the intention closed), cross-training (what, family,
+// time, load band) and the lifting split; a day with nothing logged is left out. Row ids,
+// the grading basis, run minutes, null fields, empty lists, the window bounds (`as_of`
+// and the dates carry them) and the week's `intents` (the agenda's own list) go, and every run title is dropped except a
+// key run's ("Hill Sprints" is how the athlete names the session that closed quality).
+// The back-to-back list keeps its dates (the days say what was on them). The week
+// totals, key-run spacing, the cross-training day and `next_48h` pass whole. Structure,
+// never string surgery.
+const BRIEF_RUN_FIELDS = ["km", "effort_word"] as const;
+const BRIEF_CROSS_FIELDS = ["label", "family", "minutes", "load"] as const;
+
+function pickPresent(entry: unknown, fields: readonly string[]): Record<string, unknown> | unknown {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return entry;
+  const row = entry as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const field of fields) if (row[field] != null) out[field] = row[field];
+  return out;
+}
+
+function compactWeekTrainingLoad(read: unknown): unknown {
+  if (!read || typeof read !== "object" || Array.isArray(read)) return read;
+  const row = read as Record<string, unknown>;
+  if (!Array.isArray(row.days)) return row;
+  const { window_start: _start, window_end: _end, ...rest } = row;
+  const spacing = rest.spacing as Record<string, unknown> | undefined;
+  const week = rest.week as Record<string, unknown> | undefined;
+  return {
+    ...rest,
+    ...(week && typeof week === "object" && !Array.isArray(week)
+      ? {
+          week: (({ intents: _intents, cross_minutes_by_family: cross, ...totals }) =>
+            cross && typeof cross === "object" && Object.keys(cross).length
+              ? { ...totals, cross_minutes_by_family: cross }
+              : totals)(week),
+        }
+      : {}),
+    // A date with nothing logged is absent; the window is `as_of` and the six days before.
+    days: row.days
+      .filter((day) => {
+        const d = day as Record<string, unknown> | null;
+        return (
+          !d ||
+          typeof d !== "object" ||
+          d.day_load !== "none" ||
+          (Array.isArray(d.runs) && d.runs.length > 0) ||
+          (Array.isArray(d.cross) && d.cross.length > 0) ||
+          d.strength != null
+        );
+      })
+      .map((day) => {
+        if (!day || typeof day !== "object" || Array.isArray(day)) return day;
+        const d = day as Record<string, unknown>;
+        const out: Record<string, unknown> = { date: d.date, day_load: d.day_load };
+        if (Array.isArray(d.runs) && d.runs.length)
+          out.runs = d.runs.map((run) => {
+            const r = run as Record<string, unknown> | null;
+            const picked = {
+              ...(pickPresent(r, BRIEF_RUN_FIELDS) as Record<string, unknown>),
+              closed: r?.closed ?? null,
+            };
+            const key = r?.closed === "quality" || r?.closed === "long";
+            return key && r?.title != null ? { ...picked, title: r.title } : picked;
+          });
+        if (Array.isArray(d.cross) && d.cross.length)
+          out.cross = d.cross.map((c) => pickPresent(c, BRIEF_CROSS_FIELDS));
+        if (d.strength) out.strength = d.strength;
+        return out;
+      }),
+    ...(spacing && Array.isArray(spacing.hard_back_to_back)
+      ? {
+          spacing: {
+            ...spacing,
+            hard_back_to_back: spacing.hard_back_to_back.map((pair) => {
+              if (!pair || typeof pair !== "object" || Array.isArray(pair)) return pair;
+              const { what: _what, ...dates } = pair as Record<string, unknown>;
+              return dates;
+            }),
+          },
+        }
+      : {}),
+  };
+}
+
 // ---------- the helper every prompt uses ----------
 
 /**
@@ -1012,7 +1109,9 @@ export function projectCoachContext(ctx: PartialCoachContext, site: PromptSite):
                   ? compactDirectives(value)
                   : key === "race_build"
                     ? compactRaceBuild(value)
-                    : value;
+                    : key === "week_training_load" && site === "day_read"
+                      ? compactWeekTrainingLoad(value)
+                      : value;
   }
   return out as PartialCoachContext;
 }

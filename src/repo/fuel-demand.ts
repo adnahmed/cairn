@@ -43,6 +43,7 @@ import { todayStrengthLine } from "./today-strength-line.js";
 import { LB_PER_KG, addDaysISO, localDateISO } from "./shared.js";
 import { resolvedCurrentBodyweight } from "./bodyweight.js";
 import { mondayOf } from "../lib/dates.js";
+import { crossTrainingNoun, isKnownCrossTrainingDate } from "./cross-training-day.js";
 
 export type FuelDemandLevel = "light" | "standard" | "big";
 
@@ -343,6 +344,23 @@ function loggedWork(date: string): LoggedDay {
   return { strength, run, cardio, cardioMinutes };
 }
 
+// The known cross-training day `date` falls on, read as of today, when it typically runs
+// long (≥ LONG_NON_RUN_CARDIO_MIN) or heavy — with the driver line naming it.
+function anticipatedCrossTraining(date: string, today: string): { driver: string } | null {
+  try {
+    const day = isKnownCrossTrainingDate(date, today);
+    if (!day) return null;
+    const long = (day.typical_min ?? 0) >= LONG_NON_RUN_CARDIO_MIN || day.typical_load === "heavy";
+    if (!long) return null;
+    const noun = crossTrainingNoun(day.sport_family);
+    return {
+      driver: day.source === "stated" ? `the optional ${noun} you named` : `your usual ${day.weekday} ${noun}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // The day read's suggestion for today's lift, off the one strength line every surface
 // prints (the Brief, the Session header, the week strip). Null when the read has
 // nothing to say about the lift, or on any failure: absence keeps the plan's framing.
@@ -402,6 +420,15 @@ function classify(date: string, inputs: DemandInputs): DayFuelDemand {
   // 45-minute commute hard. Logged only: a ride is a pattern, never a scheduled intent.
   const longRide = !!logged?.cardio && !logged.run && logged.cardioMinutes >= LONG_NON_RUN_CARDIO_MIN;
   if (longRide) drivers.push("long ride or endurance session on this day");
+  // A day still ahead (or today, nothing logged yet) that is the athlete's KNOWN cross-
+  // training day — the optional one they named, or the weekday the log shows it on — is
+  // fuelled for it when it typically runs long or heavy. Anticipation only: a logged day
+  // is described by its log above, never by the pattern.
+  const crossDay = date >= today && !logged?.cardio ? anticipatedCrossTraining(date, today) : null;
+  if (crossDay) {
+    drivers.push(crossDay.driver);
+    evidence.push("cross_training_day");
+  }
 
   const demand: FuelDemandLevel = drivers.length
     ? "big"
@@ -417,7 +444,7 @@ function classify(date: string, inputs: DemandInputs): DayFuelDemand {
       ? "light"
       : "standard";
 
-  const enduranceDriven = runKinds.has("long") || runKinds.has("quality") || longRide;
+  const enduranceDriven = runKinds.has("long") || runKinds.has("quality") || longRide || !!crossDay;
   return withCarbs({ date, demand, drivers, evidence }, inputs.carbBasis, enduranceDriven);
 }
 

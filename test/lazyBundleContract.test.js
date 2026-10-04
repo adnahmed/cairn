@@ -28,8 +28,6 @@ const GLOBAL_ROOT = /^(globalThis|window|self)$/;
 // Eager call sites that reach a lazy global outside withBundle, each reviewed:
 // the surrounding code only runs once that bundle's own surface is on screen.
 const REVIEWED = {
-  // renderCoach is only ever entered through the ask bundle (dispatcher lazy() + segment deps' withLatestRender).
-  "06-coach-meals.js": ["CairnAskCardController", "CairnChangesFeedController"],
   // reconnectProposal reaches these only while horizon's #endDraftStatus is in #view.
   "coach-proposal-controller.js": ["enduranceComposerLock", "enduranceProposalOpOpts"],
   // compressImage awaits ensureBundle("ask") first when CairnChatClient is absent.

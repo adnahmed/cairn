@@ -25,7 +25,6 @@ import type {
   DayRecordSession,
 } from "../../contracts/day-record.js";
 import { db } from "../../db.js";
-import { mondayOf } from "../../lib/dates.js";
 import { trainingOnDate } from "../../repo/activities.js";
 import { getCachedDayRead } from "../../repo/day-read-cache.js";
 import { canonicalEnduranceSport } from "../../repo/endurance-sports.js";
@@ -36,6 +35,7 @@ import { RUN_KIND_LABELS } from "../../repo/run-edit.js";
 import { getSessionByDate } from "../../repo/sessions.js";
 import { getSettings } from "../../repo/settings.js";
 import { localDateISO } from "../../repo/shared.js";
+import { lookAheadWeekAsOf } from "../training/plan-look-ahead.js";
 import { planWeek, type PlanWeekDay } from "../training/plan-week.js";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -142,10 +142,11 @@ function weightOf(date: string): number | null {
 
 // The plan strip's own week. The week that holds today is read AS OF today, so a
 // preview of Thursday agrees with the strip and Horizon's week; a later week is read
-// as of its own day.
+// as of its own Monday (lookAheadWeekAsOf), the same week the Program look-ahead
+// lists, so a tapped day previews exactly what its row said. Read as of the day
+// itself, the agenda suggested its next open run on every day it was asked about.
 function calendarDay(date: string, today: string): PlanWeekDay | null {
-  const asOf = mondayOf(date) === mondayOf(today) ? today : date;
-  const week = safe(() => planWeek(asOf), null);
+  const week = safe(() => planWeek(lookAheadWeekAsOf(date, today)), null);
   return week?.days.find((d) => d.date === date) ?? null;
 }
 

@@ -74,6 +74,7 @@ function loadCoachingFocus(options = {}) {
   };
   vm.runInNewContext(readFileSync(join(root, "public/js/html-utils.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/ui-feedback-client.js"), "utf8"), context);
+  vm.runInNewContext(readFileSync(join(root, "public/js/coaching-focus-render-client.js"), "utf8"), context);
   vm.runInNewContext(readFileSync(join(root, "public/js/coaching-focus-client.js"), "utf8"), context);
   return { focus: context.CairnCoachingFocus, handlers, state, activated };
 }
@@ -187,6 +188,35 @@ test("one renderer, four variants: each surface keeps its own chrome and density
   // Nothing to say → nothing drawn.
   assert.equal(focus.coachingFocusHtml({ available: false, headline: "", lead: null }, { variant: "hero" }), "");
   assert.equal(focus.coachingFocusHtml(null, { variant: "hero" }), "");
+});
+
+test("the check-in keeps lifts and labs apart, and prints a marker in its own casing", () => {
+  const { focus } = loadCoachingFocus();
+  const retest = {
+    in_weeks: 0,
+    focus: ["Barbell Bent-Over Row", "Machine Chest Press", "Seated Cable Row"],
+    labs: ["hs-CRP", "DEXA scan"],
+    why: "One window",
+  };
+  const full = focus.coachingFocusHtml({ ...richFocus, retest }, { variant: "full" });
+  const body = /<span class="cfocus-retest-body">([\s\S]*?)<span class="cfocus-retest-when">/.exec(full)?.[1] || "";
+  assert.equal(body.trim(), "Barbell Bent-Over Row · Machine Chest Press · Seated Cable Row", "the lift list is lifts only");
+  assert.match(full, /<span class="cfocus-retest-labs">Labs and scans: hs-CRP, DEXA scan<\/span>/);
+  assert.doesNotMatch(full, /Hs Crp/);
+
+  // Labs alone still make the check-in: they become its body, not a lift.
+  const labsOnly = focus.coachingFocusHtml({ ...richFocus, retest: { ...retest, focus: [], labs: ["hs-CRP"] } }, { variant: "full" });
+  assert.match(labsOnly, /cfocus-retest-body">Labs: hs-CRP <span class="cfocus-retest-when">due now/);
+  assert.doesNotMatch(labsOnly, /cfocus-retest-labs/);
+
+  // The overview's one line keeps the same separation.
+  const line = focus.coachingFocusHtml({ ...richFocus, retest: { ...retest, in_weeks: 2, labs: ["hs-CRP"] } }, { variant: "overview" });
+  assert.match(line, /Re-test Barbell Bent-Over Row, Machine Chest Press, Seated Cable Row in ~2 wk\. Labs: hs-CRP/);
+
+  // An older payload with no labs field renders exactly as before.
+  const legacy = focus.coachingFocusHtml({ ...richFocus, retest: { in_weeks: 1, focus: ["Squat"], why: "" } }, { variant: "full" });
+  assert.match(legacy, /cfocus-retest-body">Squat <span/);
+  assert.doesNotMatch(legacy, /cfocus-retest-labs/);
 });
 
 test("coaching focus route bridge preserves deep-link destinations", () => {

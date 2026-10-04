@@ -116,6 +116,7 @@ import { cardiovascularRiskRead } from "./risk.js";
 import { trainingBenchmarkRead } from "./training-milestones.js";
 import { listDueAttention } from "./attention.js";
 import { brainSignal, runWithBrainSnapshot } from "../brain/snapshot.js";
+import { weekTrainingLoad } from "./week-training-load.js";
 import {
   listBrainDecisions,
   listBrainExpectations,
@@ -828,6 +829,7 @@ function buildTrainingSlice(
   | "weekly_set_targets"
   | "recent_load"
   | "acute_gates"
+  | "week_training_load"
   | "progression"
   | "strength_journey"
   | "program_adjustments"
@@ -853,6 +855,7 @@ function buildTrainingSlice(
     dexaTargetingView,
     trajectoryView,
     trainingSignalsView,
+    flexibleTrainingAgendaView,
   } = signals;
   return {
     plan: getPlan(),
@@ -911,6 +914,19 @@ function buildTrainingSlice(
     acute_gates: [...(acuteLoad as Map<string, AcuteGateReading>).values()]
       .filter((g) => g.saturated)
       .map(({ residual: _residual, ...rest }) => rest),
+    // THE WHOLE-WEEK LOAD PICTURE (src/repo/week-training-load.ts): the rolling seven
+    // days across every sport plus the lifting — runs with the intention each closed,
+    // rides/paddles/walks with their load band, each lift day's leg/upper split — the
+    // week's key-run spacing, the recurring cross-training day and the next 48 hours.
+    // Built only from the reads that own each answer; the prompts read it in place of
+    // the two-day `recent_load` list (which stays here for routes and MCP).
+    week_training_load: brainSignal(`week_training_load:${today}`, () => {
+      try {
+        return weekTrainingLoad(today, { agenda: flexibleTrainingAgendaView ?? undefined }) as any;
+      } catch {
+        return null;
+      }
+    }),
     // The next session's auto-progression — the adapted target per strength lift
     // on the day this read points at ("+5 lb", "hold 50 — stalled", "−10%"), so
     // the plan visibly FOLLOWS what was logged. Bounded to the active day. [] when

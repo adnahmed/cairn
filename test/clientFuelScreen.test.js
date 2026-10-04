@@ -3,8 +3,10 @@
 // shell at once, titled "Fuel" with a "‹ Today" back link, and mounts each Fuel
 // component into its own slot; a meal logged from the composer refreshes every slot
 // that reads the day without leaving the screen; "Start from this" opens the composer
-// filled; Plan → Meals redirects here with the meal-plan journal open as history.
-// Components are faked: their own tests drive them.
+// filled. "This week's menu" (the lazy meals bundle's card) sits above the day's
+// journal and opens Plan → Meals, the week menu (/app/today/menu), which steps back to
+// Fuel; past weeks stay in Fuel's history fold. Components are faked: their own tests
+// drive them.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHost, flush, loadClientModule } from "./_dom.mjs";
@@ -37,6 +39,8 @@ function load({ logDate = "", firstPaint = () => null } = {}) {
   const tabs = [];
   const bundles = [];
   const journal = [];
+  const menuCards = [];
+  const bundleReturns = [];
   const globals = {
     state,
     escHtml: (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
@@ -71,11 +75,35 @@ function load({ logDate = "", firstPaint = () => null } = {}) {
     // The meal-plan journal lives in the lazy meals bundle, reached through withBundle.
     withBundle: (name, fn) => {
       bundles.push(name);
-      return fn();
+      const painted = fn();
+      bundleReturns.push(painted);
+      return painted;
     },
     CairnMealJournal: {
-      paint: async (token, slot) => {
-        journal.push({ token, slot });
+      // The page frame is the bundle's (meal-journal-client.ts menuPageHtml); this fake
+      // carries the same hooks the eager wiring looks for.
+      menuPageHtml: () => `<section class="mmenu-page" id="mealMenu">
+        <button type="button" data-mmenu-back>‹ Fuel</button>
+        <h1 class="sr-only">This week's menu</h1>
+        <div id="mealMenuSlot"></div>
+        <button type="button" data-mmenu-history>Earlier meal plans are kept in Fuel</button>
+      </section>`,
+      paintMenu: async (token, slot, _peek, focus) => {
+        journal.push({ kind: "menu", token, slot, focus });
+      },
+      paintHistory: async (token, slot) => {
+        journal.push({ kind: "history", token, slot });
+      },
+    },
+    CairnMealMenuCardController: {
+      mount: (host, deps) => {
+        const handle = () => events.push("menu:teardown");
+        handle.refresh = async () => {
+          events.push("menu:refresh");
+        };
+        handle.ready = Promise.resolve();
+        menuCards.push({ host, deps, handle });
+        return handle;
       },
     },
     CairnFuelDeps: {
@@ -98,7 +126,7 @@ function load({ logDate = "", firstPaint = () => null } = {}) {
   const view = createHost(win.document);
   win.view = view;
   win.$ = (sel) => view.querySelector(sel);
-  return { win, view, mounts, events, state, routes, tabs, bundles, journal };
+  return { win, view, mounts, events, state, routes, tabs, bundles, bundleReturns, journal, menuCards };
 }
 
 test("Fuel paints its shell under Today and mounts every component into its slot", () => {
@@ -114,7 +142,7 @@ test("Fuel paints its shell under Today and mounts every component into its slot
   assert.match(back.textContent, /‹ Today/);
   back.click();
   assert.deepEqual(tabs, ["today"]);
-  for (const id of ["dayFuelSlot", "fuelLogSlot", "fuelMealsSlot", "fuelIdeasSlot", "energyCard", "fuelHistory"]) {
+  for (const id of ["dayFuelSlot", "fuelLogSlot", "fuelMenuSlot", "fuelMealsSlot", "fuelIdeasSlot", "energyCard", "fuelHistory"]) {
     assert.ok(view.querySelector(`#${id}`), `#${id}`);
   }
   assert.equal(mounts.today.host, view.querySelector("#dayFuelSlot"));
@@ -125,10 +153,57 @@ test("Fuel paints its shell under Today and mounts every component into its slot
   assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), false, "history stays folded");
 });
 
-test("a folded history never loads the meal planner: Fuel's first paint is eager only", () => {
-  const { win, bundles } = load();
+test("This week's menu mounts from the lazy meals bundle into its own slot, above the day's journal", () => {
+  const { win, view, bundles, bundleReturns, menuCards, mounts } = load();
   win.renderFoodJournal();
-  assert.deepEqual(bundles, [], "no withBundle(\"meals\") until the fold opens");
+  const slots = [...view.querySelectorAll(".fuel-slot")].map((el) => el.id);
+  assert.ok(slots.indexOf("fuelMenuSlot") < slots.indexOf("fuelMealsSlot"), "the menu sits above what was logged");
+  assert.ok(slots.indexOf("fuelLogSlot") < slots.indexOf("fuelMenuSlot"), "logging stays first");
+  assert.deepEqual(bundles, ["meals"], "only the card reaches the planner bundle; the fold stays unpainted");
+  assert.equal(menuCards.length, 1);
+  assert.equal(menuCards[0].host, view.querySelector("#fuelMenuSlot"));
+  assert.equal(menuCards[0].deps.isCurrent(), true);
+  assert.equal(bundleReturns[0], menuCards[0].handle.ready, "the owed reconnect sweep waits for the card's first paint");
+  // The eager slots never wait on it.
+  assert.equal(mounts.meals.host, view.querySelector("#fuelMealsSlot"));
+  assert.equal(view.querySelector("#fuelHistory").dataset.painted, undefined);
+});
+
+test("a stale Fuel paint never mounts the menu card once its bundle lands", async () => {
+  const { win, view, menuCards } = load();
+  let land;
+  win.withBundle = (_name, fn) => new Promise((resolve) => (land = () => resolve(fn())));
+  win.renderFoodJournal();
+  // The placeholder holds the card's place while the bundle loads.
+  assert.ok(view.querySelector("#fuelMenuSlot .mmenu-skel"));
+  win.pollToken += 1; // the athlete moved on
+  land();
+  await flush();
+  assert.equal(menuCards.length, 0);
+});
+
+test("the menu card opens the week menu, scrolled to today when a meal was tapped", async () => {
+  const { win, view, state, tabs, menuCards, journal } = load();
+  win.renderFoodJournal();
+  menuCards[0].deps.openMenu("today");
+  assert.equal(state.planJump, "meals");
+  assert.deepEqual(tabs, ["plan"]);
+  // The dispatcher then renders the menu (lazy("meals", () => renderMeals())).
+  await win.renderMeals();
+  assert.equal(state.planSeg, "meals");
+  assert.equal(journal.at(-1).kind, "menu");
+  assert.equal(journal.at(-1).focus, "today");
+  assert.equal(journal.at(-1).slot, view.querySelector("#mealMenuSlot"));
+  // The hand-off is spent: a later visit opens at the top of the week.
+  await win.renderMeals();
+  assert.equal(journal.at(-1).focus, "week");
+});
+
+test("another day carries no menu card", () => {
+  const { win, view, menuCards } = load({ logDate: "2026-04-20" });
+  win.renderFoodJournal();
+  assert.equal(view.querySelector("#fuelMenuSlot"), null);
+  assert.equal(menuCards.length, 0);
 });
 
 test("a cold open holds the day card's skeleton and writes the surface once the slots' reads answer", async () => {
@@ -203,16 +278,38 @@ test("another day is read and corrected only: no composer, no ideas", () => {
   assert.equal(mounts.today.deps.date, "2026-04-20");
 });
 
-test("Plan → Meals redirects into Fuel with the meal-plan journal open as history", async () => {
-  const { win, view, state, routes, bundles, journal } = load();
+test("Plan → Meals is the week menu: its own page under Today that steps back to Fuel", async () => {
+  const { win, view, state, routes, bundles, journal, tabs } = load();
   await win.renderMeals();
-  assert.equal(state.planSeg, "food");
-  assert.ok(view.querySelector(".food-journal"));
-  assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), true);
-  assert.equal(view.querySelector("#fuelHistory").dataset.painted, "1", "the journal paints into the fold");
+  assert.equal(state.planSeg, "meals");
+  assert.equal(win.headerTitle.textContent, "This week's menu");
+  assert.equal(view.querySelector(".food-journal"), null, "not Fuel");
+  assert.ok(view.querySelector("#mealMenuSlot"));
+  assert.match(view.querySelector("h1").textContent, /This week's menu/);
   assert.deepEqual(bundles, ["meals"], "the planner is the lazy meals bundle's");
-  assert.equal(journal[0]?.slot, view.querySelector("#fuelHistorySlot"));
-  assert.deepEqual(routes, ["replace"], "the URL follows to /app/today/fuel");
+  assert.equal(journal[0]?.kind, "menu");
+  assert.deepEqual(routes, [], "the route is its own (/app/today/menu): no redirect");
+  const back = view.querySelector("[data-mmenu-back]");
+  assert.match(back.textContent, /‹ Fuel/);
+  back.click();
+  assert.equal(state.planJump, "food");
+  assert.deepEqual(tabs, ["plan"]);
+});
+
+test("Earlier meal plans on the week menu opens Fuel with its history fold open", async () => {
+  const { win, view, state, tabs, journal } = load();
+  await win.renderMeals();
+  view.querySelector("[data-mmenu-history]").click();
+  assert.equal(state.planJump, "food");
+  assert.deepEqual(tabs, ["plan"]);
+  await win.renderFoodJournal();
+  assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), true);
+  assert.equal(view.querySelector("#fuelHistory").dataset.painted, "1");
+  assert.equal(journal.at(-1).kind, "history");
+  assert.equal(journal.at(-1).slot, view.querySelector("#fuelHistorySlot"));
+  // The hand-off is spent: the next Fuel opens folded.
+  win.renderFoodJournal();
+  assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), false);
 });
 
 test("a second visit tears the previous mounts down first", async () => {
@@ -224,21 +321,24 @@ test("a second visit tears the previous mounts down first", async () => {
   for (const name of ["today", "meals", "log", "ideas"]) assert.ok(events.includes(`${name}:teardown`), name);
 });
 
-test("a meal-plan history action repaints the fold alone: Today, Log and Meals stay mounted", async () => {
-  const { win, view, mounts, events, routes } = load();
-  await win.renderMeals();
+test("a meal-plan action on Fuel refreshes the menu card and an opened fold in place", async () => {
+  const { win, view, mounts, events, routes, journal } = load();
+  await win.renderFoodJournal({ history: true });
   const todaySlot = view.querySelector("#dayFuelSlot");
   const logSlot = view.querySelector("#fuelLogSlot");
   routes.length = 0;
   events.length = 0;
+  journal.length = 0;
   const token = win.pollToken;
   await win.repaintMealHistory();
   assert.deepEqual(
     events.filter((e) => e.endsWith(":teardown")),
     [],
-    "no component is torn down by a history action"
+    "no component is torn down by a meal-plan action"
   );
-  assert.ok(events.includes("invalidate:meals:plans"), "the journal re-reads");
+  assert.ok(events.includes("invalidate:meals:plans"), "the plans re-read");
+  assert.ok(events.includes("menu:refresh"), "the card repaints in place");
+  assert.deepEqual(journal.map((j) => j.kind), ["history"], "the opened fold repaints");
   assert.equal(view.querySelector("#dayFuelSlot"), todaySlot, "the shell is the same node");
   assert.equal(view.querySelector("#fuelLogSlot"), logSlot);
   assert.equal(mounts.log.host, logSlot);
@@ -246,10 +346,23 @@ test("a meal-plan history action repaints the fold alone: Today, Log and Meals s
   assert.deepEqual(routes, [], "and no navigation");
 });
 
-test("off the Fuel surface a history action still reaches the journal", async () => {
-  const { win, view, state } = load();
+test("a meal-plan action on the week menu repaints the menu, never navigates", async () => {
+  const { win, view, journal, routes, tabs } = load();
+  await win.renderMeals();
+  const slot = view.querySelector("#mealMenuSlot");
+  journal.length = 0;
+  await win.repaintMealHistory();
+  assert.deepEqual(journal.map((j) => [j.kind, j.slot === slot]), [["menu", true]]);
+  assert.deepEqual(routes, []);
+  assert.deepEqual(tabs, []);
+});
+
+test("off both surfaces a meal-plan action only invalidates: it never pulls the athlete away", async () => {
+  const { win, view, state, events, journal, tabs } = load();
   view.innerHTML = `<div id="meallist"></div>`;
   await win.repaintMealHistory();
-  assert.equal(state.planSeg, "food");
-  assert.equal(view.querySelector("#fuelHistory").hasAttribute("open"), true);
+  assert.ok(events.includes("invalidate:meals:plans"));
+  assert.deepEqual(journal, []);
+  assert.deepEqual(tabs, []);
+  assert.equal(state.planSeg, "edit");
 });

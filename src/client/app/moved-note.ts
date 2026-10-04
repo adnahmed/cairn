@@ -9,28 +9,39 @@
 //
 // The line sits in the shell header (#movedNote in index.html), never inside #view,
 // so a renderer repainting the view cannot drop it half-read. The shell calls
-// sync(view, home) on every switch (highlightHome in app/tabs.ts).
+// sync(view, home, section) on every switch and every in-view section change
+// (highlightHome in app/tabs.ts).
+//
+// "Landing" means the view AND its section. One view can carry several sections
+// that read as separate places (Train's Program, Fuel and Body groups are all
+// sections of the "progress" view), so a note names the section it is about, and
+// a note with no section sits on the view's bare landing only (no stone detail, no
+// goal sub-view).
 
 type MovedNoteStorage = Pick<Storage, "getItem" | "setItem"> & Partial<Pick<Storage, "key" | "length">>;
 type MovedNoteStamp = "upgraded" | "fresh";
+type MovedNoteEntry = { view: string; section?: string; text: string };
 
 type MovedNoteApi = {
   STAMP_KEY: string;
   DISMISS_PREFIX: string;
-  NOTES: Readonly<Record<string, { view: string; text: string }>>;
+  NOTES: Readonly<Record<string, MovedNoteEntry>>;
   stamp(storage: MovedNoteStorage | null): MovedNoteStamp;
-  noteFor(view: string, home: string, storage: MovedNoteStorage | null): string | null;
+  noteFor(view: string, home: string, storage: MovedNoteStorage | null, section?: string | null): string | null;
   dismiss(home: string, storage: MovedNoteStorage | null): void;
-  sync(view: string, home: string): void;
+  sync(view: string, home: string, section?: string | null): void;
 };
 
 {
   const STAMP_KEY = "cairn.nav.homes.v1";
   const DISMISS_PREFIX = "cairn.nav.moved.v1.";
-  // One line per home, shown on the home's landing view only.
-  const NOTES: Readonly<Record<string, { view: string; text: string }>> = {
+  // One line per home, shown on the one place it is about: the view, and the
+  // section of it when it names one (else the view's bare landing). Train's line is
+  // about Program, so it sits on Train's Program section, never on Train's Fuel or
+  // Body sections of the same view, where it would point at the wrong thing.
+  const NOTES: Readonly<Record<string, MovedNoteEntry>> = {
     today: { view: "today", text: "Food logging now opens from Today: tap Fuel." },
-    train: { view: "progress", text: "Your plan now lives in Train, under Program." },
+    train: { view: "progress", section: "program", text: "Your plan now lives in Train, under Program." },
     horizon: { view: "horizon", text: "Your race build now lives in Horizon." },
     ask: { view: "chat", text: "Coach is now Ask. The team's change record lives here too." },
     you: { view: "you", text: "Health, About you and Settings now live in You." },
@@ -76,9 +87,15 @@ type MovedNoteApi = {
     return value;
   }
 
-  function noteFor(view: string, home: string, storage: MovedNoteStorage | null): string | null {
+  function noteFor(
+    view: string,
+    home: string,
+    storage: MovedNoteStorage | null,
+    section: string | null = null
+  ): string | null {
     const note = NOTES[home];
     if (!note || note.view !== view) return null;
+    if ((note.section || null) !== (section || null)) return null;
     if (stamp(storage) !== "upgraded") return null;
     if (read(storage, DISMISS_PREFIX + home)) return null;
     return note.text;
@@ -97,11 +114,11 @@ type MovedNoteApi = {
   }
 
   let wired = false;
-  function sync(view: string, home: string): void {
+  function sync(view: string, home: string, section: string | null = null): void {
     const el = typeof document !== "undefined" ? document.getElementById("movedNote") : null;
     if (!el) return;
     const storage = localStore();
-    const text = noteFor(view, home, storage);
+    const text = noteFor(view, home, storage, section);
     if (!text) {
       el.hidden = true;
       el.innerHTML = "";

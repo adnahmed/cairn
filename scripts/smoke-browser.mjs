@@ -24,6 +24,8 @@ const routes = [
   { path: "/app/today", tab: "today", home: "today" },
   // The v2 grammar, /app/<home>/<section>.
   { path: "/app/today/fuel", tab: "plan", home: "today", expectedState: { planSeg: "food" } },
+  // The week menu: the current meal plan's days, meals, swaps and recipes.
+  { path: "/app/today/menu", tab: "plan", home: "today", expectedState: { planSeg: "meals" } },
   { path: "/app/train/energy", tab: "progress", home: "train", expectedState: { progressSeg: "energy" } },
   // Program hosts the multi-anchor strength card (GET /api/strength-journeys).
   { path: "/app/train/program", tab: "progress", home: "train", expectedState: { progressSeg: "program" } },
@@ -45,8 +47,8 @@ const routes = [
   { path: "/app/you/settings/agents", tab: "settings", home: "you", expectedState: { setSeg: "agents" } },
   // v1 paths land on the same surface and are rewritten to v2.
   { path: "/app/plan/food", tab: "plan", home: "today", expectedHref: "/app/today/fuel", expectedState: { planSeg: "food" } },
-  // Plan → Meals redirects into Fuel with the meal-plan journal open.
-  { path: "/app/plan/meals", tab: "plan", home: "today", expectedHref: "/app/today/fuel", expectedState: { planSeg: "food" } },
+  // Plan → Meals lands on the week menu.
+  { path: "/app/plan/meals", tab: "plan", home: "today", expectedHref: "/app/today/menu", expectedState: { planSeg: "meals" } },
   { path: "/app/plan/coach", tab: "plan", home: "ask", expectedHref: "/app/ask/changes", expectedState: { planSeg: "coach" } },
   { path: "/app/plan/edit", tab: "plan", home: "train", expectedHref: "/app/train/plan", expectedState: { planSeg: "edit" } },
   { path: "/app/progress/program", tab: "progress", home: "train", expectedHref: "/app/train/program", expectedState: { progressSeg: "program" } },

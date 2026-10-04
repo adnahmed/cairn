@@ -1,7 +1,10 @@
 // @ts-check
-// The meal-plan journal inside Fuel's history fold (lazy "meals" bundle): the current
-// plan, its earlier weeks, and the Hold/Undo on a meal decision. Fuel paints the fold
-// eagerly (coach-meals-screen.ts) and reaches this through withBundle("meals").
+// The meal-plan journal (lazy "meals" bundle), painted into two places the eager screen
+// (coach-meals-screen.ts) owns and reaches through withBundle("meals"):
+//   - the week menu (/app/today/menu): the current plan's days and meals with swap,
+//     recipe, log and reorder, the shopping list, planning preferences, the Hold/Undo on
+//     a meal decision, and the ask for a fresh week;
+//   - Fuel's history fold: every OTHER week (earlier, set aside, a draft not offered).
 
 type MealJournalPeek = SwrPeek<import("../contracts/client-api.js").ClientMealPlan[]> | null;
 
@@ -38,7 +41,9 @@ type MealJournalPeek = SwrPeek<import("../contracts/client-api.js").ClientMealPl
     );
   }
 
-  function paintMealJournal(token: number, slot: HTMLElement, peek: MealJournalPeek): Promise<unknown> {
+  // The week menu. `focus: "today"` (a tap on one of today's meals on Fuel's card)
+  // brings today's day into view on the first paint only; a revalidate never scrolls.
+  function paintMealMenu(token: number, slot: HTMLElement, peek: MealJournalPeek, focus: "today" | "week" = "week"): Promise<unknown> {
     let mealPrefs = String(
       peekCached<import("../contracts/client-api.js").ClientSettingsResponse>(MEALS_SETTINGS_KEY)?.data?.settings
         ?.meal_prefs || ""
@@ -56,22 +61,71 @@ type MealJournalPeek = SwrPeek<import("../contracts/client-api.js").ClientMealPl
       token,
       tab: "plan",
       render: (plansRes) => {
-        if (slot.isConnected) paintMealsBody(slot, plansRes || [], mealPrefs);
+        if (!slot.isConnected) return;
+        paintMenuBody(slot, plansRes || [], mealPrefs);
+        if (focus !== "today" || slot.dataset.focused) return;
+        slot.dataset.focused = "1";
+        slot.querySelector(".mealday-today")?.scrollIntoView?.({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" });
       },
     });
   }
 
-  // Build + wire the meal-plan journal from a plans list (+ verbatim meal prefs) into
-  // the history slot. Called on a warm peek and again on a changed revalidate; the
-  // inner wiring re-queries the freshly written DOM each time.
-  function paintMealsBody(slot: HTMLElement, plans: unknown, mealPrefs: string): void {
-    const current = CairnMealPlan.currentMealPlan(plans);
-    const upcoming = Array.isArray(plans)
-      ? plans.find((plan) => {
-          const row = plan && typeof plan === "object" ? (plan as Record<string, any>) : {};
-          return row.status === "draft" && ["announced", "pending"].includes(String(row.autonomy?.status));
-        })
-      : null;
+  // Fuel's history fold: the weeks that are not the current menu.
+  function paintMealHistory(token: number, slot: HTMLElement, peek: MealJournalPeek): Promise<unknown> {
+    return paintSWR({
+      key: MEALS_KEY,
+      path: "/mealplans?limit=12",
+      peek,
+      token,
+      tab: "plan",
+      render: (plansRes) => {
+        if (slot.isConnected) paintHistoryBody(slot, plansRes || []);
+      },
+    });
+  }
+
+  type MealJournalRow = Record<string, unknown> & { id?: unknown; status?: unknown; autonomy?: { status?: unknown } };
+
+  // One reading of the plan list for both places: the CURRENT week (a kept week, else
+  // the newest adequate draft), a week scheduled to become current, a fresh week (an
+  // adequate draft asked for AFTER the kept week — it waits on the menu for a yes), and
+  // the past: settled weeks plus every draft the menu does not offer (an older one, an
+  // inadequate one, or any other draft beside a draft that is itself current).
+  function mealJournalWeeks(plans: unknown) {
+    const rows: MealJournalRow[] = Array.isArray(plans)
+      ? plans.filter((plan): plan is MealJournalRow => !!plan && typeof plan === "object")
+      : [];
+    const current = CairnMealPlan.currentMealPlan(rows);
+    const isCurrent = (row: MealJournalRow): boolean => !!current && row.id === current.id;
+    const upcoming =
+      rows.find((row) => row.status === "draft" && ["announced", "pending"].includes(String(row.autonomy?.status))) || null;
+    const kept = !!current && current.status !== "draft";
+    const fresh = (row: MealJournalRow): boolean =>
+      kept && Number(row.id) > Number(current?.id) && CairnMealPlan.mealPlanIsAdequate(row);
+    const others = rows.filter((row) => !isCurrent(row) && row !== upcoming);
+    return {
+      current,
+      upcoming,
+      drafts: others.filter((row) => row.status === "draft" && fresh(row)),
+      past: others.filter((row) => row.status !== "draft" || !fresh(row)),
+    };
+  }
+
+  function paintHistoryBody(slot: HTMLElement, plans: unknown): void {
+    const { past } = mealJournalWeeks(plans);
+    if (!past.length) {
+      slot.innerHTML = `<p class="sess-line mp-muted fuel-history-none">Earlier weeks you keep or set aside wait here.</p>`;
+      return;
+    }
+    slot.innerHTML = `<div id="mealHist"></div>`;
+    CairnMealPlannerController.renderMealPlans(past, "#mealHist", () => repaintMealHistory());
+  }
+
+  // Build + wire the week menu from a plans list (+ verbatim meal prefs) into its slot.
+  // Called on a warm peek and again on a changed revalidate; the inner wiring re-queries
+  // the freshly written DOM each time.
+  function paintMenuBody(slot: HTMLElement, plans: unknown, mealPrefs: string): void {
+    const { current, upcoming, drafts } = mealJournalWeeks(plans);
     const currentPlan =
       current && (typeof current.id === "string" || typeof current.id === "number")
         ? (current as Record<string, unknown> & { id: string | number })
@@ -87,15 +141,34 @@ type MealJournalPeek = SwrPeek<import("../contracts/client-api.js").ClientMealPl
       verified: currentPlan ? CairnMealPlannerController.verifiedForPlan(currentPlan.id) : null,
       upcoming,
     });
-    slot.innerHTML = `${painted.html}<h3 class="lbl fuel-history-h">Earlier weeks</h3><div id="mealHist"></div>`;
+    slot.innerHTML =
+      painted.html +
+      (drafts.length ? `<h2 class="lbl mmenu-drafts-h">A fresh week to look over</h2><div id="mealDrafts"></div>` : "");
     runCountUps(slot);
-    CairnMealPlannerController.renderMealPlans(plans, "#mealHist", () => repaintMealHistory());
+    if (drafts.length) CairnMealPlannerController.renderMealPlans(drafts, "#mealDrafts", () => repaintMealHistory());
     CairnMealPlannerController.wireMealPlannerBody(currentPlan, painted.context);
     wireMealDecisionActions(slot);
     if (currentPlan) loadMealProvenance();
   }
 
-  const CAIRN_MEAL_JOURNAL: Window["CairnMealJournal"] = { paint: paintMealJournal };
+  // The week menu's page frame (the route renders only once this bundle has landed, so
+  // the frame and its copy ride here rather than in the eager Fuel screen).
+  function menuPageHtml(): string {
+    return `<section class="mmenu-page" id="mealMenu">
+      <button class="home-back linkbtn linkbtn-plain" type="button" data-mmenu-back>‹ Fuel</button>
+      <h1 class="sr-only">This week's menu</h1>
+      <p class="mmenu-page-lede">Ideas from the team for the week, built around your training. Swap a meal, open its recipe, or log it when you eat it.</p>
+      <div id="mealMenuSlot" class="mmenu-page-body">${skelLines(3)}</div>
+      <button class="linkbtn linkbtn-quiet mmenu-page-history" type="button" data-mmenu-history>Earlier meal plans are kept in Fuel</button>
+    </section>`;
+  }
+
+  const CAIRN_MEAL_JOURNAL: Window["CairnMealJournal"] = {
+    menuPageHtml,
+    paintMenu: paintMealMenu,
+    paintHistory: paintMealHistory,
+    weeks: mealJournalWeeks,
+  };
 
   Object.assign(globalThis, { CairnMealJournal: CAIRN_MEAL_JOURNAL });
 })();

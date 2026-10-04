@@ -79,7 +79,7 @@ function canonicalPaths(routes) {
   const defs = routes.routeDefinitions;
   const sections = new Set(Object.values(defs.sections).flat());
   // The v2-only slugs parseV2 names directly (not in any section list).
-  for (const slug of ["session", "fuel", "day", "plan", "race", "changes", "health", "settings"]) sections.add(slug);
+  for (const slug of ["session", "fuel", "menu", "day", "plan", "race", "changes", "health", "settings"]) sections.add(slug);
   const out = [];
   for (const home of defs.homes) {
     out.push([home]);

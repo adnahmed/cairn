@@ -16,7 +16,7 @@
     const calm = (): boolean => (typeof deps.reducedMotion === "function" ? deps.reducedMotion() : false);
 
     function paint(value: unknown): void {
-      const model = CairnRaceViewModel.viewModel(value, { units: deps.units });
+      const model = CairnRaceViewModel.viewModel(value, { units: deps.units, agenda: deps.agenda ?? null });
       if (!model) {
         const reason = value && typeof value === "object" ? (value as { reason?: unknown }).reason : null;
         host.innerHTML = CairnRaceView.emptyHtml(reason);
@@ -24,6 +24,7 @@
         host.innerHTML = CairnRaceView.viewHtml(model, {
           enter: !painted && !calm(),
           sessionsHtml: deps.sessionsHtml,
+          nextWeekHtml: deps.nextWeekHtml,
           units: deps.units,
         });
       }

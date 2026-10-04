@@ -4,7 +4,7 @@
 // unrelated non-marker follow-ups from silently collapsing into one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { followupLabel, markerSlugFromSignalKey } from "../dist/repo/attention-labels.js";
+import { followupLabel, labRecheckLabel, markerLabelFromSlug, markerSlugFromSignalKey } from "../dist/repo/attention-labels.js";
 
 test("markerSlugFromSignalKey extracts a real marker slug for cadence + marker follow-ups", () => {
   assert.equal(markerSlugFromSignalKey("marker:hs-crp"), "hs-crp");
@@ -29,4 +29,27 @@ test("followupLabel strips the prefix and any trailing timing parenthetical", ()
   assert.equal(followupLabel("Health review follow-up: Repeat colonoscopy."), "Repeat colonoscopy.");
   assert.equal(followupLabel(""), null);
   assert.equal(followupLabel(null), null);
+});
+
+test("markerLabelFromSlug reads a marker slug back in its canonical display casing", () => {
+  // The leak this guards: "marker:hs-crp" title-cased as "Hs Crp".
+  assert.equal(markerLabelFromSlug("hs-crp"), "hs-CRP");
+  assert.equal(markerLabelFromSlug("lp-a"), "Lp(a)");
+  assert.equal(markerLabelFromSlug("ldl-c"), "LDL-C");
+  assert.equal(markerLabelFromSlug("apob"), "ApoB");
+  assert.equal(markerLabelFromSlug("hba1c"), "HbA1c");
+  assert.equal(markerLabelFromSlug("vitamin-d"), "Vitamin D");
+  // A marker the zone table does not know keeps its own words, capital first only.
+  assert.equal(markerLabelFromSlug("some-new-analyte"), "Some new analyte");
+  assert.equal(markerLabelFromSlug("lab-follow-up"), null, "the sentinel is not a marker");
+  assert.equal(markerLabelFromSlug(""), null);
+});
+
+test("labRecheckLabel names the lab or scan a doctor-loop row is about", () => {
+  assert.equal(labRecheckLabel("marker:hs-crp"), "hs-CRP");
+  assert.equal(labRecheckLabel("directive-recheck:ldl-c"), "LDL-C");
+  assert.equal(labRecheckLabel("review-followup:vitamin-d:retest-vitamin-d"), "Vitamin D");
+  assert.equal(labRecheckLabel("dexa:body-composition"), "DEXA scan");
+  assert.equal(labRecheckLabel("review-followup:lab-follow-up:repeat-sleep-study"), null);
+  assert.equal(labRecheckLabel("training:strength:back-squat"), null);
 });

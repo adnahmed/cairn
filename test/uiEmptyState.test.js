@@ -37,7 +37,7 @@ test("Progress's empty state is the shared primitive", () => {
 
 test("the meal-plan history and the Health read's markers render the primitive when empty", () => {
   const meals = loadClientModule(
-    ["html-utils", "ui-components", "decision-undo-client", "meal-row-client", "meal-plan-client"],
+    ["html-utils", "ui-components", "decision-undo-client", "meal-row-client", "meal-plan-upcoming-client", "meal-plan-client"],
     {
       globals: { stagger: (i) => `--i:${i}`, art: () => "", artImg: () => "" },
     }

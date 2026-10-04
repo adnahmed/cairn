@@ -19,6 +19,8 @@ const MODULES = [
   "journey-progress-client",
   "journey-timeline-client",
   "race-week-model",
+  "race-week-runs-model",
+  "race-ladder-model",
   "race-view-model",
   "race-estimate-client",
   "race-ladder-client",
@@ -234,7 +236,16 @@ test("race lane: a glance at the build through the race view's own model — voi
   // The ladder is the race page's depth, never repeated here.
   assert.equal(lane.ladder, undefined);
   // This week in one row: the stage, what the log holds of the week's volume, the focus.
-  assert.deepEqual(plain(lane.this_week), {
+  const glance = plain(lane.this_week);
+  const picked = Object.fromEntries(
+    ["stage_word", "done_km", "target_km", "done_text", "target_text", "frac", "banked", "long_text", "focus"].map(
+      (k) => [k, glance[k]]
+    )
+  );
+  // The race page's card words ride along (the kicker, without the weeks out the page's
+  // head already says); the glance reads only these.
+  assert.equal(glance.kicker, "This week · Build");
+  assert.deepEqual(picked, {
     stage_word: "Build",
     done_km: 18,
     target_km: 32,
@@ -1445,7 +1456,8 @@ test("run units: miles restate every distance on the race lane, the chart and th
   const ladder = win.CairnRaceViewModel.ladderModel(read, "mi");
   const now = ladder.rows.findIndex((row) => row.current);
   assert.equal(ladder.rows[now].km, 32);
-  assert.equal(ladder.rows[now].km_text, "19.9 mi");
+  // The live week reads what the log holds of its plan, both in miles.
+  assert.equal(ladder.rows[now].km_text, "11.2 of 19.9 mi");
   assert.equal(ladder.rows[now].long_text, "long 8.1 mi");
   assert.equal(ladder.rows[now].frac, win.CairnRaceViewModel.ladderModel(read).rows[now].frac);
   assert.equal(win.CairnRaceViewModel.kmText(21.0975, "mi"), "13.1 mi");

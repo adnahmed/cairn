@@ -145,3 +145,50 @@
 .mp-why{display:inline-block;margin:0 var(--space-3)}
 .mp-hero-unit{display:block;margin-top:var(--space-1)}
 .meals-redraft-btn{width:100%;text-align:center;padding:var(--space-5)}
+
+/* ---- This week's menu (meal-menu-card-*.ts): today's planned meals from the current
+   week, one quiet card above the day's journal. Hairline rows with the food plate,
+   the meal's slot in mono, its name, one muted line of what is in it, and plain kcal.
+   The whole card is a way into the week menu (/app/today/menu). ---- */
+.mmenu{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:var(--space-7) var(--space-8) var(--space-6)}
+.mmenu-skel{min-height:132px}
+.mmenu-head{display:flex;align-items:baseline;gap:var(--space-4)}
+.mmenu-title{margin:0}
+.mmenu-head .mp-badge{margin-left:auto}
+.mmenu-note{margin:var(--space-3) 0 0;font-size:var(--text-sm);color:var(--ink2);line-height:var(--leading-normal)}
+.mmenu-day{margin:var(--space-5) 0 0;font-size:var(--text-xs);color:var(--muted)}
+.mmenu-today{color:var(--d-fuel);font-weight:var(--weight-semibold)}
+.mmenu-list{list-style:none;margin:var(--space-2) 0 0;padding:0}
+.mmenu-meal + .mmenu-meal{border-top:1px solid var(--line)}
+.mmenu-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--space-6);width:100%;
+  min-height:56px;padding:var(--space-4) 0;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;
+  transition:transform var(--dur-1) var(--ease)}
+.mmenu-row:active{transform:var(--press-lg)}
+.mmenu-row:focus-visible{outline:2px solid var(--dawn);outline-offset:2px;border-radius:var(--radius-xs)}
+.mmenu-art{flex:0 0 auto}
+.mmenu-main{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.mmenu-slot{color:var(--d-fuel)}
+.mmenu-name{font-size:var(--text-md);font-weight:var(--weight-semibold);line-height:var(--leading-snug);color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mmenu-items{font-size:var(--text-xs);color:var(--muted);line-height:var(--leading-normal);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mmenu-kcal{font-size:var(--text-sm);color:var(--ink2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.mmenu-unit{font-size:var(--text-xs);color:var(--muted)}
+.mmenu-quiet{margin:var(--space-5) 0 0;font-size:var(--text-md);color:var(--ink2);line-height:var(--leading)}
+.mmenu-week{display:inline-flex;align-items:center;gap:var(--space-2);min-height:44px;margin-top:var(--space-2);font-size:var(--text-sm)}
+.mmenu-status:empty{display:none}
+.mmenu-status{margin-top:var(--space-2)}
+/* No week yet: the plate, two quiet lines, and one ask. */
+.mmenu-empty-body{display:flex;align-items:center;gap:var(--space-7);margin-top:var(--space-5)}
+.mmenu-empty-art{flex:0 0 auto}
+.mmenu-empty-words{min-width:0}
+.mmenu-empty-title{margin:0;font-family:var(--font-display);font-weight:var(--weight-regular);font-size:var(--text-lead);line-height:var(--leading-snug);color:var(--ink)}
+.mmenu-empty-sub{margin:var(--space-2) 0 0;font-size:var(--text-sm);color:var(--ink2);line-height:var(--leading-normal)}
+.mmenu-draft{margin-top:var(--space-7);min-height:44px}
+
+/* ---- The week menu page (/app/today/menu): the planner (planner.css) under one lede,
+   a fresh draft waiting below it, and a quiet way to the past weeks in Fuel. ---- */
+.mmenu-page-lede{margin:var(--space-2) 0 var(--space-9);font-size:var(--text-sm);color:var(--ink2);line-height:var(--leading)}
+.mmenu-drafts-h{margin:var(--space-11) 0 var(--space-4)}
+.mmenu-page-history{display:inline-flex;align-items:center;min-height:44px;margin-top:var(--space-8)}
+.fuel-history-none{margin:var(--space-4) 0 0}

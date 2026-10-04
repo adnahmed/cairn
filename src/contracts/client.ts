@@ -276,7 +276,11 @@ export type ClientPlanUpcomingNote = {
 
 export interface ClientCoachingRetest {
   in_weeks: number | null;
+  /** The training re-tests (lifts, a run test). Never a lab. */
   focus: string[];
+  /** Labs / scans due in the same window, by canonical display name ("hs-CRP").
+   *  Optional: an older cached payload carries none. */
+  labs?: string[];
   why: string;
 }
 

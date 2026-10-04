@@ -231,6 +231,35 @@ test("hostile text is escaped at rest too", () => {
   assert.equal(host.querySelector(".meal-card-amount").textContent, "<i>2</i>");
 });
 
+test("at rest: each item lists its own macros and the meal shows its split; unknown values are omitted", () => {
+  const win = load();
+  const note = pastedNote({
+    protein_g: 69,
+    carbs_g: 15,
+    fat_g: 32,
+    fiber_g: 7,
+    ingredients: [
+      { item: "Turkey breast", amount: "82 g", kcal: 95, protein_g: 22, carbs_g: 0, fat_g: 1, fiber_g: 0 },
+      { item: "Avocado", amount: "1/5 avocado", kcal: 50, protein_g: 0.6, carbs_g: 2.5, fat_g: 4.5, fiber_g: 2 },
+      { item: "Mystery sauce", amount: "1 tbsp", kcal: 30 },
+      { item: "Plain", amount: "1" },
+    ],
+  });
+  const host = renderHtml(win.CairnMealCard.mealCardHtml(win.CairnMealCardModel.mealCardModel(note)), {
+    document: win.document,
+  });
+  const macros = [...host.querySelectorAll(".meal-card-row .meal-card-macros")].map((el) => el.textContent);
+  assert.deepEqual(macros, ["22 g P · 0 g C · 1 g F · 0 g fiber", "0.6 g P · 2.5 g C · 4.5 g F · 2 g fiber"]);
+  assert.equal(host.querySelectorAll(".meal-card-row").length, 4, "rows without macros still render, with no macro line");
+  assert.equal(host.querySelector(".meal-card-split-text").textContent, "69 g protein · 15 g carbs · 32 g fat · 7 g fiber");
+  assert.equal(host.querySelectorAll(".meal-card-split-seg").length, 3);
+
+  const partial = renderHtml(win.CairnMealCard.macroSplitHtml({ protein_g: 20, fiber_g: null }), { document: win.document });
+  assert.equal(partial.querySelector(".meal-card-split-text").textContent, "20 g protein");
+  assert.equal(partial.querySelector(".meal-card-split-bar"), null, "one macro is not a split");
+  assert.equal(win.CairnMealCard.macroSplitHtml({}), "", "nothing known draws nothing");
+});
+
 test("model: a portion reads in words; a stated weight stays", () => {
   const M = load().CairnMealCardModel;
   assert.equal(M.portionWords("1 handful (~30 g)"), "1 handful");

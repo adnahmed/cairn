@@ -3,6 +3,8 @@
 // surfaces describe the same recheck signal with the same words, and dedupe it the
 // same way. Pure/offline; null-safe on any input.
 
+import { matchOptimalZone, OPTIMAL_ZONES } from "./propagation-data.js";
+
 // A review-followup row's signal_key is machinery ("review-followup:hs-crp:…"); the
 // human action lives in its reason ("Health review follow-up: Recheck hs-CRP (when
 // rested…)"). Return that action as a label — minus the "Health review follow-up:"
@@ -43,4 +45,49 @@ export function markerSlugFromSignalKey(key: unknown): string | null {
     return slug === FOLLOWUP_SENTINEL_SLUG ? null : slug;
   }
   return null;
+}
+
+// The same slug rule the doctor loop files marker keys under (doctor-loop.ts
+// signalSlug): lower-case, every run of non-alphanumerics one dash.
+function slugOf(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+// Every OPTIMAL_ZONES label and key, by its slug, so a key's slug reads back as the
+// marker's canonical display name ("hs-crp" -> "hs-CRP", "lp-a" -> "Lp(a)").
+// First writer wins: the zone table's order is its precedence.
+const ZONE_LABEL_BY_SLUG: ReadonlyMap<string, string> = (() => {
+  const map = new Map<string, string>();
+  for (const zone of OPTIMAL_ZONES) if (!map.has(slugOf(zone.label))) map.set(slugOf(zone.label), zone.label);
+  for (const zone of OPTIMAL_ZONES) for (const key of zone.keys) if (!map.has(slugOf(key))) map.set(slugOf(key), zone.label);
+  return map;
+})();
+
+// A marker attention slug ("hs-crp", "vitamin-d", "ldl-c") as a person reads it, in
+// the marker's canonical display casing — never title-cased machinery like "Hs Crp".
+// An exact zone label/key slug first, then the zone matcher over the spaced words, and
+// only for a marker the zone table does not know, the slug's own words with a capital
+// first letter. Null for the non-marker follow-up sentinel and for an empty slug.
+export function markerLabelFromSlug(slug: unknown): string | null {
+  const raw = slugOf(slug);
+  if (!raw || raw === FOLLOWUP_SENTINEL_SLUG) return null;
+  const exact = ZONE_LABEL_BY_SLUG.get(raw);
+  if (exact) return exact;
+  const spaced = raw.replace(/-+/g, " ");
+  const zone = matchOptimalZone(spaced);
+  if (zone) return zone.label;
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+// The lab or scan a doctor-loop attention row is about, by its display name: the
+// marker's canonical name for a marker cadence / directive recheck / marker-named
+// review follow-up, "DEXA scan" for the body-composition re-scan, and null for
+// anything that is not a doctor-loop row or names no marker (a sentinel follow-up).
+export function labRecheckLabel(signalKey: unknown): string | null {
+  const key = String(signalKey ?? "");
+  if (key.startsWith("dexa:")) return "DEXA scan";
+  return markerLabelFromSlug(markerSlugFromSignalKey(key));
 }

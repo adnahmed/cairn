@@ -74,7 +74,8 @@ test("GET /train-home answers each view's reads, each exactly as its own route d
       "/program/adjustments", "/sessions?limit=3", "/journey", "/journey/milestones", "/journey/timeline",
       `/today-strength-line?date=${date}`],
     program: ["/coaching-focus", "/program-state", "/strength-journeys", "/strength-journey", "/performance",
-      "/program/blocks/active", "/program/adjustments", "/test-week", "/muscle-trajectory", "/dexa-targeting"],
+      "/program/blocks/active", "/program/adjustments", "/test-week", "/muscle-trajectory", "/dexa-targeting",
+      "/plan/look-ahead"],
     endurance: ["/stats", "/endurance-prs", "/endurance-goal", "/run-compliance", "/settings", "/run-plan", "/race-build",
       `/training-agenda?date=${date}`, "/program-state", `/calibration/status?date=${date}`],
   };

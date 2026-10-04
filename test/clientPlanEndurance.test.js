@@ -190,7 +190,8 @@ test("plan endurance orchestration fetches the live run plan and faces next week
   assert.match(source, /end-shape-fold/);
   // This week's runs ride in the THIS WEEK card; the connected week strip is Horizon's
   // Week view now, never a second map on the race page.
-  assert.match(source, /CairnPlanEnduranceBriefing\.sessionsHtml\(briefing\)/);
+  assert.match(source, /CairnPlanEnduranceBriefing\.sessionsHtml\(briefing, \{ runs, today \}\)/);
+  assert.match(source, /CairnPlanEnduranceBriefing\.nextWeekHtml\(briefing,/);
   assert.doesNotMatch(source, /end-week-fold|loadPlanWeekStrip/);
   assert.match(source, /laterMonday/);
   assert.match(source, /run_units/);
@@ -395,13 +396,26 @@ test("plan endurance briefing faces the next open run and next week once this we
   assert.equal(banked.remaining[0].label, "Long run");
   assert.equal(banked.later.length, 1);
   assert.match(banked.later[0].when || "", /Oct 4|Sunday/);
-  // The runs already in are ticked with what was run; the next week's runs follow under their own mark.
+  // The runs already in stay in THIS WEEK, never as a bare tick; next week is its own section.
   assert.equal(banked.done.length, 2);
-  const bankedHtml = endurance.sessionsHtml(banked);
-  assert.equal((bankedHtml.match(/race-run-tick/g) || []).length, 2);
-  assert.match(bankedHtml, /class="race-run-mark"><span class="lbl">Next week</);
-  // Only the next run's own week: the later week is the ladder's to show.
-  assert.doesNotMatch(bankedHtml, /Oct 4/);
+  const bankedHtml = endurance.sessionsHtml(banked, { today: "2026-09-20" });
+  assert.equal((bankedHtml.match(/class="race-run [^"]*is-done/g) || []).length, 2);
+  assert.doesNotMatch(bankedHtml, /✓|race-run-tick|Next week|is-next/);
+  const nextHtml = endurance.nextWeekHtml(banked, { today: "2026-09-20", figure: "15 km planned" });
+  assert.match(
+    nextHtml,
+    /<span class="lbl" id="raceNextTitle">Next week<\/span><span class="race-next-km">15 km planned</
+  );
+  // Dates a person says, short enough for the day column at 390px; never "NEXT TUES…".
+  assert.deepEqual(
+    [...nextHtml.matchAll(/race-run-when">([^<]+)</g)].map((m) => m[1]),
+    ["Tue 22", "Sun 27"]
+  );
+  // The detail rides only on the first upcoming run.
+  assert.equal((nextHtml.match(/race-run-detail/g) || []).length, 1);
+  assert.ok(nextHtml.indexOf("race-run-detail") < nextHtml.indexOf("Sun 27"));
+  // Only next week: the week after is the ladder's to show.
+  assert.doesNotMatch(nextHtml, /Oct 4|Sun 4/);
 });
 
 test("a run the morning turned into rest keeps its words, never a distance, pace or its old day's neighbours", () => {
@@ -439,17 +453,47 @@ test("a run the morning turned into rest keeps its words, never a distance, pace
       available: true,
       week_start: "2026-09-28",
       runs: [
-        { day_number: 1, kind_label: "easy", label: "Easy run", target_distance_km: 5.8, note: "Easy aerobic.", interval: null },
-        { day_number: 4, kind_label: "easy", label: "Easy run", target_distance_km: 5.8, note: "Easy aerobic.", interval: null },
+        {
+          day_number: 1,
+          kind_label: "easy",
+          label: "Easy run",
+          target_distance_km: 5.8,
+          note: "Easy aerobic.",
+          interval: null,
+        },
+        {
+          day_number: 4,
+          kind_label: "easy",
+          label: "Easy run",
+          target_distance_km: 5.8,
+          note: "Easy aerobic.",
+          interval: null,
+        },
       ],
     },
     raceBuild: {
       available: true,
-      paces: { bands: [{ key: "easy", label: "Easy", text: "6:55–7:25 /km", fast_sec_per_km: 415, slow_sec_per_km: 445 }] },
+      paces: {
+        bands: [{ key: "easy", label: "Easy", text: "6:55–7:25 /km", fast_sec_per_km: 415, slow_sec_per_km: 445 }],
+      },
       leg_map: [
         { day_number: 1, weekday: "Monday", run: { kind: "easy" }, strength: null, ride: false, hard: false },
-        { day_number: 2, weekday: "Tuesday", run: null, strength: { name: "Pull", heavy_lower: false }, ride: false, hard: false },
-        { day_number: 4, weekday: "Thursday", run: { kind: "easy" }, strength: { name: "Lower B", heavy_lower: true }, ride: false, hard: true },
+        {
+          day_number: 2,
+          weekday: "Tuesday",
+          run: null,
+          strength: { name: "Pull", heavy_lower: false },
+          ride: false,
+          hard: false,
+        },
+        {
+          day_number: 4,
+          weekday: "Thursday",
+          run: { kind: "easy" },
+          strength: { name: "Lower B", heavy_lower: true },
+          ride: false,
+          hard: true,
+        },
       ],
     },
   });
@@ -476,7 +520,9 @@ test("the race page without a race: THIS WEEK still stands for a runner, never a
       "ui-chart",
       "format-utils",
       "race-week-model",
-  "race-view-model",
+      "race-week-runs-model",
+      "race-ladder-model",
+      "race-view-model",
       "race-estimate-client",
       "race-ladder-client",
       "race-view-client",
@@ -516,7 +562,7 @@ test("the race page without a race: THIS WEEK still stands for a runner, never a
   const card = body.querySelector(".race-week");
   assert.ok(card, "the THIS WEEK card stands without a race");
   assert.equal(card.querySelector(".race-week-stage").textContent, "Your running week");
-  assert.equal(card.querySelector(".race-week-num").textContent, "3.7 of 12.4 mi");
+  assert.equal(card.querySelector(".race-week-num").textContent, "3.7 mi · plan 12.4");
   assert.match(card.querySelector(".race-runs").textContent, /Long run/);
   // The run engine's own sentence, in the athlete's units, is the focus.
   assert.equal(card.querySelector(".race-week-focus").textContent, "About 12.4 mi this week: 2 easy + 1 long.");
@@ -525,6 +571,73 @@ test("the race page without a race: THIS WEEK still stands for a runner, never a
   assert.equal(body.querySelector(".race-estimate"), null);
   assert.equal(body.querySelector("#endRaceSlot"), null);
   assert.equal(body.querySelector(".end-goal-name").textContent, "No race on the calendar");
+});
+
+test("a run in reads what was run first and the plan second; an extra is named, never dropped", () => {
+  const endurance = loadPlanEnduranceClient();
+  const briefing = endurance.buildBriefing({ today: "2026-10-04", agenda: { available: true, intents: [] } });
+  const runs = [
+    {
+      date: "2026-09-29",
+      when: "Tue",
+      km: 9.68,
+      km_text: "9.7 km",
+      pace_text: "5:34/km",
+      effort_word: "hard",
+      actual_text: "9.7 km · 5:34/km · hard",
+      title: "",
+      tone: "quality",
+      extra: false,
+      planned_text: "planned: easy 4.8 km",
+      adjust_text: "",
+    },
+    {
+      date: "2026-10-02",
+      when: "Fri",
+      km: 5.97,
+      km_text: "6 km",
+      pace_text: "",
+      effort_word: "",
+      actual_text: "6 km",
+      title: "<b>Hill sprints</b>",
+      tone: "quality",
+      extra: true,
+      planned_text: "",
+      adjust_text: "",
+    },
+    {
+      date: "2026-10-04",
+      when: "Sun",
+      km: 13.54,
+      km_text: "13.5 km",
+      pace_text: "6:11/km",
+      effort_word: "easy",
+      actual_text: "13.5 km · 6:11/km · easy",
+      title: "",
+      tone: "long",
+      extra: false,
+      planned_text: "planned: long 10.7 km",
+      adjust_text: "shortened to 8 km this morning",
+    },
+  ];
+  const document = createDocument();
+  const host = createHost(document, { html: endurance.sessionsHtml(briefing, { runs, today: "2026-10-04" }) });
+  const rows = host.querySelectorAll(".race-run");
+  assert.deepEqual(
+    rows.map((row) => row.querySelector(".race-run-name").textContent),
+    ["9.7 km · 5:34/km · hard", "6 km", "13.5 km · 6:11/km · easy"]
+  );
+  assert.equal(rows[1].querySelector("b"), null, "a run's title is text, never markup");
+  assert.ok(rows[1].classList.contains("wrun-extra"));
+  assert.equal(rows[1].querySelector(".race-run-plan").textContent, "Extra · <b>Hill sprints</b>");
+  assert.equal(rows[0].querySelector(".race-run-plan").textContent, "planned: easy 4.8 km");
+  assert.equal(
+    rows[2].querySelector(".race-run-plan").textContent,
+    "planned: long 10.7 km · shortened to 8 km this morning"
+  );
+  assert.ok(rows[2].classList.contains("wrun-long"));
+  // No bare tick that would hide a run unlike its plan.
+  assert.doesNotMatch(host.innerHTML, /✓|race-run-tick/);
 });
 
 test("plan endurance helper knows Monday arithmetic for the next-week fetch", () => {

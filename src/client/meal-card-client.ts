@@ -89,14 +89,67 @@
     return kcal != null && kcal > 0 ? `~${round(kcal)} kcal` : "";
   }
 
-  /** One read-only line: the item, its portion in words, a muted ~kcal. */
+  /** A macro in grams for reading: whole above 10, one decimal below, never "0.0". */
+  function macroG(value: number): string {
+    return value >= 10 ? String(Math.round(value)) : String(Math.round(value * 10) / 10);
+  }
+
+  /**
+   * "24 g P · 1 g C · 14 g F · 0 g fiber": only the macros the row actually carries.
+   * A null is unknown and is left out, never printed as "0 g".
+   */
+  function rowMacroText(row: Row): string {
+    const m = model().rowMacros(row);
+    const bits: string[] = [];
+    if (m.protein_g != null) bits.push(`${macroG(m.protein_g)} g P`);
+    if (m.carbs_g != null) bits.push(`${macroG(m.carbs_g)} g C`);
+    if (m.fat_g != null) bits.push(`${macroG(m.fat_g)} g F`);
+    if (m.fiber_g != null) bits.push(`${macroG(m.fiber_g)} g fiber`);
+    return bits.join(" · ");
+  }
+
+  /**
+   * The meal's macro split at rest: a slim bar of protein / carbs / fat by their share
+   * of the meal's energy, then the grams as words, fiber as text. Only what the meal
+   * carries is drawn; with fewer than two of P/C/F known there is no split to show.
+   */
+  function macroSplitHtml(totals: Totals): string {
+    const parts = [
+      { cls: "p", label: "protein", g: totals.protein_g, kcalPerG: 4 },
+      { cls: "c", label: "carbs", g: totals.carbs_g, kcalPerG: 4 },
+      { cls: "f", label: "fat", g: totals.fat_g, kcalPerG: 9 },
+    ];
+    const known = parts.filter((part) => part.g != null);
+    const words = [
+      ...known.map((part) => `${macroG(part.g as number)} g ${part.label}`),
+      ...(totals.fiber_g != null ? [`${macroG(totals.fiber_g)} g fiber`] : []),
+    ];
+    if (!words.length) return "";
+    const energy = known.reduce((sum, part) => sum + (part.g as number) * part.kcalPerG, 0);
+    const bar =
+      known.length >= 2 && energy > 0
+        ? `<span class="meal-card-split-bar" aria-hidden="true">${known
+            .filter((part) => (part.g as number) > 0)
+            .map(
+              (part) =>
+                `<span class="meal-card-split-seg is-${part.cls}" style="--frac:${Math.round(((part.g as number) * part.kcalPerG * 1000) / energy)}"></span>`
+            )
+            .join("")}</span>`
+        : "";
+    return `<div class="meal-card-split" role="group" aria-label="Meal macros">${bar}<p class="meal-card-split-text">${escHtml(words.join(" · "))}</p></div>`;
+  }
+
+  /** One read-only line: the item, its portion in words, a muted ~kcal, then its macros. */
   function readRowHtml(row: Row): string {
     const portion = model().portionWords(row.amount);
     const kcal = rowKcalText(row);
+    const macros = rowMacroText(row);
     return `<li class="meal-card-row is-read" data-meal-card-row="${escAttr(row.key)}">
       <span class="meal-card-item">${escHtml(row.item)}</span>${
         portion ? `<span class="meal-card-amount">${escHtml(portion)}</span>` : ""
-      }${kcal ? `<span class="meal-card-nutri">${escHtml(kcal)}</span>` : ""}
+      }${kcal ? `<span class="meal-card-nutri">${escHtml(kcal)}</span>` : ""}${
+        macros ? `<span class="meal-card-macros">${escHtml(macros)}</span>` : ""
+      }
     </li>`;
   }
 
@@ -109,6 +162,7 @@
         <button class="linkbtn linkbtn-quiet meal-card-edit" type="button" data-meal-card-edit
           aria-label="Edit the items in this meal">Edit</button>
       </div>
+      ${macroSplitHtml(m.totals)}
       <ul class="meal-card-rows is-read">${m.rows.map(readRowHtml).join("")}</ul>
       <p class="meal-card-status" role="status" aria-live="polite"></p>
     </section>`;
@@ -142,6 +196,8 @@
     mealCardHtml,
     readRowHtml,
     rowKcalText,
+    rowMacroText,
+    macroSplitHtml,
     rowHtml,
     rowMainHtml,
     rowNutriText,

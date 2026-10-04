@@ -456,7 +456,9 @@ test("MCP modular tool sources are discovered without duplicate names", () => {
   // The Today redesign: +2 (get_today_path, get_today_digest) in
   // src/surfaces/mcp/daily-driver.ts — the MCP mirrors of GET /api/today-path and GET
   // /api/today-digest, both pure reads.
-  assert.equal(tools.length, 287,"tool count changes only for reviewed MCP additions");
+  // The Program look-ahead: +1 (get_plan_look_ahead) in src/surfaces/mcp/plan-exercises.ts —
+  // the MCP mirror of GET /api/plan/look-ahead, a pure read.
+  assert.equal(tools.length, 289,"tool count changes only for reviewed MCP additions");
   assert.equal(new Set(tools).size, tools.length, "MCP tool names must be unique across modules");
   assert.doesNotMatch(mcp, /server\.tool\(/, "src/mcp.ts should stay a registry, not a tool-definition file");
   assert.doesNotMatch(mcp, /server\.tool\("get_chat_history"/);
@@ -1500,6 +1502,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   const mealPlannerControllerSource = read("src/client/meal-planner-controller.ts");
   const coachProposalControllerSource = read("src/client/coach-proposal-controller.ts");
   const coachMealsScreenSource = read("src/client/coach-meals-screen.ts");
+  const coachChangesScreenSource = read("src/client/coach-changes-screen.ts");
   const mealJournalSource = read("src/client/meal-journal-client.ts");
   const foodNoteSource = read("src/client/food-note-client.ts");
   const foodDetailControllerSource = read("src/client/food-detail-controller.ts");
@@ -5310,15 +5313,18 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
   assert.match(coachProposalControllerSource, /function reconnectProposal\(\): ClientAgentOpHandlers \| null/);
   assert.match(coachProposalControllerSource, /CairnCoachProposalController/);
   assert.match(coachProposalControllerSource, /CairnProposal\.coachProposalListHtml\(proposals, lastApplyClamp\)/);
-  assert.match(coachMealsScreenSource, /async function renderCoach\(\): Promise<void>/);
-  assert.match(coachMealsScreenSource, /async function renderMeals\(\): Promise<unknown>/);
+  // Ask → Changes is the lazy ask bundle's screen; the eager screen keeps Fuel and the menu.
+  assert.match(coachChangesScreenSource, /async function renderCoach\(\): Promise<void>/);
+  assert.doesNotMatch(coachMealsScreenSource, /function renderCoach\(/);
+  assert.match(coachMealsScreenSource, /function renderMeals\(\): Promise<unknown>/);
   assert.match(coachMealsScreenSource, /function renderFoodJournal\(options: \{ history\?: boolean \} = \{\}\): Promise<unknown>/);
   // The meal-plan journal is the lazy meals bundle's; Fuel reaches it through withBundle.
   assert.match(mealJournalSource, /CairnMealPlannerController\.wireMealPlannerBody/);
-  assert.match(coachMealsScreenSource, /withBundle\("meals", \(\) => CairnMealJournal\.paint/);
+  assert.match(coachMealsScreenSource, /withBundle\("meals", \(\) => CairnMealJournal\.paintMenu/);
+  assert.match(coachMealsScreenSource, /withBundle\("meals", \(\) => CairnMealJournal\.paintHistory/);
   assert.doesNotMatch(coachMealsScreenSource, /CairnMealPlan\.|CairnMealPlannerController\.wireMealPlannerBody/);
-  assert.match(coachMealsScreenSource, /CairnCoachProposalController\.runCoachProposal/);
-  assert.match(coachMealsScreenSource, /CairnCoachProposalController\.renderProposals/);
+  assert.match(coachChangesScreenSource, /CairnCoachProposalController\.runCoachProposal/);
+  assert.match(coachChangesScreenSource, /CairnCoachProposalController\.renderProposals/);
   assert.doesNotMatch(
     coachMealsScreenSource,
     /function openMealSheet|function recipeOpOpts|function reconnectRecipe|function reconnectMealPlan|function reconnectMealSwap|function wireMealRows|function draftWeeklyMeals|function runCoach|function coachProposalOpOpts|function renderProposals|async function applyProposalById|function reconnectProposal|lastApplyClamp/
@@ -6132,8 +6138,10 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     meals,
     /function\s+statusBadge|function\s+applyResultMessage|function\s+clampNoteHtml|function\s+verifiedBadgeHtml|function\s+strengthChangeHtml|function\s+runTargetText|function\s+isOpenProposal|const\s+proposalCardHtml/
   );
-  assert.match(meals, /CairnCoachProposalController\.runCoachProposal/);
-  assert.match(meals, /CairnCoachProposalController\.renderProposals/);
+  // Ask → Changes (the lazy ask bundle's coach-changes-screen) drives the proposals.
+  const coachChanges = read("public/js/coach-changes-screen.js");
+  assert.match(coachChanges, /CairnCoachProposalController\.runCoachProposal/);
+  assert.match(coachChanges, /CairnCoachProposalController\.renderProposals/);
   assert.match(mealsSource, /coach-proposal-controller\.js/);
   assert.doesNotMatch(
     meals,
@@ -6833,7 +6841,7 @@ test("frontend TypeScript contract gate is dependency-light and backed by server
     /coachingFocusCardHtml\(focus[^)]*\{ blockLine: false, actions: true, headline: false \}\)/
   );
   assert.doesNotMatch(progress, /coachingFocusCardHtml/);
-  assert.match(meals, /function renderCoach\(\)/);
+  assert.match(read("public/js/coach-changes-screen.js"), /function renderCoach\(\)/);
   assert.match(meals, /function renderMeals\(\)/);
   assert.match(meals, /function renderFoodJournal\(options = \{\}\)/);
   assert.match(mealPlannerJobsClient, /function mealPlannerJobReconnectMealPlan\(\)/);

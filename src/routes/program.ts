@@ -296,8 +296,9 @@ programRouter.get("/run-plan", (req, res) =>
 // The RACE-BUILD layer over the run plan: an estimated finish/pace for the dated race
 // and how it is moving, per-session pace bands off the target, the week-by-week
 // ladder to race week, and the seven-day leg map (runs + heavy-lower days + the
-// habitual ride) with where heavy squats belong in this phase. Suggestion only;
-// {available:false, reason} without a dated race with a distance.
+// habitual ride) with where heavy squats belong in this phase; this week actual-first
+// (every run logged, extras included, a server recap, and whether the week is already
+// closed). Suggestion only; {available:false, reason} without a dated race with a distance.
 programRouter.get("/race-build", (req, res) =>
   res.json(raceBuild(req.query.date ? String(req.query.date) : undefined, { describeRunning: true }))
 );
@@ -305,7 +306,8 @@ programRouter.get("/race-build", (req, res) =>
 // suggested openings move around real strength/endurance load. Any completed
 // run occupies its actual date; moderate/hard cross-training also reserves its
 // date, while light cross-training may still share a clean easy-run opening.
-// Read-only; unfinished work creates no catch-up debt.
+// Runs that closed no intention ride out as `extras`. Read-only; unfinished work
+// creates no catch-up debt.
 programRouter.get("/training-agenda", (req, res) =>
   res.json(flexibleTrainingAgenda(req.query.date ? String(req.query.date) : undefined))
 );

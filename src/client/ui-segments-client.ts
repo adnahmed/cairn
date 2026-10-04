@@ -268,8 +268,11 @@ function createUiSegments(deps: UiSegmentsDeps): UiSegmentsController {
     intake: () => deps.renderIntake(),
     energy: () => deps.renderEnergy(),
     plan: () => openPlan("edit"),
+    // Train → Fuel's "This week's menu" row opens the week menu (Today's, /app/today/menu).
+    menu: () => openPlan("meals"),
   };
   navigation(progressHandlers.plan);
+  navigation(progressHandlers.menu);
 
   function openPlan(section: ClientPlanSection): void {
     deps.state.planSeg = section;

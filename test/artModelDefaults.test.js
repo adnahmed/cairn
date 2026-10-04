@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { GEMINI_IMAGE_MODEL, GEMINI_TEXT_MODEL, GEMINI_EXERCISE_IMAGE_MODEL } from "../dist/art.js";
+import { imageCostForModel, imageCostFor, IMAGE_COST_USD_BY_MODEL, GEMINI_IMAGE_MODEL, GEMINI_TEXT_MODEL, GEMINI_EXERCISE_IMAGE_MODEL } from "../dist/art.js";
 
 // Google's current stable Flash-tier ids (verified against the live model
 // list at the time this test was written). Only extend this list after
@@ -29,7 +29,7 @@ const KNOWN_VALID_TEXT_MODELS = [
 // https://ai.google.dev/gemini-api/docs/models (generative-media section) and
 // https://ai.google.dev/gemini-api/docs/pricing ($0.134 per 1K/2K image). It is
 // the recommended GEMINI_EXERCISE_IMAGE_MODEL, so it belongs in the allowlist.
-const KNOWN_VALID_IMAGE_MODELS = ["gemini-3.1-flash-image", "gemini-3-pro-image"];
+const KNOWN_VALID_IMAGE_MODELS = ["gemini-3.1-flash-image", "gemini-3.1-flash-lite-image", "gemini-3-pro-image"];
 
 test("GEMINI_TEXT_MODEL default is a non-empty, currently-valid Flash-tier id", () => {
   assert.equal(typeof GEMINI_TEXT_MODEL, "string");
@@ -76,5 +76,51 @@ test(".env.example never recommends a model id that isn't on the verified list",
       KNOWN_VALID_IMAGE_MODELS.includes(id),
       `.env.example recommends "${id}", which is not a verified Gemini image model id`,
     );
+  }
+});
+
+test("per-image cost follows the model, unknown ids fall back to the flash rate", () => {
+  assert.equal(imageCostForModel("gemini-3.1-flash-lite-image"), 0.0336);
+  assert.equal(imageCostForModel("gemini-3-pro-image"), 0.134);
+  assert.equal(imageCostForModel("gemini-3.1-flash-image"), 0.067);
+  assert.equal(imageCostForModel("some-future-model"), 0.067);
+  assert.equal(imageCostFor("food"), IMAGE_COST_USD_BY_MODEL[GEMINI_IMAGE_MODEL] ?? 0.067);
+});
+
+test("the base model's cost override never prices the exercise override model", async () => {
+  // The constants resolve at import, so read them in a fresh process with its own
+  // throwaway data dir (never the worker's DB).
+  const { spawnSync } = await import("node:child_process");
+  const os = await import("node:os");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cairn-art-cost-"));
+  try {
+    const dist = new URL("../dist/art.js", import.meta.url).href;
+    const run = (env) =>
+      spawnSync(
+        process.execPath,
+        ["--input-type=module", "-e", `const a = await import(${JSON.stringify(dist)}); console.log(JSON.stringify([a.imageCostFor("exercise"), a.imageCostFor("food")]));`],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            DATA_DIR: dir,
+            DB_PATH: path.join(dir, "cairn.db"),
+            ART_IMAGE_COST_USD: "",
+            ART_EXERCISE_IMAGE_COST_USD: "",
+            GEMINI_IMAGE_MODEL: "gemini-3.1-flash-lite-image",
+            GEMINI_EXERCISE_IMAGE_MODEL: "gemini-3-pro-image",
+            ...env,
+          },
+        }
+      );
+    const parse = (out) => {
+      assert.equal(out.status, 0, out.stderr);
+      return JSON.parse(out.stdout.trim().split("\n").at(-1));
+    };
+    assert.deepEqual(parse(run({})), [0.134, 0.0336], "each model at its own table price");
+    assert.deepEqual(parse(run({ ART_IMAGE_COST_USD: "0.05" })), [0.134, 0.05], "the base override stays on the base model");
+    assert.deepEqual(parse(run({ ART_EXERCISE_IMAGE_COST_USD: "0.2" })), [0.2, 0.0336]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

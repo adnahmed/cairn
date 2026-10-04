@@ -47,6 +47,7 @@ import {
   updateSet,
   weekWins,
 } from "../domain/training/index.js";
+import { weekTrainingLoad } from "../repo/week-training-load.js";
 
 export const trainingLogRouter = Router();
 
@@ -421,6 +422,16 @@ trainingLogRouter.get("/activities", (req, res) =>
 trainingLogRouter.get("/recent-training", (req, res) =>
   res.json(recentTraining(req.query.limit ? Number(req.query.limit) : 6))
 );
+
+// The whole-week load read: the rolling seven days to `date` (default today) across every
+// sport plus the lifting, the ISO week's intentions and totals, key-run spacing, the
+// cross-training day and the next 48 hours (src/repo/week-training-load.ts).
+trainingLogRouter.get("/week-training-load", (req, res) => {
+  const raw = req.query?.date;
+  if (raw != null && (typeof raw !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw)))
+    return res.status(400).json({ error: "date must be YYYY-MM-DD" });
+  res.json(weekTrainingLoad(typeof raw === "string" ? raw : undefined));
+});
 
 // Single activity row (poll fallback for watching enrichment_status).
 trainingLogRouter.get("/activities/:id", (req, res) => {

@@ -27,7 +27,7 @@ function mcpHandlers(register) {
 
 const mcpBody = async (handler, args = {}) => JSON.parse((await handler(args)).content[0].text);
 
-function callRoute(router, method, path, { body = {}, params = {} } = {}) {
+function callRoute(router, method, path, { body = {}, params = {}, query = {} } = {}) {
   const layer = router.stack.find((entry) => entry.route?.path === path && entry.route?.methods?.[method]);
   assert.ok(layer, `missing ${method.toUpperCase()} ${path}`);
   let status = 200;
@@ -42,7 +42,7 @@ function callRoute(router, method, path, { body = {}, params = {} } = {}) {
       return this;
     },
   };
-  layer.route.stack.at(-1).handle({ body, params }, res);
+  layer.route.stack.at(-1).handle({ body, params, query }, res);
   return { status, payload };
 }
 
@@ -91,4 +91,21 @@ test("MCP finish_session returns the same headline-carrying summary as POST /ses
     params: { id: String(session.id) },
   }).payload;
   assert.equal(rest.headline, tool.headline, "both surfaces speak the same rotated done headline");
+});
+
+test("MCP get_week_training_load returns the same whole-week read as GET /week-training-load", async () => {
+  const date = "2032-04-14";
+  repo.logSetByName({ date, exercise: "Parity Squat", weight: 135, reps: 5, day_number: null });
+  repo.addActivity({ type: "ride", date: "2032-04-13", duration_min: 95 });
+  repo.addActivity({ type: "run", date: "2032-04-12", distance_km: 8, duration_min: 48, rpe: 3 });
+
+  const rest = callRoute(trainingLogRouter, "get", "/week-training-load", { query: { date } });
+  assert.equal(rest.status, 200);
+  const tool = await mcpBody(mcpHandlers(registerTrainingLogTools).get("get_week_training_load"), { date });
+  assert.deepEqual(tool, JSON.parse(JSON.stringify(rest.payload)));
+  assert.equal(tool.as_of, date);
+  assert.equal(tool.days.length, 7);
+
+  const bad = callRoute(trainingLogRouter, "get", "/week-training-load", { query: { date: "14/04/2032" } });
+  assert.equal(bad.status, 400);
 });

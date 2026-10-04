@@ -1466,7 +1466,27 @@ function weeklyRunPlanRead(
   const statusStrained = statusFresh && /strain|overreach|unproductive/.test(statusWord);
   const recoveryDown = hrvDown || rhrUp || sleepDown || readinessLow || statusStrained;
   const recoveryWeek = programState.mesocycle?.phase === "deload" && programState.recovery_week?.state === "applied";
-  const spiking = runState?.status === "spiking";
+  // A spike is read TWICE, and either one holds the week (2026-10-04). The live status is
+  // a trailing-7-day ratio with no week boundary, so on the week's Monday its window IS
+  // the closed week, and by Wednesday it has slid off it: a 35.8 km week after ~21 km
+  // ones read "spiking" on Monday (a held week, a short threshold) and "maintaining" on
+  // Tuesday (a full build, the whole threshold) with nothing logged in between — one
+  // week, two prescriptions, so get_race_build and get_run_plan disagreed by the as-of
+  // date alone. The CLOSED week's own spike (the same status, read at the volume anchor)
+  // is a property of the week and holds it from every morning; the live read stays as
+  // the downward-only brake for a block run inside this week. A caller that injected an
+  // anchored programState (with volumeAnchorDate) already reads the anchor.
+  const spiking =
+    runState?.status === "spiking" ||
+    (!!runState &&
+      !(opts?.programState && opts?.volumeAnchorDate) &&
+      (() => {
+        try {
+          return getProgramState(volumeAnchor).endurance?.status === "spiking";
+        } catch {
+          return false;
+        }
+      })());
   // The two live status reads are NOT symmetrical, and this is where that is decided.
   //
   // `spiking` is an EVENT — the athlete ran a big block, and the evidence for it is the
@@ -1625,16 +1645,15 @@ function weeklyRunPlanRead(
     factor = 0.8;
     rationale.push("Scheduled down week — a lighter reset before the next build.");
   } else if (spiking) {
-    // DELIBERATELY LIVE, and the one input allowed to move a week from inside it.
-    // `spiking` is a trailing-7-day acute read with no week boundary, so a big block
-    // run on Monday flips it on Tuesday and this week's ask shrinks. That is a safety
-    // brake reading the load as it is NOW, and it is downward-only by construction:
-    // 1.0 is the smallest build factor an unprotected week can take, so it can only
-    // ever hold the week where it is or hand off to a protective branch above.
-    // The volume anchor governs what the week is BUILT from; it does not govern
-    // whether a spike is happening. Do not fold this into the anchor. (Its opposite
-    // number, the detraining sag, IS anchored — see detrainingSag above. A spike is an
-    // event with its own evidence; an absence is only evidence once the week closes.)
+    // The one input allowed to move a week from inside it, and only DOWNWARD: the live
+    // arm of `spiking` is a trailing-7-day acute read with no week boundary, so a big
+    // block run on Monday flips it on Tuesday and this week's ask shrinks. That is a
+    // safety brake reading the load as it is NOW: 1.0 is the smallest build factor an
+    // unprotected week can take, so it can only ever hold the week where it is or hand
+    // off to a protective branch above. Its anchored arm (the closed week's own spike,
+    // see `spiking` above) is what keeps the window sliding off last week from LIFTING
+    // the hold mid-week. (Its opposite number, the detraining sag, is anchored too —
+    // see detrainingSag above.)
     factor = 1.0;
     rationale.push("Mileage jumped recently — holding it here to let it absorb before adding more.");
   } else if (detrainingSag) {
@@ -2008,8 +2027,13 @@ function weeklyRunPlanRead(
   // bounded step, never by more.
   const holdsDemonstratedLong =
     downWeek && !spiking && !recoveryDown && !taper && !longSuppressed && prevLong > 0 && shownLongTakenWell();
+  // The held long run's ceiling, kept for the longest-run swap below: a hold week's
+  // long run stays a step under the demonstrated longest however much the easy days
+  // are left holding.
+  let heldLongCeilingKm: number | null = null;
   if ((downWeek || spiking || recoveryDown) && !taper && prevLong > 0 && !holdsDemonstratedLong) {
-    longKm = round1(Math.min(longKm, prevLong * HOLD_WEEK_LONG_OF_LONGEST));
+    heldLongCeilingKm = round1(prevLong * HOLD_WEEK_LONG_OF_LONGEST);
+    longKm = round1(Math.min(longKm, heldLongCeilingKm));
   }
   // Fresh strain's bounded floor: its suppression skips the raise, but the long run
   // still holds the same one step under the demonstrated longest a dip or spike takes
@@ -2055,7 +2079,10 @@ function weeklyRunPlanRead(
   if (easyCount > 0 && longKm < easyEach && rampTaperLong != null) {
     easyEach = longKm;
   } else if (easyCount > 0 && longKm < easyEach) {
-    longKm = round1(Math.min(easyEach, weeklyKm * 0.55));
+    // A HELD week's long run never grows past its hold to absorb the remainder (a spike
+    // week once handed a 13.5 km runner a 19.7 km "long run" this way): the easy runs
+    // come down to meet it, and what they cannot carry stays off the card.
+    longKm = round1(Math.min(easyEach, weeklyKm * 0.55, heldLongCeilingKm ?? Number.POSITIVE_INFINITY));
     easyTotal = Math.max(easyCount * 3, round1(weeklyKm - longKm - qualityKm));
     easyEach = round1(Math.min(easyTotal / easyCount, longKm));
   }

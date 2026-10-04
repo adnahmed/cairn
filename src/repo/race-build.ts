@@ -38,11 +38,24 @@ import { weekLayoutRead, type WeekLayoutRead } from "../domain/training/week-lay
 import { pickDayVariant } from "./brain/day-read-rules.js";
 import { matchEnduranceModality } from "./heavy-load.js";
 import { easyCeiling, getHrModel } from "./hr-model.js";
-import { recentEnduranceImpacts, type EnduranceImpact } from "./hybrid-load.js";
+import { crossTrainingDays, crossTrainingLoadsLegs, crossTrainingNoun } from "./cross-training-day.js";
 import { heavyLowerWeekdaySlots, thisWeekPlanDayMap } from "./plan-selection.js";
-import { dowToDayNumber, getEnduranceGoal, isoDow, statedRunDows } from "./profile.js";
+import { getEnduranceGoal, isoDow, statedRunDows } from "./profile.js";
 import { strengthScheduleRead } from "./strength-schedule.js";
-import { weekLayoutClosed } from "./week-layout-closed.js";
+import {
+  type CurrentWeekClosed,
+  type CurrentWeekClosedReason,
+  currentWeekClosedEarly,
+  weekLayoutClosed,
+} from "./week-layout-closed.js";
+import {
+  type FlexibleRunIntent,
+  type FlexibleTrainingAgenda,
+  flexibleTrainingAgenda,
+  plannedRunLine,
+  type RunCompletionEvidence,
+  type RunEffortWord,
+} from "./flexible-training-agenda.js";
 import { ENDURANCE_CHRONIC_FLOOR_KM } from "./program-state.js";
 import {
   acwrCeilingKm,
@@ -148,6 +161,52 @@ export interface RaceBuildWeek {
   with_lifting: string;
   /** True for the week containing `as_of`. */
   current: boolean;
+  /**
+   * The current week only, once its running is done before Sunday night
+   * (`currentWeekClosedEarly`): the rung then IS the week as run — `km` is the logged
+   * volume — and `planned_km` keeps what the engine prescribed for it.
+   */
+  closed?: boolean;
+  planned_km?: number | null;
+  /**
+   * The peak sits within ~5% of the biggest week already run (either side): it is said
+   * as about that week rather than claimed as a new high.
+   */
+  holds_high?: boolean;
+}
+
+/**
+ * One run of this week, actual first: what was run, then the plan it answered. Lines
+ * and the adjustment words are in km; a surface restates figures in run units.
+ */
+export interface RaceWeekRun {
+  activity_id: number;
+  date: string;
+  weekday: string;
+  title: string | null;
+  km: number | null;
+  duration_min: number | null;
+  pace_sec_per_km: number | null;
+  avg_hr: number | null;
+  /** The grade, machine form: the personal model's easy / steady / quality (stated easy is easy). */
+  intensity: "easy" | "steady" | "quality";
+  /** The same grade as the athlete reads it: "easy", "steady" or "hard" — never the watch's label. */
+  intensity_word: RunEffortWord;
+  /** The athlete stated it easy (RPE ≤ 4): easy whatever the heart rate says. */
+  stated_easy: boolean;
+  /** The planned run it closed (its slot's kind and id); null for an extra. */
+  kind: "easy" | "quality" | "long" | null;
+  intent_id: string | null;
+  /** A run that closed no planned run: shown as an extra, never dropped. */
+  extra: boolean;
+  /** The week's own plan for the run it closed — never a morning label it ran past. */
+  planned: { kind: "easy" | "quality" | "long"; label: string; km: number | null } | null;
+  /** What this morning made of that plan, in words ("shortened to 8 km this morning"); null when nothing. */
+  adjustment: string | null;
+  /** The run as run, in km: "13.5 km · 6:11/km · easy". */
+  actual_line: string;
+  /** The plan as a quiet second line, in km ("Planned long run 10.7 km, shortened to 8 km this morning."). */
+  plan_line: string;
 }
 
 export interface LegMapDay {
@@ -170,6 +229,10 @@ export interface RidePattern {
   typical_load: "light" | "moderate" | "heavy";
   /** One sentence about where it sits in the week. */
   placement: string;
+  /** "stated" — the optional day the athlete named; "observed" — a pattern read off the log. */
+  source: "stated" | "observed";
+  /** The load family of the day (ride, paddle, swim, walk, …): the field keeps its name. */
+  sport_family: string;
 }
 
 /**
@@ -210,6 +273,21 @@ export interface RaceBuild {
     logged_km: number;
     quality: { label: string; pace: PaceBand | null } | null;
     why: string;
+    /**
+     * The week's running is done before Sunday night (`currentWeekClosedEarly`): the
+     * ladder and the capacity read treat it as a closed week today, not next Monday.
+     */
+    closed: boolean;
+    closed_reason: CurrentWeekClosedReason | null;
+    /** Every run logged this week, date order, actual first — extras included (`extra: true`). */
+    runs: RaceWeekRun[];
+    /**
+     * The week in two lines, written here and never in a renderer: a short headline
+     * (variant set) and one detail line in km built from actual vs plan, a new high,
+     * the easy/hard mix and the long run. Null with no run logged yet.
+     */
+    headline: string | null;
+    detail: string | null;
   } | null;
   weeks: RaceBuildWeek[];
   leg_map: LegMapDay[];
@@ -238,7 +316,14 @@ export interface RaceBuild {
     weeks: { week_start: string; km: number; runs: number }[];
     longest_recent_km: number | null;
     volume_word: "rising" | "steady" | "easing" | null;
+    /** The current week closed early and is the last of the four (see `this_week.closed`). */
+    includes_this_week?: boolean;
   };
+  /**
+   * One calm sentence when the forward ladder moved because of this week: "" otherwise.
+   * In km; a suggestion, never a verdict.
+   */
+  adapted: string;
   why: string;
   reason: string | null; // why unavailable, in plain words
 }
@@ -757,9 +842,24 @@ export function projectRaceBuildWeeks(
 const NEW_HIGH_PEAK_FOCUS =
   "A new weekly high: the biggest week you have run, with the long run at its top, so the other runs stay truly easy.";
 const NEW_HIGH_SHORT = "A new weekly high";
+// Said as ABOUT the biggest week, never "holds it rather than passing it": the band is
+// either side, so a peak up to 5% past the week is inside it too.
+const HOLDS_HIGH_PEAK_FOCUS =
+  "About your biggest week rather than a new high: the long run tops out, so the other runs stay truly easy.";
+const HOLDS_HIGH_SHORT = "About your biggest week";
+/**
+ * A peak within this share of the biggest week already run (either side) is said as
+ * about that week: a rung 0.5 km past a 35.8 km week is not a new milestone worth claiming.
+ */
+export const PEAK_HOLDS_HIGH_SHARE = 0.05;
 
 /** A rung's words once it is a new weekly high. Idempotent; a taper or race week never is one. */
 export function newHighWords(week: RaceBuildWeek): void {
+  if (week.holds_high && week.kind === "peak") {
+    week.focus = HOLDS_HIGH_PEAK_FOCUS;
+    week.focus_short = HOLDS_HIGH_SHORT;
+    return;
+  }
   if (!week.new_high) return;
   if (week.kind === "peak") {
     week.focus = NEW_HIGH_PEAK_FOCUS;
@@ -778,7 +878,16 @@ export function markNewHighs(weeks: RaceBuildWeek[], bestWeekKm: number | null |
   let high = Number(bestWeekKm) > 0 ? Number(bestWeekKm) : 0;
   if (!(high > 0)) return;
   for (const week of weeks) {
-    if ((week.kind === "build" || week.kind === "peak") && week.km > high + 0.05) {
+    if (week.kind !== "build" && week.kind !== "peak") continue;
+    // The peak near the biggest week already run — a closed current week included — is
+    // said as about that week, never as a new milestone by half a km.
+    if (week.kind === "peak" && Math.abs(week.km - high) <= high * PEAK_HOLDS_HIGH_SHARE) {
+      week.new_high = false;
+      week.holds_high = true;
+      newHighWords(week);
+      continue;
+    }
+    if (week.km > high + 0.05) {
       week.new_high = true;
       high = week.km;
       newHighWords(week);
@@ -915,20 +1024,26 @@ function runPrediction(distanceKm: number, runs: RunRow[]): RacePrediction | nul
 // the race build.
 export { demonstratedLongKm };
 
-function weeklyReview(asOf: string, runs: RunRow[]): RaceBuild["review"] {
+/**
+ * The four most recent CLOSED Mon–Sun weeks. With `includeThisWeek` (the current week
+ * closed early — `currentWeekClosedEarly`) the window ends with this week, run through
+ * `asOf`; otherwise it ends with last week and this week is never in it.
+ */
+function weeklyReview(asOf: string, runs: RunRow[], includeThisWeek = false): RaceBuild["review"] {
   const thisMonday = mondayOf(asOf);
+  const lastMonday = includeThisWeek ? thisMonday : (addDaysISO(thisMonday, -7) ?? thisMonday);
   const byWeek = new Map<string, { km: number; runs: number }>();
   for (const r of runs) {
     const wk = mondayOf(r.date);
-    if (wk >= thisMonday) continue; // closed weeks only
+    if (wk > lastMonday || r.date > asOf) continue; // closed weeks only
     const cur = byWeek.get(wk) ?? { km: 0, runs: 0 };
     cur.km += r.km;
     cur.runs += 1;
     byWeek.set(wk, cur);
   }
   const weeks: RaceBuild["review"]["weeks"] = [];
-  for (let i = 4; i >= 1; i--) {
-    const wk = addDaysISO(thisMonday, -7 * i);
+  for (let i = 3; i >= 0; i--) {
+    const wk = addDaysISO(lastMonday, -7 * i);
     if (!wk) continue;
     const cur = byWeek.get(wk) ?? { km: 0, runs: 0 };
     weeks.push({ week_start: wk, km: round1(cur.km), runs: cur.runs });
@@ -938,36 +1053,62 @@ function weeklyReview(asOf: string, runs: RunRow[]): RaceBuild["review"] {
   const last = weeks.slice(2).reduce((s, w) => s + w.km, 0) / 2;
   const volume_word: RaceBuild["review"]["volume_word"] =
     first <= 0 && last <= 0 ? null : last >= first * 1.1 ? "rising" : last <= first * 0.9 ? "easing" : "steady";
-  return { weeks, longest_recent_km: longest > 0 ? round1(longest) : null, volume_word };
+  return {
+    weeks,
+    longest_recent_km: longest > 0 ? round1(longest) : null,
+    volume_word,
+    ...(includeThisWeek ? { includes_this_week: true } : {}),
+  };
 }
 
-const RIDE_LABEL = /ride|mtb|cycling|gravel/i;
+// The week's recurring cross-training day — the one read (cross-training-day.ts): the
+// optional day the athlete named, else a non-run, non-light family on the same weekday in
+// two of the last six weeks. Only efforts that load the legs make a pattern worth
+// placing runs around (a light e-bike commute never wins the weekday). The field keeps
+// its `ride` name for the client; `sport_family` says what it is.
+function ridePattern(asOf: string): Omit<RidePattern, "placement"> | null {
+  const day = (safe(() => crossTrainingDays(asOf)) ?? [])[0];
+  if (!day) return null;
+  return {
+    label: day.label,
+    day_number: day.day_number,
+    weekday: day.weekday,
+    weeks_seen: day.weeks_seen ?? 0,
+    weeks_window: day.weeks_window,
+    typical_min: day.typical_min,
+    // A stated day the log has not shown yet is planned around as an ordinary one.
+    typical_load: day.typical_load ?? "moderate",
+    source: day.source,
+    sport_family: day.sport_family,
+  };
+}
 
-function ridePattern(impacts: EnduranceImpact[]): Omit<RidePattern, "placement"> | null {
-  // Only rides that load the legs make a pattern worth placing runs around. Light
-  // spins (an e-bike commute) outnumbered the weekend trail rides and won the weekday,
-  // so the read placed a 38-minute commute and never saw the MTB before the long run.
-  const rides = impacts.filter((i) => (RIDE_LABEL.test(i.label) || RIDE_LABEL.test(i.type)) && i.load !== "light");
-  if (!rides.length) return null;
-  const weeksWindow = 6;
-  const weeks = new Set(rides.map((r) => mondayOf(r.date)));
-  if (weeks.size < 3) return null; // three of six weeks makes a habit; less is an outing
-  const byDow = new Map<number, number>();
-  for (const r of rides) byDow.set(isoDow(r.date), (byDow.get(isoDow(r.date)) ?? 0) + 1);
-  const [dow] = [...byDow.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
-  const mins = rides.map((r) => r.duration_min ?? 0).filter((m) => m > 0).sort((a, b) => a - b);
-  const typical_min = mins.length ? mins[Math.floor(mins.length / 2)] : null;
-  const loads = rides.map((r) => r.load);
-  const typical_load: RidePattern["typical_load"] = loads.filter((l) => l === "heavy").length * 2 >= loads.length
-    ? "heavy"
-    : loads.filter((l) => l !== "light").length * 2 >= loads.length
-      ? "moderate"
-      : "light";
-  const labelCounts = new Map<string, number>();
-  for (const r of rides) labelCounts.set(r.label, (labelCounts.get(r.label) ?? 0) + 1);
-  const label = [...labelCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  const day_number = dowToDayNumber(dow);
-  return { label, day_number, weekday: weekdayOfDayNumber(day_number), weeks_seen: weeks.size, weeks_window: weeksWindow, typical_min, typical_load };
+const RIDE_BEFORE_LONG_VARIANTS = [
+  "Your {label} sits the day before the long run — the week you keep. It stays in the legs, so the long run goes conversational; keep the {noun} easy if you want the legs fresher.",
+  "The {label} lands the day before the long run. That is your pattern, not a conflict: the legs carry it into the long run, so run that one conversational.",
+  "{weekday}'s {label} comes the day before the long run. Keep the long run conversational the morning after — the {noun} is still in the legs — or keep the {noun} easy.",
+] as const;
+const OPTIONAL_RIDE_BEFORE_LONG_VARIANTS = [
+  "The optional {label} you named sits the day before the long run. When you take it, the legs carry it into the long run — keep that run conversational.",
+  "Your optional {weekday} {label} comes the day before the long run: on the weeks you take the {noun}, the legs carry it and the long run goes conversational the morning after.",
+  "The {label} you keep optional on {weekday} is the day before the long run. Take the {noun} easy or run the long one conversational — it stays in the legs either way.",
+] as const;
+// Upper-body and unnamed sessions sit the day before the long run without a claim
+// on the legs. The phrase the long-run placement is known by stays in every line.
+const CROSS_BEFORE_LONG_VARIANTS = [
+  "Your {label} sits the day before the long run — the week you keep.",
+  "The {label} lands the day before the long run. That is your pattern, not a conflict, and the long run stays as planned.",
+  "{weekday}'s {label} comes the day before the long run. The long run keeps its place the morning after.",
+] as const;
+const OPTIONAL_CROSS_BEFORE_LONG_VARIANTS = [
+  "The optional {label} you named sits the day before the long run — the week you keep.",
+  "Your optional {weekday} {label} comes the day before the long run: on the weeks you take the {noun}, the long run stays as planned.",
+  "The {label} you keep optional on {weekday} is the day before the long run.",
+] as const;
+
+function fillRide(template: string, ride: { label: string; weekday: string; sport_family: string }): string {
+  const noun = crossTrainingNoun(ride.sport_family);
+  return template.replaceAll("{label}", ride.label).replaceAll("{weekday}", ride.weekday).replaceAll("{noun}", noun);
 }
 
 const nextDay = (d: number): number => (d === 7 ? 1 : d + 1);
@@ -981,23 +1122,35 @@ function ridePlacement(
   easyDays: Set<number>,
   date: string
 ): string {
+  const noun = crossTrainingNoun(ride.sport_family);
   const d = ride.day_number;
   if (longDay != null && d === longDay) {
-    return `Your ${ride.label} usually lands on the long-run day (${ride.weekday}). One or the other — if it has to be both, the ride goes easy and short.`;
+    return `Your ${ride.label} usually lands on the long-run day (${ride.weekday}). One or the other — if it has to be both, the ${noun} goes easy and short.`;
   }
   if (longDay != null && nextDay(d) === longDay) {
-    return `Your ${ride.label} sits the day before the long run. Keep it genuinely easy so the legs arrive fresh, or trade it onto an easy-run day.`;
+    const legs = crossTrainingLoadsLegs(ride.sport_family);
+    const variants = legs
+      ? ride.source === "stated"
+        ? OPTIONAL_RIDE_BEFORE_LONG_VARIANTS
+        : RIDE_BEFORE_LONG_VARIANTS
+      : ride.source === "stated"
+        ? OPTIONAL_CROSS_BEFORE_LONG_VARIANTS
+        : CROSS_BEFORE_LONG_VARIANTS;
+    return fillRide(
+      pickDayVariant(variants, date, legs ? "race-build:ride-before-long" : "race-build:cross-before-long"),
+      ride
+    );
   }
   if (qualityDay != null && nextDay(d) === qualityDay) {
-    return `Your ${ride.label} sits the day before the quality run. Easy spinning only — the hard effort is tomorrow.`;
+    return `Your ${ride.label} sits the day before the quality run. Keep the ${noun} easy — the hard effort is tomorrow.`;
   }
   if (heavyLower.has(d)) {
     const clear = [...easyDays].filter((e) => e !== longDay && e !== qualityDay && !heavyLower.has(e) && nextDay(e) !== longDay);
-    const move = clear.length ? ` — or move the ride to ${weekdayOfDayNumber(clear[0])}, an easy-run day` : "";
-    return `Ride and heavy legs share ${ride.weekday}. Lift first if both happen, and let the ride be the easy half${move}.`;
+    const move = clear.length ? ` — or move the ${noun} to ${weekdayOfDayNumber(clear[0])}, an easy-run day` : "";
+    return `The ${noun} and heavy legs share ${ride.weekday}. Lift first if both happen, and let the ${noun} be the easy half${move}.`;
   }
   if (longDay != null && prevDay(d) === longDay) {
-    return `Your ${ride.label} follows the long run (${weekdayOfDayNumber(longDay)} then ${ride.weekday}). That is a loaded weekend — keep the ride easy and let it be the recovery spin, not a second hard day.`;
+    return `Your ${ride.label} follows the long run (${weekdayOfDayNumber(longDay)} then ${ride.weekday}). That is a loaded weekend — keep the ${noun} easy, not a second hard day.`;
   }
   const variants = [
     `Your ${ride.label} on ${ride.weekday} sits clear of the hard runs — it counts as aerobic work, so keep it mostly easy through the build.`,
@@ -1043,12 +1196,22 @@ function runningWithoutRace(asOf: string, goal: ReturnType<typeof getEnduranceGo
   return recentRuns(asOf, 42).length ? "runs" : "none";
 }
 
-/** This week's running as planned, and what the log already holds of it. */
+/** What `thisWeekRead` needs beyond the plan: the agenda's week as run, and its closure. */
+interface ThisWeekContext {
+  agenda: FlexibleTrainingAgenda | null;
+  closed: CurrentWeekClosed;
+  /** The biggest closed week BEFORE this one (a new high is said against it). */
+  bestBeforeKm: number | null;
+  adapt: RaceLadderAdapt | null;
+}
+
+/** This week's running as planned, what the log already holds of it, and the week as run. */
 function thisWeekRead(
   plan: WeeklyRunPlan | null,
   asOf: string,
   logRuns: RunRow[],
-  qualityPace: PaceBand | null
+  qualityPace: PaceBand | null,
+  ctx: ThisWeekContext
 ): RaceBuild["this_week"] {
   if (!plan?.available) return null;
   const runs = weekAsPlanned(plan);
@@ -1056,15 +1219,196 @@ function thisWeekRead(
   const longRun = runs.find((r) => r.kind_label === "long") ?? null;
   const qualityRun = runs.find((r) => r.kind_label === "quality") ?? null;
   const monday = mondayOf(asOf);
-  const logged = logRuns.filter((r) => r.date >= monday && r.date <= asOf).reduce((s, r) => s + r.km, 0);
+  const logged = round1(logRuns.filter((r) => r.date >= monday && r.date <= asOf).reduce((s, r) => s + r.km, 0));
+  const weekRuns = raceWeekRuns(ctx.agenda);
+  const recap = weekRecap(
+    {
+      logged_km: logged,
+      planned_km: km > 0 ? km : null,
+      runs: weekRuns,
+      closed: ctx.closed.closed,
+      long_done: !!ctx.agenda?.intents?.some((i) => i.kind === "long" && i.status === "completed"),
+      long_planned: !!longRun,
+      best_before_km: ctx.bestBeforeKm,
+      harmed: !!ctx.adapt?.harmed,
+    },
+    asOf
+  );
   return {
     week_start: plan.week_start,
     km,
     long_km: longRun?.target_distance_km != null ? Number(longRun.target_distance_km) : null,
-    logged_km: round1(logged),
+    logged_km: logged,
     quality: qualityRun ? { label: qualityRun.label || plan.quality_focus || "Quality run", pace: qualityPace } : null,
     why: plan.why,
+    closed: ctx.closed.closed,
+    closed_reason: ctx.closed.reason,
+    runs: weekRuns,
+    headline: recap?.headline ?? null,
+    detail: recap?.detail ?? null,
   };
+}
+
+const RUN_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
+/** What this morning made of the run a slot planned, in words (km); null when nothing. */
+function adjustmentWords(intent: FlexibleRunIntent): string | null {
+  const adj = intent.adjustment;
+  if (!adj?.changed) return null;
+  if (adj.dose === "rest") return "turned to a rest day this morning";
+  if (adj.dose === "shortened" && adj.target_distance_km != null) return `shortened to ${kmText(adj.target_distance_km)} this morning`;
+  if (adj.kind === "easy" && adj.planned_kind !== "easy") return "eased to an easy run this morning";
+  if (adj.kind === "quality" && adj.planned_kind !== "quality") return "opened to a quality run this morning";
+  return null;
+}
+
+/** "13.5 km · 6:11/km · easy" — the run as run, in km. */
+export function actualRunLine(
+  run: Pick<RunCompletionEvidence, "distance_km" | "duration_min" | "pace_sec_per_km" | "intensity_word">
+): string {
+  const bits: string[] = [];
+  if (run.distance_km != null) bits.push(kmText(run.distance_km));
+  else if (run.duration_min != null) bits.push(`${Math.round(run.duration_min)} min`);
+  if (run.pace_sec_per_km != null && run.pace_sec_per_km > 0) bits.push(`${fmtPace(run.pace_sec_per_km)}/km`);
+  bits.push(run.intensity_word);
+  return bits.join(" · ");
+}
+
+const EXTRA_RUN_LINE = "An extra run, beyond the week's plan.";
+
+/**
+ * Every run logged this week from the agenda — the runs that answered a planned slot and
+ * the extras that answered none — in date order, actual first.
+ */
+export function raceWeekRuns(agenda: FlexibleTrainingAgenda | null | undefined): RaceWeekRun[] {
+  if (!agenda?.available) return [];
+  const out: RaceWeekRun[] = [];
+  const toRun = (c: RunCompletionEvidence, intent: FlexibleRunIntent | null): RaceWeekRun => {
+    const word: RunEffortWord = c.intensity_word ?? (c.intensity === "quality" ? "hard" : "easy");
+    const plannedKind = (intent?.adjustment?.changed ? intent.adjustment.planned_kind : null) ?? intent?.kind ?? null;
+    return {
+      activity_id: c.activity_id,
+      date: c.date,
+      weekday: RUN_WEEKDAYS[isoDow(c.date)] ?? c.date,
+      title: c.title ?? null,
+      km: c.distance_km != null ? round1(c.distance_km) : null,
+      duration_min: c.duration_min,
+      pace_sec_per_km: c.pace_sec_per_km ?? null,
+      avg_hr: c.avg_hr ?? null,
+      intensity: word === "hard" ? "quality" : word,
+      intensity_word: word,
+      stated_easy: c.intensity_basis === "stated_easy",
+      kind: intent?.kind ?? null,
+      intent_id: intent?.id ?? null,
+      extra: !intent,
+      planned:
+        intent && plannedKind
+          ? {
+              kind: plannedKind,
+              label: String(intent.planned_label || intent.label).replace(/\s*·\s*shorter$/i, ""),
+              km: intent.planned_distance_km ?? null,
+            }
+          : null,
+      adjustment: intent ? adjustmentWords(intent) : null,
+      actual_line: actualRunLine({ ...c, intensity_word: word }),
+      plan_line: intent ? plannedRunLine(intent) : EXTRA_RUN_LINE,
+    };
+  };
+  for (const intent of agenda.intents ?? []) {
+    if (intent.status === "completed" && intent.completion) out.push(toRun(intent.completion, intent));
+  }
+  for (const extra of agenda.extras ?? []) out.push(toRun(extra, null));
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.activity_id - b.activity_id);
+}
+
+// ---------- the week's recap (headline + one detail line) ----------
+//
+// Written here, never in a renderer, and held to the reading grammar: no score, no
+// grade, no gate. A variant set per state, so a stable week does not print one literal
+// every morning (pickDayVariant).
+const RECAP_HEADLINES = {
+  biggest: ["Your biggest week yet.", "More running than any week before it.", "A new high for your running."],
+  // A new high that carried harm: said as a big week that asked a lot, never celebrated
+  // beside a capacity read that sets the same week aside.
+  asked: ["A big week, and it asked a lot.", "More running than before — and the body felt it.", "A big week the body is still answering."],
+  done: ["The week's work is in.", "That's the week, done.", "The week is in."],
+  lighter: ["A lighter week, and that's fine.", "A lighter week — the build carries on from here.", "A quieter week, and the build holds."],
+  underway: ["The week is under way.", "The week is taking shape.", "Running so far this week."],
+} as const;
+
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+const countWord = (n: number): string => COUNT_WORDS[n] ?? String(n);
+
+export interface WeekRecapInput {
+  logged_km: number;
+  planned_km: number | null;
+  runs: Pick<RaceWeekRun, "intensity_word">[];
+  closed: boolean;
+  long_done: boolean;
+  long_planned: boolean;
+  /** The biggest closed week before this one, km (null when unknown). */
+  best_before_km: number | null;
+  /** The week's running carried harm evidence (closedWeekRunHarm). */
+  harmed?: boolean;
+}
+
+/** The week in two lines (see above). Null with no run logged. */
+export function weekRecap(input: WeekRecapInput, date: string): { headline: string; detail: string } | null {
+  const n = input.runs.length;
+  if (!n || !(input.logged_km > 0)) return null;
+  const planned = input.planned_km != null && input.planned_km > 0 ? input.planned_km : null;
+  const newHigh = input.best_before_km != null && input.best_before_km > 0 && input.logged_km > input.best_before_km + 0.05;
+  const lighter = input.closed && planned != null && input.logged_km < planned * 0.9;
+  const state: keyof typeof RECAP_HEADLINES = newHigh
+    ? input.harmed
+      ? "asked"
+      : "biggest"
+    : input.closed
+      ? lighter
+        ? "lighter"
+        : "done"
+      : "underway";
+  const headline = pickDayVariant(RECAP_HEADLINES[state], date, `race-build:recap:${state}`);
+
+  const vsPlan =
+    planned == null
+      ? ""
+      : input.logged_km >= planned * 1.25
+        ? `, well past the ${kmText(planned)} planned`
+        : input.logged_km > planned * 1.05
+          ? `, a little past the ${kmText(planned)} planned`
+          : input.logged_km >= planned * 0.95
+            ? `, right about the ${kmText(planned)} planned`
+            : input.closed
+              ? ` of the ${kmText(planned)} planned`
+              : ` so far of the ${kmText(planned)} planned`;
+  const hard = input.runs.filter((r) => r.intensity_word === "hard").length;
+  const steady = input.runs.filter((r) => r.intensity_word === "steady").length;
+  const easy = n - hard - steady;
+  const mix =
+    n >= 2 && hard === n
+      ? "every run on the hard side"
+      : hard === 0 && steady === 0
+        ? n === 1
+          ? "an easy run"
+          : "all of it easy"
+        : [easy ? `${countWord(easy)} easy` : "", steady ? `${countWord(steady)} steady` : "", hard ? `${countWord(hard)} hard` : ""]
+            .filter(Boolean)
+            .join(", ")
+            .replace(/, ([^,]*)$/, " and $1");
+  const long = input.long_done ? ", with the long run in" : input.closed && input.long_planned ? ", with no long run this time" : "";
+  const runsWord = `${countWord(n)} run${n === 1 ? "" : "s"}`;
+  const lead = pickDayVariant(
+    [
+      `${kmText(input.logged_km)} over ${runsWord}${vsPlan}: ${mix}${long}.`,
+      `${capFirst(runsWord)} for ${kmText(input.logged_km)}${vsPlan} — ${mix}${long}.`,
+    ],
+    date,
+    "race-build:recap:detail"
+  );
+  // What the ladder does next is the ladder's own sentence (`adapted`), never repeated here.
+  const forward = n >= 2 && hard === n ? " Next week the easy days stay easy." : "";
+  return { headline, detail: `${lead}${forward}` };
 }
 
 export function raceBuild(
@@ -1079,10 +1423,19 @@ export function raceBuild(
      * want the build.
      */
     describeRunning?: boolean;
+    /** The rolling agenda the caller already holds (read here off the live week otherwise). */
+    agenda?: FlexibleTrainingAgenda | null;
   }
 ): RaceBuild {
   const asOf = date || localDateISO();
   const goal = getEnduranceGoal(asOf);
+  // The week as RUN: the agenda grades and matches every logged run (extras included),
+  // off the live week with this morning's call on it, so a completed slot can say what
+  // the morning made of it.
+  const readAgenda = (): FlexibleTrainingAgenda | null =>
+    opts?.agenda !== undefined
+      ? opts.agenda
+      : safe(() => (opts?.runPlan === undefined ? flexibleTrainingAgenda(asOf) : flexibleTrainingAgenda(asOf, { runPlan: opts.runPlan })));
   const empty = (reason: string): RaceBuild => {
     // Only a surface that asked pays for the read of whether the athlete runs at all.
     const running = opts?.describeRunning ? runningWithoutRace(asOf, goal) : null;
@@ -1100,13 +1453,20 @@ export function raceBuild(
       ride: null,
       capacity: null,
       review: { weeks: [], longest_recent_km: null, volume_word: null },
+      adapted: "",
       why: "",
       reason,
     };
     if (running !== "runs") return out;
     const logRuns = recentRuns(asOf, 42);
     const plan = opts?.runPlan === undefined ? safe(() => weeklyRunPlan(asOf, { adjustToday: false })) : opts.runPlan;
-    return { ...out, this_week: thisWeekRead(plan, asOf, logRuns, null), review: weeklyReview(asOf, logRuns) };
+    const agenda = plan?.available ? readAgenda() : null;
+    const closed = safe(() => currentWeekClosedEarly(asOf, { agenda })) ?? NOT_CLOSED;
+    return {
+      ...out,
+      this_week: thisWeekRead(plan, asOf, logRuns, null, { agenda, closed, bestBeforeKm: null, adapt: null }),
+      review: weeklyReview(asOf, logRuns, closed.closed),
+    };
   };
 
   if (!goal || !goal.is_race || !goal.date) return empty("No dated race yet. Set one and the build lays out week by week.");
@@ -1162,9 +1522,22 @@ export function raceBuild(
   // Whose goals the lifting serves, read once: every rung's strength words and the
   // build's principle speak from it (race-strength.ts).
   const strengthLead: RaceStrengthLead = safe(() => raceStrengthLead(getTrainingIntent())) ?? "endurance_led";
-  const { weeks, review, shownCapacity } = raceLadderFor({ ...goal, date: goal.date, distance_km: distance }, asOf, plan, logRuns, {
-    strengthLead,
-  });
+  // ---- the week as run, and whether it is already closed ----
+  const agenda = plan?.available ? readAgenda() : null;
+  const closedRead = safe(() => currentWeekClosedEarly(asOf, { agenda })) ?? NOT_CLOSED;
+  const thisMonday = mondayOf(asOf);
+  const closedWeek = closedWeekAsRun(asOf, logRuns, closedRead);
+  const { weeks, review, shownCapacity, adapt } = raceLadderFor(
+    { ...goal, date: goal.date, distance_km: distance },
+    asOf,
+    plan,
+    logRuns,
+    { strengthLead, closed: closedWeek }
+  );
+  // The biggest week before this one — what a new high this week is said against.
+  const bestBeforeKm = closedWeek
+    ? (safe(() => demonstratedRunCapacity(addDaysISO(thisMonday, -1) ?? asOf).best_week_km) ?? null)
+    : (shownCapacity?.best_week_km ?? null);
 
   // ---- the ring: runs, strength, ride ----
   // Runs are the engine's week (never plan rows); strength is the lifting week laid onto
@@ -1176,8 +1549,7 @@ export function raceBuild(
     if (!g.groups.length) continue;
     strengthDays.set(g.day_number, { name: planDayName(g.day_number) ?? g.focus ?? "Strength", heavy_lower: g.heavy_lower });
   }
-  const impacts = safe(() => recentEnduranceImpacts(42, asOf)) ?? [];
-  const rideBase = ridePattern(impacts);
+  const rideBase = ridePattern(asOf);
   const longDay = longRun?.day_number ?? null;
   const qualityDay = qualityRun?.day_number ?? null;
   const easyDays = new Set(runs.filter((r) => r.kind_label === "easy").map((r) => r.day_number));
@@ -1286,7 +1658,7 @@ export function raceBuild(
     },
     prediction,
     paces,
-    this_week: thisWeekRead(plan, asOf, logRuns, qualityPace),
+    this_week: thisWeekRead(plan, asOf, logRuns, qualityPace, { agenda, closed: closedRead, bestBeforeKm, adapt }),
     weeks,
     leg_map,
     strength,
@@ -1301,10 +1673,13 @@ export function raceBuild(
         }
       : null,
     review,
+    adapted: adaptedLine(adapt, asOf),
     why,
     reason: null,
   };
 }
+
+const NOT_CLOSED: CurrentWeekClosed = { closed: false, reason: null, last_run_day: null };
 
 /**
  * The ladder from `asOf`'s week to race week, off the engine's own week `plan` — the ONE
@@ -1317,17 +1692,37 @@ export function raceLadderFor(
   asOf: string,
   plan: Pick<WeeklyRunPlan, "available" | "runs" | "planned_runs" | "goal_feasibility"> | null,
   logRuns: RunRow[] = recentRuns(asOf, 42),
-  ladderOpts?: { strengthLead?: RaceStrengthLead }
-): { weeks: RaceBuildWeek[]; review: RaceBuild["review"]; shownCapacity: ReturnType<typeof demonstratedRunCapacity> | null } {
+  ladderOpts?: {
+    strengthLead?: RaceStrengthLead;
+    /**
+     * The current week closed early (`currentWeekClosedEarly`), as run: the walk then
+     * steps off the logged week rather than its prescription, today rather than next
+     * Monday — exactly as the engine will on Monday. The engine's own feasibility read
+     * (race-ladder-hook.ts) passes the same closed week, so both name one peak.
+     */
+    closed?: { logged_km: number; long_km: number | null } | null;
+  }
+): {
+  weeks: RaceBuildWeek[];
+  review: RaceBuild["review"];
+  shownCapacity: ReturnType<typeof demonstratedRunCapacity> | null;
+  /** What the closed week did to the walk (machine register; `adaptedLine` speaks it). */
+  adapt: RaceLadderAdapt;
+} {
   const runs = plan?.available ? weekAsPlanned(plan) : [];
   const weekKm = round1(runs.reduce((s, r) => s + (r.target_distance_km != null ? Number(r.target_distance_km) : 0), 0));
   const longRun = runs.find((r) => r.kind_label === "long") ?? null;
   const longKm = longRun?.target_distance_km != null ? Number(longRun.target_distance_km) : null;
-  const review = weeklyReview(asOf, logRuns);
-  const anchorKm = weekKm > 0 ? weekKm : review.weeks.at(-1)?.km || 0;
-  const anchorLong = longKm ?? review.longest_recent_km ?? 0;
+  const priorReview = weeklyReview(asOf, logRuns);
+  const closed = ladderOpts?.closed && ladderOpts.closed.logged_km > 0 ? ladderOpts.closed : null;
+  const review = closed ? weeklyReview(asOf, logRuns, true) : priorReview;
+  const anchorKm = closed ? round1(closed.logged_km) : weekKm > 0 ? weekKm : priorReview.weeks.at(-1)?.km || 0;
+  const anchorLong = closed
+    ? Math.max(closed.long_km ?? 0, 0) || (longKm ?? priorReview.longest_recent_km ?? 0)
+    : (longKm ?? priorReview.longest_recent_km ?? 0);
   // The engine's own prescription is the truth for this week, and the rung the rest
-  // of the ladder steps off (see projectRaceBuildWeeks).
+  // of the ladder steps off (see projectRaceBuildWeeks) — until the week is closed,
+  // when what was RUN is the week.
   // The engine already knows next week (an upcoming recovery week, a hold, a stated
   // schedule change); handed to the ladder, the second rung is the engine's own number
   // rather than a projection that disagrees with the run list one card down.
@@ -1335,34 +1730,46 @@ export function raceLadderFor(
   // But only once THIS week's volume is in the bank. The engine sizes a week off the
   // Mon–Sun before it, so asked about next Monday mid-week it anchors on the three or
   // four kilometres logged so far and hands back a collapsed rung the ladder then
-  // walks from. Until the log has caught up with this week's prescription, next week
-  // steps off the prescription (the walk's own projection) instead.
+  // walks from. Until the log has caught up with this week's prescription (or the week
+  // has closed early), next week steps off the prescription (the walk's own projection).
   const thisMonday = mondayOf(asOf);
   const loggedThisWeek = logRuns.filter((r) => r.date >= thisMonday && r.date <= asOf).reduce((s, r) => s + r.km, 0);
-  const thisWeekBanked = weekKm > 0 && loggedThisWeek >= weekKm;
+  const thisWeekBanked = closed != null || (weekKm > 0 && loggedThisWeek >= weekKm);
   const nextMonday = addDaysISO(thisMonday, 7);
   const nextPlan = nextMonday && thisWeekBanked ? safe(() => weeklyRunPlan(nextMonday)) : null;
   const nextRuns = nextPlan?.available ? nextPlan.runs : [];
   const nextKm = round1(nextRuns.reduce((s, r) => s + (r.target_distance_km != null ? Number(r.target_distance_km) : 0), 0));
   const nextLong = nextRuns.find((r) => r.kind_label === "long");
-  const priorWeekKm = review.weeks.find((w) => w.week_start === addDaysISO(thisMonday, -7))?.km ?? null;
+  const priorWeekKm = priorReview.weeks.find((w) => w.week_start === addDaysISO(thisMonday, -7))?.km ?? null;
   // What the running has already shown, read at the same closed week the engine plans
-  // this week from (the Sunday before this Monday).
-  const shownCapacity = safe(() => demonstratedRunCapacity(addDaysISO(thisMonday, -1) ?? asOf));
+  // this week from (the Sunday before this Monday) — or, once this week has closed
+  // early, at its own Sunday, so the week just run counts (or is set aside) today.
+  const priorCapacity = safe(() => demonstratedRunCapacity(addDaysISO(thisMonday, -1) ?? asOf));
+  const thisSunday = addDaysISO(thisMonday, 6);
+  const shownCapacity = closed && thisSunday ? (safe(() => demonstratedRunCapacity(thisSunday)) ?? priorCapacity) : priorCapacity;
+  const currentWeekHarmed = safe(() => closedWeekRunHarm(asOf)) != null;
+  // A closed week is stepped off as run — no rule of the ladder's own after a big or a
+  // harmed week. What follows it is the engine's: its next week (read once this week is
+  // banked) and the ACWR ceiling the walk already applies over the logged weeks, so the
+  // ladder read on the Sunday a week closes is the ladder Monday's engine walks.
+  const priorKms = priorReview.weeks.map((w) => w.km);
   const weeks = projectRaceBuildWeeks(
     goal,
     asOf,
     anchorKm,
     anchorLong,
-    weekKm > 0 ? { km: weekKm, long_km: longKm } : null,
+    closed ? { km: round1(closed.logged_km), long_km: anchorLong || longKm } : weekKm > 0 ? { km: weekKm, long_km: longKm } : null,
     nextKm > 0 ? { km: nextKm, long_km: nextLong?.target_distance_km != null ? Number(nextLong.target_distance_km) : null } : null,
     {
       priorWeekKm,
-      closedWeeksKm: review.weeks.map((w) => w.km),
+      closedWeeksKm: priorKms,
       demonstratedLongKm: demonstratedLongKm(asOf, logRuns),
       demonstratedWeekKm: shownCapacity?.floor_km ?? null,
-      bestWeekKm: shownCapacity?.best_week_km ?? null,
-      currentWeekHarmed: safe(() => closedWeekRunHarm(asOf)) != null,
+      // A new weekly high is said against the biggest week BEFORE this one: a closed
+      // current week that passed it is itself the new high, and the peak is then read
+      // against it.
+      bestWeekKm: priorCapacity?.best_week_km ?? null,
+      currentWeekHarmed,
       strengthLead: ladderOpts?.strengthLead,
       // The engine's own run week, when its run count is fixed — so a projected rung is
       // what the engine will prescribe in those runs, not a volume they cannot carry.
@@ -1374,7 +1781,79 @@ export function raceLadderFor(
         : null,
     }
   );
-  return { weeks, review, shownCapacity };
+  const current = weeks.find((w) => w.current);
+  if (current && closed) {
+    current.closed = true;
+    current.planned_km = weekKm > 0 ? weekKm : null;
+  }
+  return {
+    weeks,
+    review,
+    shownCapacity,
+    adapt: {
+      closed: !!closed,
+      logged_km: closed ? round1(closed.logged_km) : round1(loggedThisWeek),
+      planned_km: weekKm > 0 ? weekKm : null,
+      harmed: currentWeekHarmed,
+      next_km: nextKm > 0 ? nextKm : null,
+    },
+  };
+}
+
+/** The closed current week as run, off the log the caller holds; null while the week is open. */
+function closedWeekAsRun(asOf: string, logRuns: RunRow[], read: CurrentWeekClosed): { logged_km: number; long_km: number | null } | null {
+  if (!read.closed) return null;
+  const monday = mondayOf(asOf);
+  const week = logRuns.filter((r) => r.date >= monday && r.date <= asOf);
+  return {
+    logged_km: round1(week.reduce((s, r) => s + r.km, 0)),
+    long_km: week.reduce((m, r) => Math.max(m, r.km), 0) || null,
+  };
+}
+
+export interface RaceLadderAdapt {
+  /** The current week closed early and the walk stepped off it as run. */
+  closed: boolean;
+  logged_km: number;
+  planned_km: number | null;
+  /** The week's running carried harm evidence (closedWeekRunHarm). */
+  harmed: boolean;
+  /** The engine's own next week, when the walk read it (the ladder's next rung). */
+  next_km: number | null;
+}
+
+// After a harmed week, said only when the engine's own next week really does not climb
+// past it — the sentence names that rung, never a hold the ladder does not draw.
+const ADAPTED_HARMED: ReadonlyArray<(logged: string, next: string) => string> = [
+  (logged, next) => `This week's ${logged} asked a lot of the body, so next week sits at ${next} rather than climbing off it.`,
+  (logged, next) => `The body is still answering this week's ${logged}, so next week stays at ${next} rather than climbing past it.`,
+];
+const ADAPTED_REREAD: ReadonlyArray<(logged: string, planned: string) => string> = [
+  (logged, planned) => `The weeks ahead now read from the ${logged} you ran rather than the ${planned} planned.`,
+  (logged, planned) => `This week is in at ${logged} against ${planned} planned, and the ladder steps on from what you ran.`,
+];
+
+/**
+ * The ONE calm sentence for when the forward ladder moved because of this week. "" when
+ * the week is still open, or closed close to its plan. Every claim is one the ladder
+ * draws: next week's figure is the engine's own rung. In km; a suggestion, never a verdict.
+ */
+export function adaptedLine(adapt: RaceLadderAdapt | null | undefined, date: string): string {
+  if (!adapt?.closed) return "";
+  const logged = kmText(adapt.logged_km);
+  const planned = adapt.planned_km != null ? kmText(adapt.planned_km) : null;
+  if (adapt.harmed && adapt.next_km != null && adapt.next_km > 0 && adapt.next_km <= adapt.logged_km + 0.05) {
+    return pickDayVariant(ADAPTED_HARMED, date, "race-build:adapted:harmed")(logged, kmText(adapt.next_km));
+  }
+  if (!planned) return "";
+  const gap = Math.abs(adapt.logged_km - (adapt.planned_km ?? 0));
+  if (gap < Math.max(2, (adapt.planned_km ?? 0) * 0.1)) return "";
+  return pickDayVariant(ADAPTED_REREAD, date, "race-build:adapted:reread")(logged, planned);
+}
+
+function kmText(km: number): string {
+  const r = round1(km);
+  return `${Number.isInteger(r) ? r : r.toFixed(1)} km`;
 }
 
 // The engine's race-feasibility sentence reads the same walk (race-ladder-hook.ts).
@@ -1388,7 +1867,15 @@ function raceLadderPeakRead(asOf: string, plan: RaceLadderPlanDraft): number | n
   const goal = getEnduranceGoal(asOf);
   const distance = Number(goal?.distance_km);
   if (!goal?.is_race || !goal.date || !(distance > 0) || goal.phase === "past") return null;
-  const weeks = raceLadderFor({ ...goal, date: goal.date, distance_km: distance }, asOf, plan as any).weeks;
+  // The same closed week the race page walks from (raceBuild), so a Sunday the week
+  // closes early names one peak on both surfaces. currentWeekClosedEarly may read the
+  // agenda, and so the engine, back: that nested engine read is inside this walk, where
+  // raceLadderPeak answers null, so it cannot recurse.
+  const logRuns = recentRuns(asOf, 42);
+  const closedRead = safe(() => currentWeekClosedEarly(asOf)) ?? NOT_CLOSED;
+  const weeks = raceLadderFor({ ...goal, date: goal.date, distance_km: distance }, asOf, plan as any, logRuns, {
+    closed: closedWeekAsRun(asOf, logRuns, closedRead),
+  }).weeks;
   return weeks.find((w) => w.kind === "peak")?.km ?? null;
 }
 

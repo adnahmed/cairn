@@ -803,3 +803,64 @@ test("the race build reaches a prompt without the race page's per-week prose", (
   );
   assert.equal(ctx.race_build.weeks[0].with_lifting.length > 0, true, "the source context is never mutated");
 });
+
+// The whole-week load read (src/repo/week-training-load.ts) is THE week picture at every
+// site that reads training as a week, and replaces the two-day `recent_load` list there.
+// The conference snapshot is left alone (its 50-key bound), and getCoachContext keeps
+// recent_load for routes and MCP.
+test("week_training_load replaces recent_load at the training sites, and the conference is untouched", () => {
+  seedDemo();
+  const ctx = repo.getCoachContext();
+  assert.ok(Object.hasOwn(ctx, "week_training_load"), "the context carries the key");
+  assert.ok(Object.hasOwn(ctx, "recent_load"), "recent_load stays for routes and MCP");
+  for (const site of ["day_read", "session", "weekly_read", "week_ahead", "chat", "daily_composition"]) {
+    const projected = projectCoachContext(ctx, site);
+    assert.ok(Object.hasOwn(projected, "week_training_load"), `${site} carries week_training_load`);
+    assert.ok(!Object.hasOwn(projected, "recent_load"), `${site} no longer carries recent_load`);
+  }
+  assert.ok(!PROMPT_CONTEXT_SITES.case_conference.keys.includes("week_training_load"));
+  assert.ok(!Object.hasOwn(projectCoachContext(ctx, "case_conference"), "week_training_load"));
+  // The pointer the model reads beside the DATA block.
+  assert.match(buildWeeklyReadPrompt(ctx), /one whole-week load picture/);
+  assert.match(buildDayReadPrompt(), /one whole-week load picture/);
+});
+
+test("the Brief gets the week's shape without row ids or every run title", () => {
+  const ctx = {
+    week_training_load: {
+      as_of: "2026-10-04",
+      days: [
+        {
+          date: "2026-10-02",
+          runs: [{ activity_id: 112, km: 5.97, effort_word: "hard", basis: "personal_model", title: "Hill Sprints", closed: "quality" }],
+          cross: [],
+          strength: { title: "Pull", load: "moderate", legs: "none", upper: "loaded" },
+          day_load: "hard",
+        },
+        {
+          date: "2026-09-30",
+          runs: [{ activity_id: 111, km: 6.63, effort_word: "easy", basis: "watch", title: "Cambridge Running", closed: null }],
+          cross: [{ activity_id: 9, type: "kayaking_v2", label: "paddle", family: "paddle", load: "moderate" }],
+          strength: null,
+          day_load: "moderate",
+        },
+      ],
+      next_48h: { dates: ["2026-10-05", "2026-10-06"], planned: [], legs: "loaded", implication_code: "clear", line: "x" },
+    },
+  };
+  const brief = projectCoachContext(ctx, "day_read").week_training_load;
+  const [fri, wed] = brief.days;
+  assert.equal(fri.runs[0].title, "Hill Sprints", "a key run keeps its own name");
+  assert.ok(!Object.hasOwn(fri.runs[0], "activity_id"));
+  assert.ok(!Object.hasOwn(wed.runs[0], "title"), "an extra run's title is dropped");
+  assert.equal(wed.runs[0].km, 6.63);
+  assert.ok(!Object.hasOwn(wed.cross[0], "activity_id"));
+  assert.ok(!Object.hasOwn(wed.runs[0], "basis"), "the grading basis is machinery the Brief does not need");
+  assert.equal(wed.cross[0].family, "paddle");
+  assert.equal(wed.cross[0].load, "moderate");
+  assert.equal(fri.strength.upper, "loaded");
+  assert.deepEqual(brief.next_48h, ctx.week_training_load.next_48h, "the next 48 hours pass whole");
+  // Every other site keeps the full read; the source is never mutated.
+  assert.deepEqual(projectCoachContext(ctx, "session").week_training_load, ctx.week_training_load);
+  assert.equal(ctx.week_training_load.days[1].runs[0].title, "Cambridge Running");
+});

@@ -35,6 +35,7 @@ import {
   muscleGroupTrajectory,
   muscleLoadPayload,
   performanceStanding,
+  planLookAhead,
   programAdjustments,
   programBalance,
   raceBuild,
@@ -114,6 +115,7 @@ export function trainHomeResponses(viewQuery: unknown, dateQuery: unknown): Scre
     put(out, "/test-week", () => testWeekDue(undefined));
     put(out, "/muscle-trajectory", () => muscleGroupTrajectory(undefined));
     put(out, "/dexa-targeting", () => dexaTargeting());
+    put(out, "/plan/look-ahead", () => planLookAhead());
   } else {
     put(out, "/stats", () => getWeeklyStats());
     put(out, "/endurance-prs", () => getEndurancePRs(undefined));

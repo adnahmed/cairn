@@ -1,5 +1,6 @@
 // @ts-check
-// Meal-plan journal renderers (history inside Plan → Food): ideas on request, never what was eaten.
+// Meal-plan renderers: the week menu (/app/today/menu) and the past weeks kept in Fuel's
+// history fold. Ideas on request, never what was eaten.
 
 type MealRecord = Record<string, unknown>;
 
@@ -82,6 +83,12 @@ type MealPlannerPaint = {
     return mealRecord(p.constraint_state || parsed.constraint_state);
   }
 
+  // A week whose saved allergy/dietary constraints changed under it is kept, but none
+  // of its meals or shopping read as current until the team drafts a fresh one.
+  function needsRefresh(plan: unknown): boolean {
+    return constraintState(plan).status === "refresh_needed";
+  }
+
   function mealPlanConstraintNoticeHtml(plan: unknown): string {
     const state = constraintState(plan);
     if (state.status !== "refresh_needed") return "";
@@ -90,80 +97,6 @@ type MealPlannerPaint = {
     return `<div class="plan-upcoming reveal" role="status">
       <span class="lbl plan-upcoming-mast">MEALS NEED A REFRESH</span>
       <p class="sess-line mp-flush">Your saved allergy or dietary constraints changed.${escHtml(detail)} This week is kept in history, but Cairn will not treat its meals or shopping list as current.</p>
-    </div>`;
-  }
-
-  function scheduledMealPlan(plan: unknown): MealRecord | null {
-    const p = mealRecord(plan);
-    const autonomy = mealRecord(p.autonomy);
-    return p.status === "draft" && (autonomy.status === "announced" || autonomy.status === "pending") ? autonomy : null;
-  }
-
-  function mealBoundaryLabel(value: unknown): string {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
-    if (!m) return "at the next food-day boundary";
-    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-    return d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-  }
-
-  function mealTargetValue(value: unknown): number | null {
-    const target = Number(value);
-    return Number.isFinite(target) && target > 0 ? Math.round(target) : null;
-  }
-
-  function mealTargetSummary(plan: unknown): string {
-    const parsed = mealRecord(mealRecord(plan).parsed);
-    const kcal = mealTargetValue(parsed.daily_kcal);
-    const protein = mealTargetValue(parsed.daily_protein_g);
-    return [kcal == null ? "" : `${kcal.toLocaleString()} kcal`, protein == null ? "" : `${protein} g protein`]
-      .filter(Boolean)
-      .join(" · ");
-  }
-
-  function mealTargetDifference(plan: unknown, current: unknown): string {
-    const nextParsed = mealRecord(mealRecord(plan).parsed);
-    const currentParsed = mealRecord(mealRecord(current).parsed);
-    const nextKcal = mealTargetValue(nextParsed.daily_kcal);
-    const currentKcal = mealTargetValue(currentParsed.daily_kcal);
-    const nextProtein = mealTargetValue(nextParsed.daily_protein_g);
-    const currentProtein = mealTargetValue(currentParsed.daily_protein_g);
-    const differences: string[] = [];
-    if (nextKcal != null && currentKcal != null && nextKcal !== currentKcal) {
-      differences.push(
-        `${Math.abs(nextKcal - currentKcal).toLocaleString()} kcal ${nextKcal > currentKcal ? "more" : "less"}`
-      );
-    }
-    if (nextProtein != null && currentProtein != null) {
-      if (nextProtein === currentProtein) differences.push(`protein stays at ${nextProtein} g`);
-      else
-        differences.push(
-          `${Math.abs(nextProtein - currentProtein)} g protein ${nextProtein > currentProtein ? "more" : "less"}`
-        );
-    }
-    return differences.join(" · ");
-  }
-
-  function mealPlanUpcomingHtml(plan: unknown, current?: unknown): string {
-    const p = mealRecord(plan);
-    const autonomy = scheduledMealPlan(p);
-    if (!autonomy) return "";
-    const target = mealTargetSummary(p);
-    const difference = mealTargetDifference(p, current);
-    const detail = String(
-      autonomy.summary || mealRecord(p.parsed).summary || "Your next week is ready around the latest picture."
-    );
-    return `<div class="plan-upcoming reveal" style="${stagger(0)}">
-      <span class="lbl plan-upcoming-mast">COMING NEXT</span>
-      <p class="plan-upcoming-line"><span class="plan-upcoming-when">${escHtml(mealBoundaryLabel(autonomy.effective_date))}</span> — your meals refresh automatically.</p>
-      ${target ? `<p class="sess-line mp-flush">${escHtml(target)}</p>` : ""}
-      ${difference ? `<p class="sess-line mp-flush mp-muted">${escHtml(difference)}</p>` : ""}
-      <div class="logrow mp-upcoming-row">
-        <details class="hist-fold mp-upcoming-fold">
-          <summary>Preview changes</summary>
-          <p class="sess-line mp-muted mp-fold-body">${escHtml(detail)}</p>
-        </details>
-        ${CairnDecisionUndo.buttonHtml({ id: autonomy.id, label: "Hold", attr: "meal-decision-hold" })}
-      </div>
     </div>`;
   }
 
@@ -294,9 +227,9 @@ type MealPlannerPaint = {
   function mealPlanEmptyHtml(mealPrefs: unknown): string {
     return `<div class="meals-empty reveal" style="${stagger(0)}">
         <div class="artile artile-xl meals-empty-art">${art("food", "meal plate")}</div>
-        <div class="meals-empty-title">No week of meal ideas yet</div>
-        <div class="meals-empty-sub">Ideas for today sit above, from your own staples. When you want a whole week sketched around your training and preferences, the team can draft one on request.</div>
-        <button id="mealDraftBtn" class="pillbtn pill-accent" type="button">Ask the team for a week of ideas</button>
+        <div class="meals-empty-title">No menu this week yet</div>
+        <div class="meals-empty-sub">The team can sketch a week of meals around your training and what you like to eat. Ideas to look over, never a rule.</div>
+        <button id="mealDraftBtn" class="pillbtn pill-accent" type="button">Ask the team for a week of meals</button>
         <div id="mealDraftStatus" class="meals-status"></div>
       </div>${mealPrefsHtml(mealPrefs, 1)}`;
   }
@@ -387,7 +320,7 @@ type MealPlannerPaint = {
       ${shopping}
       ${notes}
       <div class="meals-redraft">
-        <button id="mealDraftBtn" class="ghostbtn meals-redraft-btn" type="button">Ask the team to refresh meals</button>
+        <button id="mealDraftBtn" class="ghostbtn meals-redraft-btn" type="button">Ask the team for a fresh week</button>
         <div id="mealDraftStatus" class="meals-status"></div>
       </div>`,
     };
@@ -399,6 +332,8 @@ type MealPlannerPaint = {
     MEAL_PREF_CHIPS,
     mealSlotFor,
     currentMealPlan,
+    mealPlanIsAdequate: (plan: unknown): boolean => !!mealRecord(plan).parsed && mealPlanIsAdequate(mealRecord(plan)),
+    needsRefresh,
     mealsCtxFor,
     mealRowHtml,
     mealPlanCardHtml,
