@@ -863,9 +863,57 @@ test("the estimate section shrinks to its basis and the paces", () => {
   const estimate = host.querySelector(".race-estimate");
   assert.equal(estimate.querySelector(".race-estimate-source").textContent, "From the watch's race predictor.");
   assert.equal(estimate.querySelector(".race-estimate-line"), null, "the fit is the head's to say");
+  // The goal milestone says the race pace, so the bands do not say it twice.
   const paces = estimate.querySelectorAll(".race-view-pace").map((row) => row.querySelector("dt").textContent);
-  assert.deepEqual(paces, ["Race pace", "Easy"]);
-  assert.match(estimate.querySelectorAll(".race-view-pace")[1].querySelector("dd").textContent, /under 150 bpm/);
+  assert.deepEqual(paces, ["Easy"]);
+  assert.match(estimate.querySelectorAll(".race-view-pace")[0].querySelector("dd").textContent, /under 150 bpm/);
+  // With no target there is no goal milestone, and the race band stays.
+  const noTarget = paint(win, build({ race: { ...build().race, target: null } }));
+  assert.deepEqual(
+    noTarget.querySelectorAll(".race-view-pace").map((row) => row.querySelector("dt").textContent),
+    ["Race pace", "Easy"]
+  );
+});
+
+test("the finish milestones: the goal, today's shape and the stretch, each a clock with its pace", () => {
+  const win = load();
+  const finishes = (host) =>
+    host.querySelectorAll(".race-finish").map((row) => ({
+      label: row.querySelector("dt").textContent,
+      clock: row.querySelector(".race-finish-clock").textContent,
+      pace: row.querySelector(".race-finish-pace")?.textContent ?? "",
+      note: row.querySelector(".race-finish-note")?.textContent ?? "",
+    }));
+  // The live shape: sub-2:00 with a 1:50 stretch, reading 1:54.
+  const live = paint(
+    win,
+    build({
+      race: {
+        ...build().race,
+        target: { sec: 7200, pace_sec_per_km: 341.2, raw: "sub-2:00 target; 1:50 stretch", kind: "time" },
+        stretch: { sec: 6600, pace_sec_per_km: 312.8, raw: "1:50 stretch", kind: "time", fit: "stretch" },
+      },
+      prediction: { ...build().prediction, estimate_sec: 6842, estimate_pace_sec_per_km: 324, fit: "fits" },
+    })
+  );
+  assert.deepEqual(finishes(live), [
+    { label: "Goal", clock: "sub-2:00", pace: "5:41 /km", note: "Inside it now" },
+    { label: "Today's shape", clock: "1:54", pace: "5:24 /km", note: "" },
+    { label: "Stretch", clock: "1:50", pace: "5:13 /km", note: "Within reach" },
+  ]);
+  assert.ok(live.querySelector(".race-finish.is-now"));
+  assert.doesNotMatch(live.querySelector(".race-finishes").textContent, SCORE);
+  // In miles, the paces follow the run units; the clocks do not move.
+  const miles = paint(
+    win,
+    build({ prediction: { ...build().prediction, estimate_pace_sec_per_km: 354 } }),
+    { units: "mi" }
+  );
+  assert.match(finishes(miles)[0].pace, /\/mi$/);
+  // No stretch named: two milestones. No estimate: the goal alone, with no place word.
+  assert.deepEqual(finishes(paint(win, build())).map((f) => f.label), ["Goal", "Today's shape"]);
+  const noEstimate = finishes(paint(win, build({ prediction: null })));
+  assert.deepEqual(noEstimate, [{ label: "Goal", clock: "sub-2:00", pace: "5:41 /km", note: "" }]);
 });
 
 test("no target reads the estimate alone; no estimate says where one comes from", () => {

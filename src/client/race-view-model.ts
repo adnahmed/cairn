@@ -253,8 +253,60 @@
     return [`Reads about ${reads}`, fit, trend].filter(Boolean).join(" · ");
   }
 
+  /** Where the estimate sits against a milestone, as a place: never a gap, never a grade. */
+  const MILESTONE_NOTE: Record<RaceFit, string> = {
+    fits: "Inside it now",
+    stretch: "Within reach",
+    beyond_horizon: "Past this build",
+  };
+
+  function paceText(secPerKm: unknown, units?: unknown): string {
+    const n = num(secPerKm);
+    if (n == null || n <= 0 || typeof fmtPaceBand !== "function") return "";
+    return fmtPaceBand({ fast_sec_per_km: n, slow_sec_per_km: n }, units);
+  }
+
+  /**
+   * The race's finish milestones, each a clock with the pace that holds it: the goal as
+   * set, where today's shape reads, and the stretch when one is named. [] with neither a
+   * target nor an estimate.
+   */
+  function finishesModel(build: RaceBuild | null | undefined, units?: unknown): ClientRaceFinish[] {
+    const target = build?.race?.target || null;
+    const stretch = build?.race?.stretch || null;
+    const p = build?.prediction || null;
+    const out: ClientRaceFinish[] = [];
+    const goal = targetClock(target?.sec);
+    if (target && goal) {
+      out.push({
+        key: "goal",
+        label: "Goal",
+        clock: `${/^\s*sub/i.test(String(target.raw || "")) ? "sub-" : ""}${goal}`,
+        pace: paceText(target.pace_sec_per_km, units),
+        note: p?.fit && MILESTONE_NOTE[p.fit] ? MILESTONE_NOTE[p.fit] : "",
+      });
+    }
+    const now = headClock(p?.estimate_sec);
+    if (p && now) {
+      out.push({ key: "now", label: "Today's shape", clock: now, pace: paceText(p.estimate_pace_sec_per_km, units), note: "" });
+    }
+    const reach = targetClock(stretch?.sec);
+    if (stretch && reach) {
+      out.push({
+        key: "stretch",
+        label: "Stretch",
+        clock: reach,
+        pace: paceText(stretch.pace_sec_per_km, units),
+        note: stretch.fit && MILESTONE_NOTE[stretch.fit] ? MILESTONE_NOTE[stretch.fit] : "",
+      });
+    }
+    return out;
+  }
+
   function pacesModel(build: RaceBuild | null | undefined, units?: unknown): Array<{ label: string; text: string }> {
-    const bands = Array.isArray(build?.paces?.bands) ? build.paces.bands : [];
+    const all = Array.isArray(build?.paces?.bands) ? build.paces.bands : [];
+    // The goal milestone already says the race pace; the band list does not say it twice.
+    const bands = build?.race?.target ? all.filter((band) => band.key !== "race") : all;
     return bands.map((band) => {
       const pace = typeof fmtPaceBand === "function" ? fmtPaceBand(band, units) : String(band.text || "");
       const ceiling = num(band.hr_ceiling_bpm);
@@ -303,6 +355,7 @@
       lifting: liftingModel(ladder),
       ladder,
       terrain: terrainModel(value, ladder, opts.units),
+      finishes: finishesModel(value, opts.units),
       paces: pacesModel(value, opts.units),
       notes: notesModel(value),
     };
@@ -326,6 +379,7 @@
     raceShortName,
     buildVoice,
     estimateModel,
+    finishesModel,
     fitHeadText,
     viewModel,
   };

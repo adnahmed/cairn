@@ -1466,6 +1466,8 @@ export interface ClientRaceBuild {
     weeks_to_race: number;
     phase: "base" | "build" | "sharpen" | "taper" | "past";
     target: { sec: number; pace_sec_per_km: number; raw: string; kind: "time" | "pace" } | null;
+    /** The faster milestone named beside the target ("…; 1:50 stretch"); absent/null with none. */
+    stretch?: { sec: number; pace_sec_per_km: number; raw: string; kind: "time" | "pace"; fit: ClientRaceFit | null } | null;
     target_raw: string | null;
   } | null;
   prediction: {

@@ -260,6 +260,11 @@ export interface RaceBuild {
     weeks_to_race: number;
     phase: RacePhase;
     target: RaceTarget | null;
+    /**
+     * The faster milestone the athlete named beside the target ("…; 1:50 stretch"), with
+     * where today's estimate sits against it — a place, never a grade. null with none.
+     */
+    stretch: (RaceTarget & { fit: RaceFit | null }) | null;
     target_raw: string | null;
   } | null;
   prediction: RacePrediction | null;
@@ -361,7 +366,37 @@ export function fmtPace(secPerKm: number): string {
  * ("1:45" for a half), otherwise as mm:ss ("22:30" for a 5k). null when nothing usable.
  */
 export function parseRaceTarget(raw: string | null | undefined, distanceKm: number): RaceTarget | null {
-  const text = String(raw ?? "")
+  // "1:50 stretch; sub-2:00" is a goal of 2:00 — the stretch clause is never the target.
+  const parts = targetClauses(raw);
+  const primary = parts.length > 1 ? parts.filter((p) => !STRETCH_WORD.test(p)).join(" ") : "";
+  return parseTargetClause(primary || raw, raw, distanceKm);
+}
+
+/** "sub-2:00 target; 1:50 stretch" → ["sub-2:00 target", "1:50 stretch"]. */
+function targetClauses(raw: string | null | undefined): string[] {
+  return String(raw ?? "")
+    .split(/[;,|\n]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+const STRETCH_WORD = /\bstretch\b/i;
+
+/**
+ * The stretch the athlete named beside the target ("sub-2:00 target; 1:50 stretch"):
+ * a second, faster milestone, never the goal itself. null when none is named, or when it
+ * is not faster than the target.
+ */
+export function parseRaceStretch(raw: string | null | undefined, distanceKm: number): RaceTarget | null {
+  const clause = targetClauses(raw).find((p) => STRETCH_WORD.test(p));
+  if (!clause) return null;
+  const stretch = parseTargetClause(clause, clause, distanceKm);
+  const target = parseRaceTarget(raw, distanceKm);
+  return stretch && target && stretch.sec < target.sec ? stretch : null;
+}
+
+function parseTargetClause(clause: string | null | undefined, raw: string | null | undefined, distanceKm: number): RaceTarget | null {
+  const text = String(clause ?? "")
     .trim()
     .toLowerCase();
   if (!text || !(distanceKm > 0)) return null;
@@ -1489,6 +1524,7 @@ export function raceBuild(
   // ---- prediction + target ----
   const logRuns = recentRuns(asOf, 42);
   const target = parseRaceTarget(goal.target, distance);
+  const stretchTarget = parseRaceStretch(goal.target, distance);
   let prediction = watchPrediction(asOf, distance) ?? runPrediction(distance, logRuns);
   if (prediction && target) {
     prediction = { ...prediction, gap_sec: prediction.estimate_sec - target.sec, fit: raceFit(prediction.estimate_sec, target.sec) };
@@ -1654,6 +1690,9 @@ export function raceBuild(
       weeks_to_race: weeksToRace,
       phase,
       target,
+      stretch: stretchTarget
+        ? { ...stretchTarget, fit: prediction ? raceFit(prediction.estimate_sec, stretchTarget.sec) : null }
+        : null,
       target_raw: goal.target ?? null,
     },
     prediction,

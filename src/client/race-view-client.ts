@@ -149,7 +149,7 @@
   ): string {
     const when = [model.countdown, model.race_day].filter(Boolean).join(" · ");
     const ladder = CairnRaceLadder.ladderHtml(model.ladder, { reveal: false });
-    const estimate = CairnRaceEstimate.estimateHtml(model.estimate, { paces: model.paces });
+    const estimate = CairnRaceEstimate.estimateHtml(model.estimate, { paces: model.paces, finishes: model.finishes });
     return `<section class="race-view${opts.enter ? " settle-in is-entering" : ""}" aria-label="Race" data-race-view>
       <header class="race-view-head">
         <div class="race-view-kickrow">

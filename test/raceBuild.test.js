@@ -9,6 +9,7 @@ import {
   fmtClock,
   paceBandsFor,
   paceKeyForQuality,
+  parseRaceStretch,
   parseRaceTarget,
   phaseForWeeks,
   projectRaceBuildWeeks,
@@ -94,6 +95,15 @@ beforeEach(resetAll);
 // ---------------------------------------------------------------------------
 // pure pieces
 // ---------------------------------------------------------------------------
+
+test("a named stretch is its own milestone, never the target", () => {
+  assert.equal(parseRaceTarget("sub-2:00 target; 1:50 stretch", HALF).sec, 7200);
+  assert.equal(parseRaceTarget("1:50 stretch; sub-2:00", HALF).sec, 7200, "the stretch clause never sets the goal");
+  assert.equal(parseRaceStretch("sub-2:00 target; 1:50 stretch", HALF).sec, 6600);
+  assert.equal(parseRaceStretch("1:50 stretch, sub-2:00", HALF).sec, 6600);
+  assert.equal(parseRaceStretch("sub-2:00", HALF), null);
+  assert.equal(parseRaceStretch("1:50 target; 2:05 stretch", HALF), null, "a stretch slower than the goal is not one");
+});
 
 test("parseRaceTarget reads finish times, hours, paces and minutes — and rejects noise", () => {
   const sub = parseRaceTarget("sub-1:45", HALF);

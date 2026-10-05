@@ -6414,6 +6414,17 @@ declare global {
     basis_text: string;
     empty: boolean;
   };
+  /** One finish milestone on the race page: the goal, today's shape, or the stretch. */
+  type ClientRaceFinish = {
+    key: "goal" | "now" | "stretch";
+    label: string;
+    /** "sub-2:00", "1:54", "1:50" — to the minute, the target as set. */
+    clock: string;
+    /** "5:41 /km" in the run units; "" when unknown. */
+    pace: string;
+    /** Where today's estimate sits against it ("Within reach"); "" for today's shape. */
+    note: string;
+  };
   type ClientRaceViewModel = {
     event: string;
     countdown: string;
@@ -6427,6 +6438,8 @@ declare global {
     ladder: ClientRaceLadderModel;
     /** The whole build as terrain for the km chart; null with fewer than two weeks. */
     terrain: ClientHorizonTerrain | null;
+    /** The finish milestones (goal, today's shape, stretch); [] with none. */
+    finishes: ClientRaceFinish[];
     paces: Array<{ label: string; text: string }>;
     notes: string[];
   };
@@ -6531,7 +6544,10 @@ declare global {
       rowHtml(row: ClientRaceLadderRow, index: number, opts: { reveal?: boolean }): string;
     };
     CairnRaceEstimate: {
-      estimateHtml(model: ClientRaceEstimateModel, opts?: { paces?: Array<{ label: string; text: string }> }): string;
+      estimateHtml(
+        model: ClientRaceEstimateModel,
+        opts?: { paces?: Array<{ label: string; text: string }>; finishes?: ClientRaceFinish[] }
+      ): string;
     };
     CairnRaceView: {
       viewHtml(
