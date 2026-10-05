@@ -4,6 +4,104 @@ The append-only, per-round changelog of Cairn's schema migrations and feature bu
 
 ---
 
+## 2026-10-04 — v2.0.0: the team decides, the record is true, five homes
+
+v2 grew out of the Atelier app rather than replacing it: every wave shipped inside the app the athlete
+already used, and the one large navigation change came last. Schema moved from v113 to **v119** (six
+migrations, listed at the end). Nothing in the constitution changed: no scores, suggestions never
+gates, pull never push. The roadmap that sequenced the work (`docs/V2-PLAN.md`) is retired with this
+entry; the lasting UI rules live in `docs/DESIGN.md` and the subsystem depth in `docs/ARCHITECTURE.md`.
+
+**Wave 0 — truth fixes and foundation refactors.**
+- Truth: meal-plan auto-drafts became an opt-in setting, off by default (v114). Weight and blood
+  pressure typed in chat land in their own tables rather than as activities, rows already misrouted
+  were repaired, and a logged activity can be deleted (REST plus its MCP mirror). Same-day duplicate
+  weigh-ins fold (v115) and a manual run dedupes against the watch's run. The doctor loop shows each
+  follow-up once, with its real due date.
+- Foundation refactors F1–F6, all behaviour-neutral: a shared DOM test harness (`test/_dom.mjs`);
+  token completion (`--space-*`, `--text-*`, `--z-*`, `--radius-pill`), motion literals moved onto
+  `--dur-*`/`--ease`, and a style ratchet (`scripts/check-client-style.mjs`) in `verify`; shared
+  primitives (`ui-sheet`, one segmented builder, `ui-chart`, `decision-undo`, one `reducedMotion()`);
+  `api-client` split into `api-core`, `outbox`, `outbox-ui` and `token-sheet`; the `delegate` and
+  `mountThing(host, deps)` mount contract; and a dead-code sweep.
+
+**Wave 1 — the team decides, you Undo.** Kinds of change that used to ask and then quietly lapse
+(training targets, rotations, structure) now decide and announce under the lead mode, with one-tap
+Undo. Clinical, locked and irreversible changes still ask, and `clinicianFloorHolds` is untouched in
+both directions. Asks already waiting at the switch are re-decided through the existing premise-retire
+and thaw path, never applied blindly. Today shows one line ("2 changes overnight") that opens a
+**Changes** feed (`GET /api/brain/changes` plus an MCP mirror): what changed, why in the spoken voice,
+one of four outcome phrases, a confidence word, and Undo. Activating a journey phase completes any
+stale active one, and a profile goal that disagrees with the active phase is reported in words, never
+overwritten. A weekly read that would repeat last week's says so in one line.
+
+**Wave 2 — Fuel and one food composer.** A logged meal comes back as an editable card (one row per
+item, grams editable, add or remove a row) built on the single `src/foodCapture.ts` contract. One
+`food-composer`, shared by chat and Fuel, keeps multi-line text, photo and voice. Fuel shows today so
+far (energy, protein, fibre; a partial day reads "in progress"), the day's meals, and ideas built from
+the athlete's staples with **Start from this**, which fills the composer and never logs. Scheduled
+meal plans gave way to ideas on demand, kept inside the athlete's own **observed intake band**
+(`classifyIntakeDay` still decides what counts as a complete day).
+
+**Wave 3 — Records and the doctor packet.** Records gained grouping modes (out of range first, by
+panel in `MARKER_GROUPS` order, newest) and search across markers, documents, visit notes and body
+readings (`GET /api/records/search`). The lab's own flag and the optimal-band mark are two separate
+elements on the shared `marker-row`. The doctor packet gained section toggles with a live preview and
+visit questions drawn from the deduplicated doctor loop, which the athlete can edit. An overdue
+recheck or rescan is surfaced once as evidence the team would like, never as a nag.
+
+**Wave 4 — the race horizon and the pebbles.** A race view reads `raceBuild()` (never a second
+engine): weeks to race, this week's distance against the ladder, the taper and race day, with the
+finish estimate as `fits` / `stretch` / `beyond_horizon`, never a grade. `GET /api/today/stones` is a
+server-owned projection of the signal dimensions onto six words (Strength, Endurance, Fuel, Recovery,
+Body, Heart), spoken through `spokenSignalVoice`; a dimension with no fresh signal reads "quiet". The
+pebble strip is the first view of them.
+
+**Wave 5 — You, the cairn-stack, five homes.** The full six-stone `cairn-stack` and `stone-detail`
+live in **You**; the decade view appears inside Heart only. Navigation consolidated to five homes in
+the tab bar (`src/contracts/client-routes.ts`): **Today, Train, Horizon, Ask, You**. Session, Fuel and
+a past or future day are reached from Today; the plan editor is Train's, the race view and goal line
+are Horizon's, and Changes lives in Ask. Every v1 `/app/<tab>/<section>` URL still parses and is
+rewritten in place, pinned by `test/routeState.test.js`. Horizon puts the race view, the goal line
+and labs or scans on one timeline. `POST /api/what-if` (a `src/coachOps` op plus an MCP mirror) shows
+a proposed change and its ripple across the stones in Ask; "Do it" hands the change to the autonomy
+policy as a draft and never applies itself.
+
+**Wave 6 — motion, performance, installed apps.**
+- Motion: a changed value washes accent once over `--dur-3`, rows animate in and out, the pebble strip
+  settles, the Undo toast has its own motion, every remaining literal is a token, and all of it is
+  checked under reduced motion.
+- Performance: a brotli byte budget per bundle enforced in `verify`; Train, Horizon, Ask, Settings
+  and the meal planner became lazy bundles, with a cold deep link preloading the bundles and reads its
+  route needs; one fan-in request per Train, Health and Session open; reads memoised on a freshness
+  key with `If-None-Match` answered before computing; an incremental service-worker precache; and a
+  per-route browser perf gate with checked-in budgets. First paint on every tab comes from
+  stale-while-revalidate.
+- The installed PWA updates in place. `manifest.json` `id`, `scope` and `start_url`, and every
+  `localStorage` key (`cairn_token`, `cairn.outbox.v1`, the drafts), are unchanged, so a v1 outbox
+  still drains. The worker serves `/manifest.json` network-first. A standalone iOS install, which
+  keeps the icon and name it was added with, shows one optional dismissible note when its outbox is
+  empty, and Settings → Data gained **Copy token** to make re-entry after a re-add quick.
+- Alongside the waves, the Brief, run engine and race build kept maturing: runs graded by the
+  personal heart-rate model, demonstrated capacity flooring the ramp, a check-in tap that eases but
+  never rests, and strength-led athletes progressing through a race build.
+
+**Migrations v2 added** (all forward-only; v1.9.1 shipped through v113):
+- **v114** `settings-meal-plan-auto-draft` — `settings.meal_plan_auto_draft`, default 0: the one switch
+  over every automatic meal-plan draft.
+- **v115** `bodyweight-exact-double-submits` — data repair only: folds identical same-day weigh-ins
+  submitted within ten minutes, keeping the first.
+- **v116** `food-note-person-edit-lock` — `food_notes.person_edited_at`: a person's edit wins over a
+  late enrichment pass.
+- **v117** `garmin-run-structure` — `garmin_activities` gains `gap_speed`, `body_battery_delta`,
+  `structure_json`, `laps_json`, and backfills the stored shape of existing runs.
+- **v118** `garmin-laps-relabel` — data repair only: clears stored laps so the next sync refetches
+  them correctly labelled.
+- **v119** `exercise-input-profile` — `exercises.input_profile` and `exercises.per_side`: what a log
+  row asks for (a stretch takes no load, a one-sided drill is dosed per side).
+
+---
+
 ## 2026-09-24 — Pairing round: the week's dose, one movement per region, the race build's stress budget
 
 No schema change (`user_version` stays at v111 — `plan_items.prescribed_at` from the prior round). Built

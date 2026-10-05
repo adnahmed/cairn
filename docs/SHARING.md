@@ -162,6 +162,10 @@ docker compose up -d
 Started with the one-line `docker run`? Pull `ghcr.io/zilet/cairn:latest` and recreate the
 container. Building from source? `git pull && docker compose up -d --build`.
 
+Coming from v1.x? v2.0.0 upgrades in place with the same volumes and installed apps; see
+[Upgrading from v1.x to v2.0.0](OPERATIONS.md#upgrading-from-v1x-to-v200) for the migrations and
+what changes.
+
 ## Updating CLI Tools
 
 The image installs no provider CLI. Install or update one provider from its Settings → Agents card;
@@ -191,14 +195,14 @@ The GitHub Actions workflow builds and pushes images to GitHub Container Registr
 when a `v*` tag is pushed:
 
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v2.0.0
+git push origin v2.0.0
 ```
 
 It publishes:
 
 ```text
-ghcr.io/zilet/cairn:v0.4.0
+ghcr.io/zilet/cairn:v2.0.0
 ghcr.io/zilet/cairn:latest
 ```
 

@@ -38,7 +38,8 @@ Where Cairn is different:
   self-hosted: your numbers live in a SQLite file on your own machine, exportable any time,
   with no account and no recurring fee.
 - **Coaching is conversational and agentic.** You talk to Cairn in plain language; it logs
-  the easy things instantly and stages changes as drafts you approve.
+  the easy things instantly. Small, reversible changes land on their own, each with its reason
+  and a one-tap Undo; bigger ones wait as drafts you approve.
 
 **When MacroFactor wins:** you want a refined, single-purpose nutrition app on your phone,
 maintained for you, and you don't want to host anything.
@@ -127,9 +128,12 @@ Where Cairn is different:
   saying it out loud — *"ran 50 minutes easy, then a big salad with salmon"* — becomes a logged
   activity *and* a logged meal, parsed and structured in the background. A spreadsheet is
   manual entry forever.
-- **Nothing silently changes your plan.** Cairn's spine is **propose → review → apply**: it
-  drafts, you decide. An LLM that just edits your sheet (or confidently rewrites your program)
-  has no such guardrail.
+- **Nothing changes your plan in silence.** Since 2.0 a team of specialists decides the small
+  things: the next earned load step, an eased calorie target. Each one lands with its reason, a
+  record of what it expected to happen, and a one-tap Undo in one Changes feed. How much the team
+  may do is **server policy, not model discretion**: anything clinical, irreversible or
+  goal-changing is still drafted and waits for you. An LLM that just edits your sheet (or
+  confidently rewrites your program) has no such guardrail and no Undo.
 - **It's two surfaces over one brain.** The same logic is reachable from the PWA *and* from any
   MCP client — so you can talk to Cairn from Claude or another client on your own network, with
   vision and the full tool surface, while the scheduled/background coaching runs on your own CLIs.

@@ -57,3 +57,7 @@ build-assets/
 
 # Generated from src/client/cairn-body-figure.ts (npm run client:build)
 public/cairn-body-figure.js
+
+# Promo masters (npm run promo): attached to releases, not committed
+media/v2/clips/*.mp4
+media/v2/cairn-hero.mp4

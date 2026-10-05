@@ -1039,7 +1039,7 @@ A crafted chat surface, not a form. Layout + behavior contract:
 ## Component architecture
 
 How `src/client/**` is put together: what the code does today, and the rules that v2 UI work
-follows. `docs/V2-PLAN.md` sequences the refactors; this section is the contract they aim at. The
+follows. The v2 refactors are recorded in `docs/ARCHITECTURE-HISTORY.md`; this section is the contract they follow. The
 numbers below were measured at v1.9.1 — re-measure before you quote them.
 
 ### What the code does today
@@ -1346,7 +1346,7 @@ in each row.
 | HTML escaping | Done: `escapeOutboxHtml` is gone | `escHtml` |
 | Screen snapshots | `today-screen.ts:162` (HTML), `stand-screen.ts:1243` (JSON) | SWR |
 
-**Components v2 adds** (sequenced in `docs/V2-PLAN.md`): `changes-line`, `changes-feed`,
+**Components v2 adds** (shipped in v2.0.0; see `docs/ARCHITECTURE-HISTORY.md`): `changes-line`, `changes-feed`,
 `decision-undo`, `meal-card` (read-only portions in words; an explicit Edit opens the gram rows), `food-composer` (shared by Fuel and chat),
 `fuel-today`, `idea-card`, `mmenu` (Fuel's "This week's menu" card), `pahead` (Program's "The week ahead": today through next Sunday, a row a day, from
 `program-week-{model,client,controller}.ts`), `records-search`, `packet-builder`, `visit-questions`, `race-ladder`,

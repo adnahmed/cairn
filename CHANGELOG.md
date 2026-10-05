@@ -5,6 +5,63 @@ Versioning](https://semver.org/) for tagged releases.
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-10-04
+
+Cairn 2.0 turns the read into a team. The Brief still opens your day; behind it, specialists now
+act on the small things, explain every change, and let you put any of them back with one tap.
+Upgrading from 1.x: back up, pull, restart. Six migrations (114–119) run on boot, and every v1
+link redirects. See [`docs/OPERATIONS.md`](docs/OPERATIONS.md#upgrading-from-v1x-to-v200).
+
+### Added
+
+- **The team decides, you Undo.** Under the default lead mode, earned training targets,
+  rotations and structure changes land on their own and announce themselves. Each one shows in one
+  **Changes** feed with its why, an outcome phrase, a confidence word and a server-labelled Undo
+  ("Restore previous Back Squat target"). Clinical, irreversible and goal changes still ask.
+- **Five homes.** Today, Train, Horizon, Ask and You replace eight tabs. Every v1 `/app/<tab>/…`
+  link redirects.
+- **The six-stone cairn.** You opens on strength, endurance, fuel, recovery, body and heart, one word
+  each. A stone opens to its evidence and its neighbours.
+- **Horizon.** Week, race and season on one line of time, a race build drawn as terrain over the
+  logged weeks, and goal, labs and scans on one timeline. Distances in km or mi.
+- **Fuel and one food composer.** Chat and Fuel share one composer. A logged meal comes back as an
+  editable card, with an observed intake band under the protein anchor. Ideas come from your own
+  staples, one meal at a time.
+- **Ask: what if.** "What if I move the long run to Saturday?" returns the ripple across the six
+  stones. "Do it" hands it to the team as a draft and never applies it on its own.
+- **Records and the doctor packet.** Records are grouped and searchable, with the lab flag apart
+  from the optimal band. The packet builder has section toggles, a live preview, editable visit
+  questions and "evidence wanted".
+- **Every sport is a dose.** The whole training week is one read across every logged activity.
+  Moved key runs keep their identity, and a recurring ride is the cross-training day.
+- **Promo recorder.** `npm run promo` records the README clips, hero cut and trailer from the
+  demo seed only.
+
+### Changed
+
+- **Atelier v2 design.** New tokens, self-hosted type (Young Serif, Hanken Grotesk, Martian Mono),
+  a refreshed stone mark, a dark theme, and motion that respects reduced-motion.
+- **Runs are read personally.** Runs are graded by your own HR model and your own words, never by
+  Garmin's training effect or zones. "Long" means long against your own ordinary run.
+- **The race build starts from what you've run.** Your best harm-free week of the last eight sets
+  the floor, and the peak aims one step past it. A set-aside week is named on the plan.
+- **A check-in tap eases the day; only objective evidence rests it.** A morning's harm read uses the
+  watch's own wake-up readiness.
+- **Meal plans draft on request.** Automatic weekly drafts are now an opt-in setting, off by default
+  (migration 114).
+- **Faster opens.** Train, Health and Session each load with one request. Lazy bundles keep the
+  eager shell under its 220 KB budget.
+
+### Fixed
+
+- Weight, blood pressure and other numbers typed in chat now land in their own tables. Same-day
+  duplicate weight, tape and check-in rows merge, and a double-submitted weigh-in folds into one
+  (migration 115).
+- A meal you corrected by hand is never overwritten by a later re-read (migration 116).
+- Doctor-loop follow-ups appear once, with their real due date.
+- Installed PWAs update in place: the manifest identity is pinned, and iOS shows one optional note
+  plus a "Copy token" in Settings.
+
 ## [1.9.1] — 2026-09-25
 
 ### Changed

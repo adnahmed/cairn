@@ -21,7 +21,7 @@ docker run -d --name cairn -p 127.0.0.1:8787:8787 \
   --restart unless-stopped ghcr.io/zilet/cairn:latest
 ```
 
-Open **http://localhost:8787** — you land on the Brief. That's the whole install.
+Open **http://localhost:8787** — you land on Today, where the Brief reads your day. That's the whole install.
 
 > **Docker or Podman.** Every `docker …` command in these docs works unchanged with Podman
 > (`podman run`, `podman compose`) and the scripts detect whichever engine is installed and
@@ -281,7 +281,7 @@ Then open `http://localhost:8787` on your laptop.
 
 Once Cairn is running (on your laptop, a Pi, or a VM):
 
-1. Open **http://localhost:8787** (or the host's address) — you land on the **Today** tab and
+1. Open **http://localhost:8787** (or the host's address) — you land on **Today**, the first of the five homes (Today, Train, Horizon, Ask, You), and
    the Brief reads your day immediately. It is a real, calm suggestion (rest / easy / train)
    based on what it knows so far.
 2. To put it on your phone, run **`./scripts/setup-phone.sh`** — it detects your exact private
@@ -290,7 +290,7 @@ Once Cairn is running (on your laptop, a Pi, or a VM):
    generate a token.
 3. Tap an override chip ("rough night", "give me an easy day") if you want to steer the Brief.
 4. Log something (a set or bodyweight) so the charts start filling in with your data.
-5. **Settings → You → Profile** — replace the demo profile with your real weight, goal, etc.
+5. **You → Profile** — replace the demo profile with your real weight, goal, etc.
 
 **Phone / home screen app:** Tailscale **Serve** + "Add to Home Screen" is the supported path —
 tailnet-only, a real offline-capable PWA, nothing on the public internet. The Brief and logging
@@ -301,13 +301,13 @@ no agent. Chat and generative adaptations need one.
 
 ### First 10 minutes
 
-1. **Me -> Profile:** replace the seeded example profile with your real weight, goal, training
+1. **You → Profile:** replace the seeded example profile with your real weight, goal, training
    age, and any constraints.
 2. **Today:** log one set or one bodyweight entry so the charts have your first real point.
 3. **Settings -> Agents:** install and connect the coaching provider you already use.
 4. **Settings -> Export:** download a JSON or DB backup once you start entering real data.
 
-After that, Coach is the simplest place to give direction; Cairn also prepares future training and
+After that, **Ask** is the simplest place to give direction; Cairn also prepares future training and
 meal changes in the background according to your autonomy posture.
 
 ---
@@ -349,7 +349,7 @@ docker exec -u app -it cairn agy                 # Antigravity (Google) — past
 docker exec -u app -it cairn grok login --device-auth   # Grok — device login (or use XAI_API_KEY, below)
 ```
 
-After logging in, enable that agent in **Settings → Agents**, open **Coach**, and ask a simple
+After logging in, enable that agent in **Settings → Agents**, open **Ask**, and ask a simple
 question to test it. You only need **one** to unlock chat, adaptive reads, and meal planning; add
 more later for the rotation.
 
@@ -384,7 +384,7 @@ agy           # Google
 
 ### Enable and test the agent
 
-Open **Settings → Agents**, enable your provider, then open **Coach** and ask what it notices about
+Open **Settings → Agents**, enable your provider, then open **Ask** and ask what it notices about
 the current week. Lead mode applies bounded reversible changes at natural boundaries, announces
 structural changes first, and always asks about clinical or goal-identity decisions. Choose the
 review posture in Settings if you want every material change held for approval.

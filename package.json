@@ -1,6 +1,6 @@
 {
   "name": "cairn",
-  "version": "1.9.1",
+  "version": "2.0.0",
   "type": "module",
   "license": "MIT",
   "description": "Cairn — self-hosted wellness OS for training, nutrition and longevity. Connects your labs, lifting, running, food and sleep into one agentic brain that suggests the one thing worth doing today. PWA + REST + MCP server. No scores, no nudges.",
@@ -56,6 +56,7 @@
     "smoke:browser": "node scripts/smoke-browser.mjs",
     "smoke:browser:built": "node scripts/smoke-browser.mjs",
     "screens": "node scripts/capture-screens.mjs",
+    "promo": "node scripts/record-promo.mjs",
     "perf:check": "node scripts/check-perf.mjs",
     "launch:check": "node scripts/check-launch-safety.mjs",
     "verify": "node scripts/run-verify.mjs",

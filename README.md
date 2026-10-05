@@ -6,16 +6,20 @@
   <a href="https://github.com/zilet/cairn/stargazers"><img src="https://img.shields.io/github/stars/zilet/cairn?style=social" alt="Stars"></a>
 </p>
 
+
 # Cairn — a self-hosted wellness OS
 
-**A self-hosted health coach with a brain, not a dashboard.** Cairn reads your labs, lifting,
-running, food, sleep and life as one picture and suggests the one thing worth doing today. It runs
-on your own hardware, keeps your data in a SQLite file you own, and never scores or nags you.
+**A coach that has already read your whole day, and has one honest thing to say.**
+
+Cairn reads your lifting, running, food, sleep, labs and life as one picture. It opens to a calm
+read of today: rest, easy or train, with the reasons shown. A team of specialists works quietly
+behind it, makes the small calls, and gives you a one-tap Undo for each one. It runs on your own
+hardware, keeps everything in a SQLite file you own, and never scores you or nags you.
 
 <p align="center">
-  <img src="media/cairn-hero.gif" alt="Cairn — the Brief reads your day, a flagged lab propagates across domains, progress, and coach chat" width="300">
+  <img src="media/v2/cairn-hero.gif" alt="Cairn 2.0: the Brief reads the day, the team makes a change you can undo, and a meal typed in plain words comes back as an editable card" width="270">
   <br>
-  <sub>The Brief → the whole-picture analysis → the connected brain → progress → recipes → coach chat &middot; made with fictional demo data</sub>
+  <sub>The Brief → a team change with Undo → food in your words &middot; <a href="media/v2/cairn-v2-trailer.mp4">watch the full 2.0 trailer</a> &middot; fictional demo data only</sub>
 </p>
 
 <p align="center">
@@ -23,77 +27,158 @@ on your own hardware, keeps your data in a SQLite file you own, and never scores
 </p>
 
 > **Want to look before you install?** One click runs a real Cairn, preloaded with fictional demo
-> data, in your browser — nothing on your machine. More cloud options: [`docs/SANDBOX.md`](docs/SANDBOX.md).
+> data, in your browser. Nothing touches your machine. More cloud options: [`docs/SANDBOX.md`](docs/SANDBOX.md).
+
+## Cairn 2.0: from a read to a team
+
+Version 1 learned to **read** you. It turned years of lifts, a watch's worth of nights and a folder of
+bloodwork into one quiet sentence each morning.
+
+Version 2 is about **what happens next**. The read now has a team behind it, and the team acts:
+
+- A strength step you earned **lands on its own**. It comes with the reason and an Undo.
+- A race build is **sized to the weeks you actually ran**, not to a template.
+- A meal you typed in plain words **comes back as a card you can correct**.
+- A flagged lab **follows you into the doctor's office** in clinical order.
+
+The app also got simpler. Eight tabs became five homes: **Today, Train, Horizon, Ask and You.** It
+has a new design (Atelier v2), its own type, and a cairn of six stones that is the whole of you at
+a glance.
+
+The rules didn't change, and they never will. There are no scores and no streaks. Nothing is pushed
+at you. Every read is a suggestion; you drive. Anything clinical still waits for you to say yes.
+
+<table>
+<tr>
+<td width="50%" valign="top" align="center"><img src="media/v2/clips/brief.gif" alt="Today: the Brief" width="250"></td>
+<td width="50%" valign="top"><br><h3>It reads your day.</h3>
+Today opens on an answer, not a dashboard. <b>Rest, easy or train</b>, in one sentence, with the
+evidence a tap away. That evidence is last night's sleep, your HRV against <i>your own</i> band,
+the load you carried this week, and the knee you mentioned on Tuesday. When the answer is easy, it
+offers easy things that still count. When you want to train anyway, the button says so.
+<br><br><sub>A suggestion, never a gate. A missing night says nothing, never "bad".</sub></td>
+</tr>
+<tr>
+<td valign="top"><br><h3>The team decides. You can Undo.</h3>
+Strength, endurance, nutrition, physio and an informational health seat each watch their part of
+you. When the evidence is clear, a bounded change (the next load step, an eased calorie target)
+<b>just lands</b>, with its why written in plain words. Every change sits in one <b>Changes</b>
+feed, labelled by the server with exactly what Undo restores. Anything clinical, irreversible or
+goal-changing still asks first.
+<br><br><sub>Autonomy is server policy, not model discretion. Every decision is recorded with a falsifiable expectation.</sub></td>
+<td valign="top" align="center"><img src="media/v2/clips/changes.gif" alt="The Changes feed with Undo" width="250"></td>
+</tr>
+<tr>
+<td valign="top" align="center"><img src="media/v2/clips/fuel.gif" alt="Fuel: an editable meal card and ideas from your staples" width="250"></td>
+<td valign="top"><br><h3>Food, in your words.</h3>
+"Salmon rice bowl, about 140 g of fish." One composer, shared by Fuel and chat, turns a line per
+food (or a photo of the plate) into a meal card you can correct row by row. <b>Ideas</b> come from
+your own staples, one meal at a time, and nothing counts as eaten until you log it. A thin logging
+day reads as absent, never as "low".
+<br><br><sub>Adaptive nutrition that never blames you. <code>change: false</code> is the common answer.</sub></td>
+</tr>
+<tr>
+<td valign="top"><br><h3>A race build sized to you.</h3>
+Name a half marathon and Horizon draws the road to it week by week, from the run engine's own next
+steps. <b>The best week you've already run safely sets the floor, and the peak aims just past
+it.</b> A down week is recovery, not lost ground. A hard lifting day never voids a running week. The
+finish estimate is a fit word (<i>fits</i>, <i>stretch</i>, <i>beyond horizon</i>), never a grade.
+<br><br><sub>Kilometres or miles, your call. Strength-led athletes keep progressing all the way to race week.</sub></td>
+<td valign="top" align="center"><img src="media/v2/clips/race.gif" alt="The race build, week by week" width="250"></td>
+</tr>
+<tr>
+<td valign="top" align="center"><img src="media/v2/clips/cairn.gif" alt="You: the six-stone cairn" width="250"></td>
+<td valign="top"><br><h3>Six stones. One picture.</h3>
+<b>You</b> is a cairn: strength, endurance, fuel, recovery, body and heart, each with one word for
+where it stands right now. Tap a stone to see what it is made of and which of its neighbours it
+leans on. A ferritin that is still catching up quietly holds the running back. A heart stone
+"worth noting" points at the lab that says why.
+<br><br><sub>Words and your own baseline, never a 0–100.</sub></td>
+</tr>
+<tr>
+<td valign="top"><br><h3>Labs that travel.</h3>
+A flagged marker doesn't sit in a PDF. It <b>propagates</b> into the meals, the training and the
+watch, each with its why and a citation. Records are grouped in clinical order, with the lab's own
+flag kept apart from the optimal band. Before a visit, the <b>doctor packet</b> builds itself:
+findings, your questions, body composition, results by panel. Toggle sections, preview, hand it over.
+<br><br><sub>Informational, never medical advice. Anything clinical defers to a clinician.</sub></td>
+<td valign="top" align="center"><img src="media/v2/clips/records.gif" alt="Health and the doctor packet" width="250"></td>
+</tr>
+<tr>
+<td valign="top" align="center"><img src="media/v2/clips/horizon.gif" alt="Horizon: week, race and season on one line of time" width="250"></td>
+<td valign="top"><br><h3>One line of time.</h3>
+<b>Horizon</b> puts the week, the race and the season on the same line. The week shows every
+sport as a dose: the moved long run is still the long run, and Saturday's ride is the
+cross-training day. The season shows the goal line with its likely window, with lab draws and
+scans pinned where they happened.
+<br><br><sub>Every logged activity counts. No sport is ever dose zero.</sub></td>
+</tr>
+</table>
 
 ## What it is
 
-- **It reads your day.** Cairn opens to a calm **Brief** — rest, easy, or train, in plain language,
+- **It reads your day.** Today opens on a calm **Brief**: rest, easy or train, in plain language,
   with the reasoning shown. A suggestion, never a gate. You drive.
+- **A coaching team that acts, with Undo.** Strength, endurance, nutrition, physio and an
+  informational health seat each name the next step toward your milestones. Bounded, reversible
+  changes land on their own, with the why and one tap to put them back. The rest asks. A quiet
+  weekly team review waits until you want it.
 - **It connects your labs to your meals and your training.** A flagged marker propagates into
-  concrete nutrition, training and watch directives, each with its why and a citation.
-- **Adaptive nutrition that never blames you.** Expenditure is derived from your real weight trend;
-  a thin logging week lowers confidence instead of scolding. `change: false` is the common answer.
-- **Lifting and running plans that evolve.** Earned overloads, deloads where you stalled, a
-  conservative ramp and taper toward a race — adapting to the work you actually did.
+  concrete nutrition, training and watch directives, each with its why and a citation. A doctor
+  packet carries them to your next visit.
+- **Adaptive nutrition that never blames you.** Expenditure comes from your real weight trend. A
+  thin logging week lowers confidence instead of scolding.
+- **Lifting and running plans that evolve.** Earned overloads, deloads only when the log calls for
+  them, and a race build that starts from what you've already run safely. It adapts to the work you
+  actually did, in every sport you log.
 - **It reads you against your own normal.** Recovery is judged against your own habitual load and
-  your own wearable baselines, and a reading only speaks for the night it came from — a hybrid
-  athlete's running is not mistaken for permanent fatigue, and a missing night says nothing.
-- **A coaching team, not a single voice.** Strength, endurance, nutrition, physio and an
-  informational health seat each name the next step toward your milestones, reconciled by the
-  priority order you set, in a quiet weekly team review you read when you want it.
+  your own wearable baselines. A reading only speaks for the night it came from, so a hybrid
+  athlete's running is never mistaken for permanent fatigue.
 - **Conditions you live with shape the plan, never gate it.** Tell it about a painless structural
   condition (a spinal curve, a stiff ankle) and plans stay balanced and whole, with optional
-  supportive work — informational, and a physiotherapist can tailor it.
-- **Your lifts show up on your watch.** Garmin sync is two-way: sleep, HRV and activities come in,
-  and a finished strength session goes back out as that day's exercise sets — written onto the
-  watch's own recording when there is one, in Garmin's own exercise vocabulary. Your whole history
-  can follow, one reviewed batch at a time.
-- **Agent-native.** A full MCP server ships alongside the PWA, so any MCP client can read and write
-  everything Cairn knows.
+  supportive work.
+- **Your lifts show up on your watch.** Garmin sync is two-way. Sleep, HRV and activities come in.
+  A finished strength session goes back out as that day's exercise sets, in Garmin's own exercise
+  vocabulary.
+- **Agent-native.** A full MCP server (300+ tools) ships alongside the PWA, so any MCP client can
+  read and write everything Cairn knows. "What if I move the long run to Saturday?" shows the ripple
+  across every stone before anything moves.
 
 One Node service serves the PWA (`/`), the REST API (`/api/*`), the MCP server (`/mcp`), and a
-background scheduler; storage is SQLite via Node's built-in `node:sqlite`. The north-star is
+background scheduler. Storage is SQLite via Node's built-in `node:sqlite`. The north star is
 [`docs/VISION.md`](docs/VISION.md): calm, suggestion-never-gate, no scores, pull-never-push.
 
 ## Screens
 
 <table>
 <tr>
-<td width="33%" valign="top"><img src="media/screens/01-brief-viewport.png" alt="The Brief"><br><sub><b>The Brief.</b> Opens already having read your recovery and load — a calm rest/easy/train <i>suggestion</i> with one-tap overrides. Never a gate.</sub></td>
-<td width="33%" valign="top"><img src="media/screens/15-analysis.png" alt="Whole-picture health analysis"><br><sub><b>The analysis.</b> The agentic brain's whole-picture read — what's going well, this week's focus with concrete actions, and what's out of order.</sub></td>
-<td width="33%" valign="top"><img src="media/screens/04-brain-directives.png" alt="Cross-domain directives"><br><sub><b>Propagation.</b> A flagged lab becomes concrete nutrition / training / watch directives — each with its plain-language why and a citation.</sub></td>
+<td width="25%" valign="top"><img src="media/v2/screens/today.png" alt="Today"><br><sub><b>Today.</b> The Brief as the page's voice, your path to the race, today's lift and fuel at a glance.</sub></td>
+<td width="25%" valign="top"><img src="media/v2/screens/session.png" alt="Session"><br><sub><b>Session.</b> Compact cards, with a dawn ring on the lift you're on.</sub></td>
+<td width="25%" valign="top"><img src="media/v2/screens/changes.png" alt="Changes"><br><sub><b>Changes.</b> What the team changed, why, and exactly what Undo restores.</sub></td>
+<td width="25%" valign="top"><img src="media/v2/screens/whatif.png" alt="What if"><br><sub><b>Ask: what if.</b> The ripple across every stone first. Nothing moves unless you say so.</sub></td>
 </tr>
 <tr>
-<td valign="top"><img src="media/screens/03-brain.png" alt="The connected brain"><br><sub><b>The connected brain.</b> Recovery in plain language (no scores) and the markers worth watching, framed against the <i>optimal</i> range.</sub></td>
-<td valign="top"><img src="media/screens/06-marker-chart.png" alt="Optimal-zone marker trend"><br><sub><b>Optimal-zone trends.</b> Each marker plotted against the longevity band — not just the lab's reference range — with the trend in words.</sub></td>
-<td valign="top"><img src="media/screens/16-exercise-detail.png" alt="Exercise detail"><br><sub><b>Every exercise, illustrated.</b> Tap any lift for its est-1RM trend, form cues and history — with a generated studio illustration.</sub></td>
+<td valign="top"><img src="media/v2/screens/horizon.png" alt="Horizon"><br><sub><b>Horizon.</b> The race build as terrain: logged weeks, planned weeks, the long run.</sub></td>
+<td valign="top"><img src="media/v2/screens/race.png" alt="Race"><br><sub><b>Race.</b> This week's shape, next week's runs, the ladder to race day.</sub></td>
+<td valign="top"><img src="media/v2/screens/you.png" alt="You"><br><sub><b>You.</b> Six parts of you, read together.</sub></td>
+<td valign="top"><img src="media/v2/screens/heart.png" alt="Stone detail"><br><sub><b>A stone, opened.</b> What it's made of and the neighbours it leans on.</sub></td>
 </tr>
 <tr>
-<td valign="top"><img src="media/screens/18-cairn-session-card.png" alt="A logged session in Cairn"><br><sub><b>Logged in Cairn…</b> A session as you logged it on your phone — sets, loads, a timed hold — no watch involved.</sub></td>
-<td valign="top"><img src="media/screens/19-garmin-activity.png" alt="The same session on Garmin"><br><sub><b>…lands on Garmin.</b> The same workout appears in Garmin Connect as that day's strength activity, muscle map and all.</sub></td>
-<td valign="top"><img src="media/screens/20-garmin-sets.png" alt="Exercise sets in Garmin's own vocabulary"><br><sub><b>In the watch's own words.</b> Every set written in Garmin's exercise vocabulary — reps, loads, order — so your history reads natively there too.</sub></td>
+<td valign="top"><img src="media/v2/screens/health.png" alt="Health"><br><sub><b>Health.</b> Where you stand, and what each finding connects to.</sub></td>
+<td valign="top"><img src="media/v2/screens/packet.png" alt="Doctor packet"><br><sub><b>Doctor packet.</b> Clinical order, your questions, ready to hand over.</sub></td>
+<td valign="top"><img src="media/v2/screens/train.png" alt="Train"><br><sub><b>Train.</b> Today's lift leads, then a voice instead of a stat wall.</sub></td>
+<td valign="top"><img src="media/v2/screens/today-dark.png" alt="Today in dark"><br><sub><b>And at night.</b> Every surface, in a dark theme built for it.</sub></td>
 </tr>
 <tr>
-<td valign="top"><img src="media/screens/07-progress-1rm.png" alt="Strength progress"><br><sub><b>Strength.</b> Est-1RM trend per lift, plus history, volume-by-muscle and a calendar heatmap.</sub></td>
-<td valign="top"><img src="media/screens/08-energy-balance.png" alt="Adaptive nutrition"><br><sub><b>Adaptive nutrition.</b> Expenditure derived from your weight trend — lean-safe, adherence-neutral, never blamey.</sub></td>
-<td valign="top"><img src="media/screens/10-meals.png" alt="Goal-aware meal plan"><br><sub><b>Goal-aware meals.</b> Protein-anchored weekly plans, shaped by the same flagged labs (oily fish &amp; soluble fiber for ApoB, iron on long-run days).</sub></td>
-</tr>
-<tr>
-<td valign="top"><img src="media/screens/17-recipe.png" alt="Recipe detail"><br><sub><b>Recipe on tap.</b> Any planned meal expands into a full recipe — ingredients, steps and tips — written for that exact dish.</sub></td>
-<td valign="top"><img src="media/screens/11-chat.png" alt="Coach chat"><br><sub><b>Coach chat.</b> Logs safe things instantly, learns from your direction, and routes plan changes through accountable autonomy.</sub></td>
-<td valign="top"><img src="media/screens/13-life.png" alt="Life timeline"><br><sub><b>Life &amp; family.</b> Trips, injuries and the people you plan around — the coach eases off accordingly.</sub></td>
+<td valign="top"><img src="media/screens/18-cairn-session-card.png" alt="A logged session in Cairn"><br><sub><b>Logged in Cairn…</b> A session as you logged it on your phone: sets, loads, a timed hold.</sub></td>
+<td valign="top"><img src="media/screens/19-garmin-activity.png" alt="The same session on Garmin"><br><sub><b>…lands on Garmin.</b> The same workout, as that day's strength activity, muscle map and all.</sub></td>
+<td valign="top"><img src="media/screens/20-garmin-sets.png" alt="Exercise sets in Garmin's own vocabulary"><br><sub><b>In the watch's own words.</b> Every set in Garmin's exercise vocabulary.</sub></td>
+<td valign="top"><img src="media/v2/social-preview.png" alt="Cairn 2.0"><br><sub><b>Cairn 2.0.</b> Self-hosted. MIT. Runs happily on a Raspberry Pi.</sub></td>
 </tr>
 </table>
 
-<p align="center">
-  <img src="media/today.gif" alt="Scrolling the Brief and the day's capture" width="270">
-  &nbsp;&nbsp;
-  <img src="media/brain.gif" alt="Scrolling the connected brain — recovery, markers, directives" width="270">
-  <br>
-  <sub>The Brief (left) and the connected brain (right), top to bottom.</sub>
-</p>
+<sub>Every screenshot and clip uses a <b>fictional</b> demo persona, never real health data. Populate the same demo yourself with <code>npm&nbsp;run&nbsp;seed:demo</code>, and re-record every clip with <code>npm&nbsp;run&nbsp;promo</code>.</sub>
 
-<sub>Every screenshot uses a <b>fictional</b> demo persona — no real health data. Populate the same demo yourself with <code>npm&nbsp;run&nbsp;seed:demo</code>.</sub>
 
 ## Quickstart (30 seconds)
 
@@ -125,7 +210,7 @@ local Node, starts Cairn, waits for health, and prints the URL. **Node 24+ is re
 non-container run — that's where `node:sqlite` is unflagged. The container image bundles it.
 
 **First paint is real**, no agent required. For chat, adaptive coaching, and meal plans, add **one**
-agent: open **Settings → Agents**, tap **Install** on the provider you use, then **Connect**. A
+agent: open **You → Agents**, tap **Install** on the provider you use, then **Connect**. A
 terminal opens in the browser and walks you through that provider's sign-in — no `docker exec`
 needed. An agent you haven't connected stays out of the rotation rather than failing requests. Full
 detail, including terminal logins and the Grok API-key path:
@@ -187,7 +272,7 @@ Point Claude Code at it with one command:
 claude mcp add --transport http cairn http://localhost:8787/mcp
 ```
 
-**260+ MCP tools** span the plan, sessions and exercises, the accountable coaching loop, profile and
+**300+ MCP tools** span the plan, sessions and exercises, the accountable coaching loop, profile and
 goal, activities and bodyweight, memory, meal plans and recipes, health records and markers, the
 connected-brain directives and insights, recovery, chat, Garmin sync, and settings. A representative
 slice: `get_plan`, `log_set`, `get_day_read`, `suggest_session`, `draft_plan_update`,
@@ -219,7 +304,8 @@ next — and a finished strength session goes back out onto the watch as that da
 **ChatGPT and a spreadsheet?** The closest comparison, and genuinely capable. Cairn is what happens
 when you make that loop durable: every coaching call is already grounded in your profile, plan,
 sessions, labs and memory, a flagged lab *propagates* into directives still there next week, and
-nothing changes your plan without propose → review → apply. *ChatGPT wins* for a one-off question
+nothing changes your plan outside server-owned policy: a bounded change lands with its why and an
+Undo, and anything clinical still asks. *ChatGPT wins* for a one-off question
 with zero setup.
 
 **Another self-hosted tracker?** Most are excellent ledgers — they record what you did, well. Cairn

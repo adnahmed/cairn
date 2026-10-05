@@ -221,6 +221,60 @@ backup (see Backups below) rather than trying to reverse the migration.
 
 ---
 
+## Upgrading from v1.x to v2.0.0
+
+v2 is an in-place upgrade of the same app, image and data volumes. There is nothing to export or
+re-enter, but take a backup first, because migrations are forward-only.
+
+1. **Back up.** Follow [Backups & restore](#backups--restore): a `VACUUM INTO` snapshot is the
+   cleanest restore source, and the volume-level backup also keeps CLI logins. Note the image tag
+   you are running now (for example `ghcr.io/zilet/cairn:v1.9.1`) so you can go back to it.
+2. **Update the image** as in [The Update / Deploy Flow](#the-update--deploy-flow), pinned to
+   `ghcr.io/zilet/cairn:v2.0.0` (or `:latest`).
+3. **Migrations run on their own** at boot (`runMigrations()`); there is no step to run by hand.
+   v1.9.1 shipped through schema v113, and v2.0.0 adds six, all small:
+
+   | Version | Name | Effect |
+   |---|---|---|
+   | 114 | `settings-meal-plan-auto-draft` | Adds `settings.meal_plan_auto_draft`, default off. |
+   | 115 | `bodyweight-exact-double-submits` | Data repair: folds identical same-day weigh-ins entered within ten minutes. |
+   | 116 | `food-note-person-edit-lock` | Adds `food_notes.person_edited_at`, so a person's edit is never overwritten by a late enrichment pass. |
+   | 117 | `garmin-run-structure` | Adds run-structure columns to `garmin_activities` and fills them from data already stored. |
+   | 118 | `garmin-laps-relabel` | Data repair: clears stored laps so the next Garmin sync refetches them correctly labelled. |
+   | 119 | `exercise-input-profile` | Adds `exercises.input_profile` and `exercises.per_side`; existing exercises keep their derived behaviour. |
+
+   Confirm in the logs (`docker compose logs cairn`) or with `npm run migrate`. There are no
+   down-migrations.
+
+**What changes for the person using it**
+
+- **Navigation is five homes:** Today, Train, Horizon, Ask and You. Session, Fuel and any other
+  day open from Today; the plan editor is Train's; the race view and goal line are Horizon's;
+  Changes is in Ask. Every v1 link still works: `/app/<tab>/<section>` URLs are recognised and
+  rewritten in place to their v2 form (for example `/app/plan/food` becomes `/app/today/fuel`,
+  `/app/progress/weight` becomes `/app/train/weight`, `/app/plan/coach` becomes `/app/ask/changes`).
+  The table is `src/contracts/client-routes.ts` and is pinned by `test/routeState.test.js`.
+- **Meal-plan auto-drafts are off.** Cairn no longer drafts a weekly meal plan on its own; ideas
+  arrive when asked for. To get the old behaviour back, turn on the automatic meal-plan drafts
+  setting (`meal_plan_auto_draft`).
+- **The team now decides and announces** kinds of change that used to wait for approval, with
+  Undo in the Changes feed. Clinical, locked and irreversible changes still ask. Anything that was
+  waiting at the upgrade is re-checked against the current plan first, never applied blindly.
+
+**Installed apps update in place.** The manifest `id`, `scope` and `start_url`, and the browser
+storage keys (including the token and any unsent outbox), are unchanged, so a phone with Cairn
+installed picks up v2 on its next open and keeps everything. Chrome and Android also refresh the
+new icon and name. An iOS home-screen app keeps the icon and name it was added with; re-adding it
+refreshes them but starts with empty storage, so a standalone iOS install shows one optional
+note about this. Use **Settings → Data → Copy token** before re-adding, then paste the token
+back in. See [Did the installed app pick it up?](#did-the-installed-app-pick-it-up) to verify.
+
+**Rollback.** Stop the service, restore the pre-upgrade backup into the data volume
+([Restore](#restore)), and start the previous image tag you noted in step 1. Do not run the old
+image against a database that v2 has already migrated: the schema is ahead of what v1 expects.
+
+---
+
 ## How migrations work
 
 `src/migrate.ts` is the **runner**, not the ladder. It exports:
